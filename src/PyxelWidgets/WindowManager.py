@@ -73,10 +73,8 @@ class WindowManager():
            x < entry['x'] + entry['width'] and \
            y >= entry['y'] and \
            y < entry['y'] + entry['height']:
-            print(entry, x, y, True)
             return True
         else:
-            print(entry, x, y, False)
             return False
 
     def process(self, cx, cy, x, y, value):
@@ -89,7 +87,9 @@ class WindowManager():
             window = self._renderer[name]
             x = window['x']
             y = window['y']
+            wx = window['object'].x
+            wy = window['object'].y
             width = window['width']
             height = window['height']
             for controller in self._controllers:
-                controller['object'].updateAreaByArea(controller['x'], controller['y'], x, y, width, height, pixels)
+                controller['object'].updateAreaByArea(controller['x'] + wx, controller['y'] + wy, x, y, width, height, pixels)
