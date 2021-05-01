@@ -92,4 +92,4 @@ class WindowManager():
             width = window['width']
             height = window['height']
             for controller in self._controllers:
-                controller['controller'].updateAreaByArea(x + controller['x'], y + controller['y'], x - controller['x'], y - controller['y'], width, height, pixels)
+                controller['object'].updateAreaByArea(controller['x'], controller['y'], x, y, width, height, pixels)
