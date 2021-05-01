@@ -79,7 +79,7 @@ class WindowManager():
 
     def process(self, cx, cy, x, y, value):
         for window in self._renderer.values():
-            if self.isCollide(x, y, window):
+            if self.isCollide(cx + x, cy + y, window):
                 window['object'].setButton(x + cx - window['x'], y + cy - window['y'], value)
 
     def update(self, name, pixels):
