@@ -1,0 +1,80 @@
+from .Widget import Widget
+from enum import Enum
+
+class XYDirection(Enum):
+    Vertical = 0
+    Horizontal = 1
+
+class XY(Widget):
+    def __init__(self, name: str, x: int, y: int, width: int, height: int, **kwargs):
+        super().__init__(name, x, y, width, height, **kwargs)
+        self._value = [0.0, 0.0]
+        self._xColor = kwargs.get('xColor', [0, 255, 255])
+        self._yColor = kwargs.get('yColor', [255, 0, 255])
+        self._heldButton = [-1, -1]
+    
+    def pressed(self, x: int, y: int, value: float):
+        if self._heldButton[0] >= 0 and self._heldButton[1] >= 0:
+            self.value = self._calcXYValueWithMagnitude(self._heldButton[0], self._heldButton[1], x, y)
+        else:
+            self.value = self._calcXYValue(x, y, value)
+    
+    def held(self, x: int, y: int):
+        if self._heldButton[0] == -1 and self._heldButton[1] == -1:
+            self._heldButton = [x, y]
+            self.value = self._calcXYValueWithMagnitude(x, y, x, y)
+    
+    def released(self, x: int, y: int):
+        if self._heldButton[0] == x and self._heldButton[1] == y:
+            self._heldButton = [-1, -1]
+
+    def update(self):
+        if self._oldValue != self.value:
+            self._oldValue = self.value
+            for x in range(self.width):
+                for y in range(self.height):
+                    min = self._calcXYValue(x, y, 0.0)
+                    max = self._calcXYValue(x, y, 1.0)
+                    # junction point
+                    # if current padx is last pressed pad and current pady is last pressed pad
+                    if min[0] < self.value[0] and max[0] >= self.value[0] and min[1] < self.value[1] and max[1] >= self.value[1]:
+                        coefficientX = (self.value[0] - min[0]) * self.width
+                        coefficientY = (self.value[1] - min[1]) * self.height
+                        r = ((self._xColor[0] * coefficientX) + (self._yColor[0] * coefficientY)) / 2
+                        g = ((self._xColor[1] * coefficientX) + (self._yColor[1] * coefficientY)) / 2
+                        b = ((self._xColor[2] * coefficientX) + (self._yColor[2] * coefficientY)) / 2
+                        self._pixels[x][y] = [int(r), int(g), int(b)]
+                    # x axis
+                    # if current padx is in same column of last pressed pad
+                    elif min[0] < self.value[0] and max[0] >= self.value[0]:
+                        self._pixels[x][y] = [int(self._xColor[0] * self.value[0]), int(self._xColor[1] * self.value[0]), int(self._xColor[2] * self.value[0])]
+                    # y axis
+                    # if current pady is in same row of last pressed pad
+                    elif min[1] < self.value[1] and max[1] >= self.value[1]:
+                        self._pixels[x][y] = [int(self._yColor[0] * self.value[1]), int(self._yColor[1] * self.value[1]), int(self._yColor[2] * self.value[1])]
+                    # unlit every other pad
+                    else:
+                        self._pixels[x][y] = self._deactiveColor
+            return self._pixels
+        return []
+
+    def _calcXValue(self, x: int, value: float) -> float:
+        return round(((x / self.width) + (value / self.width)), 6)
+    
+    def _calcYValue(self, y: int, value: float) -> float:
+        return round(((y / self.height) + (value / self.height)), 6)
+
+    def _calcXYValue(self, x: int, y: int, value: float):
+        return [self._calcXValue(x, value), self._calcYValue(y, value)]
+    
+    def _calcXMagnitude(self, x: int) -> float:
+        return self._calcXValue(x, (x + 1) / self.width)
+    
+    def _calcYMagnitude(self, y: int) -> float:
+        return self._calcYValue(y, (y + 1) / self.height)
+
+    def _calcXYMagnitude(self, x: int, y: int):
+        return [self._calcXMagnitude(x), self._calcYMagnitude(y)]
+    
+    def _calcXYValueWithMagnitude(self, valX: int, valY: int, magX: int, magY: int):
+        return [self._calcXValue(valX, self._calcXMagnitude(magX)), self._calcYValue(valY, self._calcYMagnitude(magY))]
