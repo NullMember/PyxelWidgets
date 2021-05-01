@@ -10,7 +10,7 @@ class Window():
         self._heldTime = kwargs.get('heldTime', 1.0)
         self._frameTarget = kwargs.get('frameTarget', 60)
         self._run = False
-        self._pixels = [[[0, 0, 0] for y in range(self.height * 2)] for x in range(self.width * 2)]
+        self._pixels = [[[0, 0, 0] for y in range(self.height)] for x in range(self.width)]
         self._buttons = [[0.0 for y in range(self.height)] for x in range(self.width)]
         self._states = [[False for y in range(self.height)] for x in range(self.width)]
         self._pressed = [[False for y in range(self.height)] for x in range(self.width)]
