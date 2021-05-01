@@ -21,13 +21,13 @@ class WindowManager():
         return list(self._windows.values())
 
     def addController(self, controller, x: int, y: int, width: int, height: int):
-        self._controllers.append({'controller': controller, 'x': x, 'y': y, 'width': width, 'height': height})
+        self._controllers.append({'object': controller, 'x': x, 'y': y, 'width': width, 'height': height})
         controller.init()
         controller.setCallback(lambda _x, _y, _value: self.process(x, y, _x, _y, _value))
     
     def removeControllers(self):
         for controller in self._controllers:
-            controller['controller'].deinit()
+            controller['object'].deinit()
         self._controllers.clear()
 
     def addWidget(self, window: str, widget):
@@ -44,23 +44,23 @@ class WindowManager():
     
     def addWindowToRenderer(self, window: str, x: int, y: int, width: int, height: int):
         if window in self._windows.keys():
-            self._renderer[window] = {'window': self._windows[window], 'x': x, 'y': y, 'width': width, 'height': height}
-            self._renderer[window]['window'].setCallback(lambda pixels: self.update(window, pixels))
-            self._renderer[window]['window'].run()
+            self._renderer[window] = {'object': self._windows[window], 'x': x, 'y': y, 'width': width, 'height': height}
+            self._renderer[window]['object'].setCallback(lambda pixels: self.update(window, pixels))
+            self._renderer[window]['object'].run()
     
     def removeWindowFromRenderer(self, window: str):
         if window in self._renderer.keys():
-            self._renderer[window]['window'].stop()
-            self._renderer[window]['window'].setCallback(lambda *_, **__: None)
+            self._renderer[window]['object'].stop()
+            self._renderer[window]['object'].setCallback(lambda *_, **__: None)
             self._renderer.pop(window)
     
     def runAll(self):
         for window in self._renderer.values():
-            window['window'].run()
+            window['object'].run()
     
     def stopAll(self):
         for window in self._renderer.values():
-            window['window'].stop()
+            window['object'].stop()
 
     def getRenderWindows(self):
         return list(self._renderer.values())
@@ -82,7 +82,7 @@ class WindowManager():
     def process(self, cx, cy, x, y, value):
         for window in self._renderer.values():
             if self.isCollide(x, y, window):
-                window['window'].setButton(x + cx - window['x'], y + cy - window['y'], value)
+                window['object'].setButton(x + cx - window['x'], y + cy - window['y'], value)
 
     def update(self, name, pixels):
         if name in self._renderer.keys():
