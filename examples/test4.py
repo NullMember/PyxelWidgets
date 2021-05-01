@@ -15,11 +15,11 @@ def cb(name, value):
             name, x, y = name.split(',')
             manager.removeWindowFromRenderer(currentWindow)
             currentWindow = 'window' + x
-            manager.addWindowToRenderer(currentWindow, 1, 1, 8, 8)
+            manager.addWindowToRenderer(currentWindow, 0, 1, 19, 8)
     elif 'page' in name:
         name, x, y = name.split(',')
         if value > 0:
-            manager.getWindow(currentWindow).x = (int(y) * 8)
+            manager.getWindow(currentWindow).x = (int(y) * 19)
     elif 'faders' in name:
         print(name, value)
         channel = int(name[6])
