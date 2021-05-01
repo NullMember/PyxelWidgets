@@ -125,7 +125,7 @@ class MK3(Launchpad):
                         self._pixels[x][y] = pixels[x]
                         self._buffer.write(self.generateRGB(x, y, self._pixels[x][y]))
                 except:
-                    pass
+                    break
             if self._buffer.readable:
                 self.sendSysex(self._header + [3] + self._buffer.read())
     
@@ -139,7 +139,7 @@ class MK3(Launchpad):
                         self._pixels[x][y] = pixels[y]
                         self._buffer.write(self.generateRGB(x, y, self._pixels[x][y]))
                 except:
-                    pass
+                    break
             if self._buffer.readable:
                 self.sendSysex(self._header + [3] + self._buffer.read())
 
@@ -154,7 +154,7 @@ class MK3(Launchpad):
                             self._pixels[x + _x][y + _y] = pixels[_x][_y]
                             self._buffer.write(self.generateRGB(x + _x, y + _y, self._pixels[x + _x][y + _y]))
                     except:
-                        pass
+                        break
             if self._buffer.readable:
                 self.sendSysex(self._header + [3] + self._buffer.read())
 
@@ -169,7 +169,7 @@ class MK3(Launchpad):
                             self._pixels[x + dx][y + dy] = pixels[x + sx][y + sy]
                             self._buffer.write(self.generateRGB(x + dx, y + dy, self._pixels[x + dx][y + dy]))
                     except:
-                        pass
+                        break
             if self._buffer.readable:
                 self.sendSysex(self._header + [3] + self._buffer.read())
 
@@ -184,6 +184,6 @@ class MK3(Launchpad):
                             self._pixels[x][y] = pixels[x][y]
                             self._buffer.write(self.generateRGB(x, y, self._pixels[x][y]))
                     except:
-                        pass
+                        break
             if self._buffer.readable:
                 self.sendSysex(self._header + [3] + self._buffer.read())

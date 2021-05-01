@@ -63,7 +63,7 @@ class OSC(Controller):
                         intensity = (self._pixels[x][y][0] + self._pixels[x][y][1] + self._pixels[x][y][2]) / (255 * 3)
                         self._client.send_message('/led/' + str(x) + '/' + str(y), intensity)
                 except:
-                    pass
+                    break
     
     def updateColumn(self, x, pixels):
         if self._connected:
@@ -76,7 +76,7 @@ class OSC(Controller):
                         intensity = (self._pixels[x][y][0] + self._pixels[x][y][1] + self._pixels[x][y][2]) / (255 * 3)
                         self._client.send_message('/led/' + str(x) + '/' + str(y), intensity)
                 except:
-                    pass
+                    break
     
     def updateArea(self, x, y, width, height, pixels):
         if self._connected:
@@ -90,7 +90,7 @@ class OSC(Controller):
                             intensity = (self._pixels[x + _x][y + _y][0] + self._pixels[x + _x][y + _y][1] + self._pixels[x + _x][y + _y][2]) / (255 * 3)
                             self._client.send_message('/led/' + str(_x) + '/' + str(_y), intensity)
                     except:
-                        pass
+                        break
     
     def update(self, pixels):
         if self._connected:
@@ -104,5 +104,5 @@ class OSC(Controller):
                             intensity = (self._pixels[x][y][0] + self._pixels[x][y][1] + self._pixels[x][y][2]) / (255 * 3)
                             self._client.send_message('/led/' + str(x) + '/' + str(y), intensity)
                     except:
-                        pass
+                        break
     
