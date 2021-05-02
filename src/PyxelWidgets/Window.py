@@ -16,6 +16,8 @@ class Window():
         self._pressed = [[False for y in range(self.height)] for x in range(self.width)]
         self._released = [[False for y in range(self.height)] for x in range(self.width)]
         self._held = [[False for y in range(self.height)] for x in range(self.width)]
+        self._pressedTime = [[0 for y in range(self.height)] for x in range(self.width)]
+        self._oldState = [[False for y in range(self.height)] for x in range(self.width)]
         self._x = 0
         self._y = 0
         self._forceUpdate = False
@@ -59,11 +61,16 @@ class Window():
 
     def run(self):
         self._run = True
-        self._updateRunner = Thread(None, self.update)
+        self._updateRunner = Thread(None, self.runner)
         self._updateRunner.start()
     
     def stop(self):
         self._run = False
+    
+    def runner(self):
+        while self._run:
+            self.update()
+            time.sleep(1.0 / self._frameTarget)
 
     def setCallback(self, callback):
         self._callback = callback
@@ -197,50 +204,38 @@ class Window():
         self.resetPixels()
 
     def update(self):
-        pressedTime = [[0 for y in range(self.height)] for x in range(self.width)]
-        oldState = [[False for y in range(self.height)] for x in range(self.width)]
-        while self._run:
-            currentTime = time.time()
-            for y in range(self.height):
-                for x in range(self.width):
-                    # Update held state
-                    if self._states[x][y] != oldState[x][y]:
-                        if self._states[x][y]:
-                            pressedTime[x][y] = currentTime
-                            oldState[x][y] = self._states[x][y]
-                        else:
-                            pressedTime[x][y] = 0
-                            oldState[x][y] = self._states[x][y]
-                    if pressedTime[x][y] > 0:
-                        if currentTime >= pressedTime[x][y] + self._heldTime:
-                            self.setHeld(x, y)
-                            pressedTime[x][y] = 0
-                    # Button was pressed
-                    if self.getPressed(x, y):
-                        for widget in self._widgets.values():
-                            if self.is_collide(x, y, widget):
-                                widget.pressed(x - widget.x + self.x, y - widget.y + self.y, self._buttons[x][y])
-                    # Button was released
-                    if self.getReleased(x, y):
-                        for widget in self._widgets.values():
-                            if self.is_collide(x, y, widget):
-                                widget.released(x - widget.x + self.x, y - widget.y + self.y)
-                    # Button was held
-                    if self.getHeld(x, y):
-                        for widget in self._widgets.values():
-                            if self.is_collide(x, y, widget):
-                                widget.held(x - widget.x + self.x, y - widget.y + self.y)
-            # Update pixels from updated widgets
-            for widget in self._widgets.values():
-                pixels = widget.update()
-                if pixels != []:
-                    self._callback(widget.x, widget.y, widget.width, widget.height, pixels)
-                    # self.setPixels(widget.x, widget.y, widget.width, widget.height, pixels)
-            # Send pixels to controller
-            # self._callback([[self._pixels\
-            #                [x + self.x]\
-            #                [y + self.y]\
-            #                for y in range(self.height)]\
-            #                for x in range(self.width)])
-            # self._callback(self._pixels)
-            time.sleep(1.0 / self._frameTarget)
+        currentTime = time.time()
+        for y in range(self.height):
+            for x in range(self.width):
+                # Update held state
+                if self._states[x][y] != self._oldState[x][y]:
+                    if self._states[x][y]:
+                        self._pressedTime[x][y] = currentTime
+                        self._oldState[x][y] = self._states[x][y]
+                    else:
+                        self._pressedTime[x][y] = 0
+                        self._oldState[x][y] = self._states[x][y]
+                if self._pressedTime[x][y] > 0:
+                    if currentTime >= self._pressedTime[x][y] + self._heldTime:
+                        self.setHeld(x, y)
+                        self._pressedTime[x][y] = 0
+                # Button was pressed
+                if self.getPressed(x, y):
+                    for widget in self._widgets.values():
+                        if self.is_collide(x, y, widget):
+                            widget.pressed(x - widget.x + self.x, y - widget.y + self.y, self._buttons[x][y])
+                # Button was released
+                if self.getReleased(x, y):
+                    for widget in self._widgets.values():
+                        if self.is_collide(x, y, widget):
+                            widget.released(x - widget.x + self.x, y - widget.y + self.y)
+                # Button was held
+                if self.getHeld(x, y):
+                    for widget in self._widgets.values():
+                        if self.is_collide(x, y, widget):
+                            widget.held(x - widget.x + self.x, y - widget.y + self.y)
+        # Update controller from updated widgets
+        for widget in self._widgets.values():
+            pixels = widget.update()
+            if pixels != []:
+                self._callback(widget.x, widget.y, widget.width, widget.height, pixels)
