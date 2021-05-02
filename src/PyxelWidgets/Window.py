@@ -211,4 +211,4 @@ class Window():
         for widget in self._widgets.values():
             pixels = widget.update()
             if pixels != []:
-                self._callback(widget.x, widget.y, widget.width, widget.height, pixels)
+                self._callback(widget.x + self.x, widget.y + self.y, widget.width, widget.height, pixels)
