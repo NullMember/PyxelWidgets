@@ -163,7 +163,7 @@ class Window():
         for widget in self._widgets.values():
             widget.setCallback(callback)
 
-    def is_collide(self, x: int, y: int, widget):
+    def isCollide(self, x: int, y: int, widget):
         if x + self.x >= widget.x and \
            x + self.x < widget.x + widget.width and \
            y + self.y >= widget.y and \
@@ -195,17 +195,17 @@ class Window():
                 # Button was pressed
                 if self.getPressed(x, y):
                     for widget in self._widgets.values():
-                        if self.is_collide(x, y, widget):
+                        if self.isCollide(x, y, widget):
                             widget.pressed(x - widget.x + self.x, y - widget.y + self.y, self._buttons[x][y])
                 # Button was released
                 if self.getReleased(x, y):
                     for widget in self._widgets.values():
-                        if self.is_collide(x, y, widget):
+                        if self.isCollide(x, y, widget):
                             widget.released(x - widget.x + self.x, y - widget.y + self.y)
                 # Button was held
                 if self.getHeld(x, y):
                     for widget in self._widgets.values():
-                        if self.is_collide(x, y, widget):
+                        if self.isCollide(x, y, widget):
                             widget.held(x - widget.x + self.x, y - widget.y + self.y)
         # Update controller from updated widgets
         for widget in self._widgets.values():
