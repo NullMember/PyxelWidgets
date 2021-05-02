@@ -234,12 +234,13 @@ class Window():
             for widget in self._widgets.values():
                 pixels = widget.update()
                 if pixels != []:
-                    self.setPixels(widget.x, widget.y, widget.width, widget.height, pixels)
+                    self._callback(widget.x, widget.y, widget.width, widget.height, pixels)
+                    # self.setPixels(widget.x, widget.y, widget.width, widget.height, pixels)
             # Send pixels to controller
             # self._callback([[self._pixels\
             #                [x + self.x]\
             #                [y + self.y]\
             #                for y in range(self.height)]\
             #                for x in range(self.width)])
-            self._callback(self._pixels)
+            # self._callback(self._pixels)
             time.sleep(1.0 / self._frameTarget)
