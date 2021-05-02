@@ -10,7 +10,6 @@ class Window():
         self._heldTime = kwargs.get('heldTime', 1.0)
         self._frameTarget = kwargs.get('frameTarget', 60)
         self._run = False
-        self._pixels = [[[0, 0, 0] for y in range(self.height)] for x in range(self.width)]
         self._buttons = [[0.0 for y in range(self.height)] for x in range(self.width)]
         self._states = [[False for y in range(self.height)] for x in range(self.width)]
         self._pressed = [[False for y in range(self.height)] for x in range(self.width)]
@@ -74,31 +73,6 @@ class Window():
 
     def setCallback(self, callback):
         self._callback = callback
-
-    def getPixel(self, x: int, y: int) -> list:
-        return self._pixels[x][y]
-
-    def setPixel(self, x: int, y: int, color: list) -> None:
-        self._pixels[x][y] = color
-        return
-    
-    def getPixels(self, x: int, y: int, width: int, height: int) -> list:
-        result = self._pixels[x:x+width]
-        for _x in range(len(result)):
-            result[_x] = result[_x][y:y+height]
-        return result
-    
-    def setPixels(self, x: int, y: int, width: int, height: int, colors: list) -> None:
-        for _x in range(width):
-            for _y in range(height):
-                self._pixels[_x+x][_y+y] = colors[_x][_y]
-        return
-    
-    def getScreen(self):
-        return self._pixels
-
-    def resetPixels(self):
-        self._pixels = [[[0, 0, 0] for y in range(self.height * 2)] for x in range(self.width * 2)]
     
     def getButton(self, x: int, y: int) -> float:
         return self._buttons[x][y]
@@ -201,7 +175,6 @@ class Window():
     def forceUpdate(self):
         for widget in self._widgets.values():
             widget.forceUpdate()
-        self.resetPixels()
 
     def update(self):
         currentTime = time.time()
