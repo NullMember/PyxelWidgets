@@ -68,6 +68,10 @@ class WindowManager():
     def getRenderWindowNames(self):
         return list(self._renderer.keys())
     
+    def forceUpdate(self):
+        for window in self._windows.values():
+            window.forceUpdate()
+    
     def isCollide(self, x: int, y: int, entry: dict):
         if x >= entry['x'] and \
            x < entry['x'] + entry['width'] and \
