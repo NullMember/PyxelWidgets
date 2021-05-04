@@ -68,8 +68,10 @@ class Window():
     
     def runner(self):
         while self._run:
+            currentTime = time.time()
             self.update()
-            time.sleep(1.0 / self._frameTarget)
+            elapsedTime = time.time() - currentTime
+            time.sleep(((1.0 / self._frameTarget) - elapsedTime) if elapsedTime >= 0 else 0)
 
     def setCallback(self, callback):
         self._callback = callback
