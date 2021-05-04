@@ -16,9 +16,11 @@ def cb(name, value):
             manager.removeWindowFromRenderer(currentWindow)
             currentWindow = 'window' + x
             manager.addWindowToRenderer(currentWindow, 0, 1, 19, 8)
+            manager.forceUpdate()
     elif 'page' in name:
         name, x, y = name.split(',')
         if value > 0:
+            print(name, x, y)
             manager.getWindow(currentWindow).x = (int(y) * 19)
     elif 'faders' in name:
         print(name, value)
@@ -34,20 +36,20 @@ manager = WindowManager()
 windowTop = Window('windowTop', 8, 1)
 windowRight = Window('windowRight', 1, 8)
 windowMain = \
-        [Window('window0', 8 * 8, 8),
-         Window('window1', 8 * 8, 8), 
-         Window('window2', 8 * 8, 8),
-         Window('window3', 8 * 8, 8),
-         Window('window4', 8 * 8, 8), 
-         Window('window5', 8 * 8, 8), 
-         Window('window6', 8 * 8, 8), 
-         Window('window7', 8 * 8, 8)]
+        [Window('window0', 16 * 8, 8),
+         Window('window1', 16 * 8, 8), 
+         Window('window2', 16 * 8, 8),
+         Window('window3', 16 * 8, 8),
+         Window('window4', 16 * 8, 8), 
+         Window('window5', 16 * 8, 8), 
+         Window('window6', 16 * 8, 8), 
+         Window('window7', 16 * 8, 8)]
 
 widgetsRight = ButtonGroup('page', 0, 0, 1, 8, callback = cb, deactiveColor = [255, 0, 0])
 widgetsTop = ButtonGroup('channel', 0, 0, 8, 1, callback = cb, deactiveColor = [0, 255, 0])
 
 faders = [[], [], [], [], [], [], [], []]
-for i in range(64):
+for i in range(128):
     faders[0].append(Fader('faders0' + "{:02d}".format(i), i, 0, 1, 8, callback = cb))
     faders[1].append(Fader('faders1' + "{:02d}".format(i), i, 0, 1, 8, callback = cb))
     faders[2].append(Fader('faders2' + "{:02d}".format(i), i, 0, 1, 8, callback = cb))
@@ -75,10 +77,11 @@ manager.addController(controller, 0, 0, 10, 10)
 manager.addController(controller2, 10, 0, 10, 10)
 
 if __name__ == "__main__":
+    manager.run()
     while True:
         try:
             time.sleep(1.0)
         except:
-            manager.stopAll()
+            manager.stop()
             controller.deinit()
             break
