@@ -2,21 +2,11 @@ from threading import Thread
 import time
 
 class Window():
-    
     def __init__(self, name: str, width: int, height: int, **kwargs):
         self._name = name
         self._width = max(1, width)
         self._height = max(1, height)
-        self._heldTime = kwargs.get('heldTime', 1.0)
-        self._frameTarget = kwargs.get('frameTarget', 60)
-        self._run = False
-        self._buttons = [[0.0 for y in range(self.height)] for x in range(self.width)]
-        self._states = [[False for y in range(self.height)] for x in range(self.width)]
-        self._pressed = [[False for y in range(self.height)] for x in range(self.width)]
-        self._released = [[False for y in range(self.height)] for x in range(self.width)]
-        self._held = [[False for y in range(self.height)] for x in range(self.width)]
-        self._pressedTime = [[0 for y in range(self.height)] for x in range(self.width)]
-        self._oldState = [[False for y in range(self.height)] for x in range(self.width)]
+        self._pixels = [[[0, 0, 0] for y in range(self.height)] for x in range(self.width)]
         self._x = 0
         self._y = 0
         self._forceUpdate = False
@@ -58,92 +48,21 @@ class Window():
             self._widgets[hold].y = self._hold[hold]['y'] + self.y
         self.forceUpdate()
 
-    def run(self):
-        self._run = True
-        self._updateRunner = Thread(None, self.runner)
-        self._updateRunner.start()
-    
-    def stop(self):
-        self._run = False
-    
-    def runner(self):
-        while self._run:
-            currentTime = time.time()
-            self.update()
-            elapsedTime = time.time() - currentTime
-            time.sleep(((1.0 / self._frameTarget) - elapsedTime) if elapsedTime >= 0 else 0)
-
     def setCallback(self, callback):
         self._callback = callback
-    
-    def getButton(self, x: int, y: int) -> float:
-        return self._buttons[x][y]
-
-    def setButton(self, x: int, y: int, value: float) -> None:
-        if value < 0.0:
-            self._buttons[x][y] = 0.0
-        elif value > 1.0:
-            self._buttons[x][y] = 1.0
-        else:
-            self._buttons[x][y] = value
-        if self._buttons[x][y]:
-            self.setState(x, y, True)
-        else:
-            self.setState(x, y, False)
-        return
-    
-    def getState(self, x: int, y: int) -> bool:
-        return self._states[x][y]
-    
-    def setState(self, x: int, y: int, state: bool) -> None:
-        self._states[x][y] = state
-        if state:
-            self.setPressed(x, y)
-        else:
-            self.setReleased(x, y)
-        return
-    
-    def getPressed(self, x: int, y: int) -> bool:
-        if self._pressed[x][y]:
-            self._pressed[x][y] = False
-            return True
-        else:
-            return False
-    
-    def setPressed(self, x: int, y: int) -> None:
-        self._pressed[x][y] = True
-        return
-    
-    def getReleased(self, x: int, y: int) -> bool:
-        if self._released[x][y]:
-            self._released[x][y] = False
-            return True
-        else:
-            return False
-    
-    def setReleased(self, x: int, y: int) -> None:
-        self._released[x][y] = True
-        return
-    
-    def getHeld(self, x: int, y: int) -> bool:
-        if self._held[x][y]:
-            self._held[x][y] = False
-            return True
-        else:
-            return False
-    
-    def setHeld(self, x: int, y: int) -> None:
-        self._held[x][y] = True
-        return
 
     def getValue(self, name: str) -> float:
-        return self._widgets[name].value
+        return self._widgets[name]['widget'].value
 
     def setValue(self, name: str, value: float):
-        self._widgets[name].value = value
+        self._widgets[name]['widget'].value = value
     
-    def addWidget(self, widget):
-        self._widgets[widget.name] = widget
+    def addWidget(self, widget, x: int, y: int, priority = 1):
+        self._widgets[widget.name] = {}
+        self._widgets[widget.name]['widget'] = widget
+        self._widgets[widget.name]['x'] = x
+        self._widgets[widget.name]['y'] = y
+        self._widgets[widget.name]['priority'] = priority
     
     def addWidgets(self, widgets: list):
         for widget in widgets:
@@ -166,10 +85,10 @@ class Window():
             widget.setCallback(callback)
 
     def isCollide(self, x: int, y: int, widget):
-        if x + self.x >= widget.x and \
-           x + self.x < widget.x + widget.width and \
-           y + self.y >= widget.y and \
-           y + self.y < widget.y + widget.height:
+        if x + self.x >= widget['x'] and \
+           x + self.x < widget['x'] + widget['widget'].width and \
+           y + self.y >= widget['y'] and \
+           y + self.y < widget['y'] + widget['widget'].height:
             return True
         else:
             return False
@@ -178,39 +97,25 @@ class Window():
         for widget in self._widgets.values():
             widget.forceUpdate()
 
-    def update(self):
-        currentTime = time.time()
-        for y in range(self.height):
-            for x in range(self.width):
-                # Update held state
-                if self._states[x][y] != self._oldState[x][y]:
-                    if self._states[x][y]:
-                        self._pressedTime[x][y] = currentTime
-                        self._oldState[x][y] = self._states[x][y]
-                    else:
-                        self._pressedTime[x][y] = 0
-                        self._oldState[x][y] = self._states[x][y]
-                if self._pressedTime[x][y] > 0:
-                    if currentTime >= self._pressedTime[x][y] + self._heldTime:
-                        self.setHeld(x, y)
-                        self._pressedTime[x][y] = 0
-                # Button was pressed
-                if self.getPressed(x, y):
-                    for widget in self._widgets.values():
-                        if self.isCollide(x, y, widget):
-                            widget.pressed(x - widget.x + self.x, y - widget.y + self.y, self._buttons[x][y])
-                # Button was released
-                if self.getReleased(x, y):
-                    for widget in self._widgets.values():
-                        if self.isCollide(x, y, widget):
-                            widget.released(x - widget.x + self.x, y - widget.y + self.y)
-                # Button was held
-                if self.getHeld(x, y):
-                    for widget in self._widgets.values():
-                        if self.isCollide(x, y, widget):
-                            widget.held(x - widget.x + self.x, y - widget.y + self.y)
-        # Update controller from updated widgets
+    def process(self, event, data):
+        x, y, value = data
         for widget in self._widgets.values():
-            pixels = widget.update()
-            if pixels != []:
-                self._callback(widget.x - self.x, widget.y - self.y, widget.width, widget.height, pixels)
+            if self.isCollide(x, y, widget):
+                if event == 'pressed':
+                    widget['widget'].pressed(x - widget['x'] + self.x, y - widget['y'] + self.y, value)
+                elif event == 'released':
+                    widget['widget'].released(x - widget['x'] + self.x, y - widget['y'] + self.y, value)
+                elif event == 'held':
+                    widget['widget'].held(x - widget['x'] + self.x, y - widget['y'] + self.y, value)
+
+    def update(self):
+        for priority in range(4):
+            for widget in self._widgets.values():
+                if widget['priority'] == priority:
+                    pixels = widget['widget'].update()
+                    if pixels != []:
+                        for y in range(widget['widget'].height):
+                            for x in range(widget['widget'].width):
+                                if pixels[x][y] != [-1, -1, -1]:
+                                    self._pixels[x + widget['x']][y + widget['y']] = pixels[x][y]
+        return self._pixels
