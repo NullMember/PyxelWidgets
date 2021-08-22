@@ -7,13 +7,13 @@ class ButtonMode(Enum):
     Mixed = 2
 
 class Button(Widget):
-    def __init__(self, name: str, x: int, y: int, width: int, height: int, **kwargs):
-        super().__init__(name, x, y, width, height, **kwargs)
+    def __init__(self, name: str, width: int, height: int, **kwargs):
+        super().__init__(name, width, height, **kwargs)
         self._mode = kwargs.get('mode', ButtonMode.Button)
         self._held = False
         self._state = False
 
-    def pressed(self, x, y, value):
+    def pressed(self, x: int, y: int, value: float):
         if self._mode == ButtonMode.Button:
             self.value = value
         elif self._mode == ButtonMode.Switch:
@@ -28,8 +28,9 @@ class Button(Widget):
                 return
             else:
                 self.value = value
+        super().pressed(x, y, self.value)
     
-    def released(self, x, y):
+    def released(self, x: int, y: int, value: float):
         if self._mode == ButtonMode.Button:
             self.value = 0.0
         elif self._mode == ButtonMode.Switch:
@@ -39,10 +40,12 @@ class Button(Widget):
                 return
             else:
                 self.value = 0.0
+        super().released(x, y, self.value)
     
-    def held(self, x, y):
+    def held(self, x: int, y: int, value: float):
         if self._mode == ButtonMode.Mixed:
             self._held = not self._held
+        super().held(x, y, self.value)
 
     def update(self):
         if self._oldValue != self.value:
