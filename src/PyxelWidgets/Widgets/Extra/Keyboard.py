@@ -62,8 +62,8 @@ KeyboardScales = {
 }
 
 class Keyboard():
-    def __init__(self, name: str, x: int, y: int, width: int, height: int, **kwargs) -> None:
-        self._buttons = ButtonGroup(name, x, y, width, height)
+    def __init__(self, name: str, width: int, height: int, **kwargs) -> None:
+        self._buttons = ButtonGroup(name, width, height)
         self._notes = [[-1 for y in range(height)] for x in range(width)]
         self._width = width
         self._height = height
@@ -153,12 +153,12 @@ class Keyboard():
     def setCallback(self, callback):
         self._callback = callback
     
-    def process(self, name: str, value):
+    def process(self, name: str, event, value):
         n, x, y = name.split(',')
         x = int(x)
         y = int(y)
         if self._notes[x][y] != -1:
-            self._callback(self._buttons.name, (self._notes[x][y], self.buttons[x][y].value))
+            self._callback(self._buttons.name, event, (self._notes[x][y], self.buttons[x][y].value))
     
     def _calcNotes(self):
         base = self._tone.value + (self._octave * 12)
