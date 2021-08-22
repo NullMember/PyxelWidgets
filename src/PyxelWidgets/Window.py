@@ -47,6 +47,10 @@ class Window():
         for hold in self._hold:
             self._widgets[hold].y = self._hold[hold]['y'] + self.y
         self.forceUpdate()
+    
+    @property
+    def widgets(self) -> dict:
+        return self._widgets
 
     def setCallback(self, callback):
         self._callback = callback
@@ -57,25 +61,27 @@ class Window():
     def setValue(self, name: str, value: float):
         self._widgets[name]['widget'].value = value
     
-    def addWidget(self, widget, x: int, y: int, priority = 1):
+    def addWidget(self, widget, x: int, y: int, priority: int = 1):
         self._widgets[widget.name] = {}
         self._widgets[widget.name]['widget'] = widget
-        self._widgets[widget.name]['x'] = x
-        self._widgets[widget.name]['y'] = y
         self._widgets[widget.name]['priority'] = priority
+        self._widgets[widget.name]['coordinates'] = []
+        self._widgets[widget.name]['coordinates'].append((x, y))
     
+    def cloneWidget(self, name: str, x: int, y: int):
+        if name in self._widgets:
+            if (x, y) not in self._widgets[name]['coordinates']:
+                self._widgets[name]['coordinates'].append((x, y))
+    
+    def killWidget(self, name: str, x: int, y: int):
+        if name in self._widgets:
+            if len(self._widgets[name]['coordinates']) > 1:
+                if (x, y) in self._widgets[name]['coordinates']:
+                    self._widgets[name]['coordinates'].pop(self._widgets[name]['coordinates'].index((x, y)))
+
     def addWidgets(self, widgets: list):
         for widget in widgets:
             self._widgets[widget.name] = widget
-
-    def getWidget(self, name):
-        return self._widgets[name]
-    
-    def getWidgets(self):
-        return list(self._widgets.values())
-
-    def getWidgetNames(self) -> list:
-        return list(self._widgets.keys())
 
     def setWidgetCallback(self, widget: str, callback) -> None:
         self._widgets[widget].setCallback(callback)
@@ -84,11 +90,11 @@ class Window():
         for widget in self._widgets.values():
             widget.setCallback(callback)
 
-    def isCollide(self, x: int, y: int, widget):
-        if x + self.x >= widget['x'] and \
-           x + self.x < widget['x'] + widget['widget'].width and \
-           y + self.y >= widget['y'] and \
-           y + self.y < widget['y'] + widget['widget'].height:
+    def isCollide(self, sx: int, sy: int, dx, dy, width, height):
+        if sx + self.x >= dx and \
+        sx + self.x < dx + width and \
+        sy + self.y >= dy and \
+        sy + self.y < dy + height:
             return True
         else:
             return False
@@ -100,13 +106,14 @@ class Window():
     def process(self, event, data):
         x, y, value = data
         for widget in self._widgets.values():
-            if self.isCollide(x, y, widget):
-                if event == 'pressed':
-                    widget['widget'].pressed(x - widget['x'] + self.x, y - widget['y'] + self.y, value)
-                elif event == 'released':
-                    widget['widget'].released(x - widget['x'] + self.x, y - widget['y'] + self.y, value)
-                elif event == 'held':
-                    widget['widget'].held(x - widget['x'] + self.x, y - widget['y'] + self.y, value)
+            for coordinate in widget['coordinates']:
+                if self.isCollide(x, y, coordinate[0], coordinate[1], widget['widget'].width, widget['widget'].height):
+                    if event == 'pressed':
+                        widget['widget'].pressed(x - coordinate[0] + self.x, y - coordinate[1] + self.y, value)
+                    elif event == 'released':
+                        widget['widget'].released(x - coordinate[0] + self.x, y - coordinate[1] + self.y, value)
+                    elif event == 'held':
+                        widget['widget'].held(x - coordinate[0] + self.x, y - coordinate[1] + self.y, value)
 
     def update(self):
         for priority in range(4):
@@ -117,5 +124,6 @@ class Window():
                         for y in range(widget['widget'].height):
                             for x in range(widget['widget'].width):
                                 if pixels[x][y] != [-1, -1, -1]:
-                                    self._pixels[x + widget['x']][y + widget['y']] = pixels[x][y]
+                                    for coordinate in widget['coordinates']:
+                                        self._pixels[x + coordinate[0]][y + coordinate[1]] = pixels[x][y]
         return self._pixels
