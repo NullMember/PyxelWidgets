@@ -1,5 +1,7 @@
+import uuid
+
 class Widget:
-    def __init__(self, name: str, x: int = 0, y: int = 0, width: int = 1, height: int = 1, **kwargs):
+    def __init__(self, name: str, width: int = 1, height: int = 1, **kwargs):
         """
         Parameters
         ----
@@ -29,37 +31,25 @@ class Widget:
         value: int = 0.0
             Default value of widget
         """
+        self._id = uuid.uuid1()
         self._name = name
-        self._x = 0 if x < 0 else x
-        self._y = 0 if y < 0 else y
         self._width = 1 if width < 1 else width
         self._height = 1 if height < 1 else height
         self._callback = kwargs.get('callback', lambda *_, **__: None)
         self._activeColor = kwargs.get('activeColor', [255, 255, 255])
         self._deactiveColor = kwargs.get('deactiveColor', [0, 0, 0])
         self._value = 0.0
+        self._delta = 0.0
         self._oldValue = -1
         self._pixels = [[[0, 0, 0] for y in range(self.height)] for x in range(self.width)]
 
     @property
+    def id(self) -> str:
+        return self._id.hex
+
+    @property
     def name(self) -> str:
         return self._name
-
-    @property
-    def x(self) -> int:
-        return self._x
-    
-    @x.setter
-    def x(self, x: int) -> None:
-        self._x = max(0, x)
-    
-    @property
-    def y(self) -> int:
-        return self._y
-
-    @y.setter
-    def y(self, y: int) -> None:
-        self._y = max(0, y)
 
     @property
     def width(self) -> int:
@@ -75,14 +65,26 @@ class Widget:
     
     @value.setter
     def value(self, value: float or list) -> None:
-        if isinstance(value, list):
-            self._value = []
-            for val in value:
-                self._value.append(0.0 if val < 0.0 else (1.0 if val > 1.0 else val))
-        else:
-            self._value = 0.0 if value < 0.0 else (1.0 if value > 1.0 else value)
-        self._callback(self.name, value)
+        self._delta = self._value
+        if value != self._value:
+            if isinstance(value, list):
+                self._value = []
+                for i, val in enumerate(value):
+                    self._value[i] = round(min(1.0, max(0.0, val)), 6)
+            else:
+                self._value = round(min(1.0, max(0.0, value)), 6)
+        if self._value != self._delta:
+            self._callback(self.name, 'changed', self._value)
     
+    @property
+    def delta(self) -> float or list:
+        if isinstance(self._value, list):
+            deltas = [0.0] * len(self._value)
+            for i in range(len(self._value)):
+                deltas[i] = self._value[i] - self._delta[i]
+            return deltas
+        return self._value - self._delta
+
     @property
     def activeColor(self) -> list:
         return self._activeColor
@@ -119,9 +121,9 @@ class Widget:
             Value of the pressed button, useful for velocity sensitive pads
              Could be 1 for non velocity sensitive pads
         """
-        pass
+        self._callback(self.name, 'pressed', True)
     
-    def released(self, x: int, y: int):
+    def released(self, x: int, y: int, value: float):
         """
         Description
         ----
@@ -138,9 +140,9 @@ class Widget:
             Value of the released button, useful for velocity sensitive pads
              Could be 0 for non velocity sensitive pads
         """
-        pass
+        self._callback(self.name, 'released', True)
     
-    def held(self, x: int, y: int):
+    def held(self, x: int, y: int, value: float):
         """
         Description
         ----
@@ -154,7 +156,7 @@ class Widget:
         y: int
             y axis of button location on Widget
         """
-        pass
+        self._callback(self.name, 'held', True)
     
     def update(self) -> list:
         """
@@ -166,16 +168,4 @@ class Widget:
            Pixel list should [x][y][r, g, b]
             If nothing is updated return empty list
         """
-        pass
-    
-    def forceUpdate(self):
-        self._pixels = [[[0, 0, 0] for y in range(self.height)] for x in range(self.width)]
-        self._oldValue = -1
-
-    def print(self) -> None:
-        for y in reversed(range(self.height)):
-            print(end = ">|")
-            for x in range(self.width):
-                print("0x{:02X},0x{:02X},0x{:02X}".format(self._pixels[x][y][0], self._pixels[x][y][1], self._pixels[x][y][2]), end='|')
-            print()
-            print()
+        return []
