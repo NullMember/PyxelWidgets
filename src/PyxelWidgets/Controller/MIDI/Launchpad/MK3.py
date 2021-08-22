@@ -85,24 +85,22 @@ class MK3(Launchpad):
             speed += 0x80
         self.sendSysex(self._header + [7, int(loop), speed, 1] + color + list(bytes(text, 'ascii')))
 
-    def init(self):
-        self._connected = True
+    def connect(self):
+        super().connect()
         self.setMode(Mode.Programmer)
-        self._midiInput.set_callback(self.process)
     
-    def deinit(self):
-        self._connected = False
+    def disconnect(self):
+        super().disconnect()
         self.setMode(Mode.DAW)
-        self._midiInput.set_callback(lambda *_, **__: None)
 
-    def process(self, message, _):
+    def processInput(self, message, _):
         midi, delta = message
         cmd = midi[0] & 0xF0
         chn = midi[0] & 0x0F
         if cmd == 0x80 or cmd == 0x90 or cmd == 0xB0:
             x = midi[1] % 10
             y = midi[1] // 10
-            self._callback(x, y, midi[2] / 127.0)
+            self.setButton(x, y, midi[2] / 127.0)
 
     def updateOne(self, x, y, pixel):
         if self._connected:
@@ -173,16 +171,16 @@ class MK3(Launchpad):
             if self._buffer.readable:
                 self.sendSysex(self._header + [3] + self._buffer.read())
 
-    def update(self, pixels):
+    def update(self, x, y, pixels):
         if self._connected:
-            for x in range(self.width):
-                for y in range(self.height):
+            for _x in range(self.width):
+                for _y in range(self.height):
                     try:
-                        if pixels[x][y] == self._pixels[x][y]:
+                        if pixels[_x][_y] == self._pixels[x + _x][y + _y]:
                             pass
                         else:
-                            self._pixels[x][y] = pixels[x][y]
-                            self._buffer.write(self.generateRGB(x, y, self._pixels[x][y]))
+                            self._pixels[x + _x][y + _y] = pixels[_x][_y]
+                            self._buffer.write(self.generateRGB(x + _x, y + _y, self._pixels[x + _x][y + _y]))
                     except:
                         break
             if self._buffer.readable:
