@@ -3,8 +3,8 @@ from threading import Thread
 import time
 
 class Sequencer(Widget):
-    def __init__(self, name: str, x: int, y: int, width: int, height: int, **kwargs):
-        super().__init__(name, x=x, y=y, width=width, height=height, **kwargs)
+    def __init__(self, name: str, width: int, height: int, **kwargs):
+        super().__init__(name, width, height, **kwargs)
         self._active = [[False for y in range(self.height)] for x in range(self.width)]
         self._bpm = kwargs.get('bpm', 60)
         self._numerator = kwargs.get('numerator', 1)
@@ -58,15 +58,14 @@ class Sequencer(Widget):
     def stop(self):
         self._tick = 0
 
-    def tick(self):
-        self._tick += 1
-        if self._tick == self._tickTarget:
-            self.stop()
+    def tick(self, tick):
+        self._tick = tick % self._tickTarget
         if self._isTickActive():
             self._callback(self.name, self._tick)
 
     def pressed(self, x: int, y: int, value: float):
         self._active[x][y] = not self._active[x][y]
+        super().pressed(x, y, value)
 
     def update(self) -> list:
         for x in range(self.width):
