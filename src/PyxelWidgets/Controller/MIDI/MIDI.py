@@ -23,6 +23,14 @@ class MIDI(Controller):
     #     out = rtmidi.MidiOut()
     #     for i in range(len(outPorts)):
 
+    def connect(self):
+        super().connect()
+        self._midiInput.set_callback(self.processInput)
+    
+    def disconnect(self):
+        super().disconnect()
+        self._midiInput.set_callback(lambda *_, **__: None)
+
     def sendSysex(self, message):
         self._midiOutput.send_message([240] + message + [247])
     

@@ -1,21 +1,39 @@
-from PyxelWidgets.Window.Window import *
-from PyxelWidgets import Widgets
+from PyxelWidgets.Window import *
+from PyxelWidgets.Widgets import *
+from PyxelWidgets.Widgets.Extra import *
 from PyxelWidgets.Controller.MIDI.Launchpad.MK3 import *
+from PyxelWidgets.Util.Clock import *
+import time
 
-def cb(name, value):
-    if name == 'b1':
-        print('B1 butonuna basildi')
-    print(name, value)
+def cb(name, event, value):
+    print(name, event, value)
 
-w = Window('w', 20, 10)
-ws = [Widgets.Button('b1', 1, 5, 4, 4, callback = cb, mode = Widgets.ButtonMode.Switch),
-      Widgets.Fader('f1', 1, 1, 4, 4, callback = cb),
-      Widgets.Sequencer('s1', 5, 5, 4, 4, callback = cb),
-      Widgets.XY('xy1', 5, 1, 4, 4, callback = cb)]
+w = Window('w', 10, 10)
+#ws2 = Keyboard.Keyboard('keyboard', 1, 1, 8, 8, mode = Keyboard.KeyboardMode.DiatonicVertical, callback = cb)
+#wb = ButtonGroup.ButtonGroup('bg', 1, 9, 8, 1, callback = cb)
 
-c = MK3('Output', 'Output', Model.Mini)
-w.addWidgets(ws)
-w.setCallback(c.update)
-c.setCallback(w.setButton)
-c.init()
-w.run()
+c = MK3('MIDIIN2', 'MIDIOUT2', Model.Mini)
+w.addWidget(Button.Button('b1', 4, 4, callback = cb, mode = Button.ButtonMode.Switch), 1, 5)
+# w.addWidget(Knob.Knob('k1', 4, 4, callback = cb), 1, 1)
+w.addWidget(Fader.Fader('f1', 4, 4, callback = cb, grid = Fader.FaderGrid.Matrix, resolution = 8), 1, 1)
+w.addWidget(Sequencer.Sequencer('s1', 4, 4, callback = cb), 5, 5)
+w.addWidget(XY.XY('xy1', 4, 4, callback = cb), 5, 1)
+#w.addWidgets(wb.widgets)
+c.setCallback(w.process)
+c.connect()
+
+cl = Clock()
+# cl.addTarget(w.getWidget('k1')['widget'].target)
+
+# print()
+
+if __name__ == "__main__":
+    cl.start()
+    while True:
+        try:
+            c.update(w.x, w.y, w.update())
+            time.sleep(1 / 60)
+        except:
+            c.disconnect()
+            cl.terminate()
+            break

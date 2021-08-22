@@ -1,13 +1,11 @@
 from ..Button import Button
 
 class ButtonGroup():
-    def __init__(self, name: str, x: int, y: int, width: int, height: int, **kwargs):
+    def __init__(self, name: str, width: int, height: int, **kwargs):
         self.width = width
         self.height = height
         self.name = name
         self._buttons = [[Button(name + ',' + str(_x) + ',' + str(_y), \
-                                x + _x, \
-                                y + _y, \
                                 1, \
                                 1, \
                                 **kwargs) \

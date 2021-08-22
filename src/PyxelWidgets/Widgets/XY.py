@@ -6,8 +6,8 @@ class XYDirection(Enum):
     Horizontal = 1
 
 class XY(Widget):
-    def __init__(self, name: str, x: int, y: int, width: int, height: int, **kwargs):
-        super().__init__(name, x, y, width, height, **kwargs)
+    def __init__(self, name: str, width: int, height: int, **kwargs):
+        super().__init__(name, width, height, **kwargs)
         self._value = [0.0, 0.0]
         self._xColor = kwargs.get('xColor', [0, 255, 255])
         self._yColor = kwargs.get('yColor', [255, 0, 255])
@@ -18,15 +18,18 @@ class XY(Widget):
             self.value = self._calcXYValueWithMagnitude(self._heldButton[0], self._heldButton[1], x, y)
         else:
             self.value = self._calcXYValue(x, y, value)
+        super().pressed(x, y, value)
     
-    def held(self, x: int, y: int):
+    def held(self, x: int, y: int, value: float):
         if self._heldButton[0] == -1 and self._heldButton[1] == -1:
             self._heldButton = [x, y]
             self.value = self._calcXYValueWithMagnitude(x, y, x, y)
+        super().held(x, y, value)
     
-    def released(self, x: int, y: int):
+    def released(self, x: int, y: int, value: float):
         if self._heldButton[0] == x and self._heldButton[1] == y:
             self._heldButton = [-1, -1]
+        super().released(x, y, value)
 
     def update(self):
         if self._oldValue != self.value:

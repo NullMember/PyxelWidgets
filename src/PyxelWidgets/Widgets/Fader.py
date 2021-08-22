@@ -46,7 +46,7 @@ class FaderMode(Enum):
     Relative = 4
 
 class Fader(Widget):
-    def __init__(self, name: str, x: int, y: int, width: int, height: int, **kwargs):
+    def __init__(self, name: str, width: int, height: int, **kwargs):
         """
         Description
         ----
@@ -92,6 +92,7 @@ class Fader(Widget):
               Wrap: Corresponding pads from bottom active
                Spread: Corresponding pads from middle active symmetrically
         """
+        super().__init__(name, width, height, **kwargs)
         self._direction = kwargs.get('direction', FaderDirection.Vertical)
         if self._direction == FaderDirection.Vertical and height <= 1:
             raise Exception("Vertical fader's height should bigger than 1")
@@ -104,13 +105,12 @@ class Fader(Widget):
         self._multiStep = 0
         self._oldButton = [-1, -1]
         self._heldButton = [-1, -1]
-        super().__init__(name, x, y, width, height, **kwargs)
         self._pixelStep = self._calcPixelStep()
         self._minV = [[self._calcFaderValue(x, y, 0.0) for y in range(height)] for x in range(width)]
         self._maxV = [[self._calcFaderValue(x, y, 1.0) for y in range(height)] for x in range(width)]
         self._mag = [[self._calcFaderMagnitude(x, y) for y in range(height)] for x in range(width)]
 
-    def pressed(self, x, y, value):
+    def pressed(self, x: int, y: int, value: float):
         if self._mode == FaderMode.Simple:
             self.value = self._pressedSimple(x, y, value)
         elif self._mode == FaderMode.Multi:
@@ -121,6 +121,7 @@ class Fader(Widget):
             self.value = self._pressedSensitive(x, y, value)
         elif self._mode == FaderMode.Relative:
             self.value = self._pressedRelative(x, y, value)
+        super().pressed(x, y, value)
     
     def _pressedSimple(self, x, y, value):
         if self._type == FaderType.Single or self._type == FaderType.Wrap:
@@ -174,7 +175,7 @@ class Fader(Widget):
             self._heldButton = [x, y]
             return self._calcFaderValue(x, y, self._mag[x][y])
 
-    def held(self, x: int, y: int):
+    def held(self, x: int, y: int, value: float):
         if self._mode != FaderMode.Relative:
             if x == 0 and y == 0:
                 self.value = 0.0
@@ -182,10 +183,12 @@ class Fader(Widget):
                 self.value = 1.0
             else:
                 self.value = 0.5
+        super().held(x, y, value)
     
-    def released(self, x: int, y: int):
+    def released(self, x: int, y: int, value: float):
         if self._heldButton[0] == x and self._heldButton[1] == y:
             self._heldButton = [-1, -1]
+        super().released(x, y, value)
 
     def update(self):
         if self._oldValue != self.value:
