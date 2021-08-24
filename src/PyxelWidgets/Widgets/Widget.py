@@ -81,9 +81,9 @@ class Widget:
         if isinstance(self._value, list):
             deltas = [0.0] * len(self._value)
             for i in range(len(self._value)):
-                deltas[i] = self._value[i] - self._delta[i]
+                deltas[i] = round(self._value[i] - self._delta[i], 6)
             return deltas
-        return self._value - self._delta
+        return round(self._value - self._delta, 6)
 
     @property
     def activeColor(self) -> list:
