@@ -41,6 +41,7 @@ class Widget:
         self._value = 0.0
         self._delta = 0.0
         self._oldValue = -1
+        self._updated = True
         self._pixels = [[[0, 0, 0] for y in range(self.height)] for x in range(self.width)]
 
     @property
@@ -74,6 +75,7 @@ class Widget:
             else:
                 self._value = round(min(1.0, max(0.0, value)), 6)
         if self._value != self._delta:
+            self._updated = True
             self._callback(self.name, 'changed', self._value)
     
     @property
