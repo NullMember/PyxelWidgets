@@ -61,10 +61,9 @@ class Window():
     def setValue(self, name: str, value: float):
         self._widgets[name]['widget'].value = value
     
-    def addWidget(self, widget, x: int, y: int, priority: int = 1):
+    def addWidget(self, widget, x: int, y: int):
         self._widgets[widget.name] = {}
         self._widgets[widget.name]['widget'] = widget
-        self._widgets[widget.name]['priority'] = priority
         self._widgets[widget.name]['coordinates'] = []
         self._widgets[widget.name]['coordinates'].append((x, y))
     
@@ -116,14 +115,12 @@ class Window():
                         widget['widget'].held(x - coordinate[0] + self.x, y - coordinate[1] + self.y, value)
 
     def update(self):
-        for priority in range(4):
-            for widget in self._widgets.values():
-                if widget['priority'] == priority:
-                    pixels = widget['widget'].update()
-                    if pixels != []:
-                        for y in range(widget['widget'].height):
-                            for x in range(widget['widget'].width):
-                                if pixels[x][y] != [-1, -1, -1]:
-                                    for coordinate in widget['coordinates']:
-                                        self._pixels[x + coordinate[0]][y + coordinate[1]] = pixels[x][y]
+        for widget in self._widgets.values():
+            pixels = widget['widget'].update()
+            if pixels != []:
+                for y in range(widget['widget'].height):
+                    for x in range(widget['widget'].width):
+                        if pixels[x][y] != [-1, -1, -1]:
+                            for coordinate in widget['coordinates']:
+                                self._pixels[x + coordinate[0]][y + coordinate[1]] = pixels[x][y]
         return self._pixels
