@@ -94,10 +94,6 @@ class Fader(Widget):
         """
         super().__init__(name, width, height, **kwargs)
         self._direction = kwargs.get('direction', FaderDirection.Vertical)
-        if self._direction == FaderDirection.Vertical and height <= 1:
-            raise Exception("Vertical fader's height should bigger than 1")
-        if self._direction == FaderDirection.Horizontal and width <= 1:
-            raise Exception("Horizontal fader's width should bigger than 1")
         self._grid = kwargs.get('grid', FaderGrid.Simple)
         self._type = kwargs.get('type', FaderType.Wrap)
         self._mode = kwargs.get('mode', FaderMode.Multi)
@@ -105,10 +101,6 @@ class Fader(Widget):
         self._multiStep = 0
         self._oldButton = [-1, -1]
         self._heldButton = [-1, -1]
-        self._pixelStep = self._calcPixelStep()
-        self._minV = [[self._calcFaderValue(x, y, 0.0) for y in range(height)] for x in range(width)]
-        self._maxV = [[self._calcFaderValue(x, y, 1.0) for y in range(height)] for x in range(width)]
-        self._mag = [[self._calcFaderMagnitude(x, y) for y in range(height)] for x in range(width)]
 
     def pressed(self, x: int, y: int, value: float):
         if self._mode == FaderMode.Simple:
@@ -125,12 +117,12 @@ class Fader(Widget):
     
     def _pressedSimple(self, x, y, value):
         if self._type == FaderType.Single or self._type == FaderType.Wrap:
-            return self._minV[x][y]
+            return self._calcFaderValue(x, y, 0.0)
         elif self._type == FaderType.BoostCut or self._type == FaderType.Spread:
-            if self._minV[x][y] < 0.5:
-                return self._minV[x][y]
+            if self._calcFaderValue(x, y, 0.0) < 0.5:
+                return self._calcFaderValue(x, y, 0.0)
             else:
-                return self._maxV[x][y]
+                return self._calcFaderValue(x, y, 1.0)
 
     def _pressedMulti(self, x, y, value):
         if self._type == FaderType.Single or self._type == FaderType.Wrap:
@@ -141,7 +133,7 @@ class Fader(Widget):
                 self._multiStep = 0
             return self._calcFaderValue(x, y, self._multiStep / self._resolution)
         elif self._type == FaderType.BoostCut or self._type == FaderType.Spread:
-            if self._minV[x][y] < 0.5:
+            if self._calcFaderValue(x, y, 0.0) < 0.5:
                 if self._oldButton[0] == x and self._oldButton[1] == y:
                     self._multiStep = (self._multiStep - 1) % self._resolution
                 else:
@@ -157,23 +149,23 @@ class Fader(Widget):
                 return self._calcFaderValue(x, y, self._multiStep / self._resolution)
 
     def _pressedMagnitude(self, x, y, value):
-        return self._calcFaderValue(x, y, self._mag[x][y])
+        return self._calcFaderValue(x, y, self._calcFaderMagnitude(x, y))
 
     def _pressedSensitive(self, x, y, value):
         if self._type == FaderType.Single or self._type == FaderType.Wrap:
             return self._calcFaderValue(x, y, value)
         elif self._type == FaderType.BoostCut or self._type == FaderType.Spread:
-            if self._minV[x][y] < 0.5:
+            if self._calcFaderValue(x, y, 0.0) < 0.5:
                 return self._calcFaderValue(x, y, 1.0 - value)
             else:
                 return self._calcFaderValue(x, y, value)
 
     def _pressedRelative(self, x, y, value):
         if self._heldButton[0] >= 0 and self._heldButton[1] >= 0:
-            return self._calcFaderValue(self._heldButton[0], self._heldButton[1], self._mag[x][y])
+            return self._calcFaderValue(self._heldButton[0], self._heldButton[1], self._calcFaderMagnitude(x, y))
         else:
             self._heldButton = [x, y]
-            return self._calcFaderValue(x, y, self._mag[x][y])
+            return self._calcFaderValue(x, y, self._calcFaderMagnitude(x, y))
 
     def held(self, x: int, y: int, value: float):
         if self._mode != FaderMode.Relative:
@@ -191,12 +183,12 @@ class Fader(Widget):
         super().released(x, y, value)
 
     def update(self):
-        if self._oldValue != self.value:
-            self._oldValue = self.value
+        if self._updated:
+            self._updated = False
             for x in range(self.width):
                 for y in range(self.height):
-                    minV = self._minV[x][y]
-                    maxV = self._maxV[x][y]
+                    minV = self._calcFaderValue(x, y, 0.0)
+                    maxV = self._calcFaderValue(x, y, 1.0)
                     if self._type == FaderType.Single:
                         # if current pad lower than last pressed pad
                         if maxV <= self.value:
@@ -206,7 +198,7 @@ class Fader(Widget):
                             self._pixels[x][y] = self._deactiveColor
                         # if current pad is last pressed pad
                         else:
-                            coefficient = min(self._calcPixelCoefficient(self.value - minV) + self._pixelStep, 1.0)
+                            coefficient = min(self._calcPixelCoefficient(self.value - minV) + self._calcPixelStep(), 1.0)
                             self._pixels[x][y] = [int(self._activeColor[0] * coefficient), int(self._activeColor[1] * coefficient), int(self._activeColor[2] * coefficient)]
                     elif self._type == FaderType.BoostCut:
                         # if last pressed pad in upper half
@@ -224,7 +216,7 @@ class Fader(Widget):
                                     self._pixels[x][y] = self._deactiveColor
                                 # if current pad is last pressed pad
                                 else:
-                                    coefficient = min(self._calcPixelCoefficient(self.value - minV) + self._pixelStep, 1.0)
+                                    coefficient = min(self._calcPixelCoefficient(self.value - minV) + self._calcPixelStep(), 1.0)
                                     self._pixels[x][y] = [int(self._activeColor[0] * coefficient), int(self._activeColor[1] * coefficient), int(self._activeColor[2] * coefficient)]
                         # if last pressed pad in lower half
                         elif self.value < 0.5:
@@ -261,7 +253,7 @@ class Fader(Widget):
                             self._pixels[x][y] = self._deactiveColor
                         # if current pad is last pressed pad
                         else:
-                            coefficient = min(self._calcPixelCoefficient(self.value - minV) + self._pixelStep, 1.0)
+                            coefficient = min(self._calcPixelCoefficient(self.value - minV) + self._calcPixelStep(), 1.0)
                             self._pixels[x][y] = [int(self._activeColor[0] * coefficient), int(self._activeColor[1] * coefficient), int(self._activeColor[2] * coefficient)]
                     elif self._type == FaderType.Spread:
                         # if last pressed pad in upper half
@@ -276,7 +268,7 @@ class Fader(Widget):
                                     self._pixels[x][y] = self._activeColor
                                 # if current pad is last pressed pad
                                 else:
-                                    coefficient = min(self._calcPixelCoefficient(self.value - minV) + self._pixelStep, 1.0)
+                                    coefficient = min(self._calcPixelCoefficient(self.value - minV) + self._calcPixelStep(), 1.0)
                                     self._pixels[x][y] = [int(self._activeColor[0] * coefficient), int(self._activeColor[1] * coefficient), int(self._activeColor[2] * coefficient)]
                             # if current pad in lower half
                             elif maxV <= 0.5:
@@ -288,7 +280,7 @@ class Fader(Widget):
                                     self._pixels[x][y] = self._deactiveColor
                                 # if current pad is last pressed pads symmetrical equivalent
                                 else:
-                                    coefficient = 1.0 - max(self._calcPixelCoefficient((1.0 - self.value) - minV) - self._pixelStep, 0.0)
+                                    coefficient = 1.0 - max(self._calcPixelCoefficient((1.0 - self.value) - minV) - self._calcPixelStep(), 0.0)
                                     self._pixels[x][y] = [int(self._activeColor[0] * coefficient), int(self._activeColor[1] * coefficient), int(self._activeColor[2] * coefficient)]
                         # if last pressed pad in lower half
                         elif self.value < 0.5:
@@ -326,7 +318,7 @@ class Fader(Widget):
                                 self._pixels[x][y] = self._deactiveColor
             return self._pixels
         return []
-    
+
     # Calculate fader value from pad location
     def _calcFaderValue(self, x: int, y: int, value: float) -> float:
         # For 2-d widgets, where output values are single float,
