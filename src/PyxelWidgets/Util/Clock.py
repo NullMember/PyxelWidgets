@@ -133,7 +133,8 @@ class Clock(Thread):
         while not self._terminate:
             self._currentTime = time.time()
             self.step()
-            time.sleep(self._delay - (time.time() - self._currentTime))
+            delay = self._delay - (time.time() - self._currentTime)
+            time.sleep(0.0 if delay < 0.0 else delay)
     
     def step(self):
         if self._running:
