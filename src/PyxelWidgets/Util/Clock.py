@@ -7,11 +7,10 @@ class Target:
     def __init__(self, name, target: Callable, wrap = 1, delay = 0) -> None:
         self._name = name
         self._target = target
-        self._running = True
-        self._pause = False
         self._wrap = wrap
         self._delay = delay
         self._active = True
+        self._tick = 0
     
     @property
     def name(self) -> str:
@@ -40,17 +39,24 @@ class Target:
     @active.setter
     def active(self, value: bool) -> None:
         self._active = value
-
-    def start(self) -> None:
-        self._running = True
-
-    def stop(self) -> None:
-        self._running = False
     
-    def step(self, tick) -> None:
-        if self._running:
-            if (tick + self._delay) % self._wrap == 0:
-                self._target(tick)
+    @property
+    def tick(self) -> int:
+        return self._tick
+
+    @tick.setter
+    def tick(self, value: int) -> None:
+        self._tick = value
+        if (self._tick + self._delay) % self._wrap == 0:
+            self._target(self._tick)
+
+    def step(self) -> None:
+        self._tick += 1
+        if (self._tick + self._delay) % self._wrap == 0:
+            self._target(self._tick)
+    
+    def set(self, tick: int) -> None:
+        self.tick = tick
 
 class Clock(Thread):
 
@@ -149,7 +155,7 @@ class Clock(Thread):
         if self._running:
             for target in self.values:
                 if target.active:
-                    self._pool.submit(target.step, self._tick)
+                    self._pool.submit(target.set, self._tick)
             if not self._pause:
                 self._tick += 1
     
