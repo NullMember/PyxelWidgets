@@ -45,8 +45,8 @@ class Knob(Widget):
                 self.value += self._calcKnobWeight(index) * self.coefficient
 
     def update(self) -> list:
-        if self._oldValue != self.value:
-            self._oldValue = self.value
+        if self._updated:
+            self._updated = False
             for x in range(self.width):
                 for y in range(self.height):
                     index = self._calcKnobIndex(x, y)
@@ -60,7 +60,7 @@ class Knob(Widget):
                         elif minV > self.value:
                             self._pixels[x][y] = [self._deactiveColor[0], self._deactiveColor[1], self._deactiveColor[2]]
                         else:
-                            coeff = self._calcPixelCoefficient(self._value - minV)
+                            coeff = self._calcPixelCoefficient(self.value - minV)
                             self._pixels[x][y] = [int(self._activeColor[0] * coeff), int(self._activeColor[1] * coeff), int(self._activeColor[2] * coeff)]
             return self._pixels
         return []
