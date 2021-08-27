@@ -32,28 +32,28 @@ class XY(Widget):
         super().released(x, y, value)
 
     def update(self):
-        if self._oldValue != self.value:
-            self._oldValue = self.value
+        if self._updated:
+            self._updated = False
             for x in range(self.width):
                 for y in range(self.height):
-                    min = self._calcXYValue(x, y, 0.0)
-                    max = self._calcXYValue(x, y, 1.0)
+                    minV = self._calcXYValue(x, y, 0.0)
+                    maxV = self._calcXYValue(x, y, 1.0)
                     # junction point
                     # if current padx is last pressed pad and current pady is last pressed pad
-                    if min[0] < self.value[0] and max[0] >= self.value[0] and min[1] < self.value[1] and max[1] >= self.value[1]:
-                        coefficientX = (self.value[0] - min[0]) * self.width
-                        coefficientY = (self.value[1] - min[1]) * self.height
+                    if minV[0] < self.value[0] and maxV[0] >= self.value[0] and minV[1] < self.value[1] and maxV[1] >= self.value[1]:
+                        coefficientX = (self.value[0] - minV[0]) * self.width
+                        coefficientY = (self.value[1] - minV[1]) * self.height
                         r = ((self._xColor[0] * coefficientX) + (self._yColor[0] * coefficientY)) / 2
                         g = ((self._xColor[1] * coefficientX) + (self._yColor[1] * coefficientY)) / 2
                         b = ((self._xColor[2] * coefficientX) + (self._yColor[2] * coefficientY)) / 2
                         self._pixels[x][y] = [int(r), int(g), int(b)]
                     # x axis
                     # if current padx is in same column of last pressed pad
-                    elif min[0] < self.value[0] and max[0] >= self.value[0]:
+                    elif minV[0] < self.value[0] and maxV[0] >= self.value[0]:
                         self._pixels[x][y] = [int(self._xColor[0] * self.value[0]), int(self._xColor[1] * self.value[0]), int(self._xColor[2] * self.value[0])]
                     # y axis
                     # if current pady is in same row of last pressed pad
-                    elif min[1] < self.value[1] and max[1] >= self.value[1]:
+                    elif minV[1] < self.value[1] and maxV[1] >= self.value[1]:
                         self._pixels[x][y] = [int(self._yColor[0] * self.value[1]), int(self._yColor[1] * self.value[1]), int(self._yColor[2] * self.value[1])]
                     # unlit every other pad
                     else:
