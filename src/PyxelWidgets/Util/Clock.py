@@ -4,12 +4,12 @@ from threading import Thread
 import time
 
 class Target:
-    def __init__(self, name, target: Callable, skip = 0, delay = 0) -> None:
+    def __init__(self, name, target: Callable, wrap = 1, delay = 0) -> None:
         self._name = name
         self._target = target
         self._running = True
         self._pause = False
-        self._skip = skip
+        self._wrap = wrap
         self._delay = delay
     
     @property
@@ -17,12 +17,12 @@ class Target:
         return self._name
 
     @property
-    def skip(self) -> int:
-        return self._skip
+    def wrap(self) -> int:
+        return self._wrap
     
-    @skip.setter
-    def skip(self, value: int) -> None:
-        self._skip = value if value >= 0 else 0
+    @wrap.setter
+    def wrap(self, value: int) -> None:
+        self._wrap = value if value >= 0 else 0
     
     @property
     def delay(self) -> int:
@@ -40,7 +40,7 @@ class Target:
     
     def step(self, tick) -> None:
         if self._running:
-            if (tick + self._delay) % (self._skip + 1) == 0:
+            if (tick + self._delay) % self._wrap == 0:
                 self._target(tick)
 
 class Clock(Thread):
