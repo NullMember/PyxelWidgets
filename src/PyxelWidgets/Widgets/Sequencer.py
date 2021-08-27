@@ -13,7 +13,7 @@ class Sequencer(Widget):
         self._tick = 0
         self._target = Target(self.name, self.tick)
         if clock != None:
-            clock.addTarget(self._target)
+            self.addToClock(clock)
     
     @property
     def numerator(self):
@@ -42,6 +42,10 @@ class Sequencer(Widget):
     @property
     def target(self):
         return self._target
+    
+    def addToClock(self, clock: Clock):
+        self._ppq = clock.ppq
+        clock.addTarget(self.target)
 
     def tick(self, tick):
         oldTick = self._tick
