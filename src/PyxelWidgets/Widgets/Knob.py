@@ -14,6 +14,7 @@ class Knob(Widget):
         elif self.height == 1:
             self._perimeter = self.width
         self._target = Target(self.name, self.tick)
+        self._target.active = False
         if clock != None:
             clock.addTarget(self._target)
 
@@ -32,10 +33,12 @@ class Knob(Widget):
     def pressed(self, x: int, y: int, value: float):
         self._held = [x, y]
         self._state = True
+        self._target.active = True
         return super().pressed(x, y, self.value)
     
     def released(self, x: int, y: int, value: float):
         self._state = False
+        self._target.active = False
         return super().released(x, y, self.value)
     
     def tick(self, tick):
