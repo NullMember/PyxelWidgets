@@ -21,7 +21,7 @@ class Effect():
             self._directionCurrent = 1
             self._cycleCurrent = self._cycleTotal - 1
 
-    def update(self):
+    def step(self):
         if self._direction == EffectDirection.Up:
             self._cycleCurrent = (self._cycleCurrent + 1) % self._cycleTotal
         elif self._direction == EffectDirection.Down:

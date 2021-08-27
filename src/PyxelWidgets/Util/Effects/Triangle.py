@@ -4,6 +4,6 @@ class Triangle(Effect):
     def __init__(self, **kwargs) -> None:
         super().__init__(**kwargs)
     
-    def update(self):
-        super().update()
+    def step(self):
+        super().step()
         return self._cycleCurrent / self._cycleTotal

@@ -6,6 +6,6 @@ class Gaussian(Effect):
         super().__init__(**kwargs)
         self._gauss = kwargs.get('gauss', 0.25)
     
-    def update(self):
-        super().update()
+    def step(self):
+        super().step()
         return exp(-(pow(self._cycleCurrent / self._cycleTotal, 2) / (2 * pow(self._gauss, 2))))
