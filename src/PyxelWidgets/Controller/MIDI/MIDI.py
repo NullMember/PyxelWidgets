@@ -10,9 +10,7 @@ class MIDI(Controller):
     
     def __del__(self):
         self._midiInput.close_port()
-        self._midiInput.delete()
         self._midiOutput.close_port()
-        self._midiOutput.delete()
     
     # def sendInquiry(self):
     #     inPorts = rtmidi.MidiIn().get_ports()
