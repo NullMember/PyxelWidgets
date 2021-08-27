@@ -11,6 +11,7 @@ class Target:
         self._pause = False
         self._wrap = wrap
         self._delay = delay
+        self._active = True
     
     @property
     def name(self) -> str:
@@ -32,6 +33,14 @@ class Target:
     def delay(self, value: int) -> None:
         self._delay = value
 
+    @property
+    def active(self) -> bool:
+        return self._active
+    
+    @active.setter
+    def active(self, value: bool) -> None:
+        self._active = value
+
     def start(self) -> None:
         self._running = True
 
@@ -42,10 +51,6 @@ class Target:
         if self._running:
             if (tick + self._delay) % self._wrap == 0:
                 self._target(tick)
-    
-    def _step(self, tick) -> None:
-        if self._running:
-            self._target(tick)
 
 class Clock(Thread):
 
@@ -143,8 +148,8 @@ class Clock(Thread):
     def step(self):
         if self._running:
             for target in self.values:
-                if (self._tick + target._delay) % target._wrap == 0:
-                    self._pool.submit(target._step, self._tick)
+                if target.active:
+                    self._pool.submit(target.step, self._tick)
             if not self._pause:
                 self._tick += 1
     
