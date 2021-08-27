@@ -48,8 +48,8 @@ class Button(Widget):
         super().held(x, y, self.value)
 
     def update(self):
-        if self._oldValue != self.value:
-            self._oldValue = self.value
+        if self._updated:
+            self._updated = False
             for x in range(self.width):
                 for y in range(self.height):
                     if self.value:
