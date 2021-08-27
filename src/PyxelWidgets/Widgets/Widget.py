@@ -40,9 +40,6 @@ class Widget:
         self._deactiveColor = kwargs.get('deactiveColor', [0, 0, 0])
         self._value = 0.0
         self._delta = 0.0
-        self._oldValue = -1
-        self._displayValue = True
-        self._split = False
         self._updated = True
         self._pixels = [[[0, 0, 0] for y in range(self.height)] for x in range(self.width)]
 
@@ -57,10 +54,28 @@ class Widget:
     @property
     def width(self) -> int:
         return self._width
+    
+    @width.setter
+    def width(self, value: int) -> None:
+        if value > 0:
+            if self._resize(value, self.height):
+                self._width = value
+                self._pixels = [[[0, 0, 0] for y in range(self.height)] for x in range(self.width)]
+                self._updated = True
+                self._callback(self.name, 'resized', (self.width, self.height))
 
     @property
     def height(self) -> int:
         return self._height
+    
+    @height.setter
+    def height(self, value: int) -> None:
+        if value > 0:
+            if self._resize(self.width, value):
+                self._height = value
+                self._pixels = [[[0, 0, 0] for y in range(self.height)] for x in range(self.width)]
+                self._updated = True
+                self._callback(self.name, 'resized', (self.width, self.height))
 
     @property
     def value(self) -> float or list:
@@ -68,26 +83,24 @@ class Widget:
     
     @value.setter
     def value(self, value: float or list) -> None:
-        self._delta = self._value
         if value != self._value:
-            if isinstance(value, list):
-                self._value = []
+            if isinstance(self._value, list):
+                oldValue = self._value.copy()
                 for i, val in enumerate(value):
                     self._value[i] = round(min(1.0, max(0.0, val)), 6)
             else:
+                oldValue = self._value
                 self._value = round(min(1.0, max(0.0, value)), 6)
-        if self._value != self._delta:
-            self._updated = True
-            if self._split:
-                self._displayValue = self._value
-            self._callback(self.name, 'changed', self._value)
+            if self._value != oldValue:
+                self._updated = True
+                self._callback(self.name, 'changed', self._value)
     
     @property
     def delta(self) -> float or list:
         if isinstance(self._value, list):
-            deltas = [0.0] * len(self._value)
+            deltas = self._value.copy()
             for i in range(len(self._value)):
-                deltas[i] = round(self._value[i] - self._delta[i], 6)
+                deltas[i] = round(deltas[i] - self._delta[i], 6)
             return deltas
         return round(self._value - self._delta, 6)
 
@@ -127,7 +140,7 @@ class Widget:
             Value of the pressed button, useful for velocity sensitive pads
              Could be 1 for non velocity sensitive pads
         """
-        self._callback(self.name, 'pressed', True)
+        self._callback(self.name, 'pressed', (x, y))
     
     def released(self, x: int, y: int, value: float):
         """
@@ -146,7 +159,7 @@ class Widget:
             Value of the released button, useful for velocity sensitive pads
              Could be 0 for non velocity sensitive pads
         """
-        self._callback(self.name, 'released', True)
+        self._callback(self.name, 'released', (x, y))
     
     def held(self, x: int, y: int, value: float):
         """
@@ -162,7 +175,7 @@ class Widget:
         y: int
             y axis of button location on Widget
         """
-        self._callback(self.name, 'held', True)
+        self._callback(self.name, 'held', (x, y))
     
     def update(self) -> list:
         """
@@ -175,3 +188,6 @@ class Widget:
             If nothing is updated return empty list
         """
         return []
+    
+    def _resize(self, width, height) -> bool:
+        return True
