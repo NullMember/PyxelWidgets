@@ -1,1 +1,1 @@
-__all__ = ['Button', 'Fader', 'Knob', 'Sequencer', 'XY', 'Extra']
+__all__ = ['Button', 'Fader', 'Knob', 'Life', 'Sequencer', 'XY', 'Extra']
