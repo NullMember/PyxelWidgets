@@ -7,7 +7,7 @@ class Sequencer(Widget):
         self._active = [[False for y in range(self.height)] for x in range(self.width)]
         self._numerator = kwargs.get('numerator', 1.0)
         self._denominator = kwargs.get('denominator', 4.0)
-        self._ppq = kwargs.get('ppq', 24.0)
+        self._ppq = kwargs.get('ppq', 24)
         self._currentColor = kwargs.get('currentColor', [0, 255, 0])
         self._tickTarget = self.width * self.height
         self._tick = 0
@@ -44,7 +44,7 @@ class Sequencer(Widget):
         return self._target
     
     def addToClock(self, clock: Clock):
-        self._ppq = clock.ppq
+        self.ppq = clock.ppq
         clock.addTarget(self.target)
 
     def tick(self, tick):
@@ -74,6 +74,10 @@ class Sequencer(Widget):
             self._pixels[self._tickX()][self._tickY()] = self._currentColor
             return self._pixels
         return []
+    
+    def _resize(self, width, height):
+        self._tickTarget = width * height
+        return True
     
     def _calcTickPosition(self, x, y):
         return x + ((self.height - y - 1) * self.width)
