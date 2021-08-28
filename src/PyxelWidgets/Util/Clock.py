@@ -10,6 +10,7 @@ class Target:
         self._wrap = wrap
         self._delay = delay
         self._active = True
+        self._lock = False
         self._tick = 0
     
     @property
@@ -46,14 +47,20 @@ class Target:
 
     @tick.setter
     def tick(self, value: int) -> None:
-        self._tick = value
-        if (self._tick + self._delay) % self._wrap == 0:
-            self._target(self._tick)
+        if not self._lock:
+            self._lock = True
+            self._tick = value
+            if (self._tick + self._delay) % self._wrap == 0:
+                self._target(self._tick)
+            self._lock = False
 
     def step(self) -> None:
-        self._tick += 1
-        if (self._tick + self._delay) % self._wrap == 0:
-            self._target(self._tick)
+        if not self._lock:
+            self._lock = True
+            self._tick += 1
+            if (self._tick + self._delay) % self._wrap == 0:
+                self._target(self._tick)
+            self._lock = False
     
     def set(self, tick: int) -> None:
         self.tick = tick
