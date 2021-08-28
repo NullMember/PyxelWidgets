@@ -4,8 +4,8 @@ from ..Util.Clock import *
 class Knob(Widget):
     def __init__(self, name: str, width: int, height: int, clock: Clock = None, **kwargs):
         super().__init__(name, width=width, height=height, **kwargs)
-        self.coefficient = kwargs.get('coefficient', 1.0 / self._ppq)
-        self.ppq = kwargs.get('ppq', 24)
+        self._ppq = kwargs.get('ppq', 24)
+        self._coefficient = 1.0 / self._ppq
         self._state = False
         self._held = [-1, -1]
         self._perimeter = self._calcPerimeter(self.width, self.height)
@@ -22,14 +22,6 @@ class Knob(Widget):
     def ppq(self, value: int) -> None:
         self._ppq = value
         self._coefficient = 1.0 / self.ppq
-
-    @property
-    def coefficient(self) -> float:
-        return self._coefficient
-    
-    @coefficient.setter
-    def coefficient(self, value: float) -> None:
-        self._coefficient = value
 
     @property
     def target(self) -> Target:
