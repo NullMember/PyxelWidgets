@@ -4,19 +4,24 @@ from ..Util.Clock import *
 class Knob(Widget):
     def __init__(self, name: str, width: int, height: int, clock: Clock = None, **kwargs):
         super().__init__(name, width=width, height=height, **kwargs)
-        self._coefficient = kwargs.get('coefficient', 0.05)
+        self.coefficient = kwargs.get('coefficient', 1.0 / self._ppq)
+        self.ppq = kwargs.get('ppq', 24)
         self._state = False
         self._held = [-1, -1]
-        if self.width > 1 and self.height > 1:
-            self._perimeter = ((self.width - 1) * 2) + ((self.height - 1) * 2)
-        elif self.width == 1:
-            self._perimeter = self.height
-        elif self.height == 1:
-            self._perimeter = self.width
+        self._perimeter = self._calcPerimeter(self.width, self.height)
         self._target = Target(self.name, self.tick)
         self._target.active = False
         if clock != None:
-            clock.addTarget(self._target)
+            self.addToClock(clock)
+
+    @property
+    def ppq(self) -> int:
+        return self._ppq
+    
+    @ppq.setter
+    def ppq(self, value: int) -> None:
+        self._ppq = value
+        self._coefficient = 1.0 / self.ppq
 
     @property
     def coefficient(self) -> float:
@@ -29,6 +34,10 @@ class Knob(Widget):
     @property
     def target(self) -> Target:
         return self._target
+
+    def addToClock(self, clock: Clock):
+        self.ppq = clock.ppq
+        clock.addTarget(self._target)
 
     def pressed(self, x: int, y: int, value: float):
         self._held = [x, y]
@@ -68,6 +77,10 @@ class Knob(Widget):
             return self._pixels
         return []
     
+    def _resize(self, width, height):
+        self._perimeter = self._calcPerimeter(width, height)
+        return True
+
     def _calcKnobIndex(self, x: int, y: int) -> float:
         if self.width == 1:
             return y
@@ -104,3 +117,10 @@ class Knob(Widget):
 
     def _calcPixelCoefficient(self, value: float) -> float:
         return value * self._perimeter
+    
+    def _calcPerimeter(self, width, height) -> float:    
+        if width == 1:
+            return height
+        elif height == 1:
+            return width
+        return ((width - 1) * 2) + ((height - 1) * 2)
