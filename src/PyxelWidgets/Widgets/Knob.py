@@ -46,7 +46,7 @@ class Knob(Widget):
         if self._state:
             index = self._calcKnobIndex(self._held[0], self._held[1])
             if index != -1:
-                self.value += self._calcKnobWeight(index) * self.coefficient
+                self.value += self._calcKnobWeight(index) * self._coefficient
 
     def update(self) -> list:
         if self._updated:
