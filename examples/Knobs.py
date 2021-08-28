@@ -46,14 +46,14 @@ def dawCallback(name, data):
             window.widgets['b11']['widget'].value = center
 
 window = Window('w', 10, 10)
-controller = MK3('MIDIIN2', 'MIDIOUT2', Model.Mini)
+controller = MK3('Input', 'Input', Model.Mini)
 clock = Clock()
 daw = DAWController()
 daw.connect('DAWO', 'DAWI')
 daw.setCallback(dawCallback)
 
-for x in range(4):
-    for y in range(4):
+for x in range(2):
+    for y in range(2):
         window.addWidget(Knob.Knob('k' + str(x) + str(y), 4, 4, callback = controllerCallback, clock = clock, activeColor = [randint(0, 255), randint(0, 255), randint(0, 255)]), (x * 4) + 1, (y * 4) + 1)
         window.addWidget(Button.Button('b' + str(x) + str(y), 2, 2, callback = controllerCallback, activeColor = [randint(0, 255), randint(0, 255), randint(0, 255)]), (x * 4) + 2, (y * 4) + 2)
 
