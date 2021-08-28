@@ -1,4 +1,5 @@
 import uuid
+from copy import deepcopy
 
 class Widget:
     def __init__(self, name: str, width: int = 1, height: int = 1, **kwargs):
@@ -85,7 +86,7 @@ class Widget:
     def value(self, value: float or list) -> None:
         if value != self._value:
             if isinstance(self._value, list):
-                oldValue = self._value.copy()
+                oldValue = deepcopy(self._value)
                 for i, val in enumerate(value):
                     self._value[i] = round(min(1.0, max(0.0, val)), 6)
             else:
@@ -98,7 +99,7 @@ class Widget:
     @property
     def delta(self) -> float or list:
         if isinstance(self._value, list):
-            deltas = self._value.copy()
+            deltas = deepcopy(self._value)
             for i in range(len(self._value)):
                 deltas[i] = round(deltas[i] - self._delta[i], 6)
             return deltas
