@@ -6,7 +6,7 @@ class Window():
     _count = 0
 
     def __init__(self, width: int, height: int, **kwargs):
-        self._name = kwargs.get('name', 'Window' + str(Window._count))
+        self._name = kwargs.get('name', 'Window_' + str(Window._count))
         self._width = max(1, width)
         self._height = max(1, height)
         self._pixels = [[[0, 0, 0] for y in range(self.height)] for x in range(self.width)]
