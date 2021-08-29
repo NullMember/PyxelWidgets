@@ -192,13 +192,17 @@ class Fader(Widget):
             self._heldButton = [-1, -1]
         super().released(x, y, value)
 
-    def update(self):
+    def updateArea(self, sx, sy, sw, sh):
         if self._updated:
             self._updated = False
             halfval = self.value / 2.0
             halfvalpluspointfive = halfval + 0.5
-            for x in range(self.width):
-                for y in range(self.height):
+            ex = sx + sw
+            ex = ex if ex < self.width else self.width
+            ey = sy + sh
+            ey = ey if ey < self.height else self.height
+            for x in range(sx, ex):
+                for y in range(sy, ey):
                     minV = self._calcFaderValue(x, y, 0.0)
                     maxV = self._calcFaderValue(x, y, 1.0)
                     if self._type == FaderType.Single:
