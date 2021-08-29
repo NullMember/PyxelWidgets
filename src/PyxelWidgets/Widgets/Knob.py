@@ -70,13 +70,17 @@ class Knob(Widget):
             if index != -1:
                 self.value += self._calcKnobWeight(index) * self._coefficient
 
-    def update(self) -> list:
+    def updateArea(self, sx, sy, sw, sh):
         if self._updated:
             self._updated = False
             halfval = self.value / 2.0
             halfvalpluspointfive = halfval + 0.5
-            for x in range(self.width):
-                for y in range(self.height):
+            ex = sx + sw
+            ex = ex if ex < self.width else self.width
+            ey = sy + sh
+            ey = ey if ey < self.height else self.height
+            for x in range(sx, ex):
+                for y in range(sy, ey):
                     index = self._calcKnobIndex(x, y)
                     minV = self._calcKnobValue(index, 0.0)
                     maxV = self._calcKnobValue(index, 1.0)
