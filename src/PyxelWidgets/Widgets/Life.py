@@ -9,8 +9,9 @@ class Life(Widget):
         self._grid = [[False for y in range(self.height)] for x in range(self.width)]
     
     def pressed(self, x: int, y: int, value: float):
-        self._grid[x][y] = not self._grid[x][y]
-        self._updated = True
+        if not self._running:
+            self._grid[x][y] = not self._grid[x][y]
+            self._updated = True
         super().pressed(x, y, value)
 
     def start(self):
