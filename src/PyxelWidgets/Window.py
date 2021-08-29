@@ -110,8 +110,11 @@ class Window():
         for widget in self._widgets.values():
             pixels = widget['widget'].update()
             if pixels != []:
-                for y in range(widget['widget'].height):
-                    for x in range(widget['widget'].width):
+                for x in range(widget['widget'].width):
+                    for y in range(widget['widget'].height):
                         if pixels[x][y] != [-1, -1, -1]:
-                            self._pixels[x + widget['x']][y + widget['y']] = pixels[x][y]
+                            try:
+                                self._pixels[x + widget['x']][y + widget['y']] = pixels[x][y]
+                            except:
+                                break
         return self._pixels
