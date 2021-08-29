@@ -1,7 +1,11 @@
-import threading
+from threading import Timer
 
 class Controller():
+
+    _count = 0
+
     def __init__(self, **kwargs):
+        self._name = kwargs.get('name', 'Controller_' + str(Controller._count))
         self._width = kwargs.get('width', 1)
         self._height = kwargs.get('height', 1)
         self._heldTime = kwargs.get('heldTime', 1.0)
@@ -10,6 +14,7 @@ class Controller():
         self._buttons = [[0.0 for y in range(self.height)] for x in range(self.width)]
         self._timers = [[None for y in range(self.height)] for x in range(self.width)]
         self._callback = lambda *_, **__ : None
+        Controller._count += 1
     
     @property
     def width(self):
@@ -43,7 +48,7 @@ class Controller():
         return
     
     def setPressed(self, x: int, y: int) -> None:
-        self._timers[x][y] = threading.Timer(interval = self._heldTime, function = self.setHeld, args = (x, y))
+        self._timers[x][y] = Timer(interval = self._heldTime, function = self.setHeld, args = (x, y))
         self._timers[x][y].start()
         self._callback('pressed', (x, y, self._buttons[x][y]))
     
