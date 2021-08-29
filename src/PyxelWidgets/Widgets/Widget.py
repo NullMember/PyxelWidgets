@@ -178,6 +178,9 @@ class Widget:
         """
         self._callback(self.name, 'held', (x, y))
     
+    def updateArea(self, sx, sy, sw, sh):
+        return []
+
     def update(self) -> list:
         """
         Description
@@ -188,7 +191,7 @@ class Widget:
            Pixel list should [x][y][r, g, b]
             If nothing is updated return empty list
         """
-        return []
+        return self.updateArea(0, 0, self.width, self.height)
     
     def _resize(self, width, height) -> bool:
         return True
