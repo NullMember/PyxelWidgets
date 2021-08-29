@@ -2,8 +2,11 @@ from threading import Thread
 import time
 
 class Window():
-    def __init__(self, name: str, width: int, height: int, **kwargs):
-        self._name = name
+
+    _count = 0
+
+    def __init__(self, width: int, height: int, **kwargs):
+        self._name = kwargs.get('name', 'Window' + str(Window._count))
         self._width = max(1, width)
         self._height = max(1, height)
         self._pixels = [[[0, 0, 0] for y in range(self.height)] for x in range(self.width)]
@@ -13,6 +16,7 @@ class Window():
         self._widgets = {}
         self._hold = {}
         self._callback = lambda *_, **__: None
+        Window._count += 1
     
     @property
     def name(self) -> str:
