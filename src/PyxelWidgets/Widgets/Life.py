@@ -24,12 +24,16 @@ class Life(Widget):
         if self._running:
             self._updated = True
 
-    def update(self):
+    def updateArea(self, sx, sy, sw, sh):
         if self._updated:
             self._updated = False
+            ex = sx + sw
+            ex = ex if ex < self.width else self.width
+            ey = sy + sh
+            ey = ey if ey < self.height else self.height
             newGrid = deepcopy(self._grid)
-            for x in range(self.width):
-                for y in range(self.height):
+            for x in range(sx, ex):
+                for y in range(sy, ey):
                     if self._running:
                         total = int(self._grid[(x - 1) % self.width][(y - 1) % self.height]) + \
                                 int(self._grid[(x + 0) % self.width][(y - 1) % self.height]) + \
