@@ -6,12 +6,14 @@ class XYDirection(Enum):
     Horizontal = 1
 
 class XY(Widget):
-    def __init__(self, name: str, width: int, height: int, **kwargs):
+    def __init__(self, width: int, height: int, **kwargs):
+        name = kwargs.get('name', 'Fader' + str(XY._count))
         super().__init__(name, width, height, **kwargs)
         self._value = [0.0, 0.0]
         self._xColor = kwargs.get('xColor', [0, 255, 255])
         self._yColor = kwargs.get('yColor', [255, 0, 255])
         self._heldButton = [-1, -1]
+        XY._count += 1
     
     def pressed(self, x: int, y: int, value: float):
         if self._heldButton[0] >= 0 and self._heldButton[1] >= 0:

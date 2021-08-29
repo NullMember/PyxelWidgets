@@ -7,11 +7,13 @@ class ButtonMode(Enum):
     Mixed = 2
 
 class Button(Widget):
-    def __init__(self, name: str, width: int, height: int, **kwargs):
+    def __init__(self, width: int, height: int, **kwargs):
+        name = kwargs.get('name', 'Button' + str(Button._count))
         super().__init__(name, width, height, **kwargs)
         self._mode = kwargs.get('mode', ButtonMode.Button)
         self._held = False
         self._state = False
+        Button._count += 1
 
     def pressed(self, x: int, y: int, value: float):
         if self._mode == ButtonMode.Button:

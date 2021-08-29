@@ -2,6 +2,9 @@ import uuid
 from copy import deepcopy
 
 class Widget:
+
+    _count = 0
+
     def __init__(self, name: str, width: int = 1, height: int = 1, **kwargs):
         """
         Parameters

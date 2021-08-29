@@ -47,7 +47,7 @@ class FaderMode(Enum):
     Relative = 4
 
 class Fader(Widget):
-    def __init__(self, name: str, width: int, height: int, **kwargs):
+    def __init__(self, width: int, height: int, **kwargs):
         """
         Description
         ----
@@ -93,6 +93,7 @@ class Fader(Widget):
               Wrap: Corresponding pads from bottom active
                Spread: Corresponding pads from middle active symmetrically
         """
+        name = kwargs.get('name', 'Fader' + str(Fader._count))
         super().__init__(name, width, height, **kwargs)
         self._direction = kwargs.get('direction', FaderDirection.Vertical)
         self._grid = kwargs.get('grid', FaderGrid.Simple)
@@ -102,6 +103,7 @@ class Fader(Widget):
         self._multiStep = 0
         self._oldButton = [-1, -1]
         self._heldButton = [-1, -1]
+        Fader._count += 1
 
     def pressed(self, x: int, y: int, value: float):
         if self._mode == FaderMode.Simple:

@@ -11,7 +11,8 @@ class KnobType(Enum):
     Collapse = 4
 
 class Knob(Widget):
-    def __init__(self, name: str, width: int, height: int, **kwargs):
+    def __init__(self, width: int, height: int, **kwargs):
+        name = kwargs.get('name', 'Knob' + str(Knob._count))
         super().__init__(name, width=width, height=height, **kwargs)
         self._ppq = kwargs.get('ppq', 24)
         self._type = kwargs.get('type', KnobType.Wrap)
@@ -24,6 +25,7 @@ class Knob(Widget):
         clock = kwargs.get('clock', None)
         if clock != None:
             self.addToClock(clock)
+        Knob._count += 1
 
     @property
     def ppq(self) -> int:

@@ -2,7 +2,8 @@ from .Widget import Widget
 from ..Util.Clock import *
 
 class Sequencer(Widget):
-    def __init__(self, name: str, width: int, height: int, clock: Clock = None, **kwargs):
+    def __init__(self, width: int, height: int, clock: Clock = None, **kwargs):
+        name = kwargs.get('name', 'Sequencer' + str(Sequencer._count))
         super().__init__(name, width, height, **kwargs)
         self._active = [[False for y in range(self.height)] for x in range(self.width)]
         self._numerator = kwargs.get('numerator', 1.0)
@@ -14,6 +15,7 @@ class Sequencer(Widget):
         self._target = Target(self.name, self.tick)
         if clock != None:
             self.addToClock(clock)
+        Sequencer._count += 1
     
     @property
     def numerator(self):
