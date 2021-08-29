@@ -11,7 +11,6 @@ class Window():
         self._y = 0
         self._forceUpdate = False
         self._widgets = {}
-        self._hold = {}
         self._callback = lambda *_, **__: None
         Window._count += 1
     
@@ -34,8 +33,6 @@ class Window():
     @x.setter
     def x(self, scroll: int) -> None:
         self._x = max(0, min(self.width, scroll))
-        for hold in self._hold:
-            self._widgets[hold].x = self._hold[hold]['x'] + self.x
         self.forceUpdate()
 
     @property
@@ -45,8 +42,6 @@ class Window():
     @y.setter
     def y(self, scroll: int) -> None:
         self._y = max(0, min(self.height, scroll))
-        for hold in self._hold:
-            self._widgets[hold].y = self._hold[hold]['y'] + self.y
         self.forceUpdate()
     
     @property
