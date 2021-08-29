@@ -12,7 +12,7 @@ class KnobType(Enum):
 
 class Knob(Widget):
     def __init__(self, width: int, height: int, **kwargs):
-        name = kwargs.get('name', 'Knob' + str(Knob._count))
+        name = kwargs.get('name', 'Knob_' + str(Knob._count))
         super().__init__(name, width=width, height=height, **kwargs)
         self._ppq = kwargs.get('ppq', 24)
         self._type = kwargs.get('type', KnobType.Wrap)

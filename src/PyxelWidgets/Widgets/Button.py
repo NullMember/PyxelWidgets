@@ -8,7 +8,7 @@ class ButtonMode(Enum):
 
 class Button(Widget):
     def __init__(self, width: int, height: int, **kwargs):
-        name = kwargs.get('name', 'Button' + str(Button._count))
+        name = kwargs.get('name', 'Button_' + str(Button._count))
         super().__init__(name, width, height, **kwargs)
         self._mode = kwargs.get('mode', ButtonMode.Button)
         self._held = False

@@ -93,7 +93,7 @@ class Fader(Widget):
               Wrap: Corresponding pads from bottom active
                Spread: Corresponding pads from middle active symmetrically
         """
-        name = kwargs.get('name', 'Fader' + str(Fader._count))
+        name = kwargs.get('name', 'Fader_' + str(Fader._count))
         super().__init__(name, width, height, **kwargs)
         self._direction = kwargs.get('direction', FaderDirection.Vertical)
         self._grid = kwargs.get('grid', FaderGrid.Simple)

@@ -4,7 +4,7 @@ from copy import deepcopy
 
 class Life(Widget):
     def __init__(self, width: int, height: int, **kwargs):
-        name = kwargs.get('name', 'Life' + str(Life._count))
+        name = kwargs.get('name', 'Life_' + str(Life._count))
         super().__init__(name, width=width, height=height, **kwargs)
         self._running = False
         self._grid = [[False for y in range(self.height)] for x in range(self.width)]

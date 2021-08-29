@@ -3,7 +3,7 @@ from ..Util.Clock import *
 
 class Sequencer(Widget):
     def __init__(self, width: int, height: int, clock: Clock = None, **kwargs):
-        name = kwargs.get('name', 'Sequencer' + str(Sequencer._count))
+        name = kwargs.get('name', 'Sequencer_' + str(Sequencer._count))
         super().__init__(name, width, height, **kwargs)
         self._active = [[False for y in range(self.height)] for x in range(self.width)]
         self._numerator = kwargs.get('numerator', 1.0)
