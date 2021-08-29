@@ -47,11 +47,15 @@ class Button(Widget):
             self._held = not self._held
         super().held(x, y, self.value)
 
-    def update(self):
+    def updateArea(self, sx, sy, sw, sh):
         if self._updated:
             self._updated = False
-            for x in range(self.width):
-                for y in range(self.height):
+            ex = sx + sw
+            ex = ex if ex < self.width else self.width
+            ey = sy + sh
+            ey = ey if ey < self.height else self.height
+            for x in range(sx, ex):
+                for y in range(sy, ey):
                     if self.value:
                         self._pixels[x][y] = [int(self._activeColor[0] * self.value), int(self._activeColor[1] * self.value), int(self._activeColor[2] * self.value)]
                     else:
