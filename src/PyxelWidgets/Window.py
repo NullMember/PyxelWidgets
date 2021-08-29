@@ -1,6 +1,3 @@
-from threading import Thread
-import time
-
 class Window():
 
     _count = 0
