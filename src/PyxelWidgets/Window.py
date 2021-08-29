@@ -108,7 +108,7 @@ class Window():
 
     def update(self):
         for widget in self._widgets.values():
-            pixels = widget['widget'].update()
+            pixels = widget['widget'].updateArea(0, 0, self.width, self.height)
             if pixels != []:
                 for x in range(widget['widget'].width):
                     for y in range(widget['widget'].height):
