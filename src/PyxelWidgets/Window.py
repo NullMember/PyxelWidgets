@@ -64,19 +64,8 @@ class Window():
     def addWidget(self, widget, x: int, y: int):
         self._widgets[widget.name] = {}
         self._widgets[widget.name]['widget'] = widget
-        self._widgets[widget.name]['coordinates'] = []
-        self._widgets[widget.name]['coordinates'].append((x, y))
-    
-    def cloneWidget(self, name: str, x: int, y: int):
-        if name in self._widgets:
-            if (x, y) not in self._widgets[name]['coordinates']:
-                self._widgets[name]['coordinates'].append((x, y))
-    
-    def killWidget(self, name: str, x: int, y: int):
-        if name in self._widgets:
-            if len(self._widgets[name]['coordinates']) > 1:
-                if (x, y) in self._widgets[name]['coordinates']:
-                    self._widgets[name]['coordinates'].pop(self._widgets[name]['coordinates'].index((x, y)))
+        self._widgets[widget.name]['x'] = x
+        self._widgets[widget.name]['y'] = y
 
     def addWidgets(self, widgets: list):
         for widget in widgets:
@@ -89,7 +78,7 @@ class Window():
         for widget in self._widgets.values():
             widget.setCallback(callback)
 
-    def isCollide(self, sx: int, sy: int, dx, dy, width, height):
+    def isCollide(self, sx: int, sy: int, dx: int, dy: int, width: int, height: int) -> bool:
         if sx + self.x >= dx and \
         sx + self.x < dx + width and \
         sy + self.y >= dy and \
@@ -105,14 +94,17 @@ class Window():
     def process(self, event, data):
         x, y, value = data
         for widget in self._widgets.values():
-            for coordinate in widget['coordinates']:
-                if self.isCollide(x, y, coordinate[0], coordinate[1], widget['widget'].width, widget['widget'].height):
-                    if event == 'pressed':
-                        widget['widget'].pressed(x - coordinate[0] + self.x, y - coordinate[1] + self.y, value)
-                    elif event == 'released':
-                        widget['widget'].released(x - coordinate[0] + self.x, y - coordinate[1] + self.y, value)
-                    elif event == 'held':
-                        widget['widget'].held(x - coordinate[0] + self.x, y - coordinate[1] + self.y, value)
+            wx = widget['x']
+            wy = widget['y']
+            ww = widget['widget'].width
+            wh = widget['widget'].height
+            if self.isCollide(x, y, wx, wy, ww, wh):
+                if event == 'pressed':
+                    widget['widget'].pressed(x - wx + self.x, y - wy + self.y, value)
+                elif event == 'released':
+                    widget['widget'].released(x - wx + self.x, y - wy + self.y, value)
+                elif event == 'held':
+                    widget['widget'].held(x - wx + self.x, y - wy + self.y, value)
 
     def update(self):
         for widget in self._widgets.values():
@@ -121,6 +113,5 @@ class Window():
                 for y in range(widget['widget'].height):
                     for x in range(widget['widget'].width):
                         if pixels[x][y] != [-1, -1, -1]:
-                            for coordinate in widget['coordinates']:
-                                self._pixels[x + coordinate[0]][y + coordinate[1]] = pixels[x][y]
+                            self._pixels[x + widget['x']][y + widget['y']] = pixels[x][y]
         return self._pixels
