@@ -62,11 +62,15 @@ class Sequencer(Widget):
         self._updated = True
         super().pressed(x, y, value)
 
-    def update(self) -> list:
+    def updateArea(self, sx, sy, sw, sh):
         if self._updated:
             self._updated = False
-            for x in range(self.width):
-                for y in range(self.height):
+            ex = sx + sw
+            ex = ex if ex < self.width else self.width
+            ey = sy + sh
+            ey = ey if ey < self.height else self.height
+            for x in range(sx, ex):
+                for y in range(sy, ey):
                     if self._active[x][y]:
                         self._pixels[x][y] = self._activeColor
                     else:
