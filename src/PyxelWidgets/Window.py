@@ -47,15 +47,10 @@ class Window():
     @property
     def widgets(self) -> dict:
         return self._widgets
-
-    def setCallback(self, callback):
-        self._callback = callback
-
-    def getValue(self, name: str) -> float:
-        return self._widgets[name]['widget'].value
-
-    def setValue(self, name: str, value: float):
-        self._widgets[name]['widget'].value = value
+    
+    @property
+    def buffer(self) -> list:
+        return self._pixels
     
     def addWidget(self, widget, x: int, y: int):
         self._widgets[widget.name] = {}
@@ -63,18 +58,7 @@ class Window():
         self._widgets[widget.name]['x'] = x
         self._widgets[widget.name]['y'] = y
 
-    def addWidgets(self, widgets: list):
-        for widget in widgets:
-            self._widgets[widget.name] = widget
-
-    def setWidgetCallback(self, widget: str, callback) -> None:
-        self._widgets[widget].setCallback(callback)
-
-    def setWidgetCallbacks(self, callback) -> None:
-        for widget in self._widgets.values():
-            widget.setCallback(callback)
-
-    def isCollide(self, sx: int, sy: int, dx: int, dy: int, width: int, height: int) -> bool:
+    def _isCollide(self, sx: int, sy: int, dx: int, dy: int, width: int, height: int) -> bool:
         if sx + self.x >= dx and \
         sx + self.x < dx + width and \
         sy + self.y >= dy and \
@@ -85,7 +69,7 @@ class Window():
     
     def forceUpdate(self):
         for widget in self._widgets.values():
-            widget.forceUpdate()
+            widget['widget']._updated = True
 
     def process(self, event, data):
         x, y, value = data
@@ -94,7 +78,7 @@ class Window():
             wy = widget['y']
             ww = widget['widget'].width
             wh = widget['widget'].height
-            if self.isCollide(x, y, wx, wy, ww, wh):
+            if self._isCollide(x, y, wx, wy, ww, wh):
                 if event == 'pressed':
                     widget['widget'].pressed(x - wx + self.x, y - wy + self.y, value)
                 elif event == 'released':
