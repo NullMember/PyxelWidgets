@@ -124,6 +124,10 @@ class Widget:
     def deactiveColor(self, color: list):
         self._deactiveColor = color
 
+    @property
+    def buffer(self) -> list:
+        return self._pixels
+
     def setCallback(self, callback) -> None:
         self._callback = callback
 
