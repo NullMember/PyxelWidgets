@@ -4,12 +4,10 @@ from threading import Thread
 class WindowManager():
     def __init__(self, **kwargs):
         self._windows = {}
-        self._renderer = {}
-        self._controllers = []
+        self._controllers = {}
         self._width = kwargs.get('width', 500)
         self._height = kwargs.get('height', 500)
         self._pixels = [[[0, 0, 0] for y in range(self._height)] for x in range(self._width)]
-        self._frameTarget = kwargs.get('frameTarget', 60)
         self._run = False
         self._updateRunner = None
 
