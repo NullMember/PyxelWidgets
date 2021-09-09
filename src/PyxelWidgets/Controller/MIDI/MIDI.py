@@ -11,15 +11,6 @@ class MIDI(Controller):
     def __del__(self):
         self._midiInput.close_port()
         self._midiOutput.close_port()
-    
-    # def sendInquiry(self):
-    #     inPorts = rtmidi.MidiIn().get_ports()
-    #     outPorts = rtmidi.MidiOut().get_ports()
-    #     ins = [rtmidi.MidiIn()] * len(inPorts)
-    #     for i in range(len(inPorts)):
-    #         ins.open_port(i)
-    #     out = rtmidi.MidiOut()
-    #     for i in range(len(outPorts)):
 
     def connect(self):
         super().connect()

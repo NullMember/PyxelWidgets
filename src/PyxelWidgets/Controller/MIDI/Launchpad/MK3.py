@@ -1,4 +1,5 @@
 from .Launchpad import Launchpad
+from ....Helpers import *
 from ....Util.RingBuffer import RingBuffer
 from enum import Enum
 
@@ -56,7 +57,7 @@ class MK3(Launchpad):
         super().__init__(inPort=inPort, outPort=outPort, width = 10, height = 10, **kwargs)
         self._model = model
         self._header = [0x00, 0x20, 0x29, 0x02, self._model.value]
-        self._buffer = RingBuffer(1024)
+        self._sysexBuffer = RingBuffer(1024)
     
     def setLayout(self, layout, page = 0):
         if self._model == Model.X or self._model == Model.Mini:
@@ -73,17 +74,18 @@ class MK3(Launchpad):
             elif mode == Mode.Programmer:
                 self.setLayout(ProLayout.Programmer)
     
-    def sendRGB(self, x: int, y: int, color: list):
-        self.sendSysex(self._header + [3] + self.generateRGB(x, y, color))
-    
-    def generateRGB(self, x: int, y: int, color: list):
+    def generateRGB(self, x: int, y: int, color: Pixel):
         index = x + (y * 10)
-        return [3, index, int(color[0] / 2.), int(color[1] / 2.), int(color[2] / 2.)]
+        color = (color * 0.5) <= 127
+        return [3, index, color.r, color.g, color.b]
 
-    def displayText(self, text: str, loop: bool = False, speed: int = 10, color: list = [255, 255, 255]):
+    def sendRGB(self, x: int, y: int, color: Pixel):
+        self.sendSysex(self._header + [3] + self.generateRGB(x, y, color))
+
+    def displayText(self, text: str, loop: bool = False, speed: int = 10, color: Pixel = Colors.White):
         if speed < 0:
             speed += 0x80
-        self.sendSysex(self._header + [7, int(loop), speed, 1] + color + list(bytes(text, 'ascii')))
+        self.sendSysex(self._header + [7, int(loop), speed, 1] + color.rgb + list(bytes(text, 'ascii')))
 
     def connect(self):
         super().connect()
@@ -102,86 +104,71 @@ class MK3(Launchpad):
             y = midi[1] // 10
             self.setButton(x, y, midi[2] / 127.0)
 
-    def updateOne(self, x, y, pixel):
-        if self._connected:
+    def updateOne(self, x: int, y: int, pixel: Pixel):
+        if self.connected:
             try:
-                if pixel == self._pixels[x][y]:
+                if pixel == self.buffer[x, y]:
                     pass
                 else:
-                    self._pixels[x][y] = pixel
+                    self.buffer[x, y] = pixel
                     self.sendRGB(x, y, pixel)
             except:
                 pass
     
-    def updateRow(self, y, pixels):
-        if self._connected:
-            for x in range(self.width):
+    def updateRow(self, y: int, pixel: Pixel):
+        if self.connected:
+            for x in self.rect.columns:
                 try:
-                    if pixels[x] == self._pixels[x][y]:
+                    if pixel == self.buffer[x, y]:
                         pass
                     else:
-                        self._pixels[x][y] = pixels[x]
-                        self._buffer.write(self.generateRGB(x, y, self._pixels[x][y]))
+                        self.buffer[x, y] = pixel
+                        self._sysexBuffer.write(self.generateRGB(x, y, self.buffer[x, y]))
                 except:
                     break
-            if self._buffer.readable:
-                self.sendSysex(self._header + [3] + self._buffer.read())
+            if self._sysexBuffer.readable:
+                self.sendSysex(self._header + [3] + self._sysexBuffer.read())
     
-    def updateColumn(self, x, pixels):
-        if self._connected:
-            for y in range(self.height):
+    def updateColumn(self, x: int, pixel: Pixel):
+        if self.connected:
+            for y in self.rect.rows:
                 try:
-                    if pixels[y] == self._pixels[x][y]:
+                    if pixel == self.buffer[x, y]:
                         pass
                     else:
-                        self._pixels[x][y] = pixels[y]
-                        self._buffer.write(self.generateRGB(x, y, self._pixels[x][y]))
+                        self.buffer[x, y] = pixel
+                        self._sysexBuffer.write(self.generateRGB(x, y, self.buffer[x, y]))
                 except:
                     break
-            if self._buffer.readable:
-                self.sendSysex(self._header + [3] + self._buffer.read())
+            if self._sysexBuffer.readable:
+                self.sendSysex(self._header + [3] + self._sysexBuffer.read())
 
-    def updateArea(self, x, y, width, height, pixels):
-        if self._connected:
+    def updateArea(self, x: int, y: int, width: int, height: int, pixel: Pixel):
+        if self.connected:
             for _x in range(width):
                 for _y in range(height):
                     try:
-                        if pixels[_x][_y] == self._pixels[x + _x][y + _y]:
+                        if pixel == self.buffer[x + _x, y + _y]:
                             pass
                         else:
-                            self._pixels[x + _x][y + _y] = pixels[_x][_y]
-                            self._buffer.write(self.generateRGB(x + _x, y + _y, self._pixels[x + _x][y + _y]))
+                            self.buffer[x + _x, y + _y] = pixel
+                            self._sysexBuffer.write(self.generateRGB(x + _x, y + _y, self.buffer[x + _x, y + _y]))
                     except:
                         break
-            if self._buffer.readable:
-                self.sendSysex(self._header + [3] + self._buffer.read())
+            if self._sysexBuffer.readable:
+                self.sendSysex(self._header + [3] + self._sysexBuffer.read())
 
-    def updateAreaByArea(self, sx, sy, dx, dy, width, height, pixels):
-        if self._connected:
-            for x in range(width):
-                for y in range(height):
+    def update(self, buffer):
+        if self.connected:
+            for x in self.rect.columns:
+                for y in self.rect.rows:
                     try:
-                        if pixels[x + sx][y + sy] == self._pixels[x + dx][y + dy]:
+                        if buffer[x, y] == self.buffer[x, y]:
                             pass
                         else:
-                            self._pixels[x + dx][y + dy] = pixels[x + sx][y + sy]
-                            self._buffer.write(self.generateRGB(x + dx, y + dy, self._pixels[x + dx][y + dy]))
+                            self.buffer[x, y] = buffer[x, y]
+                            self._sysexBuffer.write(self.generateRGB(x, y, self.buffer[x, y]))
                     except:
                         break
-            if self._buffer.readable:
-                self.sendSysex(self._header + [3] + self._buffer.read())
-
-    def update(self, x, y, pixels):
-        if self._connected:
-            for _x in range(self.width):
-                for _y in range(self.height):
-                    try:
-                        if pixels[_x][_y] == self._pixels[x + _x][y + _y]:
-                            pass
-                        else:
-                            self._pixels[x + _x][y + _y] = pixels[_x][_y]
-                            self._buffer.write(self.generateRGB(x + _x, y + _y, self._pixels[x + _x][y + _y]))
-                    except:
-                        break
-            if self._buffer.readable:
-                self.sendSysex(self._header + [3] + self._buffer.read())
+            if self._sysexBuffer.readable:
+                self.sendSysex(self._header + [3] + self._sysexBuffer.read())

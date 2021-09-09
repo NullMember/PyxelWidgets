@@ -1,3 +1,5 @@
+from ..Helpers import *
+import numpy
 from threading import Timer
 
 class Controller():
@@ -5,40 +7,33 @@ class Controller():
     _count = 0
 
     def __init__(self, **kwargs):
-        self._name = kwargs.get('name', 'Controller_' + str(Controller._count))
-        self._width = kwargs.get('width', 1)
-        self._height = kwargs.get('height', 1)
-        self._heldTime = kwargs.get('heldTime', 1.0)
-        self._connected = False
-        self._pixels = [[[-1, -1, -1] for y in range(self.height)] for x in range(self.width)]
-        self._buttons = [[0.0 for y in range(self.height)] for x in range(self.width)]
-        self._timers = [[None for y in range(self.height)] for x in range(self.width)]
+        self.name = kwargs.get('name', 'Controller_' + str(Controller._count))
+        self.rect = Rectangle2D(kwargs.get('x', 0), kwargs.get('y', 0), kwargs.get('width', 1), kwargs.get('height', 1))
+        self.heldTime = kwargs.get('heldTime', 1.0)
+        self.connected = False
+        self.buffer = numpy.ndarray((self.rect.w, self.rect.h), Pixel)
+        self.buffer.fill(Colors.Invisible)
+        self.buttons = numpy.ndarray((self.rect.w, self.rect.h))
+        self.buttons.fill(0.0)
+        self._timers = numpy.ndarray((self.rect.w, self.rect.h), Timer)
         self._callback = lambda *_, **__ : None
         Controller._count += 1
-    
-    @property
-    def width(self):
-        return self._width
-    
-    @property
-    def height(self):
-        return self._height
 
     def setCallback(self, callback):
         self._callback = callback
 
     def connect(self):
-        self._connected = True
+        self.connected = True
 
     def disconnect(self):
-        self._connected = False
+        self.connected = False
     
     def getButton(self, x: int, y: int) -> float:
-        return self._buttons[x][y]
+        return self.buttons[x, y]
 
     def setButton(self, x: int, y: int, value: float) -> None:
-        self._buttons[x][y] = min(1.0, max(0.0, value))
-        self.setState(x, y, bool(self._buttons[x][y]))
+        self.buttons[x, y] = min(1.0, max(0.0, value))
+        self.setState(x, y, bool(self.buttons[x, y]))
     
     def setState(self, x: int, y: int, state: bool) -> None:
         if state:
@@ -48,16 +43,16 @@ class Controller():
         return
     
     def setPressed(self, x: int, y: int) -> None:
-        self._timers[x][y] = Timer(interval = self._heldTime, function = self.setHeld, args = (x, y))
-        self._timers[x][y].start()
-        self._callback('pressed', (x, y, self._buttons[x][y]))
+        self._timers[x, y] = Timer(interval = self.heldTime, function = self.setHeld, args = (x, y))
+        self._timers[x, y].start()
+        self._callback('pressed', (x, y, self.buttons[x, y]))
     
     def setReleased(self, x: int, y: int) -> None:
-        self._timers[x][y].cancel()
-        self._callback('released', (x, y, self._buttons[x][y]))
+        self._timers[x, y].cancel()
+        self._callback('released', (x, y, self.buttons[x, y]))
     
     def setHeld(self, x: int, y: int) -> None:
-        self._callback('held', (x, y, self._buttons[x][y]))
+        self._callback('held', (x, y, self.buttons[x, y]))
 
     def process(self):
         pass
@@ -65,20 +60,17 @@ class Controller():
     def processInput(self):
         pass
 
-    def updateOne(self, pixel, x, y):
+    def updateOne(self, x: int, y: int, pixel: Pixel):
         pass
 
-    def updateRow(self, pixels, y):
+    def updateRow(self, y: int, pixel: Pixel):
         pass
 
-    def updateColumn(self, pixels, x):
+    def updateColumn(self, x: int, pixel: Pixel):
         pass
     
-    def updateArea(self, pixels, x, y, width, height):
+    def updateArea(self, x: int, y: int, width: int, height: int, pixel: Pixel):
         pass
 
-    def updateAreaByArea(self, sx, sy, dx, dy, width, height, pixels):
-        pass
-
-    def update(self, x, y, width, height, pixels):
+    def update(self, buffer):
         pass
