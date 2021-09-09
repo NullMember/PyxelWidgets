@@ -59,20 +59,18 @@ class XY(Widget):
                 # junction point
                 # if current padx is last pressed pad and current pady is last pressed pad
                 if minV[0] < self.value[0] and maxV[0] >= self.value[0] and minV[1] < self.value[1] and maxV[1] >= self.value[1]:
-                    coefficientX = (self.value[0] - minV[0]) * self.rect.w
-                    coefficientY = (self.value[1] - minV[1]) * self.rect.h
-                    r = ((self.xColor[0] * coefficientX) + (self.yColor[0] * coefficientY)) / 2
-                    g = ((self.xColor[1] * coefficientX) + (self.yColor[1] * coefficientY)) / 2
-                    b = ((self.xColor[2] * coefficientX) + (self.yColor[2] * coefficientY)) / 2
-                    self.buffer[x, y] = [int(r), int(g), int(b)]
+                    coefficientX = ((self.value[0] - minV[0]) * self.rectangle.w) / 2
+                    coefficientY = ((self.value[1] - minV[1]) * self.rectangle.h) / 2
+                    color = (self.xColor * coefficientX) + (self.yColor * coefficientY)
+                    self.buffer[x, y] = color
                 # x axis
                 # if current padx is in same column of last pressed pad
                 elif minV[0] < self.value[0] and maxV[0] >= self.value[0]:
-                    self.buffer[x, y] = [int(self.xColor[0] * self.value[0]), int(self.xColor[1] * self.value[0]), int(self.xColor[2] * self.value[0])]
+                    self.buffer[x, y] = self.xColor * self.value[0]
                 # y axis
                 # if current pady is in same row of last pressed pad
                 elif minV[1] < self.value[1] and maxV[1] >= self.value[1]:
-                    self.buffer[x, y] = [int(self.yColor[0] * self.value[1]), int(self.yColor[1] * self.value[1]), int(self.yColor[2] * self.value[1])]
+                    self.buffer[x, y] = self.yColor * self.value[1]
                 # unlit every other pad
                 else:
                     self.buffer[x, y] = self.deactiveColor
