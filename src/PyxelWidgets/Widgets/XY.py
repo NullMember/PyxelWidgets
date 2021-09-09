@@ -9,12 +9,25 @@ class XY(Widget):
     def __init__(self, width: int, height: int, **kwargs):
         name = kwargs.get('name', 'Fader_' + str(XY._count))
         super().__init__(name, width, height, **kwargs)
+        self.xColor = kwargs.get('xColor', [0, 255, 255])
+        self.yColor = kwargs.get('yColor', [255, 0, 255])
+        self.delta = [0.0, 0.0]
         self._value = [0.0, 0.0]
-        self._xColor = kwargs.get('xColor', [0, 255, 255])
-        self._yColor = kwargs.get('yColor', [255, 0, 255])
         self._heldButton = [-1, -1]
         XY._count += 1
     
+    @Widget.value.setter
+    def value(self, value: list) -> None:
+        if value != self._value:
+            oldValue = [self._value[0], self._value[1]]
+            self._value[0] = round(min(1.0, max(0.0, value[0])), 6)
+            self._value[1] = round(min(1.0, max(0.0, value[1])), 6)
+            self.delta[0] = self._value[0] - oldValue[0]
+            self.delta[1] = self._value[1] - oldValue[1]
+            if self._value != oldValue:
+                self.updated = True
+                self._callback(self.name, 'changed', self._value)
+
     def pressed(self, x: int, y: int, value: float):
         if self._heldButton[0] >= 0 and self._heldButton[1] >= 0:
             self.value = self._calcXYValueWithMagnitude(self._heldButton[0], self._heldButton[1], x, y)
@@ -49,18 +62,18 @@ class XY(Widget):
                     if minV[0] < self.value[0] and maxV[0] >= self.value[0] and minV[1] < self.value[1] and maxV[1] >= self.value[1]:
                         coefficientX = (self.value[0] - minV[0]) * self.width
                         coefficientY = (self.value[1] - minV[1]) * self.height
-                        r = ((self._xColor[0] * coefficientX) + (self._yColor[0] * coefficientY)) / 2
-                        g = ((self._xColor[1] * coefficientX) + (self._yColor[1] * coefficientY)) / 2
-                        b = ((self._xColor[2] * coefficientX) + (self._yColor[2] * coefficientY)) / 2
+                        r = ((self.xColor[0] * coefficientX) + (self.yColor[0] * coefficientY)) / 2
+                        g = ((self.xColor[1] * coefficientX) + (self.yColor[1] * coefficientY)) / 2
+                        b = ((self.xColor[2] * coefficientX) + (self.yColor[2] * coefficientY)) / 2
                         self._pixels[x][y] = [int(r), int(g), int(b)]
                     # x axis
                     # if current padx is in same column of last pressed pad
                     elif minV[0] < self.value[0] and maxV[0] >= self.value[0]:
-                        self._pixels[x][y] = [int(self._xColor[0] * self.value[0]), int(self._xColor[1] * self.value[0]), int(self._xColor[2] * self.value[0])]
+                        self._pixels[x][y] = [int(self.xColor[0] * self.value[0]), int(self.xColor[1] * self.value[0]), int(self.xColor[2] * self.value[0])]
                     # y axis
                     # if current pady is in same row of last pressed pad
                     elif minV[1] < self.value[1] and maxV[1] >= self.value[1]:
-                        self._pixels[x][y] = [int(self._yColor[0] * self.value[1]), int(self._yColor[1] * self.value[1]), int(self._yColor[2] * self.value[1])]
+                        self._pixels[x][y] = [int(self.yColor[0] * self.value[1]), int(self.yColor[1] * self.value[1]), int(self.yColor[2] * self.value[1])]
                     # unlit every other pad
                     else:
                         self._pixels[x][y] = self._deactiveColor
