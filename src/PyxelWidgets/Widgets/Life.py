@@ -51,8 +51,8 @@ class Life(Widget):
                         if total == 3:
                             newGrid[x][y] = True
                 if newGrid[x][y]:
-                    self.buffer[x][y] = self.activeColor
+                    self.buffer[x, y] = self.activeColor
                 else:
-                    self.buffer[x][y] = self.deactiveColor
+                    self.buffer[x, y] = self.deactiveColor
         self._grid = newGrid
         return self.buffer

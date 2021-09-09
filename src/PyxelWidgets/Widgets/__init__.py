@@ -1,8 +1,8 @@
 __all__ = ['Button', 'Fader', 'Knob', 'Life', 'Sequencer', 'XY', 'Extra']
 
-from ..Helpers import *
 import uuid
-from copy import deepcopy
+import numpy
+from ..Helpers import *
 
 class Widget:
 
@@ -45,7 +45,8 @@ class Widget:
         self.deactiveColor = kwargs.get('deactiveColor', [0, 0, 0])
         self.delta = 0.0
         self.updated = True
-        self.buffer = [[[0, 0, 0] for y in range(self.rect.h)] for x in range(self.rect.w)]
+        self.buffer = numpy.ndarray((self.rect.w, self.rect.h), Pixel)
+        self.buffer.fill(self.deactiveColor)
         self._value = 0.0
         self._callback = kwargs.get('callback', lambda *_, **__: None)
 
@@ -58,7 +59,8 @@ class Widget:
         if value > 0:
             if self._resize(value, self.rect.h):
                 self.rect.w = value
-                self.buffer = [[[0, 0, 0] for y in range(self.rect.h)] for x in range(self.rect.w)]
+                self.buffer.resize((self.rect.w, self.rect.h), refcheck = False)
+                self.buffer = numpy.where(self.buffer == 0, self.deactiveColor, self.buffer)
                 self.updated = True
                 self._callback(self.name, 'resized', (self.rect.w, self.rect.h))
 
@@ -71,7 +73,8 @@ class Widget:
         if value > 0:
             if self._resize(self.rect.w, value):
                 self.rect.h = value
-                self.buffer = [[[0, 0, 0] for y in range(self.rect.h)] for x in range(self.rect.w)]
+                self.buffer.resize((self.rect.w, self.rect.h), refcheck = False)
+                self.buffer = numpy.where(self.buffer == 0, self.deactiveColor, self.buffer)
                 self.updated = True
                 self._callback(self.name, 'resized', (self.rect.w, self.rect.h))
 
@@ -147,7 +150,7 @@ class Widget:
         self._callback(self.name, 'held', (x, y))
     
     def updateArea(self, sx, sy, sw, sh):
-        return []
+        return self.buffer[sx:sx+sw, sy:sy+sh]
 
     def update(self) -> list:
         """
