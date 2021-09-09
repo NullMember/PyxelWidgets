@@ -48,7 +48,7 @@ class FaderMode(Enum):
     Relative = 4
 
 class Fader(Widget):
-    def __init__(self, width: int, height: int, **kwargs):
+    def __init__(self, x: int, y: int, width: int, height: int, **kwargs):
         """
         Description
         ----
@@ -95,7 +95,7 @@ class Fader(Widget):
                Spread: Corresponding pads from middle active symmetrically
         """
         kwargs['name'] = kwargs.get('name', 'Fader_' + str(Fader._count))
-        super().__init__(width, height, **kwargs)
+        super().__init__(x, y, width, height, **kwargs)
         self.direction = kwargs.get('direction', FaderDirection.Vertical)
         self.grid = kwargs.get('grid', FaderGrid.Simple)
         self.type = kwargs.get('type', FaderType.Wrap)

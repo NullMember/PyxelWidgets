@@ -4,9 +4,9 @@ from ..Util.Clock import *
 from copy import deepcopy
 
 class Life(Widget):
-    def __init__(self, width: int, height: int, **kwargs):
+    def __init__(self, x: int, y: int, width: int, height: int, **kwargs):
         kwargs['name'] = kwargs.get('name', 'Life_' + str(Life._count))
-        super().__init__(width, height, **kwargs)
+        super().__init__(x, y, width, height, **kwargs)
         self._running = False
         self._grid = [[False for y in range(self.rect.h)] for x in range(self.rect.w)]
         Life._count += 1

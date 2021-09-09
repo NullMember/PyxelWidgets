@@ -3,9 +3,9 @@ from ..Helpers import *
 from ..Util.Clock import *
 
 class Sequencer(Widget):
-    def __init__(self, width: int, height: int, clock: Clock = None, **kwargs):
+    def __init__(self, x: int, y: int, width: int, height: int, clock: Clock = None, **kwargs):
         kwargs['name'] = kwargs.get('name', 'Sequencer_' + str(Sequencer._count))
-        super().__init__(width, height, **kwargs)
+        super().__init__(x, y, width, height, **kwargs)
         self.active = [[False for y in range(self.rect.h)] for x in range(self.rect.w)]
         self.numerator = kwargs.get('numerator', 1.0)
         self.denominator = kwargs.get('denominator', 4.0)

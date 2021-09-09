@@ -8,9 +8,9 @@ class ButtonMode(Enum):
     Mixed = 2
 
 class Button(Widget):
-    def __init__(self, width: int, height: int, **kwargs):
+    def __init__(self, x: int, y: int, width: int, height: int, **kwargs):
         kwargs['name'] = kwargs.get('name', 'Button_' + str(Button._count))
-        super().__init__(width, height, **kwargs)
+        super().__init__(x, y, width, height, **kwargs)
         self.mode = kwargs.get('mode', ButtonMode.Button)
         self.hold = False
         self.state = False

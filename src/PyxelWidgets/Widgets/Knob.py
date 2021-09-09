@@ -11,9 +11,9 @@ class KnobType(Enum):
     Collapse = 4
 
 class Knob(Widget):
-    def __init__(self, width: int, height: int, **kwargs):
+    def __init__(self, x: int, y: int, width: int, height: int, **kwargs):
         kwargs['name'] = kwargs.get('name', 'Knob_' + str(Knob._count))
-        super().__init__(width, height, **kwargs)
+        super().__init__(x, y, width, height, **kwargs)
         self.ppq = kwargs.get('ppq', 24)
         self.type = kwargs.get('type', KnobType.Wrap)
         self.coefficient = 0.05#1.0 / self._ppq

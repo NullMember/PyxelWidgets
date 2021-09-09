@@ -7,9 +7,9 @@ class XYDirection(Enum):
     Horizontal = 1
 
 class XY(Widget):
-    def __init__(self, width: int, height: int, **kwargs):
+    def __init__(self, x: int, y: int, width: int, height: int, **kwargs):
         kwargs['name'] = kwargs.get('name', 'XY_' + str(XY._count))
-        super().__init__(width, height, **kwargs)
+        super().__init__(x, y, width, height, **kwargs)
         self.xColor = kwargs.get('xColor', [0, 255, 255])
         self.yColor = kwargs.get('yColor', [255, 0, 255])
         self.delta = [0.0, 0.0]
