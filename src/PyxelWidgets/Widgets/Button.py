@@ -1,4 +1,5 @@
 from . import Widget
+from ..Helpers import *
 from enum import Enum
 
 class ButtonMode(Enum):
@@ -51,12 +52,9 @@ class Button(Widget):
 
     def updateArea(self, sx, sy, sw, sh):
         self.updated = False
-        ex = sx + sw
-        ex = ex if ex < self.rect.w else self.rect.w
-        ey = sy + sh
-        ey = ey if ey < self.rect.h else self.rect.h
-        for x in range(sx, ex):
-            for y in range(sy, ey):
+        area = Rectangle2D(sx, sy, sw, sh)
+        for x in area.columns:
+            for y in area.rows:
                 if self.value:
                     self.buffer[x, y] = self.activeColor * self.value
                 else:

@@ -1,4 +1,5 @@
 from . import Widget
+from ..Helpers import *
 from enum import Enum
 
 class XYDirection(Enum):
@@ -48,19 +49,16 @@ class XY(Widget):
 
     def updateArea(self, sx, sy, sw, sh):
         self.updated = False
-        ex = sx + sw
-        ex = ex if ex < self.rect.w else self.rect.w
-        ey = sy + sh
-        ey = ey if ey < self.rect.h else self.rect.h
-        for x in range(sx, ex):
-            for y in range(sy, ey):
+        area = Rectangle2D(sx, sy, sw, sh)
+        for x in area.columns:
+            for y in area.rows:
                 minV = self._calcXYValue(x, y, 0.0)
                 maxV = self._calcXYValue(x, y, 1.0)
                 # junction point
                 # if current padx is last pressed pad and current pady is last pressed pad
                 if minV[0] < self.value[0] and maxV[0] >= self.value[0] and minV[1] < self.value[1] and maxV[1] >= self.value[1]:
-                    coefficientX = ((self.value[0] - minV[0]) * self.rectangle.w) / 2
-                    coefficientY = ((self.value[1] - minV[1]) * self.rectangle.h) / 2
+                    coefficientX = ((self.value[0] - minV[0]) * self.rect.w) / 2
+                    coefficientY = ((self.value[1] - minV[1]) * self.rect.h) / 2
                     color = (self.xColor * coefficientX) + (self.yColor * coefficientY)
                     self.buffer[x, y] = color
                 # x axis

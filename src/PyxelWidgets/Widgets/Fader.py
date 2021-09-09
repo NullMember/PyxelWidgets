@@ -1,4 +1,5 @@
 from . import Widget
+from ..Helpers import *
 from enum import Enum
 
 class FaderDirection(Enum):
@@ -198,12 +199,9 @@ class Fader(Widget):
         self.updated = False
         halfval = self.value / 2.0
         halfvalpluspointfive = halfval + 0.5
-        ex = sx + sw
-        ex = ex if ex < self.rect.w else self.rect.w
-        ey = sy + sh
-        ey = ey if ey < self.rect.h else self.rect.h
-        for x in range(sx, ex):
-            for y in range(sy, ey):
+        area = Rectangle2D(sx, sy, sw, sh)
+        for x in area.columns:
+            for y in area.rows:
                 minV = self._calcFaderValue(x, y, 0.0)
                 maxV = self._calcFaderValue(x, y, 1.0)
                 if self.type == FaderType.Single:

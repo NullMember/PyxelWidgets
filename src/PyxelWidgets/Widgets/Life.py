@@ -1,4 +1,5 @@
 from . import Widget
+from ..Helpers import *
 from ..Util.Clock import *
 from copy import deepcopy
 
@@ -28,13 +29,10 @@ class Life(Widget):
 
     def updateArea(self, sx, sy, sw, sh):
         self.updated = False
-        ex = sx + sw
-        ex = ex if ex < self.rect.w else self.rect.w
-        ey = sy + sh
-        ey = ey if ey < self.rect.h else self.rect.h
         newGrid = deepcopy(self._grid)
-        for x in range(sx, ex):
-            for y in range(sy, ey):
+        area = Rectangle2D(sx, sy, sw, sh)
+        for x in area.columns:
+            for y in area.rows:
                 if self._running:
                     total = int(self._grid[(x - 1) % self.rect.w][(y - 1) % self.rect.h]) + \
                             int(self._grid[(x + 0) % self.rect.w][(y - 1) % self.rect.h]) + \

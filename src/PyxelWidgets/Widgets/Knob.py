@@ -1,6 +1,7 @@
-from enum import Enum
 from . import Widget
+from ..Helpers import *
 from ..Util.Clock import *
+from enum import Enum
 
 class KnobType(Enum):
     Single = 0
@@ -62,12 +63,9 @@ class Knob(Widget):
         self.updated = False
         halfval = self.value / 2.0
         halfvalpluspointfive = halfval + 0.5
-        ex = sx + sw
-        ex = ex if ex < self.rect.w else self.rect.w
-        ey = sy + sh
-        ey = ey if ey < self.rect.h else self.rect.h
-        for x in range(sx, ex):
-            for y in range(sy, ey):
+        area = Rectangle2D(sx, sy, sw, sh)
+        for x in area.columns:
+            for y in area.rows:
                 index = self._calcKnobIndex(x, y)
                 minV = self._calcKnobValue(index, 0.0)
                 maxV = self._calcKnobValue(index, 1.0)
