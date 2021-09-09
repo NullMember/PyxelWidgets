@@ -56,11 +56,11 @@ class Window():
     def update(self):
         for widget in self.widgets.values():
             if widget.updated:
-                intersect = self.rectangle.intersect(widget.rectangle)
+                intersect = self.rect.intersect(widget.rectangle)
                 if intersect:
                     update = intersect - widget.rectangle
                     buffer = widget.updateArea(update.x, update.y, update.w, update.h)
-                    copy = intersect - self.rectangle
+                    copy = intersect - self.rect
                     view = self.buffer[copy.l:copy.r, copy.b:copy.t]
                     view[:] = numpy.where(buffer == False, view, buffer)
         return self.buffer
