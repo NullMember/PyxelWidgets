@@ -1,4 +1,4 @@
-from .Widget import *
+from . import Widget
 from ..Util.Clock import *
 from copy import deepcopy
 

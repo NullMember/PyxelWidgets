@@ -1,4 +1,4 @@
-from .Widget import Widget
+from . import Widget
 from enum import Enum
 
 class ButtonMode(Enum):

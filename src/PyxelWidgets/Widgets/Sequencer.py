@@ -1,4 +1,4 @@
-from .Widget import Widget
+from . import Widget
 from ..Util.Clock import *
 
 class Sequencer(Widget):

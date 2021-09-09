@@ -1,5 +1,5 @@
 from enum import Enum
-from .Widget import *
+from . import *
 from ..Util.Clock import *
 
 
