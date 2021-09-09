@@ -1,7 +1,6 @@
 from enum import Enum
-from . import *
+from . import Widget
 from ..Util.Clock import *
-
 
 class KnobType(Enum):
     Single = 0
