@@ -47,7 +47,7 @@ class Sequencer(Widget):
                 else:
                     self.buffer[x, y] = self.deactiveColor
         self.buffer[self._tickX()][self._tickY()] = self.currentColor
-        return self.buffer
+        return self.buffer[area.l:area.r, area.b:area.t]
     
     def _resize(self, width, height):
         self._tickTarget = width * height

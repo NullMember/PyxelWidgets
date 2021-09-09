@@ -59,4 +59,4 @@ class Button(Widget):
                     self.buffer[x, y] = self.activeColor * self.value
                 else:
                     self.buffer[x, y] = self.deactiveColor
-        return self.buffer
+        return self.buffer[area.l:area.r, area.b:area.t]

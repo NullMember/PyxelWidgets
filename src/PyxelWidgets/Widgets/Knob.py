@@ -153,7 +153,7 @@ class Knob(Widget):
                                     self.buffer[x, y] = self.activeColor * coefficient
                         else:
                             self.buffer[x, y] = self.deactiveColor
-        return self.buffer
+        return self.buffer[area.l:area.r, area.b:area.t]
     
     def _resize(self, width, height):
         self.perimeter = self._calcPerimeter(width, height)

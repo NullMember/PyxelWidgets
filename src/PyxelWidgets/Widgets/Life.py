@@ -53,4 +53,4 @@ class Life(Widget):
                 else:
                     self.buffer[x, y] = self.deactiveColor
         self._grid = newGrid
-        return self.buffer
+        return self.buffer[area.l:area.r, area.b:area.t]

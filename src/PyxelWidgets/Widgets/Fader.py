@@ -320,7 +320,7 @@ class Fader(Widget):
                         else:
                             coefficient = 1.0 - self._calcPixelCoefficient(halfval - minV)
                             self.buffer[x, y] = self.activeColor * coefficient
-        return self.buffer
+        return self.buffer[area.l:area.r, area.b:area.t]
 
     # Calculate fader value from pad location
     def _calcFaderValue(self, x: int, y: int, value: float) -> float:

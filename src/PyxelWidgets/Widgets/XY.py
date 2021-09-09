@@ -72,7 +72,7 @@ class XY(Widget):
                 # unlit every other pad
                 else:
                     self.buffer[x, y] = self.deactiveColor
-        return self.buffer
+        return self.buffer[area.l:area.r, area.b:area.t]
 
     def _calcXValue(self, x: int, value: float) -> float:
         return round(((x / self.rect.w) + (value / self.rect.w)), 6)
