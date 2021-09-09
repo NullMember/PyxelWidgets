@@ -3,60 +3,39 @@ class Window():
     _count = 0
 
     def __init__(self, width: int, height: int, **kwargs):
-        self._name = kwargs.get('name', 'Window_' + str(Window._count))
-        self._width = max(1, width)
-        self._height = max(1, height)
-        self._pixels = [[[0, 0, 0] for y in range(self.height)] for x in range(self.width)]
-        self._x = 0
-        self._y = 0
-        self._forceUpdate = False
-        self._widgets = {}
+        self.name = kwargs.get('name', 'Window_' + str(Window._count))
+        self.x = 0
+        self.y = 0
+        self.width = max(1, width)
+        self.height = max(1, height)
+        self.widgets = {}
+        self.buffer = [[[0, 0, 0] for y in range(self.height)] for x in range(self.width)]
         self._callback = lambda *_, **__: None
         Window._count += 1
-    
-    @property
-    def name(self) -> str:
-        return self._name
-
-    @property
-    def width(self) -> int:
-        return self._width
-    
-    @property
-    def height(self) -> int:
-        return self._height
 
     @property
     def x(self) -> int:
-        return self._x
+        return self.x
     
     @x.setter
     def x(self, scroll: int) -> None:
-        self._x = max(0, min(self.width, scroll))
+        self.x = max(0, min(self.width, scroll))
         self.forceUpdate()
 
     @property
     def y(self) -> int:
-        return self._y
+        return self.y
     
     @y.setter
     def y(self, scroll: int) -> None:
-        self._y = max(0, min(self.height, scroll))
+        self.y = max(0, min(self.height, scroll))
         self.forceUpdate()
     
-    @property
-    def widgets(self) -> dict:
-        return self._widgets
-    
-    @property
-    def buffer(self) -> list:
-        return self._pixels
-    
     def addWidget(self, widget, x: int, y: int):
-        self._widgets[widget.name] = {}
-        self._widgets[widget.name]['widget'] = widget
-        self._widgets[widget.name]['x'] = x
-        self._widgets[widget.name]['y'] = y
+        self.widgets[widget.name] = {}
+        self.widgets[widget.name]['widget'] = widget
+        self.widgets[widget.name]['x'] = x
+        self.widgets[widget.name]['y'] = y
 
     def _isCollide(self, sx: int, sy: int, dx: int, dy: int, width: int, height: int) -> bool:
         if sx + self.x >= dx and \
@@ -68,12 +47,12 @@ class Window():
             return False
     
     def forceUpdate(self):
-        for widget in self._widgets.values():
+        for widget in self.widgets.values():
             widget['widget']._updated = True
 
     def process(self, event, data):
         x, y, value = data
-        for widget in self._widgets.values():
+        for widget in self.widgets.values():
             wx = widget['x']
             wy = widget['y']
             ww = widget['widget'].width
@@ -87,14 +66,14 @@ class Window():
                     widget['widget'].held(x - wx + self.x, y - wy + self.y, value)
 
     def update(self):
-        for widget in self._widgets.values():
+        for widget in self.widgets.values():
             pixels = widget['widget'].updateArea(0, 0, self.width, self.height)
             if pixels != []:
                 for x in range(widget['widget'].width):
                     for y in range(widget['widget'].height):
                         if pixels[x][y] != [-1, -1, -1]:
                             try:
-                                self._pixels[x + widget['x']][y + widget['y']] = pixels[x][y]
+                                self.buffer[x + widget['x']][y + widget['y']] = pixels[x][y]
                             except:
                                 break
-        return self._pixels
+        return self.buffer
