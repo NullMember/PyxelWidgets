@@ -38,7 +38,7 @@ class Window():
     
     def forceUpdate(self):
         for widget in self.widgets.values():
-            widget['widget'].updated = True
+            widget.updated = True
 
     def process(self, event, data):
         x, y, value = data
@@ -47,11 +47,11 @@ class Window():
             w = widget.rect - self.rect
             if b.collide(w):
                 if event == 'pressed':
-                    widget['widget'].pressed(b.x - w.x, b.y - w.y, value)
+                    widget.pressed(b.x - w.x, b.y - w.y, value)
                 elif event == 'released':
-                    widget['widget'].released(b.x - w.x, b.y - w.y, value)
+                    widget.released(b.x - w.x, b.y - w.y, value)
                 elif event == 'held':
-                    widget['widget'].held(b.x - w.x, b.y - w.y, value)
+                    widget.held(b.x - w.x, b.y - w.y, value)
 
     def update(self):
         for widget in self.widgets.values():
