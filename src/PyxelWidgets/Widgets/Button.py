@@ -59,8 +59,8 @@ class Button(Widget):
             for x in range(sx, ex):
                 for y in range(sy, ey):
                     if self.value:
-                        self._pixels[x][y] = [int(self._activeColor[0] * self.value), int(self._activeColor[1] * self.value), int(self._activeColor[2] * self.value)]
+                        self.buffer[x][y] = [int(self.activeColor[0] * self.value), int(self.activeColor[1] * self.value), int(self.activeColor[2] * self.value)]
                     else:
-                        self._pixels[x][y] = self._deactiveColor
-            return self._pixels
+                        self.buffer[x][y] = self.deactiveColor
+            return self.buffer
         return []

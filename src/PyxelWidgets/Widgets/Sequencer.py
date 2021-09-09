@@ -46,11 +46,11 @@ class Sequencer(Widget):
             for x in range(sx, ex):
                 for y in range(sy, ey):
                     if self.active[x][y]:
-                        self._pixels[x][y] = self._activeColor
+                        self.buffer[x][y] = self.activeColor
                     else:
-                        self._pixels[x][y] = self._deactiveColor
-            self._pixels[self._tickX()][self._tickY()] = self.currentColor
-            return self._pixels
+                        self.buffer[x][y] = self.deactiveColor
+            self.buffer[self._tickX()][self._tickY()] = self.currentColor
+            return self.buffer
         return []
     
     def _resize(self, width, height):

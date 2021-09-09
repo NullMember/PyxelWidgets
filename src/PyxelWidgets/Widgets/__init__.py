@@ -37,50 +37,42 @@ class Widget:
         value: int = 0.0
             Default value of widget
         """
-        self._id = uuid.uuid1()
-        self._name = name
-        self._width = 1 if width < 1 else width
-        self._height = 1 if height < 1 else height
-        self._callback = kwargs.get('callback', lambda *_, **__: None)
-        self._activeColor = kwargs.get('activeColor', [255, 255, 255])
-        self._deactiveColor = kwargs.get('deactiveColor', [0, 0, 0])
+        self.id = uuid.uuid1()
+        self.name = name
+        self.width = 1 if width < 1 else width
+        self.height = 1 if height < 1 else height
+        self.activeColor = kwargs.get('activeColor', [255, 255, 255])
+        self.deactiveColor = kwargs.get('deactiveColor', [0, 0, 0])
+        self.delta = 0.0
+        self.updated = True
+        self.buffer = [[[0, 0, 0] for y in range(self.height)] for x in range(self.width)]
         self._value = 0.0
-        self._delta = 0.0
-        self._updated = True
-        self._pixels = [[[0, 0, 0] for y in range(self.height)] for x in range(self.width)]
-
-    @property
-    def id(self) -> str:
-        return self._id.hex
-
-    @property
-    def name(self) -> str:
-        return self._name
+        self._callback = kwargs.get('callback', lambda *_, **__: None)
 
     @property
     def width(self) -> int:
-        return self._width
+        return self.width
     
     @width.setter
     def width(self, value: int) -> None:
         if value > 0:
             if self._resize(value, self.height):
-                self._width = value
-                self._pixels = [[[0, 0, 0] for y in range(self.height)] for x in range(self.width)]
-                self._updated = True
+                self.width = value
+                self.buffer = [[[0, 0, 0] for y in range(self.height)] for x in range(self.width)]
+                self.updated = True
                 self._callback(self.name, 'resized', (self.width, self.height))
 
     @property
     def height(self) -> int:
-        return self._height
+        return self.height
     
     @height.setter
     def height(self, value: int) -> None:
         if value > 0:
             if self._resize(self.width, value):
-                self._height = value
-                self._pixels = [[[0, 0, 0] for y in range(self.height)] for x in range(self.width)]
-                self._updated = True
+                self.height = value
+                self.buffer = [[[0, 0, 0] for y in range(self.height)] for x in range(self.width)]
+                self.updated = True
                 self._callback(self.name, 'resized', (self.width, self.height))
 
     @property
@@ -98,7 +90,7 @@ class Widget:
                 oldValue = self._value
                 self._value = round(min(1.0, max(0.0, value)), 6)
             if self._value != oldValue:
-                self._updated = True
+                self.updated = True
                 self._callback(self.name, 'changed', self._value)
     
     @property
@@ -106,29 +98,9 @@ class Widget:
         if isinstance(self._value, list):
             deltas = deepcopy(self._value)
             for i in range(len(self._value)):
-                deltas[i] = round(deltas[i] - self._delta[i], 6)
+                deltas[i] = round(deltas[i] - self.delta[i], 6)
             return deltas
-        return round(self._value - self._delta, 6)
-
-    @property
-    def activeColor(self) -> list:
-        return self._activeColor
-    
-    @activeColor.setter
-    def activeColor(self, color: list):
-        self._activeColor = color
-    
-    @property
-    def deactiveColor(self) -> list:
-        return self._deactiveColor
-    
-    @deactiveColor.setter
-    def deactiveColor(self, color: list):
-        self._deactiveColor = color
-
-    @property
-    def buffer(self) -> list:
-        return self._pixels
+        return round(self._value - self.delta, 6)
 
     def setCallback(self, callback) -> None:
         self._callback = callback

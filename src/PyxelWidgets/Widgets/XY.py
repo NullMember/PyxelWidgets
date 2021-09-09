@@ -65,19 +65,19 @@ class XY(Widget):
                         r = ((self.xColor[0] * coefficientX) + (self.yColor[0] * coefficientY)) / 2
                         g = ((self.xColor[1] * coefficientX) + (self.yColor[1] * coefficientY)) / 2
                         b = ((self.xColor[2] * coefficientX) + (self.yColor[2] * coefficientY)) / 2
-                        self._pixels[x][y] = [int(r), int(g), int(b)]
+                        self.buffer[x][y] = [int(r), int(g), int(b)]
                     # x axis
                     # if current padx is in same column of last pressed pad
                     elif minV[0] < self.value[0] and maxV[0] >= self.value[0]:
-                        self._pixels[x][y] = [int(self.xColor[0] * self.value[0]), int(self.xColor[1] * self.value[0]), int(self.xColor[2] * self.value[0])]
+                        self.buffer[x][y] = [int(self.xColor[0] * self.value[0]), int(self.xColor[1] * self.value[0]), int(self.xColor[2] * self.value[0])]
                     # y axis
                     # if current pady is in same row of last pressed pad
                     elif minV[1] < self.value[1] and maxV[1] >= self.value[1]:
-                        self._pixels[x][y] = [int(self.yColor[0] * self.value[1]), int(self.yColor[1] * self.value[1]), int(self.yColor[2] * self.value[1])]
+                        self.buffer[x][y] = [int(self.yColor[0] * self.value[1]), int(self.yColor[1] * self.value[1]), int(self.yColor[2] * self.value[1])]
                     # unlit every other pad
                     else:
-                        self._pixels[x][y] = self._deactiveColor
-            return self._pixels
+                        self.buffer[x][y] = self.deactiveColor
+            return self.buffer
         return []
 
     def _calcXValue(self, x: int, value: float) -> float:
