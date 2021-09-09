@@ -10,8 +10,8 @@ class XY(Widget):
     def __init__(self, x: int, y: int, width: int, height: int, **kwargs):
         kwargs['name'] = kwargs.get('name', 'XY_' + str(XY._count))
         super().__init__(x, y, width, height, **kwargs)
-        self.xColor = kwargs.get('xColor', [0, 255, 255])
-        self.yColor = kwargs.get('yColor', [255, 0, 255])
+        self.xColor = kwargs.get('xColor', Colors.Cyan)
+        self.yColor = kwargs.get('yColor', Colors.Magenta)
         self.delta = [0.0, 0.0]
         self._value = [0.0, 0.0]
         self._heldButton = [-1, -1]

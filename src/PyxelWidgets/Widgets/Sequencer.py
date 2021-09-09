@@ -10,7 +10,7 @@ class Sequencer(Widget):
         self.numerator = kwargs.get('numerator', 1.0)
         self.denominator = kwargs.get('denominator', 4.0)
         self.ppq = kwargs.get('ppq', 24)
-        self.currentColor = kwargs.get('currentColor', [0, 255, 0])
+        self.currentColor = kwargs.get('currentColor', Colors.Lime)
         self._tickTarget = self.rect.w * self.rect.h
         self._tick = 0
         self.target = Target(self.name, self.tick)

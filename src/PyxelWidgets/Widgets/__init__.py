@@ -41,8 +41,8 @@ class Widget:
         self.id = uuid.uuid1()
         self.name = kwargs.get('name', 'Widget_' + str(Widget._count))
         self.rect = Rectangle2D(x, y, width, height)
-        self.activeColor = kwargs.get('activeColor', [255, 255, 255])
-        self.deactiveColor = kwargs.get('deactiveColor', [0, 0, 0])
+        self.activeColor = kwargs.get('activeColor', Colors.White)
+        self.deactiveColor = kwargs.get('deactiveColor', Colors.Black)
         self.delta = 0.0
         self.updated = True
         self.buffer = numpy.ndarray((self.rect.w, self.rect.h), Pixel)
