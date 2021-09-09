@@ -55,13 +55,14 @@ class Window():
 
     def update(self):
         for widget in self.widgets.values():
-            pixels = widget['widget'].updateArea(0, 0, self.rect.w, self.rect.h)
-            if pixels != []:
-                for x in range(widget['widget'].width):
-                    for y in range(widget['widget'].height):
-                        if pixels[x][y] != [-1, -1, -1]:
-                            try:
-                                self.buffer[x + widget['x']][y + widget['y']] = pixels[x][y]
-                            except:
-                                break
+            if widget.updated:
+                pixels = widget['widget'].updateArea(0, 0, self.rect.w, self.rect.h)
+                if pixels != []:
+                    for x in range(widget['widget'].width):
+                        for y in range(widget['widget'].height):
+                            if pixels[x][y] != [-1, -1, -1]:
+                                try:
+                                    self.buffer[x + widget['x']][y + widget['y']] = pixels[x][y]
+                                except:
+                                    break
         return self.buffer

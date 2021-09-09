@@ -50,17 +50,15 @@ class Button(Widget):
         super().held(x, y, self.value)
 
     def updateArea(self, sx, sy, sw, sh):
-        if self._updated:
-            self._updated = False
-            ex = sx + sw
-            ex = ex if ex < self.rect.w else self.rect.w
-            ey = sy + sh
-            ey = ey if ey < self.rect.h else self.rect.h
-            for x in range(sx, ex):
-                for y in range(sy, ey):
-                    if self.value:
-                        self.buffer[x][y] = [int(self.activeColor[0] * self.value), int(self.activeColor[1] * self.value), int(self.activeColor[2] * self.value)]
-                    else:
-                        self.buffer[x][y] = self.deactiveColor
-            return self.buffer
-        return []
+        self.updated = False
+        ex = sx + sw
+        ex = ex if ex < self.rect.w else self.rect.w
+        ey = sy + sh
+        ey = ey if ey < self.rect.h else self.rect.h
+        for x in range(sx, ex):
+            for y in range(sy, ey):
+                if self.value:
+                    self.buffer[x][y] = [int(self.activeColor[0] * self.value), int(self.activeColor[1] * self.value), int(self.activeColor[2] * self.value)]
+                else:
+                    self.buffer[x][y] = self.deactiveColor
+        return self.buffer

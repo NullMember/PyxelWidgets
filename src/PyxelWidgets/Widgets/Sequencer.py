@@ -26,32 +26,30 @@ class Sequencer(Widget):
         self._tick = tick / (self.ppq * (self.numerator / self.denominator))
         self._tick %= self._tickTarget
         if int(oldTick) != int(self._tick):
-            self._updated = True
+            self.updated = True
             self._callback(self.name, 'tick', int(self._tick))
             if self._isTickActive():
                 self._callback(self.name, 'active', int(self._tick))
 
     def pressed(self, x: int, y: int, value: float):
         self.active[x][y] = not self.active[x][y]
-        self._updated = True
+        self.updated = True
         super().pressed(x, y, value)
 
     def updateArea(self, sx, sy, sw, sh):
-        if self._updated:
-            self._updated = False
-            ex = sx + sw
-            ex = ex if ex < self.rect.w else self.rect.w
-            ey = sy + sh
-            ey = ey if ey < self.rect.h else self.rect.h
-            for x in range(sx, ex):
-                for y in range(sy, ey):
-                    if self.active[x][y]:
-                        self.buffer[x][y] = self.activeColor
-                    else:
-                        self.buffer[x][y] = self.deactiveColor
-            self.buffer[self._tickX()][self._tickY()] = self.currentColor
-            return self.buffer
-        return []
+        self.updated = False
+        ex = sx + sw
+        ex = ex if ex < self.rect.w else self.rect.w
+        ey = sy + sh
+        ey = ey if ey < self.rect.h else self.rect.h
+        for x in range(sx, ex):
+            for y in range(sy, ey):
+                if self.active[x][y]:
+                    self.buffer[x][y] = self.activeColor
+                else:
+                    self.buffer[x][y] = self.deactiveColor
+        self.buffer[self._tickX()][self._tickY()] = self.currentColor
+        return self.buffer
     
     def _resize(self, width, height):
         self._tickTarget = width * height
