@@ -1,25 +1,7 @@
-import numpy
-
-class Point2D():
+class Position2D():
     def __init__(self, x: int = 0, y: int = 0) -> None:
-        self._x = x
-        self._y = y
-    
-    @property
-    def x(self) -> int:
-        return self._x
-    
-    @x.setter
-    def x(self, value: int) -> None:
-        self._x = max(0, int(value))
-    
-    @property
-    def y(self) -> int:
-        return self._y
-    
-    @y.setter
-    def y(self, value: int) -> None:
-        self._y = max(0, int(value))
+        self.x = x
+        self.y = y
     
     def set(self, x: int, y: int) -> None:
         self.x = x
@@ -27,110 +9,76 @@ class Point2D():
     
     def get(self) -> tuple:
         return self.x, self.y
-    
+
     def __repr__(self) -> str:
-        return f'x: {self._x}, y: {self._y}'
+        return f'({self.x}, {self.y})'
 
 class Dimension2D():
-    def __init__(self, width: int = 1, height: int = 1) -> None:
-        self._width = width
-        self._height = height
+    def __init__(self, w: int = 1, h: int = 1) -> None:
+        self.w = w
+        self.h = h
     
-    @property
-    def width(self) -> int:
-        return self._width
-    
-    @width.setter
-    def width(self, value: int) -> None:
-        self._width = max(1, int(value))
-    
-    @property
-    def w(self) -> int:
-        return self.width
-    
-    @w.setter
-    def w(self, value: int) -> None:
-        self.width = value
-    
-    @property
-    def height(self) -> int:
-        return self._height
-    
-    @height.setter
-    def height(self, value: int) -> None:
-        self._height = max(1, int(value))
-    
-    @property
-    def h(self) -> int:
-        return self.height
-    
-    @h.setter
-    def h(self, value: int) -> None:
-        self.height = value
-    
-    def set(self, width: int, height: int) -> None:
-        self.width = width
-        self.height = height
+    def set(self, w: int, h: int) -> None:
+        self.w = w
+        self.h = h
     
     def get(self) -> tuple:
-        return self.width, self.height
+        return self.w, self.h
 
     def __repr__(self) -> str:
-        return f'width: {self._width}, height: {self._height}'
+        return f'({self.w}, {self.h})'
 
-class Rectangle(Point2D, Dimension2D):
-    def __init__(self, x: int, y: int, width: int, height: int) -> None:
-        Point2D.__init__(self, x, y)
-        Dimension2D.__init__(self, width, height)
+class Rectangle2D(Position2D, Dimension2D):
+    def __init__(self, x: int = 0, y: int = 0, w: int = 1, h: int = 1, position: Position2D = None, dimension: Dimension2D = None) -> None:
+        if position == None:
+            Position2D.__init__(self, x, y)
+        else:
+            Position2D.__init__(self, position.x, position.y)
+        if dimension == None:
+            Dimension2D.__init__(self, w, h)
+        else:
+            Dimension2D.__init__(self, dimension.w, dimension.h)
 
     @property
-    def left(self) -> int:
+    def l(self) -> int:
         return self.x
     
     @property
-    def right(self) -> int:
-        return self.x + self.width
-    
-    @property
-    def bottom(self) -> int:
-        return self.y
-    
-    @property
-    def top(self) -> int:
-        return self.y + self.h
-    
-    @property
-    def l(self) -> int:
-        return self.left
-    
-    @property
     def r(self) -> int:
-        return self.right
+        return self.x + self.w
     
     @property
     def b(self) -> int:
-        return self.bottom
+        return self.y
     
     @property
     def t(self) -> int:
-        return self.top
+        return self.y + self.h
     
-    def set(self, x: int, y: int, width: int, height: int) -> None:
+    @property
+    def columns(self) -> range:
+        return range(self.x, self.x + self.w)
+    
+    @property
+    def rows(self) -> range:
+        return range(self.y, self.y + self.h)
+
+    def set(self, x: int, y: int, w: int, h: int) -> None:
         self.x = x
         self.y = y
-        self.width = width
-        self.height = height
-
+        self.w = w
+        self.h = h
+    
     def get(self) -> tuple:
-        return self.x, self.y, self.width, self.height
+        return self.x, self.y, self.w, self.h
 
     def intersect(self, rect):
         if self.collide(rect):
             x = max(self.x, rect.x)
             y = max(self.y, rect.y)
-            width = min(self.r, rect.r) - max(self.l, rect.l)
-            height = min(self.t, rect.t) - max(self.b, rect.b)
-            return Rectangle(x, y, width, height)
+            w = min(self.r, rect.r) - max(self.l, rect.l)
+            h = min(self.t, rect.t) - max(self.b, rect.b)
+            return Rectangle2D(x, y, w, h)
         return None
 
     def collide(self, rect):
@@ -138,72 +86,89 @@ class Rectangle(Point2D, Dimension2D):
                 rect.x < self.x + self.w and
                 self.y < rect.y + rect.h and 
                 rect.y < self.y + self.h)
+
+    def __add__(self, other):
+        if isinstance(other, Rectangle2D):
+            return Rectangle2D(self.x + other.x, self.y + other.y, self.w, self.h)
+        raise TypeError
     
+    def __sub__(self, other):
+        if isinstance(other, Rectangle2D):
+            return Rectangle2D(self.x - other.x, self.y - other.y, self.w, self.h)
+        raise TypeError
+
     def __repr__(self) -> str:
-        return f'x: {self.x}, y: {self.y}, width: {self.width}, height: {self.height}'
+        return f'({self.x}, {self.y}, {self.w}, {self.h})'
 
 class Pixel():
     def __init__(self, r: int = 0, g: int = 0, b: int = 0, a: float = 1.0) -> None:
-        self._rgb = numpy.array([r, g, b], numpy.uint8)
-        self._alpha = numpy.clip(a, 0.0, 1.0).astype(numpy.single)
-        self._color = (self._rgb * self._alpha).astype(numpy.uint8)
-
-    def lighter(self, other):
-        if max(self.l, other.l) == self.l:
-            return self
-        return other
-
-    def darker(self, other):
-        if min(self.l, other.l) == self.l:
-            return self
-        return other
-    
-    @property
-    def color(self) -> numpy.ndarray:
-        return self._color
+        r = int(r)
+        g = int(g)
+        b = int(b)
+        self.color = [0 if r < 0 else (255 if r > 255 else r),
+                     0 if g < 0 else (255 if g > 255 else g),
+                     0 if b < 0 else (255 if b > 255 else b)]
+        self.alpha = 0.0 if a < 0.0 else (1.0 if a > 1.0 else a)
+        self._value = (int(self.alpha * 255) << 24) | (self.color[0] << 16) | (self.color[1] << 8) | self.color[2]
 
     @property
     def a(self) -> int:
-        return self._alpha
+        return self.alpha
 
     @a.setter
     def a(self, value: float) -> None:
-        self._alpha = numpy.clip(value, 0.0, 1.0).astype(numpy.single)
-        self._color = (self._rgb * self._alpha).astype(numpy.uint8)
+        value = float(value)
+        self.alpha = 0.0 if value < 0.0 else (1.0 if value > 1.0 else value)
+        self._value &= 0x00FFFFFF
+        self._value |= (int(self.alpha * 255) << 24)
+
+    @property
+    def rgb(self):
+        return self.r, self.g, self.b
+    
+    @property
+    def frgb(self):
+        return self.r / 255.0, self.g / 255.0, self.b / 255.0
 
     @property
     def r(self) -> int:
-        return self._color[0]
+        return int(self.color[0] * self.alpha)
     
     @r.setter
     def r(self, value: int) -> None:
-        self._rgb[0] = value
-        self._color[0] = (value * self._alpha).astype(numpy.uint8)
+        value = int(value)
+        self.color[0] = 0 if value < 0 else (255 if value > 255 else value)
+        self._value &= 0xFF00FFFF
+        self._value |= self.color[0] << 16
 
     @property
     def g(self) -> int:
-        return self._color[1]
+        return int(self.color[1] * self.alpha)
     
     @g.setter
     def g(self, value: int) -> None:
-        self._rgb[1] = value
-        self._color[1] = (value * self._alpha).astype(numpy.uint8)
+        value = int(value)
+        self.color[1] = 0 if value < 0 else (255 if value > 255 else value)
+        self._value &= 0xFFFF00FF
+        self._value |= self.color[1] << 8
 
     @property
     def b(self) -> int:
-        return self._color[2]
+        return int(self.color[2] * self.alpha)
     
     @b.setter
     def b(self, value: int) -> None:
-        self._rgb[2] = value
-        self._color[2] = (value * self._alpha).astype(numpy.uint8)
+        value = int(value)
+        self.color[2] = 0 if value < 0 else (255 if value > 255 else value)
+        self._value &= 0xFFFFFF00
+        self._value |= self.color[0]
 
     @property
     def h(self) -> int:
         h = 0.0
-        rgb = self._color / 255.0
-        minV = rgb.min()
-        maxV = rgb.max()
+        rgb = self.frgb
+        minV = min(rgb)
+        maxV = max(rgb)
         if maxV == rgb[0]:
             h = (rgb[1] - rgb[2]) / (maxV - minV)
         elif maxV == rgb[1]:
@@ -214,274 +179,332 @@ class Pixel():
 
     @property
     def s(self) -> float:
-        rgb = self._color / 255.0
-        minV = rgb.min()
-        maxV = rgb.max()
+        rgb = self.frgb
+        minV = min(rgb)
+        maxV = max(rgb)
         if self.l <= 0.5:
             return (maxV - minV) / (maxV + minV)
         return (maxV - minV) / (2.0 - maxV - minV)
 
     @property
     def l(self) -> float:
-        rgb = self._color / 255.0
-        minV = rgb.min()
-        maxV = rgb.max()
+        rgb = self.frgb
+        minV = min(rgb)
+        maxV = max(rgb)
         return (maxV + minV) / 2.0
+    
+    @property
+    def mono(self) -> int:
+        return int((self.r + self.g + self.b) / 3)
 
     @property
-    def rgb(self) -> int:
-        return (self.r << 16) | (self.g << 8) | self.b
+    def value(self) -> int:
+        return self._value
     
-    @rgb.setter
-    def rgb(self, value: int) -> None:
-        self.r = (value >> 16) & 0xFF
-        self.g = (value >> 8) & 0xFF
-        self.b = value & 0xFF
+    @value.setter
+    def value(self, value: int) -> None:
+        self._value = value & 0xFFFFFFFF
+        self.alpha = ((self._value >> 24) & 0xFF) / 255.0
+        self.color[0] = (self._value >> 16) & 0xFF
+        self.color[1] = (self._value >> 8) & 0xFF
+        self.color[2] = self._value & 0xFF
+
+    def __eq__(self, other) -> bool:
+        if isinstance(other, Pixel):
+            return self._value == other._value
+        elif isinstance(other, bool):
+            return bool(self) == other
+        elif isinstance(other, int):
+            return self._value == other
+        return False
     
-    @property
-    def rgba(self) -> int:
-        return (int(self.a * 255.0) << 24) | (self.r << 16) | (self.g << 8) | self.b
+    def __ne__(self, other) -> bool:
+        if isinstance(other, Pixel):
+            return self._value != other._value
+        elif isinstance(other, bool):
+            return bool(self) != other
+        elif isinstance(other, int):
+            return self._value != other
+        return False
     
-    @rgba.setter
-    def rgba(self, value: int) -> None:
-        self.a = ((value >> 24) & 0xFF) / 255.0
-        self.r = (value >> 16) & 0xFF
-        self.g = (value >> 8) & 0xFF
-        self.b = value & 0xFF
+    def __lt__(self, other) -> bool:
+        if isinstance(other, Pixel):
+            return self.l < other.l
+        return False
     
+    def __gt__(self, other) -> bool:
+        if isinstance(other, Pixel):
+            return self.l > other.l
+        return False
+    
+    def __le__(self, other) -> bool:
+        if isinstance(other, Pixel):
+            result = [min(s, o) for s, o in zip(self.color, other.color)] + [min(self.alpha, other.alpha)]
+        elif isinstance(other, int):
+            result = [min(s, other) for s in self.color] + [self.alpha]
+        elif isinstance(other, float):
+            result = self.color + [min(self.alpha, other)]
+        else:
+            raise TypeError(f"should Pixel, int or float, not {type(other).__name__}")
+        return Pixel(result[0], result[1], result[2], result[3])
+
+    def __ge__(self, other) -> bool:
+        if isinstance(other, Pixel):
+            result = [max(s, o) for s, o in zip(self.color, other.color)] + [max(self.alpha, other.alpha)]
+        elif isinstance(other, int):
+            result = [max(s, other) for s in self.color] + [self.alpha]
+        elif isinstance(other, float):
+            result = self.color + [max(self.alpha, other)]
+        else:
+            raise TypeError(f"should Pixel, int or float, not {type(other).__name__}")
+        return Pixel(result[0], result[1], result[2], result[3])
+
     def __add__(self, other):
         if isinstance(other, Pixel):
-            return Pixel(self.r + other.r, self.g + other.g, self.b + other.b, self.a + other.a)
+            result = [s + o for s, o in zip(self.color, other.color)] + [self.alpha + other.alpha]
         elif isinstance(other, int):
-            return Pixel(self.r + other, self.g + other, self.b + other)
+            result = [s + other for s in self.color] + [self.alpha]
+        elif isinstance(other, float):
+            result = self.color + [self.alpha + other]
         else:
-            raise TypeError
+            raise TypeError(f"should Pixel, int or float, not {type(other).__name__}")
+        return Pixel(result[0], result[1], result[2], result[3])
     
     def __sub__(self, other):
         if isinstance(other, Pixel):
-            return Pixel(self.r - other.r, self.g - other.g, self.b - other.b, self.a - other.a)
+            result = [s - o for s, o in zip(self.color, other.color)] + [self.alpha - other.alpha]
         elif isinstance(other, int):
-            return Pixel(self.r - other, self.g - other, self.b - other)
+            result = [s - other for s in self.color] + [self.alpha]
+        elif isinstance(other, float):
+            result = self.color + [self.alpha - other]
         else:
-            raise TypeError
+            raise TypeError(f"should Pixel, int or float, not {type(other).__name__}")
+        return Pixel(result[0], result[1], result[2], result[3])
     
     def __mul__(self, other):
         if isinstance(other, Pixel):
-            mulalpha = other.fa * (1.0 - self.fa)
-            alphablend = self.fa + mulalpha
-            return Pixel(int((self.r + (other.r * mulalpha)) / alphablend), int((self.g + (other.g * mulalpha)) / alphablend), int((self.b + (other.b * mulalpha)) / alphablend), alphablend)
-        elif isinstance(other, float):
-            return Pixel(int(self.r * other), int(self.g * other), int(self.b * other))
+            result = [s * o for s, o in zip(self.color, other.color)] + [self.alpha * other.alpha]
+        elif isinstance(other, (int, float)):
+            result = [s * other for s in self.color] + [self.alpha * other]
         else:
-            raise TypeError
-    
-    def __truediv__(self, other):
-        if isinstance(other, Pixel):
-            return Pixel(self.r / other.r, self.g / other.g, self.b / other.b)
-        elif isinstance(other, int):
-            return Pixel(self.r / other, self.g / other, self.b / other)
-        elif isinstance(other, float):
-            return Pixel(self.r / other, self.g / other, self.b / other)
-        else:
-            raise TypeError
-    
-    def __floordiv__(self, other):
-        if isinstance(other, Pixel):
-            return Pixel(self.r // other.r, self.g // other.g, self.b // other.b)
-        elif isinstance(other, int):
-            return Pixel(self.r // other, self.g // other, self.b // other)
-        elif isinstance(other, float):
-            return Pixel(self.r // other, self.g // other, self.b // other)
-        else:
-            raise TypeError
-    
+            raise TypeError(f"should Pixel, int or float, not {type(other).__name__}")
+        return Pixel(result[0], result[1], result[2], result[3])
+
     def __mod__(self, other):
         if isinstance(other, Pixel):
-            return Pixel(self.r % other.r, self.g % other.g, self.b % other.b)
+            result = [s % o for s, o in zip(self.color, other.color)] + [self.alpha % other.alpha]
         elif isinstance(other, int):
-            return Pixel(self.r % other, self.g % other, self.b % other)
+            result = [s % other for s in self.color] + [self.alpha]
         elif isinstance(other, float):
-            return Pixel(self.r % other, self.g % other, self.b % other)
+            result = self.color + [self.alpha % other]
         else:
-            raise TypeError
-    
-    def __divmod__(self, other):
-        return (self // other, self % other)
-    
-    def __pow__(self, other):
-        if isinstance(other, Pixel):
-            return Pixel(self.r ** other.r, self.g ** other.g, self.b ** other.b)
-        elif isinstance(other, int):
-            return Pixel(self.r ** other, self.g ** other, self.b ** other)
-        elif isinstance(other, float):
-            return Pixel(self.r ** other, self.g ** other, self.b ** other)
-        else:
-            raise TypeError
-    
+            raise TypeError(f"should Pixel, int or float, not {type(other).__name__}")
+        return Pixel(result[0], result[1], result[2], result[3])
+
     def __lshift__(self, other):
         if isinstance(other, Pixel):
-            return Pixel(self.r << other.r, self.g << other.g, self.b << other.b)
-        elif isinstance(other, int):
-            return Pixel(self.r << other, self.g << other, self.b << other)
+            invalpha = 1.0 - self.alpha
+            alpha = self.alpha + (other.alpha * invalpha)
+            result = [int((s + (o * invalpha))) for s, o in zip(self.rgb, other.rgb)] + [alpha]
         else:
-            raise TypeError
+            raise TypeError(f"should Pixel, not {type(other).__name__}")
+        return Pixel(result[0], result[1], result[2], result[3])
     
     def __rshift__(self, other):
         if isinstance(other, Pixel):
-            return Pixel(self.r >> other.r, self.g >> other.g, self.b >> other.b)
-        elif isinstance(other, int):
-            return Pixel(self.r >> other, self.g >> other, self.b >> other)
+            invalpha = 1.0 - other.alpha
+            alpha = other.alpha + (self.alpha * invalpha)
+            result = [int((o + (s * invalpha))) for s, o in zip(self.rgb, other.rgb)] + [alpha]
         else:
-            raise TypeError
-    
+            raise TypeError(f"should Pixel, not {type(other).__name__}")
+        return Pixel(result[0], result[1], result[2], result[3])
+
     def __and__(self, other):
         if isinstance(other, Pixel):
-            return Pixel(self.r & other.r, self.g & other.g, self.b & other.b)
+            result = [s & o for s, o in zip(self.color, other.color)] + [self.alpha]
         elif isinstance(other, int):
-            return Pixel(self.r & other, self.g & other, self.b & other)
+            result = [s & other for s in self.color] + [self.alpha]
         else:
-            raise TypeError
+            raise TypeError(f"should Pixel or int, not {type(other).__name__}")
+        return Pixel(result[0], result[1], result[2], result[3])
+
+    def __or__(self, other):
+        if isinstance(other, Pixel):
+            result = [s | o for s, o in zip(self.color, other.color)] + [self.alpha]
+        elif isinstance(other, int):
+            result = [s | other for s in self.color] + [self.alpha]
+        else:
+            raise TypeError(f"should Pixel or int, not {type(other).__name__}")
+        return Pixel(result[0], result[1], result[2], result[3])
     
     def __xor__(self, other):
         if isinstance(other, Pixel):
-            return Pixel(self.r ^ other.r, self.g ^ other.g, self.b ^ other.b)
+            result = [s ^ o for s, o in zip(self.color, other.color)] + [self.alpha]
         elif isinstance(other, int):
-            return Pixel(self.r ^ other, self.g ^ other, self.b ^ other)
+            result = [s ^ other for s in self.color] + [self.alpha]
         else:
-            raise TypeError
-    
-    def __or__(self, other):
-        if isinstance(other, Pixel):
-            return Pixel(self.r | other.r, self.g | other.g, self.b | other.b)
-        elif isinstance(other, int):
-            return Pixel(self.r | other, self.g | other, self.b | other)
-        else:
-            raise TypeError
+            raise TypeError(f"should Pixel or int, not {type(other).__name__}")
+        return Pixel(result[0], result[1], result[2], result[3])
+
+    def __bool__(self):
+        return bool(self.alpha)
+
+    def __invert__(self):
+        result = [255 - s for s in self.color] + [1.0 - self.alpha]
+        return Pixel(result[0], result[1], result[2], result[3])
+
+    def __neg__(self):
+        result = [255 - s for s in self.color] + [1.0 - self.alpha]
+        return Pixel(result[0], result[1], result[2], result[3])
     
     def __index__(self):
-        return self.rgb
+        return self._value
 
     def __repr__(self) -> str:
-        return f'r: {self.r}, g: {self.g}, b: {self.b}, a: {self.a}'
+        return f'({self.color.__repr__()}, {self.alpha.__repr__()})'
 
-class Buffer():
-    def __init__(self, width: int, height: int, x: int = 0, y: int = 0) -> None:
-        self._rect = Rectangle(x, y, width, height)
-        self._buffer = numpy.zeros((width, height, 4), numpy.uint8)
-    
-    @property
-    def buffer(self) -> numpy.ndarray:
-        return self._buffer
-
-    @property
-    def window(self) -> numpy.ndarray:
-        xs = self.x
-        ys = self.y
-        xe = xs + self.w
-        ye = ys + self.h
-        return self._buffer[xs:xe, ys:ye]
-    
-    @window.setter
-    def window(self, buffer) -> None:
-        xs = self.x
-        ys = self.y
-        xe = xs + (buffer.shape[0] if buffer.shape[0] < self.w else self.w)
-        ye = ys + (buffer.shape[1] if buffer.shape[1] < self.h else self.h)
-        self._buffer[xs:xe, ys:ye] = buffer[:self.w, :self.h]
-
-    @property
-    def x(self) -> int:
-        return self._rect.x
-    
-    @x.setter
-    def x(self, value: int) -> None:
-        self._rect.x = value
-    
-    @property
-    def y(self) -> int:
-        return self._rect.y
-    
-    @y.setter
-    def y(self, value: int) -> None:
-        self._rect.y = value
-    
-    @property
-    def w(self) -> int:
-        return self._rect.width
-
-    @w.setter
-    def w(self, value: int) -> None:
-        self._rect.width = value
-    
-    @property
-    def h(self) -> int:
-        return self._rect.height
-    
-    @h.setter
-    def h(self, value: int) -> None:
-        self._rect.height = value
-    
-    @property
-    def width(self) -> int:
-        return self._buffer.shape[0]
-    
-    @property
-    def height(self) -> int:
-        return self._buffer.shape[1]
-    
-    def set(self, x: int, y: int, width: int, height: int, values) -> None:
-        self._buffer[x:x+width, y:y+height] = values
-    
-    def get(self, x: int, y: int, width: int, height: int) -> None:
-        return self._buffer[x:x+width, y:y+height]
-    
-    def reset(self) -> None:
-        self._rect.set(0, 0, self._buffer.shape[0], self._buffer.shape[1])
-
-    def __getitem__(self, indexes):
-        if len(indexes) == 1:
-            idx = indexes
-            xs = idx + self.x
-            ys = self.y
-            xe = xs + self.w
-            ye = ys + self.h
-            return self._buffer[xs:xe, ys:ye]
-        elif len(indexes) == 2:
-            idx, idy = indexes
-            xs = idx + self.x
-            ys = idy + self.y
-            xe = xs + self.w
-            ye = ys + self.h
-            return self._buffer[xs:xe, ys:ye]
-        elif len(indexes) == 3:
-            idx, idy, idc = indexes
-            xs = idx + self.x
-            ys = idy + self.y
-            xe = xs + self.w
-            ye = ys + self.h
-            return self._buffer[xs:xe, ys:ye, idc]
-        raise IndexError
-    
-    def __setitem__(self, indexes, buffer):
-        if isinstance(buffer, numpy.ndarray):
-            if len(indexes) == 1:
-                idx = buffer
-                xs = idx + self.x
-                ys = self.y
-                xe = xs + (buffer.shape[0] if buffer.shape[0] < self.w else self.w)
-                ye = ys + (buffer.shape[1] if buffer.shape[1] < self.h else self.h)
-                self._buffer[xs:xe, ys:ye] = buffer[:self.w, :self.h]
-            elif len(indexes) == 2:
-                idx, idy = indexes
-                xs = idx + self.x
-                ys = idy + self.y
-                xe = xs + (buffer.shape[0] if buffer.shape[0] < self.w else self.w)
-                ye = ys + (buffer.shape[1] if buffer.shape[1] < self.h else self.h)
-                self._buffer[xs:xe, ys:ye] = buffer[:self.w, :self.h]
-            elif len(indexes) == 3:
-                idx, idy, idc = indexes
-                xs = idx + self.x
-                ys = idy + self.y
-                xe = xs + (buffer.shape[0] if buffer.shape[0] < self.w else self.w)
-                ye = ys + (buffer.shape[1] if buffer.shape[1] < self.h else self.h)
-                self._buffer[xs:xe, ys:ye, idc] = buffer[:self.w, :self.h, idc]
+class Colors:
+    IndianRed = Pixel(205, 92, 92)
+    LightCoral = Pixel(240, 128, 128)
+    Salmon = Pixel(250, 128, 114)
+    DarkSalmon = Pixel(233, 150, 122)
+    LightSalmon = Pixel(255, 160, 122)
+    Crimson = Pixel(220, 20, 60)
+    Red = Pixel(255, 0, 0)
+    FireBrick = Pixel(178, 34, 34)
+    DarkRed = Pixel(139, 0, 0)
+    Pink = Pixel(255, 192, 203)
+    LightPink = Pixel(255, 182, 193)
+    HotPink = Pixel(255, 105, 180)
+    DeepPink = Pixel(255, 20, 147)
+    MediumVioletRed = Pixel(199, 21, 133)
+    PaleVioletRed = Pixel(219, 112, 147)
+    LightSalmon = Pixel(255, 160, 122)
+    Coral = Pixel(255, 127, 80)
+    Tomato = Pixel(255, 99, 71)
+    OrangeRed = Pixel(255, 69, 0)
+    DarkOrange = Pixel(255, 140, 0)
+    Orange = Pixel(255, 165, 0)
+    Gold = Pixel(255, 215, 0)
+    Yellow = Pixel(255, 255, 0)
+    LightYellow = Pixel(255, 255, 224)
+    LemonChiffon = Pixel(255, 250, 205)
+    LightGoldenrodYellow = Pixel(250, 250, 210)
+    PapayaWhip = Pixel(255, 239, 213)
+    Moccasin = Pixel(255, 228, 181)
+    PeachPuff = Pixel(255, 218, 185)
+    PaleGoldenrod = Pixel(238, 232, 170)
+    Khaki = Pixel(240, 230, 140)
+    DarkKhaki = Pixel(189, 183, 107)
+    Lavender = Pixel(230, 230, 250)
+    Thistle = Pixel(216, 191, 216)
+    Plum = Pixel(221, 160, 221)
+    Violet = Pixel(238, 130, 238)
+    Orchid = Pixel(218, 112, 214)
+    Fuchsia = Pixel(255, 0, 255)
+    Magenta = Pixel(255, 0, 255)
+    MediumOrchid = Pixel(186, 85, 211)
+    MediumPurple = Pixel(147, 112, 219)
+    RebeccaPurple = Pixel(102, 51, 153)
+    BlueViolet = Pixel(138, 43, 226)
+    DarkViolet = Pixel(148, 0, 211)
+    DarkOrchid = Pixel(153, 50, 204)
+    DarkMagenta = Pixel(139, 0, 139)
+    Purple = Pixel(128, 0, 128)
+    Indigo = Pixel(75, 0, 130)
+    SlateBlue = Pixel(106, 90, 205)
+    DarkSlateBlue = Pixel(72, 61, 139)
+    MediumSlateBlue = Pixel(123, 104, 238)
+    GreenYellow = Pixel(173, 255, 47)
+    Chartreuse = Pixel(127, 255, 0)
+    LawnGreen = Pixel(124, 252, 0)
+    Lime = Pixel(0, 255, 0)
+    LimeGreen = Pixel(50, 205, 50)
+    PaleGreen = Pixel(152, 251, 152)
+    LightGreen = Pixel(144, 238, 144)
+    MediumSpringGreen = Pixel(0, 250, 154)
+    SpringGreen = Pixel(0, 255, 127)
+    MediumSeaGreen = Pixel(60, 179, 113)
+    SeaGreen = Pixel(46, 139, 87)
+    ForestGreen = Pixel(34, 139, 34)
+    Green = Pixel(0, 128, 0)
+    DarkGreen = Pixel(0, 100, 0)
+    YellowGreen = Pixel(154, 205, 50)
+    OliveDrab = Pixel(107, 142, 35)
+    Olive = Pixel(128, 128, 0)
+    DarkOliveGreen = Pixel(85, 107, 47)
+    MediumAquamarine = Pixel(102, 205, 170)
+    DarkSeaGreen = Pixel(143, 188, 139)
+    LightSeaGreen = Pixel(32, 178, 170)
+    DarkCyan = Pixel(0, 139, 139)
+    Teal = Pixel(0, 128, 128)
+    Aqua = Pixel(0, 255, 255)
+    Cyan = Pixel(0, 255, 255)
+    LightCyan = Pixel(224, 255, 255)
+    PaleTurquoise = Pixel(175, 238, 238)
+    Aquamarine = Pixel(127, 255, 212)
+    Turquoise = Pixel(64, 224, 208)
+    MediumTurquoise = Pixel(72, 209, 204)
+    DarkTurquoise = Pixel(0, 206, 209)
+    CadetBlue = Pixel(95, 158, 160)
+    SteelBlue = Pixel(70, 130, 180)
+    LightSteelBlue = Pixel(176, 196, 222)
+    PowderBlue = Pixel(176, 224, 230)
+    LightBlue = Pixel(173, 216, 230)
+    SkyBlue = Pixel(135, 206, 235)
+    LightSkyBlue = Pixel(135, 206, 250)
+    DeepSkyBlue = Pixel(0, 191, 255)
+    DodgerBlue = Pixel(30, 144, 255)
+    CornflowerBlue = Pixel(100, 149, 237)
+    MediumSlateBlue = Pixel(123, 104, 238)
+    RoyalBlue = Pixel(65, 105, 225)
+    Blue = Pixel(0, 0, 255)
+    MediumBlue = Pixel(0, 0, 205)
+    DarkBlue = Pixel(0, 0, 139)
+    Navy = Pixel(0, 0, 128)
+    MidnightBlue = Pixel(25, 25, 112)
+    Cornsilk = Pixel(255, 248, 220)
+    BlanchedAlmond = Pixel(255, 235, 205)
+    Bisque = Pixel(255, 228, 196)
+    NavajoWhite = Pixel(255, 222, 173)
+    Wheat = Pixel(245, 222, 179)
+    BurlyWood = Pixel(222, 184, 135)
+    Tan = Pixel(210, 180, 140)
+    RosyBrown = Pixel(188, 143, 143)
+    SandyBrown = Pixel(244, 164, 96)
+    Goldenrod = Pixel(218, 165, 32)
+    DarkGoldenrod = Pixel(184, 134, 11)
+    Peru = Pixel(205, 133, 63)
+    Chocolate = Pixel(210, 105, 30)
+    SaddleBrown = Pixel(139, 69, 19)
+    Sienna = Pixel(160, 82, 45)
+    Brown = Pixel(165, 42, 42)
+    Maroon = Pixel(128, 0, 0)
+    White = Pixel(255, 255, 255)
+    Snow = Pixel(255, 250, 250)
+    HoneyDew = Pixel(240, 255, 240)
+    MintCream = Pixel(245, 255, 250)
+    Azure = Pixel(240, 255, 255)
+    AliceBlue = Pixel(240, 248, 255)
+    GhostWhite = Pixel(248, 248, 255)
+    WhiteSmoke = Pixel(245, 245, 245)
+    SeaShell = Pixel(255, 245, 238)
+    Beige = Pixel(245, 245, 220)
+    OldLace = Pixel(253, 245, 230)
+    FloralWhite = Pixel(255, 250, 240)
+    Ivory = Pixel(255, 255, 240)
+    AntiqueWhite = Pixel(250, 235, 215)
+    Linen = Pixel(250, 240, 230)
+    LavenderBlush = Pixel(255, 240, 245)
+    MistyRose = Pixel(255, 228, 225)
+    Gainsboro = Pixel(220, 220, 220)
+    LightGray = Pixel(211, 211, 211)
+    Silver = Pixel(192, 192, 192)
+    DarkGray = Pixel(169, 169, 169)
+    Gray = Pixel(128, 128, 128)
+    DimGray = Pixel(105, 105, 105)
+    LightSlateGray = Pixel(119, 136, 153)
+    SlateGray = Pixel(112, 128, 144)
+    DarkSlateGray = Pixel(47, 79, 79)
+    Black = Pixel(0, 0, 0)
+    Invisible = Pixel(0, 0, 0, 0.0)
