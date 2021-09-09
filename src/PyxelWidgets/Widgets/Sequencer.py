@@ -3,14 +3,14 @@ from ..Util.Clock import *
 
 class Sequencer(Widget):
     def __init__(self, width: int, height: int, clock: Clock = None, **kwargs):
-        name = kwargs.get('name', 'Sequencer_' + str(Sequencer._count))
-        super().__init__(name, width, height, **kwargs)
-        self.active = [[False for y in range(self.height)] for x in range(self.width)]
+        kwargs['name'] = kwargs.get('name', 'Sequencer_' + str(Sequencer._count))
+        super().__init__(width, height, **kwargs)
+        self.active = [[False for y in range(self.rect.h)] for x in range(self.rect.w)]
         self.numerator = kwargs.get('numerator', 1.0)
         self.denominator = kwargs.get('denominator', 4.0)
         self.ppq = kwargs.get('ppq', 24)
         self.currentColor = kwargs.get('currentColor', [0, 255, 0])
-        self._tickTarget = self.width * self.height
+        self._tickTarget = self.rect.w * self.rect.h
         self._tick = 0
         self.target = Target(self.name, self.tick)
         if clock != None:
@@ -40,9 +40,9 @@ class Sequencer(Widget):
         if self._updated:
             self._updated = False
             ex = sx + sw
-            ex = ex if ex < self.width else self.width
+            ex = ex if ex < self.rect.w else self.rect.w
             ey = sy + sh
-            ey = ey if ey < self.height else self.height
+            ey = ey if ey < self.rect.h else self.rect.h
             for x in range(sx, ex):
                 for y in range(sy, ey):
                     if self.active[x][y]:
@@ -58,13 +58,13 @@ class Sequencer(Widget):
         return True
     
     def _calcTickPosition(self, x, y):
-        return x + ((self.height - y - 1) * self.width)
+        return x + ((self.rect.h - y - 1) * self.rect.w)
     
     def _tickX(self):
-        return int(self._tick) % self.width
+        return int(self._tick) % self.rect.w
     
     def _tickY(self):
-        return self.height - (int(self._tick) // self.width) - 1
+        return self.rect.h - (int(self._tick) // self.rect.w) - 1
     
     def _isTickActive(self):
         return self.active[self._tickX()][self._tickY()]

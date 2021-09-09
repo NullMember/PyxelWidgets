@@ -8,8 +8,8 @@ class ButtonMode(Enum):
 
 class Button(Widget):
     def __init__(self, width: int, height: int, **kwargs):
-        name = kwargs.get('name', 'Button_' + str(Button._count))
-        super().__init__(name, width, height, **kwargs)
+        kwargs['name'] = kwargs.get('name', 'Button_' + str(Button._count))
+        super().__init__(width, height, **kwargs)
         self.mode = kwargs.get('mode', ButtonMode.Button)
         self.hold = False
         self.state = False
@@ -53,9 +53,9 @@ class Button(Widget):
         if self._updated:
             self._updated = False
             ex = sx + sw
-            ex = ex if ex < self.width else self.width
+            ex = ex if ex < self.rect.w else self.rect.w
             ey = sy + sh
-            ey = ey if ey < self.height else self.height
+            ey = ey if ey < self.rect.h else self.rect.h
             for x in range(sx, ex):
                 for y in range(sy, ey):
                     if self.value:

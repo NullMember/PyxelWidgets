@@ -11,13 +11,13 @@ class KnobType(Enum):
 
 class Knob(Widget):
     def __init__(self, width: int, height: int, **kwargs):
-        name = kwargs.get('name', 'Knob_' + str(Knob._count))
-        super().__init__(name, width=width, height=height, **kwargs)
+        kwargs['name'] = kwargs.get('name', 'Knob_' + str(Knob._count))
+        super().__init__(width, height, **kwargs)
         self.ppq = kwargs.get('ppq', 24)
         self.type = kwargs.get('type', KnobType.Wrap)
         self.coefficient = 0.05#1.0 / self._ppq
         self.state = False
-        self.perimeter = self._calcPerimeter(self.width, self.height)
+        self.perimeter = self._calcPerimeter(self.rect.w, self.rect.h)
         self._held = [-1, -1]
         self.target = Target(self.name, self.tick)
         self.target.active = False
@@ -64,9 +64,9 @@ class Knob(Widget):
             halfval = self.value / 2.0
             halfvalpluspointfive = halfval + 0.5
             ex = sx + sw
-            ex = ex if ex < self.width else self.width
+            ex = ex if ex < self.rect.w else self.rect.w
             ey = sy + sh
-            ey = ey if ey < self.height else self.height
+            ey = ey if ey < self.rect.h else self.rect.h
             for x in range(sx, ex):
                 for y in range(sy, ey):
                     index = self._calcKnobIndex(x, y)
@@ -204,12 +204,12 @@ class Knob(Widget):
         return True
 
     def _calcKnobIndex(self, x: int, y: int) -> float:
-        if self.width == 1:
+        if self.rect.w == 1:
             return y
-        elif self.height == 1:
+        elif self.rect.h == 1:
             return x
-        halfwidth = int(self.width / 2)
-        if y == (self.height - 1):
+        halfwidth = int(self.rect.w / 2)
+        if y == (self.rect.h - 1):
             return (y + halfwidth + x) - 1
         elif x < halfwidth:
             if y == 0:
@@ -219,7 +219,7 @@ class Knob(Widget):
         elif x >= halfwidth:
             if y == 0:
                 return (self.perimeter - (x - halfwidth)) - 1
-            elif x == (self.width - 1):
+            elif x == (self.rect.w - 1):
                 return (self.perimeter - (x - halfwidth) - y) - 1
         return -1
 

@@ -4,10 +4,10 @@ from copy import deepcopy
 
 class Life(Widget):
     def __init__(self, width: int, height: int, **kwargs):
-        name = kwargs.get('name', 'Life_' + str(Life._count))
-        super().__init__(name, width=width, height=height, **kwargs)
+        kwargs['name'] = kwargs.get('name', 'Life_' + str(Life._count))
+        super().__init__(width, height, **kwargs)
         self._running = False
-        self._grid = [[False for y in range(self.height)] for x in range(self.width)]
+        self._grid = [[False for y in range(self.rect.h)] for x in range(self.rect.w)]
         Life._count += 1
     
     def pressed(self, x: int, y: int, value: float):
@@ -30,21 +30,21 @@ class Life(Widget):
         if self._updated:
             self._updated = False
             ex = sx + sw
-            ex = ex if ex < self.width else self.width
+            ex = ex if ex < self.rect.w else self.rect.w
             ey = sy + sh
-            ey = ey if ey < self.height else self.height
+            ey = ey if ey < self.rect.h else self.rect.h
             newGrid = deepcopy(self._grid)
             for x in range(sx, ex):
                 for y in range(sy, ey):
                     if self._running:
-                        total = int(self._grid[(x - 1) % self.width][(y - 1) % self.height]) + \
-                                int(self._grid[(x + 0) % self.width][(y - 1) % self.height]) + \
-                                int(self._grid[(x + 1) % self.width][(y - 1) % self.height]) + \
-                                int(self._grid[(x - 1) % self.width][(y + 0) % self.height]) + \
-                                int(self._grid[(x + 1) % self.width][(y + 0) % self.height]) + \
-                                int(self._grid[(x - 1) % self.width][(y + 1) % self.height]) + \
-                                int(self._grid[(x + 0) % self.width][(y + 1) % self.height]) + \
-                                int(self._grid[(x + 1) % self.width][(y + 1) % self.height])
+                        total = int(self._grid[(x - 1) % self.rect.w][(y - 1) % self.rect.h]) + \
+                                int(self._grid[(x + 0) % self.rect.w][(y - 1) % self.rect.h]) + \
+                                int(self._grid[(x + 1) % self.rect.w][(y - 1) % self.rect.h]) + \
+                                int(self._grid[(x - 1) % self.rect.w][(y + 0) % self.rect.h]) + \
+                                int(self._grid[(x + 1) % self.rect.w][(y + 0) % self.rect.h]) + \
+                                int(self._grid[(x - 1) % self.rect.w][(y + 1) % self.rect.h]) + \
+                                int(self._grid[(x + 0) % self.rect.w][(y + 1) % self.rect.h]) + \
+                                int(self._grid[(x + 1) % self.rect.w][(y + 1) % self.rect.h])
                         if self._grid[x][y]:
                             if (total < 2) or (total > 3):
                                 newGrid[x][y] = False

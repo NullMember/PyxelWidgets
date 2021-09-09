@@ -1,5 +1,6 @@
 __all__ = ['Button', 'Fader', 'Knob', 'Life', 'Sequencer', 'XY', 'Extra']
 
+from ..Helpers import *
 import uuid
 from copy import deepcopy
 
@@ -7,7 +8,7 @@ class Widget:
 
     _count = 0
 
-    def __init__(self, name: str, width: int = 1, height: int = 1, **kwargs):
+    def __init__(self, x: int = 0, y: int = 0, width: int = 1, height: int = 1, **kwargs):
         """
         Parameters
         ----
@@ -38,42 +39,41 @@ class Widget:
             Default value of widget
         """
         self.id = uuid.uuid1()
-        self.name = name
-        self.width = 1 if width < 1 else width
-        self.height = 1 if height < 1 else height
+        self.name = kwargs.get('name', 'Widget_' + str(Widget._count))
+        self.rect = Rectangle2D(x, y, width, height)
         self.activeColor = kwargs.get('activeColor', [255, 255, 255])
         self.deactiveColor = kwargs.get('deactiveColor', [0, 0, 0])
         self.delta = 0.0
         self.updated = True
-        self.buffer = [[[0, 0, 0] for y in range(self.height)] for x in range(self.width)]
+        self.buffer = [[[0, 0, 0] for y in range(self.rect.h)] for x in range(self.rect.w)]
         self._value = 0.0
         self._callback = kwargs.get('callback', lambda *_, **__: None)
 
     @property
     def width(self) -> int:
-        return self.width
+        return self.rect.w
     
     @width.setter
     def width(self, value: int) -> None:
         if value > 0:
-            if self._resize(value, self.height):
-                self.width = value
-                self.buffer = [[[0, 0, 0] for y in range(self.height)] for x in range(self.width)]
+            if self._resize(value, self.rect.h):
+                self.rect.w = value
+                self.buffer = [[[0, 0, 0] for y in range(self.rect.h)] for x in range(self.rect.w)]
                 self.updated = True
-                self._callback(self.name, 'resized', (self.width, self.height))
+                self._callback(self.name, 'resized', (self.rect.w, self.rect.h))
 
     @property
     def height(self) -> int:
-        return self.height
+        return self.rect.h
     
     @height.setter
     def height(self, value: int) -> None:
         if value > 0:
-            if self._resize(self.width, value):
-                self.height = value
-                self.buffer = [[[0, 0, 0] for y in range(self.height)] for x in range(self.width)]
+            if self._resize(self.rect.w, value):
+                self.rect.h = value
+                self.buffer = [[[0, 0, 0] for y in range(self.rect.h)] for x in range(self.rect.w)]
                 self.updated = True
-                self._callback(self.name, 'resized', (self.width, self.height))
+                self._callback(self.name, 'resized', (self.rect.w, self.rect.h))
 
     @property
     def value(self) -> float or list:
@@ -82,25 +82,12 @@ class Widget:
     @value.setter
     def value(self, value: float or list) -> None:
         if value != self._value:
-            if isinstance(self._value, list):
-                oldValue = deepcopy(self._value)
-                for i, val in enumerate(value):
-                    self._value[i] = round(min(1.0, max(0.0, val)), 6)
-            else:
-                oldValue = self._value
-                self._value = round(min(1.0, max(0.0, value)), 6)
+            oldValue = self._value
+            self._value = round(min(1.0, max(0.0, value)), 6)
+            self.delta = self._value - oldValue
             if self._value != oldValue:
                 self.updated = True
                 self._callback(self.name, 'changed', self._value)
-    
-    @property
-    def delta(self) -> float or list:
-        if isinstance(self._value, list):
-            deltas = deepcopy(self._value)
-            for i in range(len(self._value)):
-                deltas[i] = round(deltas[i] - self.delta[i], 6)
-            return deltas
-        return round(self._value - self.delta, 6)
 
     def setCallback(self, callback) -> None:
         self._callback = callback
@@ -172,7 +159,7 @@ class Widget:
            Pixel list should [x][y][r, g, b]
             If nothing is updated return empty list
         """
-        return self.updateArea(0, 0, self.width, self.height)
+        return self.updateArea(0, 0, self.rect.w, self.rect.h)
     
     def _resize(self, width, height) -> bool:
         return True
