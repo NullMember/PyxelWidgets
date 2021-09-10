@@ -19,7 +19,7 @@ class Window():
     
     @x.setter
     def x(self, value: int) -> None:
-        self.rect.x = value
+        self.rect.x = min(self.rect.w, max(0, value))
         self.buffer[self.rect.l:self.rect.r, self.rect.b:self.rect.t].fill(Colors.Invisible)
         self.forceUpdate()
 
@@ -29,7 +29,7 @@ class Window():
     
     @y.setter
     def y(self, value: int) -> None:
-        self.rect.y = value
+        self.rect.y = min(self.rect.h, max(0, value))
         self.buffer[self.rect.l:self.rect.r, self.rect.b:self.rect.t].fill(Colors.Invisible)
         self.forceUpdate()
 
