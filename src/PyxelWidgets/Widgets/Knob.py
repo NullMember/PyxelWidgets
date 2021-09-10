@@ -1,6 +1,5 @@
 from . import Widget
 from ..Helpers import *
-from ..Util.Clock import *
 from enum import Enum
 
 class KnobType(Enum):
@@ -14,53 +13,45 @@ class Knob(Widget):
     def __init__(self, x: int, y: int, width: int, height: int, **kwargs):
         kwargs['name'] = kwargs.get('name', 'Knob_' + str(Knob._count))
         super().__init__(x, y, width, height, **kwargs)
-        self.ppq = kwargs.get('ppq', 24)
+        self.coefficient = kwargs.get('coefficient', 0.05)
         self.type = kwargs.get('type', KnobType.Wrap)
-        self.coefficient = 0.05#1.0 / self._ppq
         self.state = False
         self.perimeter = self._calcPerimeter(self.rect.w, self.rect.h)
         self._held = [-1, -1]
-        self.target = Target(self.name, self.tick)
-        self.target.active = False
-        clock = kwargs.get('clock', None)
-        if clock != None:
-            self.addToClock(clock)
         Knob._count += 1
 
-    def addToClock(self, clock: Clock):
-        # self.ppq = clock.ppq
-        clock.addTarget(self.target)
-
     def pressed(self, x: int, y: int, value: float):
-        self.state = True
         if self._held == [-1, -1]:
             if self._calcKnobIndex(x, y) != -1:
                 self._held = [x, y]
-                self.target.active = True
+                self.state = True
+                self.updated = True
         else:
             heldIndex = self._calcKnobIndex(self._held[0], self._held[1])
             curIndex = self._calcKnobIndex(x, y)
             halfPerimeter = self.perimeter // 2
             if heldIndex != -1 and curIndex != -1:
                 if (heldIndex < halfPerimeter and curIndex >= halfPerimeter) or (curIndex < halfPerimeter and heldIndex >= halfPerimeter):
-                    self.target.active = False
+                    self.state = False
                     self.value = 0.5
         return super().pressed(x, y, self.value)
     
     def released(self, x: int, y: int, value: float):
         self._held = [-1, -1]
         self.state = False
-        self.target.active = False
         return super().released(x, y, self.value)
     
-    def tick(self, tick):
+    def tick(self):
         if self.state:
             index = self._calcKnobIndex(self._held[0], self._held[1])
             if index != -1:
                 self.value += self._calcKnobWeight(index) * self.coefficient
 
     def updateArea(self, sx, sy, sw, sh):
-        self.updated = False
+        if self.state:
+            self.tick()
+        else:
+            self.updated = False
         halfval = self.value / 2.0
         halfvalpluspointfive = halfval + 0.5
         area = Rectangle2D(sx, sy, sw, sh)
