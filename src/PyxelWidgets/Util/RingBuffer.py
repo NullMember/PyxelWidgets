@@ -76,9 +76,8 @@ class RingBuffer:
         else:
             wrap = 0
             wrapBackup = 0
-        print("{:6s} | {:7d}, {:7d}, {:7d}, {:7d}, {:7d}, {:7d}, {:7d}, {:7d}, {:7d}, {:7d}"
-        .format("Buffer",  0,     1,     2,     3,     4,     5,     6,     7,     8,     9))
-        print("-----------------------------------------------------------------------------------------")
+        print(f'Buffer | {0:7d}, {1:7d}, {2:7d}, {3:7d}, {4:7d}, {5:7d}, {6:7d}, {7:7d}, {8:7d}, {9:7d}')
+        print("-------------------------------------------------------------------------------------------------")
         for i in range(len(self.buffer)):
             if i == self.readIndex:
                 readable = self.readable - wrapBackup
@@ -88,13 +87,15 @@ class RingBuffer:
             if i < wrap:
                 char = "r"
             if (i % 10) == 0:
-                print("{:6d} | ".format(i), end = '')
-                print("{:1s}{:6d}".format(char, self.buffer[i]), end = '')
+                print(f'{i:6d} | ', end = '')
+                print(f'{char:1s}{self.buffer[i]:6d}', end = '')
             elif i % 10 <= 9:
-                print(", {:1s}{:6d}".format(char, self.buffer[i]), end = '')
+                print(f', {char:1s}{self.buffer[i]:6d}', end = '')
             if (i % 10) == 9:
                 print()
             readable -= 1
         print()
-        print("Length: {:6d}, ReadIndex: {:6d}, WriteIndex: {:6d}, Readable: {:6d}"
-              .format(self.length, self.readIndex, self.writeIndex, self.readable))
+        print(f'Length: {self.length:6d}, ReadIndex: {self.readIndex:6d}, WriteIndex: {self.writeIndex:6d}, Readable: {self.readable:6d}')
+    
+    def __repr__(self) -> str:
+        return f'Length: {self.length:6d}, ReadIndex: {self.readIndex:6d}, WriteIndex: {self.writeIndex:6d}, Readable: {self.readable:6d}'
