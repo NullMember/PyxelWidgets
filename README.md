@@ -1,2 +1,2 @@
 # PyxelWidgets
-GUI Engine and Window Manager for grid based controllers (e.g. Launchpad)
+GUI Framework for low resolution devices (e.g. Novation Launchpad, LED Keyboards)
