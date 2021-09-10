@@ -285,7 +285,7 @@ class Pixel():
         if isinstance(other, Pixel):
             result = [s * o for s, o in zip(self.color, other.color)] + [self.alpha * other.alpha]
         elif isinstance(other, (int, float)):
-            result = [s * other for s in self.color] + [self.alpha * other]
+            result = [s * other for s in self.color] + [self.alpha]
         else:
             raise TypeError(f"should Pixel, int or float, not {type(other).__name__}")
         return Pixel(result[0], result[1], result[2], result[3])
