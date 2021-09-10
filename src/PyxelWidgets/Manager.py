@@ -54,5 +54,4 @@ class Manager():
         for controller in list(self.controllers.values()):
             intersect = self.rect.intersect(controller['rect'])
             if intersect:
-                copy = intersect - controller['rect']
-                controller['controller'].update(self.buffer[copy.l:copy.r, copy.b:copy.t])
+                controller['controller'].update(self.buffer[intersect.l:intersect.r, intersect.b:intersect.t])
