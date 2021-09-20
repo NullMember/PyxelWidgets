@@ -5,7 +5,7 @@ class Window():
     _count = 0
 
     def __init__(self, width: int, height: int, **kwargs):
-        self.name = kwargs.get('name', 'Window_' + str(Window._count))
+        self.name = kwargs.get('name', f'Window_{Window._count}')
         self.rect = Rectangle2D(0, 0, width, height)
         self.widgets = {}
         self.buffer = numpy.ndarray((self.rect.w, self.rect.h), Pixel)

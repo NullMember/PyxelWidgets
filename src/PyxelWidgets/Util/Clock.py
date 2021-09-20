@@ -70,8 +70,8 @@ class Clock(Thread):
     counter = 0
 
     def __init__(self, bpm: float = 60, ppq: float = 24) -> None:
-        super().__init__(name = 'Clock_' + str(Clock.counter))
-        self._pool = ThreadPoolExecutor(thread_name_prefix = 'Clock_' + str(self.counter) + '_Target')
+        super().__init__(name = f'Clock_{Clock.counter}')
+        self._pool = ThreadPoolExecutor(thread_name_prefix = f'Clock_{self._count}_Target')
         self._bpm: float = bpm
         self._ppq: float = ppq
         self._delay: float = 60.0 / (bpm * ppq)

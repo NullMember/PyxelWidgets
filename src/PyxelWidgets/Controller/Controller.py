@@ -7,7 +7,7 @@ class Controller():
     _count = 0
 
     def __init__(self, **kwargs):
-        self.name = kwargs.get('name', 'Controller_' + str(Controller._count))
+        self.name = kwargs.get('name', f'Controller_{Controller._count}')
         self.rect = Rectangle2D(kwargs.get('x', 0), kwargs.get('y', 0), kwargs.get('width', 1), kwargs.get('height', 1))
         self.heldTime = kwargs.get('heldTime', 1.0)
         self.connected = False

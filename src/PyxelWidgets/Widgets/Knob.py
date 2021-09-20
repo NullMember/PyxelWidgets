@@ -11,7 +11,7 @@ class KnobType(Enum):
 
 class Knob(Widget):
     def __init__(self, x: int, y: int, width: int, height: int, **kwargs):
-        kwargs['name'] = kwargs.get('name', 'Knob_' + str(Knob._count))
+        kwargs['name'] = kwargs.get('name', f'Knob_{Knob._count}')
         super().__init__(x, y, width, height, **kwargs)
         self.coefficient = kwargs.get('coefficient', 0.05)
         self.type = kwargs.get('type', KnobType.Wrap)

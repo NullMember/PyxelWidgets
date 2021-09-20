@@ -5,7 +5,7 @@ from copy import deepcopy
 
 class Life(Widget):
     def __init__(self, x: int, y: int, width: int, height: int, **kwargs):
-        kwargs['name'] = kwargs.get('name', 'Life_' + str(Life._count))
+        kwargs['name'] = kwargs.get('name', f'Life_{Life._count}')
         super().__init__(x, y, width, height, **kwargs)
         self._running = False
         self._grid = [[False for y in range(self.rect.h)] for x in range(self.rect.w)]

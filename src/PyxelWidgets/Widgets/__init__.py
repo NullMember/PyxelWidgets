@@ -39,7 +39,7 @@ class Widget:
             Default value of widget
         """
         self.id = uuid.uuid1()
-        self.name = kwargs.get('name', 'Widget_' + str(Widget._count))
+        self.name = kwargs.get('name', f'Widget_{Widget._count}')
         self.rect = Rectangle2D(x, y, width, height)
         self.activeColor = kwargs.get('activeColor', Colors.White)
         self.deactiveColor = kwargs.get('deactiveColor', Colors.Black)

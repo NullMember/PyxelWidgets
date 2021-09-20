@@ -8,7 +8,7 @@ class XYDirection(Enum):
 
 class XY(Widget):
     def __init__(self, x: int, y: int, width: int, height: int, **kwargs):
-        kwargs['name'] = kwargs.get('name', 'XY_' + str(XY._count))
+        kwargs['name'] = kwargs.get('name', f'XY_{XY._count}')
         super().__init__(x, y, width, height, **kwargs)
         self.xColor = kwargs.get('xColor', Colors.Cyan)
         self.yColor = kwargs.get('yColor', Colors.Magenta)
