@@ -2,6 +2,7 @@ from .Launchpad import Launchpad
 from ....Helpers import *
 from ....Util.RingBuffer import RingBuffer
 from enum import Enum
+import numpy
 
 class Model(Enum):
     X = 12
