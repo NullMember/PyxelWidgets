@@ -75,8 +75,8 @@ class MK3(Launchpad):
                 self.setLayout(ProLayout.Programmer)
     
     def generateRGB(self, x: int, y: int, color: Pixel):
-        index = x + (y * 10)
-        color = (color * 0.5) <= 127
+        index = (x + (y * 10)) & 0x7F
+        color = color * 0.5
         return [3, index, color.r, color.g, color.b]
 
     def sendRGB(self, x: int, y: int, color: Pixel):
