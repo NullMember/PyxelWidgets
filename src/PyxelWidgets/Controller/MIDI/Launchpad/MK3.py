@@ -107,17 +107,21 @@ class MK3(Launchpad):
 
     def updateOne(self, x: int, y: int, pixel: Pixel):
         if self.connected:
-            try:
-                if pixel == self.buffer[x, y]:
+            intersect = self.rect.intersect(Rectangle2D(x, y, 1, 1))
+            if intersect:
+                try:
+                    if pixel == self.buffer[x, y]:
+                        pass
+                    else:
+                        self.buffer[x, y] = pixel
+                        self.sendRGB(x, y, pixel)
+                except Exception as e:
+                    print(e)
                     pass
-                else:
-                    self.buffer[x, y] = pixel
-                    self.sendRGB(x, y, pixel)
-            except:
-                pass
     
     def updateRow(self, y: int, pixel: Pixel):
         if self.connected:
+            intersect = self.rect.intersect(Rectangle2D(0, y, self.rect.w, 1))
             for x in self.rect.columns:
                 try:
                     if pixel == self.buffer[x, y]:
@@ -125,51 +129,58 @@ class MK3(Launchpad):
                     else:
                         self.buffer[x, y] = pixel
                         self._sysexBuffer.write(self.generateRGB(x, y, self.buffer[x, y]))
-                except:
+                except Exception as e:
+                    print(e)
                     break
             if self._sysexBuffer.readable:
                 self.sendSysex(self._header + [3] + self._sysexBuffer.read())
     
     def updateColumn(self, x: int, pixel: Pixel):
         if self.connected:
-            for y in self.rect.rows:
+            intersect = self.rect.intersect(Rectangle2D(x, 0, 1, self.rect.h))
+            for y in intersect.rows:
                 try:
                     if pixel == self.buffer[x, y]:
                         pass
                     else:
                         self.buffer[x, y] = pixel
                         self._sysexBuffer.write(self.generateRGB(x, y, self.buffer[x, y]))
-                except:
+                except Exception as e:
+                    print(e)
                     break
             if self._sysexBuffer.readable:
                 self.sendSysex(self._header + [3] + self._sysexBuffer.read())
 
     def updateArea(self, x: int, y: int, width: int, height: int, pixel: Pixel):
         if self.connected:
-            for _x in range(width):
-                for _y in range(height):
+            intersect = self.rect.intersect(Rectangle2D(x, y, width, height))
+            for _x in intersect.columns:
+                for _y in intersect.rows:
                     try:
-                        if pixel == self.buffer[x + _x, y + _y]:
+                        if pixel == self.buffer[_x, _y]:
                             pass
                         else:
-                            self.buffer[x + _x, y + _y] = pixel
-                            self._sysexBuffer.write(self.generateRGB(x + _x, y + _y, self.buffer[x + _x, y + _y]))
-                    except:
+                            self.buffer[_x, _y] = pixel
+                            self._sysexBuffer.write(self.generateRGB(_x, _y, self.buffer[_x, _y]))
+                    except Exception as e:
+                        print(e)
                         break
             if self._sysexBuffer.readable:
                 self.sendSysex(self._header + [3] + self._sysexBuffer.read())
 
-    def update(self, buffer):
+    def update(self, buffer: numpy.ndarray):
         if self.connected:
-            for x in self.rect.columns:
-                for y in self.rect.rows:
+            intersect = self.rect.intersect(Rectangle2D(0, 0, buffer.shape[0], buffer.shape[1]))
+            for x in intersect.columns:
+                for y in intersect.rows:
                     try:
                         if buffer[x, y] == self.buffer[x, y]:
                             pass
                         else:
                             self.buffer[x, y] = buffer[x, y]
                             self._sysexBuffer.write(self.generateRGB(x, y, self.buffer[x, y]))
-                    except:
+                    except Exception as e:
+                        print(e)
                         break
             if self._sysexBuffer.readable:
                 self.sendSysex(self._header + [3] + self._sysexBuffer.read())
