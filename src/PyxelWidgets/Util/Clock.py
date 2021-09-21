@@ -4,8 +4,11 @@ from threading import Thread
 import time
 
 class Target:
-    def __init__(self, name, target: Callable, wrap = 1, delay = 0) -> None:
-        self._name = name
+
+    _count = 0
+
+    def __init__(self, target: Callable, wrap = 1, delay = 0, **kwargs) -> None:
+        self._name = kwargs.get('name', f'Target_{Target._count}')
         self._target = target
         self._wrap = wrap
         self._delay = delay
@@ -67,7 +70,7 @@ class Target:
 
 class Clock(Thread):
 
-    counter = 0
+    _count = 0
 
     def __init__(self, bpm: float = 60, ppq: float = 24) -> None:
         super().__init__(name = f'Clock_{Clock.counter}')
