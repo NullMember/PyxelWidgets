@@ -39,7 +39,7 @@ class Sequencer(Widget):
 
     def updateArea(self, sx, sy, sw, sh):
         self.updated = False
-        area = Rectangle2D(sx, sy, sw, sh)
+        area = self.rect.origin.intersect(Rectangle2D(sx, sy, sw, sh))
         for x in area.columns:
             for y in area.rows:
                 if self.active[x][y]:

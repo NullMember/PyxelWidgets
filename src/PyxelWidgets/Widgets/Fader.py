@@ -199,7 +199,7 @@ class Fader(Widget):
         self.updated = False
         halfval = self.value / 2.0
         halfvalpluspointfive = halfval + 0.5
-        area = Rectangle2D(sx, sy, sw, sh)
+        area = self.rect.origin.intersect(Rectangle2D(sx, sy, sw, sh))
         for x in area.columns:
             for y in area.rows:
                 minV = self._calcFaderValue(x, y, 0.0)
