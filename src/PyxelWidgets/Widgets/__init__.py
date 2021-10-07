@@ -1,8 +1,12 @@
-__all__ = ['Button', 'Fader', 'Knob', 'Life', 'Sequencer', 'XY', 'Extra']
+__all__ = ['Button', 'Fader', 'Knob', 'Life', 'Sequencer', 'Sprite', 'XY', 'Extra']
 
 import uuid
 import numpy
 from ..Helpers import *
+
+class WidgetAreaNotValid(Exception):
+    def __init__(self, widgetArea, requestedArea) -> None:
+        super().__init__(f'Widget area is {widgetArea} but {requestedArea} requested')
 
 class Widget:
 
