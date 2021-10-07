@@ -62,6 +62,10 @@ class Rectangle2D(Position2D, Dimension2D):
     @property
     def rows(self) -> range:
         return range(self.y, self.y + self.h)
+    
+    @property
+    def origin(self):
+        return Rectangle2D(0, 0, self.w, self.h)
 
     def set(self, x: int, y: int, w: int, h: int) -> None:
         self.x = x
