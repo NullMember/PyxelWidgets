@@ -1,4 +1,4 @@
-from . import Widget
+from . import Widget, WidgetAreaNotValid
 from ..Helpers import *
 from ..Util.Clock import *
 from copy import deepcopy
@@ -31,26 +31,28 @@ class Life(Widget):
         self.updated = False
         newGrid = deepcopy(self._grid)
         area = self.rect.origin.intersect(Rectangle2D(sx, sy, sw, sh))
-        for x in area.columns:
-            for y in area.rows:
-                if self._running:
-                    total = int(self._grid[(x - 1) % self.rect.w][(y - 1) % self.rect.h]) + \
-                            int(self._grid[(x + 0) % self.rect.w][(y - 1) % self.rect.h]) + \
-                            int(self._grid[(x + 1) % self.rect.w][(y - 1) % self.rect.h]) + \
-                            int(self._grid[(x - 1) % self.rect.w][(y + 0) % self.rect.h]) + \
-                            int(self._grid[(x + 1) % self.rect.w][(y + 0) % self.rect.h]) + \
-                            int(self._grid[(x - 1) % self.rect.w][(y + 1) % self.rect.h]) + \
-                            int(self._grid[(x + 0) % self.rect.w][(y + 1) % self.rect.h]) + \
-                            int(self._grid[(x + 1) % self.rect.w][(y + 1) % self.rect.h])
-                    if self._grid[x][y]:
-                        if (total < 2) or (total > 3):
-                            newGrid[x][y] = False
+        if area:
+            for x in area.columns:
+                for y in area.rows:
+                    if self._running:
+                        total = int(self._grid[(x - 1) % self.rect.w][(y - 1) % self.rect.h]) + \
+                                int(self._grid[(x + 0) % self.rect.w][(y - 1) % self.rect.h]) + \
+                                int(self._grid[(x + 1) % self.rect.w][(y - 1) % self.rect.h]) + \
+                                int(self._grid[(x - 1) % self.rect.w][(y + 0) % self.rect.h]) + \
+                                int(self._grid[(x + 1) % self.rect.w][(y + 0) % self.rect.h]) + \
+                                int(self._grid[(x - 1) % self.rect.w][(y + 1) % self.rect.h]) + \
+                                int(self._grid[(x + 0) % self.rect.w][(y + 1) % self.rect.h]) + \
+                                int(self._grid[(x + 1) % self.rect.w][(y + 1) % self.rect.h])
+                        if self._grid[x][y]:
+                            if (total < 2) or (total > 3):
+                                newGrid[x][y] = False
+                        else:
+                            if total == 3:
+                                newGrid[x][y] = True
+                    if newGrid[x][y]:
+                        self.buffer[x, y] = self.activeColor
                     else:
-                        if total == 3:
-                            newGrid[x][y] = True
-                if newGrid[x][y]:
-                    self.buffer[x, y] = self.activeColor
-                else:
-                    self.buffer[x, y] = self.deactiveColor
-        self._grid = newGrid
-        return self.buffer[area.l:area.r, area.b:area.t]
+                        self.buffer[x, y] = self.deactiveColor
+            self._grid = newGrid
+            return self.buffer[area.l:area.r, area.b:area.t]
+        raise WidgetAreaNotValid(self.rect, (sx, sy, sw, sh))

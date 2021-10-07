@@ -1,4 +1,4 @@
-from . import Widget
+from . import Widget, WidgetAreaNotValid
 from ..Helpers import *
 from enum import Enum
 
@@ -200,127 +200,129 @@ class Fader(Widget):
         halfval = self.value / 2.0
         halfvalpluspointfive = halfval + 0.5
         area = self.rect.origin.intersect(Rectangle2D(sx, sy, sw, sh))
-        for x in area.columns:
-            for y in area.rows:
-                minV = self._calcFaderValue(x, y, 0.0)
-                maxV = self._calcFaderValue(x, y, 1.0)
-                if self.type == FaderType.Single:
-                    # if current pad lower than last pressed pad
-                    if maxV <= self.value:
-                        self.buffer[x, y] = self.deactiveColor
-                    # if current pad higher than last pressed pad
-                    elif minV > self.value:
-                        self.buffer[x, y] = self.deactiveColor
-                    # if current pad is last pressed pad
-                    else:
-                        coefficient = min(self._calcPixelCoefficient(self.value - minV) + self._calcPixelStep(), 1.0)
-                        self.buffer[x, y] = self.activeColor * coefficient
-                elif self.type == FaderType.BoostCut:
-                    # if last pressed pad in upper half
-                    if self.value > 0.5:
-                        # if current pad in lower half
-                        if minV < 0.5:
+        if area:
+            for x in area.columns:
+                for y in area.rows:
+                    minV = self._calcFaderValue(x, y, 0.0)
+                    maxV = self._calcFaderValue(x, y, 1.0)
+                    if self.type == FaderType.Single:
+                        # if current pad lower than last pressed pad
+                        if maxV <= self.value:
                             self.buffer[x, y] = self.deactiveColor
-                        # if current pad in upper half
+                        # if current pad higher than last pressed pad
+                        elif minV > self.value:
+                            self.buffer[x, y] = self.deactiveColor
+                        # if current pad is last pressed pad
                         else:
-                            # if current pad is lower than last pressed pad
-                            if maxV <= self.value:
-                                self.buffer[x, y] = self.activeColor
-                            # if current pad is higher than last pressed pad
-                            elif minV > self.value:
+                            coefficient = min(self._calcPixelCoefficient(self.value - minV) + self._calcPixelStep(), 1.0)
+                            self.buffer[x, y] = self.activeColor * coefficient
+                    elif self.type == FaderType.BoostCut:
+                        # if last pressed pad in upper half
+                        if self.value > 0.5:
+                            # if current pad in lower half
+                            if minV < 0.5:
                                 self.buffer[x, y] = self.deactiveColor
-                            # if current pad is last pressed pad
+                            # if current pad in upper half
                             else:
-                                coefficient = min(self._calcPixelCoefficient(self.value - minV) + self._calcPixelStep(), 1.0)
-                                self.buffer[x, y] = self.activeColor * coefficient
-                    # if last pressed pad in lower half
-                    elif self.value < 0.5:
-                        # if current pad in upper half
-                        if maxV > 0.5:
-                            self.buffer[x, y] = self.deactiveColor
-                        # if current pad in lower half
-                        else:
-                            # if current pad is higher than last pressed pad
-                            if minV >= self.value:
-                                self.buffer[x, y] = self.activeColor
-                            # if current pad is lower than last pressed pad
-                            elif maxV < self.value:
+                                # if current pad is lower than last pressed pad
+                                if maxV <= self.value:
+                                    self.buffer[x, y] = self.activeColor
+                                # if current pad is higher than last pressed pad
+                                elif minV > self.value:
+                                    self.buffer[x, y] = self.deactiveColor
+                                # if current pad is last pressed pad
+                                else:
+                                    coefficient = min(self._calcPixelCoefficient(self.value - minV) + self._calcPixelStep(), 1.0)
+                                    self.buffer[x, y] = self.activeColor * coefficient
+                        # if last pressed pad in lower half
+                        elif self.value < 0.5:
+                            # if current pad in upper half
+                            if maxV > 0.5:
                                 self.buffer[x, y] = self.deactiveColor
-                            # if current pad is last pressed pad
+                            # if current pad in lower half
                             else:
-                                # reverse brightness to match type
-                                coefficient = 1.0 - self._calcPixelCoefficient(self.value - minV)
+                                # if current pad is higher than last pressed pad
+                                if minV >= self.value:
+                                    self.buffer[x, y] = self.activeColor
+                                # if current pad is lower than last pressed pad
+                                elif maxV < self.value:
+                                    self.buffer[x, y] = self.deactiveColor
+                                # if current pad is last pressed pad
+                                else:
+                                    # reverse brightness to match type
+                                    coefficient = 1.0 - self._calcPixelCoefficient(self.value - minV)
+                                    self.buffer[x, y] = self.activeColor * coefficient
+                        # if current value is 0.5
+                        else:
+                            # lit middle pad(s)
+                            if minV == 0.5 or maxV == 0.5:
+                                self.buffer[x, y] = self.activeColor
+                            # unlit every other pad
+                            else:
+                                self.buffer[x, y] = self.deactiveColor
+                    elif self.type == FaderType.Wrap:
+                        # if current pad lower than last pressed pad
+                        if maxV <= self.value:
+                            self.buffer[x, y] = self.activeColor
+                        # if current pad higher than last pressed pad
+                        elif minV > self.value:
+                            self.buffer[x, y] = self.deactiveColor
+                        # if current pad is last pressed pad
+                        else:
+                            coefficient = min(self._calcPixelCoefficient(self.value - minV) + self._calcPixelStep(), 1.0)
+                            self.buffer[x, y] = self.activeColor * coefficient
+                    elif self.type == FaderType.Spread:
+                        # if current pad in upper half
+                        if minV >= 0.5:
+                            # if current pad higher than current value
+                            if minV > halfvalpluspointfive:
+                                self.buffer[x, y] = self.deactiveColor
+                            # if current pad lower than current value
+                            elif maxV <= halfvalpluspointfive:
+                                self.buffer[x, y] = self.activeColor
+                            # if current value is in current pad's boundary
+                            else:
+                                coefficient = self._calcPixelCoefficient(halfvalpluspointfive - minV)
                                 self.buffer[x, y] = self.activeColor * coefficient
-                    # if current value is 0.5
-                    else:
-                        # lit middle pad(s)
-                        if minV == 0.5 or maxV == 0.5:
-                            self.buffer[x, y] = self.activeColor
-                        # unlit every other pad
-                        else:
-                            self.buffer[x, y] = self.deactiveColor
-                elif self.type == FaderType.Wrap:
-                    # if current pad lower than last pressed pad
-                    if maxV <= self.value:
-                        self.buffer[x, y] = self.activeColor
-                    # if current pad higher than last pressed pad
-                    elif minV > self.value:
-                        self.buffer[x, y] = self.deactiveColor
-                    # if current pad is last pressed pad
-                    else:
-                        coefficient = min(self._calcPixelCoefficient(self.value - minV) + self._calcPixelStep(), 1.0)
-                        self.buffer[x, y] = self.activeColor * coefficient
-                elif self.type == FaderType.Spread:
-                    # if current pad in upper half
-                    if minV >= 0.5:
-                        # if current pad higher than current value
-                        if minV > halfvalpluspointfive:
-                            self.buffer[x, y] = self.deactiveColor
-                        # if current pad lower than current value
-                        elif maxV <= halfvalpluspointfive:
-                            self.buffer[x, y] = self.activeColor
-                        # if current value is in current pad's boundary
-                        else:
-                            coefficient = self._calcPixelCoefficient(halfvalpluspointfive - minV)
-                            self.buffer[x, y] = self.activeColor * coefficient
-                    # if current pad in lower half
-                    elif maxV <= 0.5:
-                        # if current pad higher than current value
-                        if minV >= (1.0 - halfvalpluspointfive):
-                            self.buffer[x, y] = self.activeColor
-                        # if current pad lower than current value
-                        elif maxV < (1.0 - halfvalpluspointfive):
-                            self.buffer[x, y] = self.deactiveColor
-                        # if current value is in current pad's boundary
-                        else:
-                            coefficient = 1.0 - self._calcPixelCoefficient((1.0 - halfvalpluspointfive) - minV)
-                            self.buffer[x, y] = self.activeColor * coefficient
-                elif self.type == FaderType.Collapse:
-                    # if current pad in upper half
-                    if minV >= 0.5:
-                        # if current pad lower than current value
-                        if minV >= (1.0 - halfval):
-                            self.buffer[x, y] = self.deactiveColor
-                        # if current pad higher than current value
-                        elif maxV < (1.0 - halfval):
-                            self.buffer[x, y] = self.activeColor
-                        # if current value is in current pad's boundary
-                        else:
-                            coefficient = self._calcPixelCoefficient((1.0 - halfval) - minV)
-                            self.buffer[x, y] = self.activeColor * coefficient
-                    # if current pad in lower half
-                    elif maxV <= 0.5:
-                        # if current pad lower than current value
-                        if minV > halfval:
-                            self.buffer[x, y] = self.activeColor
-                        # if current pad higher than current value
-                        elif maxV <= halfval:
-                            self.buffer[x, y] = self.deactiveColor
-                        # if current value is in current pad's boundary
-                        else:
-                            coefficient = 1.0 - self._calcPixelCoefficient(halfval - minV)
-                            self.buffer[x, y] = self.activeColor * coefficient
-        return self.buffer[area.l:area.r, area.b:area.t]
+                        # if current pad in lower half
+                        elif maxV <= 0.5:
+                            # if current pad higher than current value
+                            if minV >= (1.0 - halfvalpluspointfive):
+                                self.buffer[x, y] = self.activeColor
+                            # if current pad lower than current value
+                            elif maxV < (1.0 - halfvalpluspointfive):
+                                self.buffer[x, y] = self.deactiveColor
+                            # if current value is in current pad's boundary
+                            else:
+                                coefficient = 1.0 - self._calcPixelCoefficient((1.0 - halfvalpluspointfive) - minV)
+                                self.buffer[x, y] = self.activeColor * coefficient
+                    elif self.type == FaderType.Collapse:
+                        # if current pad in upper half
+                        if minV >= 0.5:
+                            # if current pad lower than current value
+                            if minV >= (1.0 - halfval):
+                                self.buffer[x, y] = self.deactiveColor
+                            # if current pad higher than current value
+                            elif maxV < (1.0 - halfval):
+                                self.buffer[x, y] = self.activeColor
+                            # if current value is in current pad's boundary
+                            else:
+                                coefficient = self._calcPixelCoefficient((1.0 - halfval) - minV)
+                                self.buffer[x, y] = self.activeColor * coefficient
+                        # if current pad in lower half
+                        elif maxV <= 0.5:
+                            # if current pad lower than current value
+                            if minV > halfval:
+                                self.buffer[x, y] = self.activeColor
+                            # if current pad higher than current value
+                            elif maxV <= halfval:
+                                self.buffer[x, y] = self.deactiveColor
+                            # if current value is in current pad's boundary
+                            else:
+                                coefficient = 1.0 - self._calcPixelCoefficient(halfval - minV)
+                                self.buffer[x, y] = self.activeColor * coefficient
+            return self.buffer[area.l:area.r, area.b:area.t]
+        raise WidgetAreaNotValid(self.rect, (sx, sy, sw, sh))
 
     # Calculate fader value from pad location
     def _calcFaderValue(self, x: int, y: int, value: float) -> float:

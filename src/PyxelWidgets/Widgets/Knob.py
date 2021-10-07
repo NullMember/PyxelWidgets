@@ -1,4 +1,4 @@
-from . import Widget
+from . import Widget, WidgetAreaNotValid
 from ..Helpers import *
 from enum import Enum
 
@@ -55,96 +55,98 @@ class Knob(Widget):
         halfval = self.value / 2.0
         halfvalpluspointfive = halfval + 0.5
         area = self.rect.origin.intersect(Rectangle2D(sx, sy, sw, sh))
-        for x in area.columns:
-            for y in area.rows:
-                index = self._calcKnobIndex(x, y)
-                minV = self._calcKnobValue(index, 0.0)
-                maxV = self._calcKnobValue(index, 1.0)
-                if index == -1:
-                    self.buffer[x, y] = [-1, -1, -1]
-                else:
-                    if self.type == KnobType.Single:
-                        if maxV <= self.value:
-                            self.buffer[x, y] = self.deactiveColor
-                        elif minV > self.value:
-                            self.buffer[x, y] = self.deactiveColor
-                        else:
-                            coefficient = self._calcPixelCoefficient(self.value - minV)
-                            self.buffer[x, y] = self.activeColor * coefficient
-                    elif self.type == KnobType.BoostCut:
-                        if self.value > 0.5:
-                            if minV < 0.5:
+        if area:
+            for x in area.columns:
+                for y in area.rows:
+                    index = self._calcKnobIndex(x, y)
+                    minV = self._calcKnobValue(index, 0.0)
+                    maxV = self._calcKnobValue(index, 1.0)
+                    if index == -1:
+                        self.buffer[x, y] = [-1, -1, -1]
+                    else:
+                        if self.type == KnobType.Single:
+                            if maxV <= self.value:
+                                self.buffer[x, y] = self.deactiveColor
+                            elif minV > self.value:
                                 self.buffer[x, y] = self.deactiveColor
                             else:
-                                if maxV <= self.value:
-                                    self.buffer[x, y] = self.activeColor
-                                elif minV > self.value:
-                                    self.buffer[x, y] = self.deactiveColor
-                                else:
-                                    coefficient = self._calcPixelCoefficient(self.value - minV)
-                                    self.buffer[x, y] = self.activeColor * coefficient
-                        elif self.value < 0.5:
-                            if maxV > 0.5:
-                                self.buffer[x, y] = self.deactiveColor
-                            else:
-                                if minV >= self.value:
-                                    self.buffer[x, y] = self.activeColor
-                                elif maxV < self.value:
-                                    self.buffer[x, y] = self.deactiveColor
-                                else:
-                                    coefficient = 1.0 - self._calcPixelCoefficient(self.value - minV)
-                                    self.buffer[x, y] = self.activeColor * coefficient
-                        else:
-                            if minV == 0.5 or maxV == 0.5:
-                                self.buffer[x, y] = self.activeColor
-                            else:
-                                self.buffer[x, y] = self.deactiveColor
-                    elif self.type == KnobType.Wrap:
-                        if maxV <= self.value:
-                            self.buffer[x, y] = self.activeColor
-                        elif minV > self.value:
-                            self.buffer[x, y] = self.deactiveColor
-                        else:
-                            coefficient = self._calcPixelCoefficient(self.value - minV)
-                            self.buffer[x, y] = self.activeColor * coefficient
-                    elif self.type == KnobType.Spread:
-                        if minV >= 0.5:
-                            if minV > halfvalpluspointfive:
-                                self.buffer[x, y] = self.deactiveColor
-                            elif maxV <= halfvalpluspointfive:
-                                self.buffer[x, y] = self.activeColor
-                            else:
-                                coefficient = self._calcPixelCoefficient(halfvalpluspointfive - minV)
+                                coefficient = self._calcPixelCoefficient(self.value - minV)
                                 self.buffer[x, y] = self.activeColor * coefficient
-                        elif maxV <= 0.5:
-                            if minV >= (1.0 - halfvalpluspointfive):
+                        elif self.type == KnobType.BoostCut:
+                            if self.value > 0.5:
+                                if minV < 0.5:
+                                    self.buffer[x, y] = self.deactiveColor
+                                else:
+                                    if maxV <= self.value:
+                                        self.buffer[x, y] = self.activeColor
+                                    elif minV > self.value:
+                                        self.buffer[x, y] = self.deactiveColor
+                                    else:
+                                        coefficient = self._calcPixelCoefficient(self.value - minV)
+                                        self.buffer[x, y] = self.activeColor * coefficient
+                            elif self.value < 0.5:
+                                if maxV > 0.5:
+                                    self.buffer[x, y] = self.deactiveColor
+                                else:
+                                    if minV >= self.value:
+                                        self.buffer[x, y] = self.activeColor
+                                    elif maxV < self.value:
+                                        self.buffer[x, y] = self.deactiveColor
+                                    else:
+                                        coefficient = 1.0 - self._calcPixelCoefficient(self.value - minV)
+                                        self.buffer[x, y] = self.activeColor * coefficient
+                            else:
+                                if minV == 0.5 or maxV == 0.5:
+                                    self.buffer[x, y] = self.activeColor
+                                else:
+                                    self.buffer[x, y] = self.deactiveColor
+                        elif self.type == KnobType.Wrap:
+                            if maxV <= self.value:
                                 self.buffer[x, y] = self.activeColor
-                            elif maxV < (1.0 - halfvalpluspointfive):
+                            elif minV > self.value:
                                 self.buffer[x, y] = self.deactiveColor
                             else:
-                                coefficient = 1.0 - self._calcPixelCoefficient((1.0 - halfvalpluspointfive) - minV)
+                                coefficient = self._calcPixelCoefficient(self.value - minV)
                                 self.buffer[x, y] = self.activeColor * coefficient
-                    elif self.type == KnobType.Collapse:
-                        if halfval < 0.5:
-                            if maxV <= 0.5:
-                                if minV > halfval:
-                                    self.buffer[x, y] = self.activeColor
-                                elif maxV <= halfval:
+                        elif self.type == KnobType.Spread:
+                            if minV >= 0.5:
+                                if minV > halfvalpluspointfive:
                                     self.buffer[x, y] = self.deactiveColor
-                                else:
-                                    coefficient = 1.0 - self._calcPixelCoefficient(halfval - minV)
-                                    self.buffer[x, y] = self.activeColor * coefficient
-                            elif minV >= 0.5:
-                                if minV >= (1.0 - halfval):
-                                    self.buffer[x, y] = self.deactiveColor
-                                elif maxV < (1.0 - halfval):
+                                elif maxV <= halfvalpluspointfive:
                                     self.buffer[x, y] = self.activeColor
                                 else:
-                                    coefficient = self._calcPixelCoefficient((1.0 - halfval) - minV)
+                                    coefficient = self._calcPixelCoefficient(halfvalpluspointfive - minV)
                                     self.buffer[x, y] = self.activeColor * coefficient
-                        else:
-                            self.buffer[x, y] = self.deactiveColor
-        return self.buffer[area.l:area.r, area.b:area.t]
+                            elif maxV <= 0.5:
+                                if minV >= (1.0 - halfvalpluspointfive):
+                                    self.buffer[x, y] = self.activeColor
+                                elif maxV < (1.0 - halfvalpluspointfive):
+                                    self.buffer[x, y] = self.deactiveColor
+                                else:
+                                    coefficient = 1.0 - self._calcPixelCoefficient((1.0 - halfvalpluspointfive) - minV)
+                                    self.buffer[x, y] = self.activeColor * coefficient
+                        elif self.type == KnobType.Collapse:
+                            if halfval < 0.5:
+                                if maxV <= 0.5:
+                                    if minV > halfval:
+                                        self.buffer[x, y] = self.activeColor
+                                    elif maxV <= halfval:
+                                        self.buffer[x, y] = self.deactiveColor
+                                    else:
+                                        coefficient = 1.0 - self._calcPixelCoefficient(halfval - minV)
+                                        self.buffer[x, y] = self.activeColor * coefficient
+                                elif minV >= 0.5:
+                                    if minV >= (1.0 - halfval):
+                                        self.buffer[x, y] = self.deactiveColor
+                                    elif maxV < (1.0 - halfval):
+                                        self.buffer[x, y] = self.activeColor
+                                    else:
+                                        coefficient = self._calcPixelCoefficient((1.0 - halfval) - minV)
+                                        self.buffer[x, y] = self.activeColor * coefficient
+                            else:
+                                self.buffer[x, y] = self.deactiveColor
+            return self.buffer[area.l:area.r, area.b:area.t]
+        raise WidgetAreaNotValid(self.rect, (sx, sy, sw, sh))
     
     def _resize(self, width, height):
         self.perimeter = self._calcPerimeter(width, height)

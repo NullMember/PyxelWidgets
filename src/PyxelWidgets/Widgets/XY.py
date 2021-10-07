@@ -1,4 +1,4 @@
-from . import Widget
+from . import Widget, WidgetAreaNotValid
 from ..Helpers import *
 from enum import Enum
 
@@ -50,29 +50,31 @@ class XY(Widget):
     def updateArea(self, sx, sy, sw, sh):
         self.updated = False
         area = self.rect.origin.intersect(Rectangle2D(sx, sy, sw, sh))
-        for x in area.columns:
-            for y in area.rows:
-                minV = self._calcXYValue(x, y, 0.0)
-                maxV = self._calcXYValue(x, y, 1.0)
-                # junction point
-                # if current padx is last pressed pad and current pady is last pressed pad
-                if minV[0] < self.value[0] and maxV[0] >= self.value[0] and minV[1] < self.value[1] and maxV[1] >= self.value[1]:
-                    coefficientX = ((self.value[0] - minV[0]) * self.rect.w) / 2
-                    coefficientY = ((self.value[1] - minV[1]) * self.rect.h) / 2
-                    color = (self.xColor * coefficientX) + (self.yColor * coefficientY)
-                    self.buffer[x, y] = color
-                # x axis
-                # if current padx is in same column of last pressed pad
-                elif minV[0] < self.value[0] and maxV[0] >= self.value[0]:
-                    self.buffer[x, y] = self.xColor * self.value[0]
-                # y axis
-                # if current pady is in same row of last pressed pad
-                elif minV[1] < self.value[1] and maxV[1] >= self.value[1]:
-                    self.buffer[x, y] = self.yColor * self.value[1]
-                # unlit every other pad
-                else:
-                    self.buffer[x, y] = self.deactiveColor
-        return self.buffer[area.l:area.r, area.b:area.t]
+        if area:
+            for x in area.columns:
+                for y in area.rows:
+                    minV = self._calcXYValue(x, y, 0.0)
+                    maxV = self._calcXYValue(x, y, 1.0)
+                    # junction point
+                    # if current padx is last pressed pad and current pady is last pressed pad
+                    if minV[0] < self.value[0] and maxV[0] >= self.value[0] and minV[1] < self.value[1] and maxV[1] >= self.value[1]:
+                        coefficientX = ((self.value[0] - minV[0]) * self.rect.w) / 2
+                        coefficientY = ((self.value[1] - minV[1]) * self.rect.h) / 2
+                        color = (self.xColor * coefficientX) + (self.yColor * coefficientY)
+                        self.buffer[x, y] = color
+                    # x axis
+                    # if current padx is in same column of last pressed pad
+                    elif minV[0] < self.value[0] and maxV[0] >= self.value[0]:
+                        self.buffer[x, y] = self.xColor * self.value[0]
+                    # y axis
+                    # if current pady is in same row of last pressed pad
+                    elif minV[1] < self.value[1] and maxV[1] >= self.value[1]:
+                        self.buffer[x, y] = self.yColor * self.value[1]
+                    # unlit every other pad
+                    else:
+                        self.buffer[x, y] = self.deactiveColor
+            return self.buffer[area.l:area.r, area.b:area.t]
+        raise WidgetAreaNotValid(self.rect, (sx, sy, sw, sh))
 
     def _calcXValue(self, x: int, value: float) -> float:
         return round(((x / self.rect.w) + (value / self.rect.w)), 6)

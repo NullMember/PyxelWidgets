@@ -1,4 +1,4 @@
-from . import Widget
+from . import Widget, WidgetAreaNotValid
 from ..Helpers import *
 from ..Util.Clock import *
 
@@ -40,14 +40,16 @@ class Sequencer(Widget):
     def updateArea(self, sx, sy, sw, sh):
         self.updated = False
         area = self.rect.origin.intersect(Rectangle2D(sx, sy, sw, sh))
-        for x in area.columns:
-            for y in area.rows:
-                if self.active[x][y]:
-                    self.buffer[x, y] = self.activeColor
-                else:
-                    self.buffer[x, y] = self.deactiveColor
-        self.buffer[self._tickX()][self._tickY()] = self.currentColor
-        return self.buffer[area.l:area.r, area.b:area.t]
+        if area:
+            for x in area.columns:
+                for y in area.rows:
+                    if self.active[x][y]:
+                        self.buffer[x, y] = self.activeColor
+                    else:
+                        self.buffer[x, y] = self.deactiveColor
+            self.buffer[self._tickX()][self._tickY()] = self.currentColor
+            return self.buffer[area.l:area.r, area.b:area.t]
+        raise WidgetAreaNotValid(self.rect, (sx, sy, sw, sh))
     
     def _resize(self, width, height):
         self._tickTarget = width * height
