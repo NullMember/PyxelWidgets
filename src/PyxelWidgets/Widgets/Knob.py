@@ -62,7 +62,7 @@ class Knob(Widget):
                     minV = self._calcKnobValue(index, 0.0)
                     maxV = self._calcKnobValue(index, 1.0)
                     if index == -1:
-                        self.buffer[x, y] = [-1, -1, -1]
+                        self.buffer[x, y] = Colors.Invisible
                     else:
                         if self.type == KnobType.Single:
                             if maxV <= self.value:
