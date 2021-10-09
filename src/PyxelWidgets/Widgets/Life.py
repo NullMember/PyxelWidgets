@@ -30,7 +30,8 @@ class Life(Widget):
     def updateArea(self, sx, sy, sw, sh):
         self.updated = False
         newGrid = deepcopy(self._grid)
-        area = self.rect.origin.intersect(Rectangle2D(sx, sy, sw, sh))
+        intersect = self.rect.intersect(Rectangle2D(sx, sy, sw, sh))
+        area = intersect - self.rect
         if area:
             for x in area.columns:
                 for y in area.rows:

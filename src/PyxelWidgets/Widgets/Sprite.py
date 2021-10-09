@@ -16,7 +16,8 @@ class Sprite(Widget):
     
     def updateArea(self, sx: int, sy: int, sw: int, sh: int):
         self.updated = False
-        area = self.rect.origin.intersect(Rectangle2D(sx, sy, sw, sh))
+        intersect = self.rect.intersect(Rectangle2D(sx, sy, sw, sh))
+        area = intersect - self.rect
         if area:
             self.buffer = self.frames[self.currentFrame]
             if self.animate:
