@@ -1,44 +1,46 @@
 from .ButtonGroup import ButtonGroup
-from enum import Enum
+from ...Helpers import *
+from enum import Enum, auto
+import numpy
 
 class KeyboardMode(Enum):
-    Keyboard = 0
-    ChromaticVertical = 1
-    ChromaticHorizontal = 2
-    Diatonic = 3
-    DiatonicVertical = 4
-    DiatonicHorizontal = 5
+    Keyboard            = auto()
+    ChromaticVertical   = auto()
+    ChromaticHorizontal = auto()
+    Diatonic            = auto()
+    DiatonicVertical    = auto()
+    DiatonicHorizontal  = auto()
 
 class KeyboardScale(Enum):
-    Major = 0
-    Minor = 1
-    Dorian = 2
-    Mixolydian = 3
-    Lydian = 4
-    Phrygian = 5
-    Locrian = 6
-    Diminished = 7
-    WholeHalf = 8
-    WholeTone = 9
-    MinorBlues = 10
-    MinorPentatonic = 11
-    MajorPentatonic = 12
-    MinorHarmonic = 13
-    MinorMelodic = 14
+    Major           = auto()
+    Minor           = auto()
+    Dorian          = auto()
+    Mixolydian      = auto()
+    Lydian          = auto()
+    Phrygian        = auto()
+    Locrian         = auto()
+    Diminished      = auto()
+    WholeHalf       = auto()
+    WholeTone       = auto()
+    MinorBlues      = auto()
+    MinorPentatonic = auto()
+    MajorPentatonic = auto()
+    MinorHarmonic   = auto()
+    MinorMelodic    = auto()
 
 class KeyboardTone(Enum):
-    C = 0
-    CS = 1
-    D = 2
-    DS = 3
-    E = 4
-    F = 5
-    FS = 6
-    G = 7
-    GS = 8
-    A = 9
-    AS = 10
-    B = 11
+    C   = auto()
+    CS  = auto()
+    D   = auto()
+    DS  = auto()
+    E   = auto()
+    F   = auto()
+    FS  = auto()
+    G   = auto()
+    GS  = auto()
+    A   = auto()
+    AS  = auto()
+    B   = auto()
 
 KeyboardScales = {
     'Major': [0, 2, 4, 5, 7, 9, 11],
@@ -62,22 +64,20 @@ KeyboardScales = {
 }
 
 class Keyboard():
-    def __init__(self, name: str, width: int, height: int, **kwargs) -> None:
-        self._buttons = ButtonGroup(name, width, height)
-        self._notes = [[-1 for y in range(height)] for x in range(width)]
-        self._width = width
-        self._height = height
+    def __init__(self, x: int, y: int, width: int, height: int, **kwargs) -> None:
+        self.buttons = ButtonGroup(x, y, width, height, callback = self.process)
+        self.notes = numpy.array([[-1 for y in range(height)] for x in range(width)])
+        self.rect = Rectangle2D(x, y, width, height)
         self._mode = kwargs.get('mode', KeyboardMode.Diatonic)
         self._scale = kwargs.get('scale', KeyboardScale.Major)
         self._tone = kwargs.get('tone', KeyboardTone.C)
         self._octave = kwargs.get('octave', 0)
         self._fold = kwargs.get('fold', 4)
-        self._toneColor = kwargs.get('toneColor', [255, 0, 255])
-        self._keyboardColor = kwargs.get('keyboardColor', [0, 255, 255])
-        self._nonScaleColor = kwargs.get('nonScaleColor', [255, 255, 0])
+        self._toneColor = kwargs.get('toneColor', Pixel(255, 0, 255, 1.0))
+        self._keyboardColor = kwargs.get('keyboardColor', Pixel(0, 255, 255, 1.0))
+        self._nonScaleColor = kwargs.get('nonScaleColor', Pixel(255, 255, 0, 1.0))
         self._calcNotes()
         self._callback = kwargs.get('callback', lambda *_, **__: None)
-        self._buttons.setCallback(self.process)
 
     @property
     def mode(self):
@@ -87,8 +87,9 @@ class Keyboard():
     def mode(self, mode: KeyboardMode):
         self._mode = mode
         self._calcNotes()
-        for widget in self.widgets:
-            widget.forceUpdate()
+        for x in self.rect.origin.columns:
+            for y in self.rect.origin.rows:
+                self.buttons.buttons[x, y].updated = True
     
     @property
     def scale(self):
@@ -98,8 +99,9 @@ class Keyboard():
     def scale(self, scale: KeyboardScale):
         self._scale = scale
         self._calcNotes()
-        for widget in self.widgets:
-            widget.forceUpdate()
+        for x in self.rect.origin.columns:
+            for y in self.rect.origin.rows:
+                self.buttons.buttons[x, y].updated = True
     
     @property
     def tone(self):
@@ -109,19 +111,9 @@ class Keyboard():
     def tone(self, tone: KeyboardTone):
         self._tone = tone
         self._calcNotes()
-        for widget in self.widgets:
-            widget.forceUpdate()
-    
-    @property
-    def fold(self):
-        return self._fold
-    
-    @fold.setter
-    def fold(self, fold: int):
-        self._fold = fold
-        self._calcNotes()
-        for widget in self.widgets:
-            widget.forceUpdate()
+        for x in self.rect.origin.columns:
+            for y in self.rect.origin.rows:
+                self.buttons.buttons[x, y].updated = True
     
     @property
     def octave(self):
@@ -131,34 +123,67 @@ class Keyboard():
     def octave(self, octave: int):
         self._octave = octave
         self._calcNotes()
-        for widget in self.widgets:
-            widget.forceUpdate()
-    
-    @property
-    def buttons(self):
-        return self._buttons.buttons
-    
-    @property
-    def widgets(self):
-        return self._buttons.widgets
+        for x in self.rect.origin.columns:
+            for y in self.rect.origin.rows:
+                self.buttons.buttons[x, y].updated = True
 
     @property
-    def width(self):
-        return self._width
+    def fold(self):
+        return self._fold
     
+    @fold.setter
+    def fold(self, fold: int):
+        self._fold = fold
+        self._calcNotes()
+        for x in self.rect.origin.columns:
+            for y in self.rect.origin.rows:
+                self.buttons.buttons[x, y].updated = True
+
     @property
-    def height(self):
-        return self._height
+    def toneColor(self):
+        return self._toneColor
+    
+    @toneColor.setter
+    def toneColor(self, toneColor: Pixel):
+        self._toneColor = toneColor
+        self._calcNotes()
+        for x in self.rect.origin.columns:
+            for y in self.rect.origin.rows:
+                self.buttons.buttons[x, y].updated = True
+
+    @property
+    def keyboardColor(self):
+        return self._keyboardColor
+    
+    @keyboardColor.setter
+    def keyboardColor(self, keyboardColor: Pixel):
+        self._keyboardColor = keyboardColor
+        self._calcNotes()
+        for x in self.rect.origin.columns:
+            for y in self.rect.origin.rows:
+                self.buttons.buttons[x, y].updated = True
+
+    @property
+    def nonScaleColor(self):
+        return self._nonScaleColor
+    
+    @nonScaleColor.setter
+    def nonScaleColor(self, nonScaleColor: Pixel):
+        self._nonScaleColor = nonScaleColor
+        self._calcNotes()
+        for x in self.rect.origin.columns:
+            for y in self.rect.origin.rows:
+                self.buttons.buttons[x, y].updated = True
 
     def setCallback(self, callback):
         self._callback = callback
     
     def process(self, name: str, event, value):
-        n, x, y = name.split(',')
+        prefix, n, x, y = name.split('_')
         x = int(x)
         y = int(y)
-        if self._notes[x][y] != -1:
-            self._callback(self._buttons.name, event, (self._notes[x][y], self.buttons[x][y].value))
+        if self.notes[x, y] != -1:
+            self._callback(self.buttons.buttons[x, y].name, event, (self.notes[x, y], self.buttons.buttons[x, y].value))
     
     def _calcNotes(self):
         base = self._tone.value + (self._octave * 12)
@@ -178,33 +203,28 @@ class Keyboard():
                     else:
                         scale = KeyboardScales['KeyboardUpper']
                     if scale[x % length] == -1:
-                        self._notes[x][y] = -1
+                        self.notes[x, y] = -1
                     else:
-                        self._notes[x][y] = scale[x % length] + base + ((y // 2) * 12) + ((x // length) * 12)
+                        self.notes[x, y] = scale[x % length] + base + ((y // 2) * 12) + ((x // length) * 12)
                 elif self._mode == KeyboardMode.ChromaticVertical:
-                    # index = x + (y * self.width)
-                    # index = x + (y * 5)
                     index = x + (y * (self._fold - 1))
-                    self._notes[x][y] = index + base
+                    self.notes[x, y] = index + base
                 elif self._mode == KeyboardMode.ChromaticHorizontal:
                     index = y + (x * (self._fold - 1))
-                    self._notes[x][y] = index + base
+                    self.notes[x, y] = index + base
                 elif self._mode == KeyboardMode.Diatonic:
-                    self._notes[x][y] = precalc[x + (y * len(scale))]
-                    # self._notes[x][y] = scale[x % len(scale)] + base + (y * 12) + ((x // len(scale)) * 12)
+                    self.notes[x, y] = precalc[x + (y * len(scale))]
                 elif self._mode == KeyboardMode.DiatonicVertical:
-                    # self._notes[x][y] = precalc[x + (y * (self.width - 1)) - (y * 4)]
-                    self._notes[x][y] = precalc[x + (y * len(scale)) - (y * (len(scale) - self._fold + 1))]
+                    self.notes[x, y] = precalc[x + (y * len(scale)) - (y * (len(scale) - self._fold + 1))]
                 elif self._mode == KeyboardMode.DiatonicHorizontal:
-                    # self._notes[x][y] = precalc[y + (x * (self.width - 1)) - (x * 5)]
-                    self._notes[x][y] = precalc[y + (x * len(scale)) - (x * (len(scale) - self._fold + 1))]
+                    self.notes[x, y] = precalc[y + (x * len(scale)) - (x * (len(scale) - self._fold + 1))]
                 #change colors
-                if self._notes[x][y] == -1:
-                    self.buttons[x][y].deactiveColor = [0, 0, 0]
+                if self.notes[x, y] == -1:
+                    self.buttons.buttons[x, y].deactiveColor = Colors.Black
                 else:
-                    if (self._notes[x][y] - self._tone.value) % 12 == 0:
-                        self.buttons[x][y].deactiveColor = self._toneColor
-                    elif (self._notes[x][y] - self._tone.value) % 12 in KeyboardScales[self._scale.name]:
-                        self.buttons[x][y].deactiveColor = self._keyboardColor
+                    if (self.notes[x, y] - self._tone.value) % 12 == 0:
+                        self.buttons.buttons[x, y].deactiveColor = self._toneColor
+                    elif (self.notes[x, y] - self._tone.value) % 12 in KeyboardScales[self._scale.name]:
+                        self.buttons.buttons[x, y].deactiveColor = self._keyboardColor
                     else:
-                        self.buttons[x][y].deactiveColor = self._nonScaleColor
+                        self.buttons.buttons[x, y].deactiveColor = self._nonScaleColor
