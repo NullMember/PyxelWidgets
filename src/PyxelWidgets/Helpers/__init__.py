@@ -112,7 +112,7 @@ class Pixel():
         self.color = [0 if r < 0 else (255 if r > 255 else r),
                      0 if g < 0 else (255 if g > 255 else g),
                      0 if b < 0 else (255 if b > 255 else b)]
-        self.alpha = 0.0 if a < 0.0 else (1.0 if a > 1.0 else a)
+        self.alpha = 0.0 if a < 0.0 else (a / 256.0 if a > 1.0 else float(a))
         self._value = (int(self.alpha * 255) << 24) | (self.color[0] << 16) | (self.color[1] << 8) | self.color[2]
 
     @property
@@ -121,8 +121,7 @@ class Pixel():
 
     @a.setter
     def a(self, value: float) -> None:
-        value = float(value)
-        self.alpha = 0.0 if value < 0.0 else (1.0 if value > 1.0 else value)
+        self.alpha = 0.0 if value < 0.0 else (value / 256.0 if value > 1.0 else float(value))
         self._value &= 0x00FFFFFF
         self._value |= (int(self.alpha * 255) << 24)
 
@@ -132,7 +131,7 @@ class Pixel():
     
     @property
     def frgb(self):
-        return self.r / 255.0, self.g / 255.0, self.b / 255.0
+        return self.r / 256.0, self.g / 256.0, self.b / 256.0
 
     @property
     def r(self) -> int:
