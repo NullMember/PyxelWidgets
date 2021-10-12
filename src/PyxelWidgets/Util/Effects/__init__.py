@@ -1,11 +1,11 @@
 __all__ = ['Gaussian', 'Pulse', 'Sine', 'Triangle']
 
-from enum import Enum
+from enum import Enum, auto
 
 class EffectDirection(Enum):
-    Up = 0
-    Down = 1
-    Cycle = 2
+    Up      = auto()
+    Down    = auto()
+    Cycle   = auto()
 
 class Effect():
 
