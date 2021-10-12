@@ -190,14 +190,14 @@ class Keyboard():
         scale = KeyboardScales[self._scale.name]
         precalc = []
         #precalculate scale values
-        for i in range(self.height * self.width):
+        for i in range(self.rect.h * self.rect.w):
             precalc.append(scale[i % len(scale)] + base + ((i // len(scale)) * 12))
-        for x in range(self.width):
-            for y in range(self.height):
+        for x in range(self.rect.w):
+            for y in range(self.rect.h):
                 #calculate notes
                 if self._mode == KeyboardMode.Keyboard:
                     base = KeyboardTone.C.value + (self._octave * 12)
-                    length = 7 if 7 < self.width else self.width
+                    length = 7 if 7 < self.rect.w else self.rect.w
                     if y % 2 == 0:
                         scale = KeyboardScales['Keyboard']
                     else:
