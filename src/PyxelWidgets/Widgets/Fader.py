@@ -1,6 +1,6 @@
 from . import Widget, WidgetAreaNotValid
 from ..Helpers import *
-from enum import Enum
+from enum import Enum, auto
 
 class FaderDirection(Enum):
     """
@@ -14,8 +14,8 @@ class FaderDirection(Enum):
     Vertical\n
     Horizontal
     """
-    Vertical = 0
-    Horizontal = 1
+    Vertical    = auto()
+    Horizontal  = auto()
 
 class FaderGrid(Enum):
     """
@@ -30,22 +30,22 @@ class FaderGrid(Enum):
     Simple\n
     Matrix
     """
-    Simple = 0
-    Matrix = 1
+    Simple      = auto()
+    Matrix      = auto()
 
 class FaderType(Enum):
-    Single = 0
-    BoostCut = 1
-    Wrap = 2
-    Spread = 3
-    Collapse = 4
+    Single      = auto()
+    BoostCut    = auto()
+    Wrap        = auto()
+    Spread      = auto()
+    Collapse    = auto()
 
 class FaderMode(Enum):
-    Simple = 0
-    Multi = 1
-    Magnitude = 2
-    Sensitive = 3
-    Relative = 4
+    Simple      = auto()
+    Multi       = auto()
+    Magnitude   = auto()
+    Sensitive   = auto()
+    Relative    = auto()
 
 class Fader(Widget):
     def __init__(self, x: int, y: int, width: int, height: int, **kwargs):

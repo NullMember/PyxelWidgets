@@ -1,10 +1,10 @@
 from . import Widget, WidgetAreaNotValid
 from ..Helpers import *
-from enum import Enum
+from enum import Enum, auto
 
 class XYDirection(Enum):
-    Vertical = 0
-    Horizontal = 1
+    Vertical    = auto()
+    Horizontal  = auto()
 
 class XY(Widget):
     def __init__(self, x: int, y: int, width: int, height: int, **kwargs):

@@ -1,11 +1,11 @@
 from . import Widget, WidgetAreaNotValid
 from ..Helpers import *
-from enum import Enum
+from enum import Enum, auto
 
 class ButtonMode(Enum):
-    Button = 0
-    Switch = 1
-    Mixed = 2
+    Button  = auto()
+    Switch  = auto()
+    Mixed   = auto()
 
 class Button(Widget):
     def __init__(self, x: int, y: int, width: int, height: int, **kwargs):

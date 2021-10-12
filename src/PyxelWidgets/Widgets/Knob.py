@@ -1,13 +1,13 @@
 from . import Widget, WidgetAreaNotValid
 from ..Helpers import *
-from enum import Enum
+from enum import Enum, auto
 
 class KnobType(Enum):
-    Single = 0
-    BoostCut = 1
-    Wrap = 2
-    Spread = 3
-    Collapse = 4
+    Single      = auto()
+    BoostCut    = auto()
+    Wrap        = auto()
+    Spread      = auto()
+    Collapse    = auto()
 
 class Knob(Widget):
     def __init__(self, x: int, y: int, width: int, height: int, **kwargs):
