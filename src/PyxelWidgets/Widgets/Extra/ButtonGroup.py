@@ -15,3 +15,7 @@ class ButtonGroup():
                                     name = f'{self.name}_{_x}_{_y}', **kwargs) \
                                     for _y in range(height)] for _x in range(width)])
         ButtonGroup._count += 1
+    
+    @property
+    def widgets(self):
+        return self.buttons.flatten()
