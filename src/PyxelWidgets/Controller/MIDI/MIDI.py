@@ -42,4 +42,4 @@ class MIDI(Controller):
         self._midiOutput.send_message([0xD0 | channel, velocity])
     
     def sendPitchBend(self, bend, channel = 0):
-        self._midiOutput.send_message([0xD0 | channel, bend & 0x7F, (bend >> 7) & 0x7F])
+        self._midiOutput.send_message([0xE0 | channel, bend & 0x7F, (bend >> 7) & 0x7F])
