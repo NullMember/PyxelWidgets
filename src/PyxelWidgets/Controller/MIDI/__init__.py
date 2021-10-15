@@ -1,1 +1,1 @@
-__all__ = ['MIDI', 'Launchpad']
+__all__ = ['MIDI', 'Launchpad', 'Launchkey']
