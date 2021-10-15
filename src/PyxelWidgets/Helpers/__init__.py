@@ -1,3 +1,5 @@
+import numpy
+
 class Position2D():
     def __init__(self, x: int = 0, y: int = 0) -> None:
         self.x = x
@@ -211,6 +213,12 @@ class Pixel():
         self.color[0] = (self._value >> 16) & 0xFF
         self.color[1] = (self._value >> 8) & 0xFF
         self.color[2] = self._value & 0xFF
+    
+    def findInPalette(self, palette):
+        palette = numpy.asarray(palette)
+        deltas = palette - self.rgb
+        dist_2 = numpy.einsum('ij,ij->i', deltas, deltas)
+        return numpy.argmin(dist_2)
 
     def __eq__(self, other) -> bool:
         if isinstance(other, Pixel):
