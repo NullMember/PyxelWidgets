@@ -57,19 +57,19 @@ class Controller():
         self._callback('held', (x, y, self.buttons[x, y]))
 
     def processInput(self):
-        pass
+        raise NotImplementedError("processInput method must be implemented")
 
     def updateOne(self, x: int, y: int, pixel: PyxelWidgets.Helpers.Pixel):
-        pass
+        raise NotImplementedError("updateOne method must be implemented")
 
     def updateRow(self, y: int, pixel: PyxelWidgets.Helpers.Pixel):
-        pass
+        raise NotImplementedError("updateRow method must be implemented")
 
     def updateColumn(self, x: int, pixel: PyxelWidgets.Helpers.Pixel):
-        pass
+        raise NotImplementedError("updateColumn method must be implemented")
     
     def updateArea(self, x: int, y: int, width: int, height: int, pixel: PyxelWidgets.Helpers.Pixel):
-        pass
+        raise NotImplementedError("updateArea method must be implemented")
 
     def update(self, buffer):
-        pass
+        raise NotImplementedError("update method must be implemented")
