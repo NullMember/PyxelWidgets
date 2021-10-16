@@ -20,8 +20,8 @@ class MIDI(PyxelWidgets.Controller.Controller):
         self._midiInput.set_callback(self.processInput)
     
     def disconnect(self):
-        super().disconnect()
         self._midiInput.set_callback(lambda *_, **__: None)
+        super().disconnect()
 
     def sendSysex(self, message):
         self._midiOutput.send_message([240] + message + [247])
