@@ -1,4 +1,4 @@
-from ..MIDI import MIDI
+from PyxelWidgets.Controller.MIDI.MIDI import MIDI
 
 class Launchpad(MIDI):
     """

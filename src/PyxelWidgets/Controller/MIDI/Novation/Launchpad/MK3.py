@@ -1,39 +1,95 @@
-from .Launchpad import Launchpad
-from ....Helpers import *
-from ....Util.RingBuffer import RingBuffer
+from PyxelWidgets.Controller.MIDI.Novation.Launchpad.Launchpad import Launchpad
+from PyxelWidgets.Helpers import *
+from PyxelWidgets.Util.RingBuffer import RingBuffer
 from enum import Enum
 import numpy
 
-class LaunchpadPro(Launchpad):
+class LaunchpadMK3(Launchpad):
 
-    class layout(Enum):
-        Note        = 0
-        Drum        = 1
-        Fader       = 2
-        Programmer  = 3
+    class model(Enum):
+        X                           = 12
+        Mini                        = 13
+        Pro                         = 14
 
-    def __init__(self, inPort: str, outPort: str, **kwargs):
+    class proLayout(Enum):
+        Session                     = 0
+        Fader                       = 1
+        Chord                       = 2
+        CustomLayout                = 3
+        NoteDrum                    = 4
+        ScaleSettings               = 5
+        SequencerSettings           = 6
+        SequencerSteps              = 7
+        SequencerVelocity           = 8
+        SequencerPatternSettings    = 9
+        SequencerProbability        = 10
+        SequencerMutation           = 11
+        SequencerMicroStep          = 12
+        SequencerProjects           = 13
+        SequencerPatterns           = 14
+        SequencerTempo              = 15
+        SequencerSwing              = 16
+        Programmer                  = 17
+        Settings                    = 18
+        CustomLayoutSettings        = 19
+
+    class xLayout(Enum):
+        Session                     = 0
+        Note                        = 1
+        Custom1                     = 4
+        Custom2                     = 5
+        Custom3                     = 6
+        Custom4                     = 7
+        Fader                       = 13
+        Programmer                  = 127
+
+    class miniLayout(Enum):
+        Session                     = 0
+        Custom1                     = 4
+        Custom2                     = 5
+        Custom3                     = 6
+        Fader                       = 13
+        Programmer                  = 127
+
+    class mode(Enum):
+        DAW                         = 0
+        Programmer                  = 1
+
+    def __init__(self, inPort: str, outPort: str, model, **kwargs):
         super().__init__(inPort=inPort, outPort=outPort, width = 10, height = 10, **kwargs)
-        self._header = [0x00, 0x20, 0x29, 0x02, 0x10]
+        self._model = model
+        self._header = [0x00, 0x20, 0x29, 0x02, self._model.value]
         self._sysexBuffer = RingBuffer(1024)
     
-    def setLayout(self, layout):
-        self.sendSysex(self._header + [0x2C, layout.value])
+    def setLayout(self, layout, page = 0):
+        if self._model == LaunchpadMK3.model.X or self._model == LaunchpadMK3.model.Mini:
+            self.sendSysex(self._header + [0, layout.value])
+        else:
+            self.sendSysex(self._header + [0, layout.value, page])
+    
+    def setMode(self, mode: mode):
+        if self._model == LaunchpadMK3.model.X or self._model == LaunchpadMK3.model.Mini:
+            self.sendSysex(self._header + [14, mode.value])
+        else:
+            if mode == LaunchpadMK3.mode.DAW:
+                self.setLayout(LaunchpadMK3.proLayout.Session)
+            elif mode == LaunchpadMK3.mode.Programmer:
+                self.setLayout(LaunchpadMK3.proLayout.Programmer)
     
     def generateRGB(self, x: int, y: int, color: Pixel):
         index = (x + (y * 10)) & 0x7F
-        color = color * 0.25
-        return [index, color.r, color.g, color.b]
+        color = color * 0.5
+        return [3, index, color.r, color.g, color.b]
 
     def sendRGB(self, x: int, y: int, color: Pixel):
-        self.sendSysex(self._header + [0x0B] + self.generateRGB(x, y, color))
+        self.sendSysex(self._header + [3] + self.generateRGB(x, y, color))
 
     def connect(self):
         super().connect()
-        self.setLayout(LaunchpadPro.layout.Programmer)
+        self.setMode(LaunchpadMK3.mode.Programmer)
     
     def disconnect(self):
-        self.setLayout(LaunchpadPro.layout.Note)
+        self.setMode(LaunchpadMK3.mode.DAW)
         super().disconnect()
 
     def processInput(self, message, _):

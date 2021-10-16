@@ -1,45 +1,54 @@
-from .Launchpad import Launchpad
-from ....Helpers import *
-from ....Util.RingBuffer import RingBuffer
+from PyxelWidgets.Controller.MIDI.Novation.Launchkey.Launchkey import Launchkey
+from PyxelWidgets.Helpers import *
 from enum import Enum
 import numpy
 
-class LaunchpadMK1(Launchpad):
-
-    class layout(Enum):
-        Reset   = 0
-        XY      = 1
-        Drum    = 2
+class LaunchkeyMK1(Launchkey):
+    """ 
+    Controller Class for Launchkey MK1 serie controllers
+    """
+    class mode(Enum):
+        Basic = 0
+        Extended = 127
+    
+    class inControl(Enum):
+        pots = 0x0D
+        slider = 0x0E
+        pads = 0x0F
     
     colors = [0x0C, 0x0D, 0x0F, 0x1D, 0x3F, 0x3E, 0x1C, 0x3C]
 
-    """ 
-    Controller Class for Launchpad, Launchpad S, Launchpad Mini, Launchpad Mini MK2
-    """
     def __init__(self, inPort: str, outPort: str, **kwargs):
         super().__init__(inPort=inPort, outPort=outPort, width = 10, height = 10, **kwargs)
-        self._header = [0x00, 0x20, 0x29, 0x02, 0x18]
-        self._sysexBuffer = RingBuffer(1024)
 
-    def setLayout(self, layout):
-        self.sendControlChange(0, layout.value)
+    def setMode(self, mode: mode):
+        self.sendNoteOn(0x0C, mode.value, 0xF)
+
+    def enableInControl(self, control: inControl):
+        self.sendNoteOn(control.value, 0x7F, 0xF)
+    
+    def disableInControl(self, control: inControl):
+        self.sendNoteOn(control.value, 0x00, 0xF)
 
     def sendColor(self, x: int, y: int, color: Pixel):
         colorIndex = color.mono // 32
-        if y < 8:
-            index = (x + (0x70 - (y * 0x10))) & 0x7F
-            self.sendNoteOn(index, LaunchpadMK1.colors[colorIndex])
+        index = 0
+        if y == 0:
+            index = 0x70 + x
+        elif y == 1:
+            index = 0x60 + x
         else:
-            index = (0x68 + x) & 0x7F
-            self.sendControlChange(index, LaunchpadMK1.colors[colorIndex])
+            return
+        self.sendNoteOn(index, LaunchkeyMK1.colors[colorIndex])
 
     def connect(self):
         super().connect()
-        self.setLayout(LaunchpadMK1.layout.Reset)
-        self.setLayout(LaunchpadMK1.layout.XY)
+        self.setMode(LaunchkeyMK1.mode.Extended)
+        self.enableInControl(LaunchkeyMK1.inControl.pads)
 
     def disconnect(self):
-        self.setLayout(LaunchpadMK1.layout.Reset)
+        self.disableInControl(LaunchkeyMK1.inControl.pads)
+        self.setMode(LaunchkeyMK1.mode.Basic)
         super().disconnect()
 
     def processInput(self, message, _):
@@ -47,13 +56,10 @@ class LaunchpadMK1(Launchpad):
         cmd = midi[0] & 0xF0
         chn = midi[0] & 0x0F
         if cmd == 0x80 or cmd == 0x90:
-            x = midi[1] % 0x10
-            y = 7 - (midi[1] // 0x10)
-            self.setButton(x, y, midi[2] / 127.0)
-        elif cmd == 0xB0:
-            x = midi[1] - 0x68
-            y = 8
-            self.setButton(x, y, midi[2] / 127.0)
+            if midi[1] < 0x80 and midi[1] >= 0x60:
+                x = midi[1] % 0x10
+                y = 7 - (midi[1] // 0x10)
+                self.setButton(x, y, midi[2] / 127.0)
 
     def updateOne(self, x: int, y: int, pixel: Pixel):
         if self.connected:
