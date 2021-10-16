@@ -11,6 +11,7 @@ class MIDI(PyxelWidgets.Controller.Controller):
         self._midiInput.ignore_types(sysex = False)
     
     def __del__(self):
+        self.disconnect()
         self._midiInput.close_port()
         self._midiOutput.close_port()
 
