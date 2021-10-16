@@ -1,8 +1,10 @@
-class NotEnoughSpaceException(Exception):
-    def __init__(self, message):
-        super().__init__(message)
+
 
 class RingBuffer:
+    class NotEnoughSpaceException(Exception):
+        def __init__(self, message):
+            super().__init__(message)
+
     def __init__(self, length: int) -> None:
         """
         Initialize buffer
@@ -24,7 +26,7 @@ class RingBuffer:
         :param values: Values will write to buffer
         """
         if self.readable + len(values) > self.length:
-            raise NotEnoughSpaceException("Not enough space in buffer")
+            raise RingBuffer.NotEnoughSpaceException("Not enough space in buffer")
         for index, val in enumerate(values):
             self.buffer[(index + self.writeIndex) % self.length] = val
         self.readable += len(values)
