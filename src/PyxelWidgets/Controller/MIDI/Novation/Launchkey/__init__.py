@@ -1,17 +1,24 @@
-from PyxelWidgets.Controller.MIDI.Novation.Launchkey.Launchkey import Launchkey
-from PyxelWidgets.Helpers import *
-from enum import Enum
+import PyxelWidgets.Controller.MIDI
+import PyxelWidgets.Helpers
+import enum
 import numpy
+
+class Launchkey(PyxelWidgets.Controller.MIDI.MIDI):
+    """
+    Base class for Novation's Launchkey series devices
+    """
+    def __init__(self, inPort: str = None, outPort: str = None, **kwargs):
+        super().__init__(inPort, outPort, **kwargs)
 
 class LaunchkeyMK1(Launchkey):
     """ 
     Controller Class for Launchkey MK1 serie controllers
     """
-    class mode(Enum):
+    class mode(enum.Enum):
         Basic = 0
         Extended = 127
     
-    class inControl(Enum):
+    class inControl(enum.Enum):
         pots = 0x0D
         slider = 0x0E
         pads = 0x0F
@@ -30,7 +37,7 @@ class LaunchkeyMK1(Launchkey):
     def disableInControl(self, control: inControl):
         self.sendNoteOn(control.value, 0x00, 0xF)
 
-    def sendColor(self, x: int, y: int, color: Pixel):
+    def sendColor(self, x: int, y: int, color: PyxelWidgets.Helpers.Pixel):
         colorIndex = color.mono // 32
         index = 0
         if y == 0:
@@ -61,9 +68,9 @@ class LaunchkeyMK1(Launchkey):
                 y = 7 - (midi[1] // 0x10)
                 self.setButton(x, y, midi[2] / 127.0)
 
-    def updateOne(self, x: int, y: int, pixel: Pixel):
+    def updateOne(self, x: int, y: int, pixel: PyxelWidgets.Helpers.Pixel):
         if self.connected:
-            intersect = self.rect.intersect(Rectangle2D(x, y, 1, 1))
+            intersect = self.rect.intersect(PyxelWidgets.Helpers.Rectangle2D(x, y, 1, 1))
             if intersect:
                 if pixel == self.buffer[x, y]:
                     pass
@@ -71,9 +78,9 @@ class LaunchkeyMK1(Launchkey):
                     self.buffer[x, y] = pixel
                     self.sendColor(x, y, pixel)
 
-    def updateRow(self, y: int, pixel: Pixel):
+    def updateRow(self, y: int, pixel: PyxelWidgets.Helpers.Pixel):
         if self.connected:
-            intersect = self.rect.intersect(Rectangle2D(0, y, self.rect.w, 1))
+            intersect = self.rect.intersect(PyxelWidgets.Helpers.Rectangle2D(0, y, self.rect.w, 1))
             if intersect:
                 for x in intersect.columns:
                     if pixel == self.buffer[x, y]:
@@ -82,9 +89,9 @@ class LaunchkeyMK1(Launchkey):
                         self.buffer[x, y] = pixel
                         self.sendColor(x, y, pixel)
 
-    def updateColumn(self, x: int, pixel: Pixel):
+    def updateColumn(self, x: int, pixel: PyxelWidgets.Helpers.Pixel):
         if self.connected:
-            intersect = self.rect.intersect(Rectangle2D(x, 0, 1, self.rect.h))
+            intersect = self.rect.intersect(PyxelWidgets.Helpers.Rectangle2D(x, 0, 1, self.rect.h))
             if intersect:
                 for y in intersect.rows:
                     if pixel == self.buffer[x, y]:
@@ -93,9 +100,9 @@ class LaunchkeyMK1(Launchkey):
                         self.buffer[x, y] = pixel
                         self.sendColor(x, y, pixel)
 
-    def updateArea(self, x: int, y: int, width: int, height: int, pixel: Pixel):
+    def updateArea(self, x: int, y: int, width: int, height: int, pixel: PyxelWidgets.Helpers.Pixel):
         if self.connected:
-            intersect = self.rect.intersect(Rectangle2D(x, y, width, height))
+            intersect = self.rect.intersect(PyxelWidgets.Helpers.Rectangle2D(x, y, width, height))
             if intersect:
                 for _x in intersect.columns:
                     for _y in intersect.rows:
@@ -107,7 +114,7 @@ class LaunchkeyMK1(Launchkey):
 
     def update(self, buffer: numpy.ndarray):
         if self.connected:
-            intersect = self.rect.intersect(Rectangle2D(0, 0, buffer.shape[0], buffer.shape[1]))
+            intersect = self.rect.intersect(PyxelWidgets.Helpers.Rectangle2D(0, 0, buffer.shape[0], buffer.shape[1]))
             if intersect:
                 for x in intersect.columns:
                     for y in intersect.rows:
@@ -119,11 +126,11 @@ class LaunchkeyMK1(Launchkey):
 
 class LaunchkeyMK2(Launchkey):
 
-    class mode(Enum):
+    class mode(enum.Enum):
         Basic = 0
         Extended = 127
     
-    class inControl(Enum):
+    class inControl(enum.Enum):
         pots = 0x0D
         slider = 0x0E
         pads = 0x0F
@@ -173,7 +180,7 @@ class LaunchkeyMK2(Launchkey):
     def disableInControl(self, control: inControl):
         self.sendNoteOn(control.value, 0x00, 0xF)
 
-    def sendColor(self, x: int, y: int, color: Pixel):
+    def sendColor(self, x: int, y: int, color: PyxelWidgets.Helpers.Pixel):
         index = 0
         if y == 0:
             index = 0x70 + x
@@ -203,9 +210,9 @@ class LaunchkeyMK2(Launchkey):
                 y = 7 - (midi[1] // 0x10)
                 self.setButton(x, y, midi[2] / 127.0)
 
-    def updateOne(self, x: int, y: int, pixel: Pixel):
+    def updateOne(self, x: int, y: int, pixel: PyxelWidgets.Helpers.Pixel):
         if self.connected:
-            intersect = self.rect.intersect(Rectangle2D(x, y, 1, 1))
+            intersect = self.rect.intersect(PyxelWidgets.Helpers.Rectangle2D(x, y, 1, 1))
             if intersect:
                 if pixel == self.buffer[x, y]:
                     pass
@@ -213,9 +220,9 @@ class LaunchkeyMK2(Launchkey):
                     self.buffer[x, y] = pixel
                     self.sendColor(x, y, pixel)
 
-    def updateRow(self, y: int, pixel: Pixel):
+    def updateRow(self, y: int, pixel: PyxelWidgets.Helpers.Pixel):
         if self.connected:
-            intersect = self.rect.intersect(Rectangle2D(0, y, self.rect.w, 1))
+            intersect = self.rect.intersect(PyxelWidgets.Helpers.Rectangle2D(0, y, self.rect.w, 1))
             if intersect:
                 for x in intersect.columns:
                     if pixel == self.buffer[x, y]:
@@ -224,9 +231,9 @@ class LaunchkeyMK2(Launchkey):
                         self.buffer[x, y] = pixel
                         self.sendColor(x, y, pixel)
 
-    def updateColumn(self, x: int, pixel: Pixel):
+    def updateColumn(self, x: int, pixel: PyxelWidgets.Helpers.Pixel):
         if self.connected:
-            intersect = self.rect.intersect(Rectangle2D(x, 0, 1, self.rect.h))
+            intersect = self.rect.intersect(PyxelWidgets.Helpers.Rectangle2D(x, 0, 1, self.rect.h))
             if intersect:
                 for y in intersect.rows:
                     if pixel == self.buffer[x, y]:
@@ -235,9 +242,9 @@ class LaunchkeyMK2(Launchkey):
                         self.buffer[x, y] = pixel
                         self.sendColor(x, y, pixel)
 
-    def updateArea(self, x: int, y: int, width: int, height: int, pixel: Pixel):
+    def updateArea(self, x: int, y: int, width: int, height: int, pixel: PyxelWidgets.Helpers.Pixel):
         if self.connected:
-            intersect = self.rect.intersect(Rectangle2D(x, y, width, height))
+            intersect = self.rect.intersect(PyxelWidgets.Helpers.Rectangle2D(x, y, width, height))
             if intersect:
                 for _x in intersect.columns:
                     for _y in intersect.rows:
@@ -249,7 +256,7 @@ class LaunchkeyMK2(Launchkey):
 
     def update(self, buffer: numpy.ndarray):
         if self.connected:
-            intersect = self.rect.intersect(Rectangle2D(0, 0, buffer.shape[0], buffer.shape[1]))
+            intersect = self.rect.intersect(PyxelWidgets.Helpers.Rectangle2D(0, 0, buffer.shape[0], buffer.shape[1]))
             if intersect:
                 for x in intersect.columns:
                     for y in intersect.rows:
@@ -261,11 +268,11 @@ class LaunchkeyMK2(Launchkey):
 
 class LaunchkeyMK3(Launchkey):
 
-    class mode(Enum):
+    class mode(enum.Enum):
         Other = 0
         DAW = 127
 
-    class layout(Enum):
+    class layout(enum.Enum):
         Drum = 1
         Session = 2
         Custom = 5
@@ -315,7 +322,7 @@ class LaunchkeyMK3(Launchkey):
     def setLayout(self, layout: layout):
         self.sendControlChange(3, layout.value, 15)
 
-    def sendColor(self, x: int, y: int, color: Pixel):
+    def sendColor(self, x: int, y: int, color: PyxelWidgets.Helpers.Pixel):
         index = 0
         if y == 0:
             index = 0x70 + x
@@ -345,9 +352,9 @@ class LaunchkeyMK3(Launchkey):
                 y = 7 - (midi[1] // 0x10)
                 self.setButton(x, y, midi[2] / 127.0)
 
-    def updateOne(self, x: int, y: int, pixel: Pixel):
+    def updateOne(self, x: int, y: int, pixel: PyxelWidgets.Helpers.Pixel):
         if self.connected:
-            intersect = self.rect.intersect(Rectangle2D(x, y, 1, 1))
+            intersect = self.rect.intersect(PyxelWidgets.Helpers.Rectangle2D(x, y, 1, 1))
             if intersect:
                 if pixel == self.buffer[x, y]:
                     pass
@@ -355,9 +362,9 @@ class LaunchkeyMK3(Launchkey):
                     self.buffer[x, y] = pixel
                     self.sendColor(x, y, pixel)
 
-    def updateRow(self, y: int, pixel: Pixel):
+    def updateRow(self, y: int, pixel: PyxelWidgets.Helpers.Pixel):
         if self.connected:
-            intersect = self.rect.intersect(Rectangle2D(0, y, self.rect.w, 1))
+            intersect = self.rect.intersect(PyxelWidgets.Helpers.Rectangle2D(0, y, self.rect.w, 1))
             if intersect:
                 for x in intersect.columns:
                     if pixel == self.buffer[x, y]:
@@ -366,9 +373,9 @@ class LaunchkeyMK3(Launchkey):
                         self.buffer[x, y] = pixel
                         self.sendColor(x, y, pixel)
 
-    def updateColumn(self, x: int, pixel: Pixel):
+    def updateColumn(self, x: int, pixel: PyxelWidgets.Helpers.Pixel):
         if self.connected:
-            intersect = self.rect.intersect(Rectangle2D(x, 0, 1, self.rect.h))
+            intersect = self.rect.intersect(PyxelWidgets.Helpers.Rectangle2D(x, 0, 1, self.rect.h))
             if intersect:
                 for y in intersect.rows:
                     if pixel == self.buffer[x, y]:
@@ -377,9 +384,9 @@ class LaunchkeyMK3(Launchkey):
                         self.buffer[x, y] = pixel
                         self.sendColor(x, y, pixel)
 
-    def updateArea(self, x: int, y: int, width: int, height: int, pixel: Pixel):
+    def updateArea(self, x: int, y: int, width: int, height: int, pixel: PyxelWidgets.Helpers.Pixel):
         if self.connected:
-            intersect = self.rect.intersect(Rectangle2D(x, y, width, height))
+            intersect = self.rect.intersect(PyxelWidgets.Helpers.Rectangle2D(x, y, width, height))
             if intersect:
                 for _x in intersect.columns:
                     for _y in intersect.rows:
@@ -391,7 +398,7 @@ class LaunchkeyMK3(Launchkey):
 
     def update(self, buffer: numpy.ndarray):
         if self.connected:
-            intersect = self.rect.intersect(Rectangle2D(0, 0, buffer.shape[0], buffer.shape[1]))
+            intersect = self.rect.intersect(PyxelWidgets.Helpers.Rectangle2D(0, 0, buffer.shape[0], buffer.shape[1]))
             if intersect:
                 for x in intersect.columns:
                     for y in intersect.rows:
