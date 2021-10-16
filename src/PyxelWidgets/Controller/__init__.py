@@ -56,9 +56,6 @@ class Controller():
     def setHeld(self, x: int, y: int) -> None:
         self._callback('held', (x, y, self.buttons[x, y]))
 
-    def process(self):
-        pass
-
     def processInput(self):
         pass
 
