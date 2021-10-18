@@ -11,7 +11,7 @@ class Launchpad(PyxelWidgets.Controller.MIDI.MIDI):
     def __init__(self, inPort: str = None, outPort: str = None, **kwargs):
         super().__init__(inPort, outPort, **kwargs)
 
-class LaunchpadMK1(Launchpad):
+class MK1(Launchpad):
 
     class layout(enum.Enum):
         Reset   = 0
@@ -24,30 +24,32 @@ class LaunchpadMK1(Launchpad):
     Controller Class for Launchpad, Launchpad S, Launchpad Mini, Launchpad Mini MK2
     """
     def __init__(self, inPort: str, outPort: str, **kwargs):
-        super().__init__(inPort=inPort, outPort=outPort, width = 10, height = 10, **kwargs)
+        kwargs['width'] = kwargs.get('width', 9)
+        kwargs['height'] = kwargs.get('height', 9)
+        super().__init__(inPort=inPort, outPort=outPort, **kwargs)
 
     def setLayout(self, layout: layout):
         self.sendControlChange(0, layout.value)
 
-    def sendColor(self, x: int, y: int, color: PyxelWidgets.Helpers.Pixel):
-        colorIndex = color.mono // 32
+    def sendPixel(self, x: int, y: int, pixel: PyxelWidgets.Helpers.Pixel):
+        colorIndex = pixel.mono // 32
         if y < 8:
             index = (x + (0x70 - (y * 0x10))) & 0x7F
-            self.sendNoteOn(index, LaunchpadMK1.colors[colorIndex])
+            self.sendNoteOn(index, MK1.colors[colorIndex])
         else:
             index = (0x68 + x) & 0x7F
-            self.sendControlChange(index, LaunchpadMK1.colors[colorIndex])
+            self.sendControlChange(index, MK1.colors[colorIndex])
 
     def connect(self):
         super().connect()
-        self.setLayout(LaunchpadMK1.layout.Reset)
-        self.setLayout(LaunchpadMK1.layout.XY)
+        self.setLayout(MK1.layout.Reset)
+        self.setLayout(MK1.layout.XY)
 
     def disconnect(self):
-        self.setLayout(LaunchpadMK1.layout.Reset)
+        self.setLayout(MK1.layout.Reset)
         super().disconnect()
 
-    def processInput(self, message, _):
+    def processMIDI(self, message, _):
         midi, delta = message
         cmd = midi[0] & 0xF0
         chn = midi[0] & 0x0F
@@ -60,64 +62,10 @@ class LaunchpadMK1(Launchpad):
             y = 8
             self.setButton(x, y, midi[2] / 127.0)
 
-    def updateOne(self, x: int, y: int, pixel: PyxelWidgets.Helpers.Pixel):
-        if self.connected:
-            intersect = self.rect.intersect(PyxelWidgets.Helpers.Rectangle2D(x, y, 1, 1))
-            if intersect:
-                if pixel == self.buffer[x, y]:
-                    pass
-                else:
-                    self.buffer[x, y] = pixel
-                    self.sendColor(x, y, pixel)
-
-    def updateRow(self, y: int, pixel: PyxelWidgets.Helpers.Pixel):
-        if self.connected:
-            intersect = self.rect.intersect(PyxelWidgets.Helpers.Rectangle2D(0, y, self.rect.w, 1))
-            if intersect:
-                for x in intersect.columns:
-                    if pixel == self.buffer[x, y]:
-                        pass
-                    else:
-                        self.buffer[x, y] = pixel
-                        self.sendColor(x, y, pixel)
-
-    def updateColumn(self, x: int, pixel: PyxelWidgets.Helpers.Pixel):
-        if self.connected:
-            intersect = self.rect.intersect(PyxelWidgets.Helpers.Rectangle2D(x, 0, 1, self.rect.h))
-            if intersect:
-                for y in intersect.rows:
-                    if pixel == self.buffer[x, y]:
-                        pass
-                    else:
-                        self.buffer[x, y] = pixel
-                        self.sendColor(x, y, pixel)
-
-    def updateArea(self, x: int, y: int, width: int, height: int, pixel: PyxelWidgets.Helpers.Pixel):
-        if self.connected:
-            intersect = self.rect.intersect(PyxelWidgets.Helpers.Rectangle2D(x, y, width, height))
-            if intersect:
-                for _x in intersect.columns:
-                    for _y in intersect.rows:
-                        if pixel == self.buffer[_x, _y]:
-                            pass
-                        else:
-                            self.buffer[_x, _y] = pixel
-                            self.sendColor(x, y, pixel)
-
-    def update(self, buffer: numpy.ndarray):
-        if self.connected:
-            intersect = self.rect.intersect(PyxelWidgets.Helpers.Rectangle2D(0, 0, buffer.shape[0], buffer.shape[1]))
-            if intersect:
-                for x in intersect.columns:
-                    for y in intersect.rows:
-                        if buffer[x, y] == self.buffer[x, y]:
-                            pass
-                        else:
-                            self.buffer[x, y] = buffer[x, y]
-                            self.sendColor(x, y, self.buffer[x, y])
-
-class LaunchpadMK2(Launchpad):
-
+class MK2(Launchpad):
+    """
+    Controller class for Launchpad MK2
+    """
     class layout(enum.Enum):
         Session     = 0
         User1       = 1
@@ -127,30 +75,29 @@ class LaunchpadMK2(Launchpad):
         Pan         = 5
 
     def __init__(self, inPort: str, outPort: str, **kwargs):
-        super().__init__(inPort=inPort, outPort=outPort, width = 10, height = 10, **kwargs)
+        kwargs['width'] = kwargs.get('width', 9)
+        kwargs['height'] = kwargs.get('height', 9)
+        super().__init__(inPort=inPort, outPort=outPort, **kwargs)
         self._header = [0x00, 0x20, 0x29, 0x02, 0x18]
         self._sysexBuffer = PyxelWidgets.Util.RingBuffer.RingBuffer(1024)
     
     def setLayout(self, layout: layout):
         self.sendSysex(self._header + [0x22, layout.value])
-    
-    def generateRGB(self, x: int, y: int, color: PyxelWidgets.Helpers.Pixel):
-        index = (x + (y * 10)) & 0x7F
-        color = color * 0.25
-        return [index, color.r, color.g, color.b]
 
-    def sendRGB(self, x: int, y: int, color: PyxelWidgets.Helpers.Pixel):
-        self.sendSysex(self._header + [0x0B] + self.generateRGB(x, y, color))
+    def sendPixel(self, x: int, y: int, pixel: PyxelWidgets.Helpers.Pixel):
+        index = (x + (y * 10)) & 0x7F
+        pixel = pixel * 0.25
+        self._sysexBuffer.write([3, index, pixel.r, pixel.g, pixel.b])
 
     def connect(self):
         super().connect()
-        self.setLayout(LaunchpadMK2.layout.Session)
+        self.setLayout(MK2.layout.Session)
     
     def disconnect(self):
-        self.setLayout(LaunchpadMK2.layout.User1)
+        self.setLayout(MK2.layout.User1)
         super().disconnect()
     
-    def processInput(self, message, _):
+    def processMIDI(self, message, _):
         midi, delta = message
         cmd = midi[0] & 0xF0
         chn = midi[0] & 0x0F
@@ -162,71 +109,34 @@ class LaunchpadMK2(Launchpad):
             self.setButton(x, y, midi[2] / 127.0)
 
     def updateOne(self, x: int, y: int, pixel: PyxelWidgets.Helpers.Pixel):
-        if self.connected:
-            intersect = self.rect.intersect(PyxelWidgets.Helpers.Rectangle2D(x, y, 1, 1))
-            if intersect:
-                if pixel == self.buffer[x, y]:
-                    pass
-                else:
-                    self.buffer[x, y] = pixel
-                    self.sendRGB(x, y, pixel)
+        super().updateOne(x, y, pixel)
+        if self._sysexBuffer.readable:
+            self.sendSysex(self._header + [3] + self._sysexBuffer.read())
     
     def updateRow(self, y: int, pixel: PyxelWidgets.Helpers.Pixel):
-        if self.connected:
-            intersect = self.rect.intersect(PyxelWidgets.Helpers.Rectangle2D(0, y, self.rect.w, 1))
-            if intersect:
-                for x in intersect.columns:
-                    if pixel == self.buffer[x, y]:
-                        pass
-                    else:
-                        self.buffer[x, y] = pixel
-                        self._sysexBuffer.write(self.generateRGB(x, y, self.buffer[x, y]))
-                if self._sysexBuffer.readable:
-                    self.sendSysex(self._header + [3] + self._sysexBuffer.read())
+        super().updateRow(y, pixel)
+        if self._sysexBuffer.readable:
+            self.sendSysex(self._header + [3] + self._sysexBuffer.read())
     
     def updateColumn(self, x: int, pixel: PyxelWidgets.Helpers.Pixel):
-        if self.connected:
-            intersect = self.rect.intersect(PyxelWidgets.Helpers.Rectangle2D(x, 0, 1, self.rect.h))
-            if intersect:
-                for y in intersect.rows:
-                    if pixel == self.buffer[x, y]:
-                        pass
-                    else:
-                        self.buffer[x, y] = pixel
-                        self._sysexBuffer.write(self.generateRGB(x, y, self.buffer[x, y]))
-                if self._sysexBuffer.readable:
-                    self.sendSysex(self._header + [3] + self._sysexBuffer.read())
+        super().updateColumn(x, pixel)
+        if self._sysexBuffer.readable:
+            self.sendSysex(self._header + [3] + self._sysexBuffer.read())
 
     def updateArea(self, x: int, y: int, width: int, height: int, pixel: PyxelWidgets.Helpers.Pixel):
-        if self.connected:
-            intersect = self.rect.intersect(PyxelWidgets.Helpers.Rectangle2D(x, y, width, height))
-            if intersect:
-                for _x in intersect.columns:
-                    for _y in intersect.rows:
-                        if pixel == self.buffer[_x, _y]:
-                            pass
-                        else:
-                            self.buffer[_x, _y] = pixel
-                            self._sysexBuffer.write(self.generateRGB(_x, _y, self.buffer[_x, _y]))
-                if self._sysexBuffer.readable:
-                    self.sendSysex(self._header + [3] + self._sysexBuffer.read())
+        super().updateArea(x, y, width, height, pixel)
+        if self._sysexBuffer.readable:
+            self.sendSysex(self._header + [3] + self._sysexBuffer.read())
 
     def update(self, buffer: numpy.ndarray):
-        if self.connected:
-            intersect = self.rect.intersect(PyxelWidgets.Helpers.Rectangle2D(0, 0, buffer.shape[0], buffer.shape[1]))
-            if intersect:
-                for x in intersect.columns:
-                    for y in intersect.rows:
-                        if buffer[x, y] == self.buffer[x, y]:
-                            pass
-                        else:
-                            self.buffer[x, y] = buffer[x, y]
-                            self._sysexBuffer.write(self.generateRGB(x, y, self.buffer[x, y]))
-                if self._sysexBuffer.readable:
-                    self.sendSysex(self._header + [3] + self._sysexBuffer.read())
+        super().update(buffer)
+        if self._sysexBuffer.readable:
+            self.sendSysex(self._header + [3] + self._sysexBuffer.read())
 
-class LaunchpadMK3(Launchpad):
-
+class MK3(Launchpad):
+    """
+    Controller class for Launchpad Mini MK3, Launchpad X, Launchpad Pro MK3
+    """
     class model(enum.Enum):
         X                           = 12
         Mini                        = 13
@@ -277,43 +187,42 @@ class LaunchpadMK3(Launchpad):
         Programmer                  = 1
 
     def __init__(self, inPort: str, outPort: str, model, **kwargs):
-        super().__init__(inPort=inPort, outPort=outPort, width = 10, height = 10, **kwargs)
+        kwargs['width'] = kwargs.get('width', 10)
+        kwargs['height'] = kwargs.get('height', 10)
+        super().__init__(inPort=inPort, outPort=outPort, **kwargs)
         self._model = model
         self._header = [0x00, 0x20, 0x29, 0x02, self._model.value]
         self._sysexBuffer = PyxelWidgets.Util.RingBuffer.RingBuffer(1024)
     
     def setLayout(self, layout, page = 0):
-        if self._model == LaunchpadMK3.model.X or self._model == LaunchpadMK3.model.Mini:
+        if self._model == MK3.model.X or self._model == MK3.model.Mini:
             self.sendSysex(self._header + [0, layout.value])
         else:
             self.sendSysex(self._header + [0, layout.value, page])
     
     def setMode(self, mode: mode):
-        if self._model == LaunchpadMK3.model.X or self._model == LaunchpadMK3.model.Mini:
+        if self._model == MK3.model.X or self._model == MK3.model.Mini:
             self.sendSysex(self._header + [14, mode.value])
         else:
-            if mode == LaunchpadMK3.mode.DAW:
-                self.setLayout(LaunchpadMK3.proLayout.Session)
-            elif mode == LaunchpadMK3.mode.Programmer:
-                self.setLayout(LaunchpadMK3.proLayout.Programmer)
-    
-    def generateRGB(self, x: int, y: int, color: PyxelWidgets.Helpers.Pixel):
-        index = (x + (y * 10)) & 0x7F
-        color = color * 0.5
-        return [3, index, color.r, color.g, color.b]
+            if mode == MK3.mode.DAW:
+                self.setLayout(MK3.proLayout.Session)
+            elif mode == MK3.mode.Programmer:
+                self.setLayout(MK3.proLayout.Programmer)
 
-    def sendRGB(self, x: int, y: int, color: PyxelWidgets.Helpers.Pixel):
-        self.sendSysex(self._header + [3] + self.generateRGB(x, y, color))
+    def sendPixel(self, x: int, y: int, pixel: PyxelWidgets.Helpers.Pixel):
+        index = (x + (y * 10)) & 0x7F
+        pixel = pixel * 0.5
+        self._sysexBuffer.write([3, index, pixel.r, pixel.g, pixel.b])
 
     def connect(self):
         super().connect()
-        self.setMode(LaunchpadMK3.mode.Programmer)
+        self.setMode(MK3.mode.Programmer)
     
     def disconnect(self):
-        self.setMode(LaunchpadMK3.mode.DAW)
+        self.setMode(MK3.mode.DAW)
         super().disconnect()
 
-    def processInput(self, message, _):
+    def processMIDI(self, message, _):
         midi, delta = message
         cmd = midi[0] & 0xF0
         chn = midi[0] & 0x0F
@@ -323,71 +232,34 @@ class LaunchpadMK3(Launchpad):
             self.setButton(x, y, midi[2] / 127.0)
 
     def updateOne(self, x: int, y: int, pixel: PyxelWidgets.Helpers.Pixel):
-        if self.connected:
-            intersect = self.rect.intersect(PyxelWidgets.Helpers.Rectangle2D(x, y, 1, 1))
-            if intersect:
-                if pixel == self.buffer[x, y]:
-                    pass
-                else:
-                    self.buffer[x, y] = pixel
-                    self.sendRGB(x, y, pixel)
+        super().updateOne(x, y, pixel)
+        if self._sysexBuffer.readable:
+            self.sendSysex(self._header + [3] + self._sysexBuffer.read())
     
     def updateRow(self, y: int, pixel: PyxelWidgets.Helpers.Pixel):
-        if self.connected:
-            intersect = self.rect.intersect(PyxelWidgets.Helpers.Rectangle2D(0, y, self.rect.w, 1))
-            if intersect:
-                for x in intersect.columns:
-                    if pixel == self.buffer[x, y]:
-                        pass
-                    else:
-                        self.buffer[x, y] = pixel
-                        self._sysexBuffer.write(self.generateRGB(x, y, self.buffer[x, y]))
-                if self._sysexBuffer.readable:
-                    self.sendSysex(self._header + [3] + self._sysexBuffer.read())
+        super().updateRow(y, pixel)
+        if self._sysexBuffer.readable:
+            self.sendSysex(self._header + [3] + self._sysexBuffer.read())
     
     def updateColumn(self, x: int, pixel: PyxelWidgets.Helpers.Pixel):
-        if self.connected:
-            intersect = self.rect.intersect(PyxelWidgets.Helpers.Rectangle2D(x, 0, 1, self.rect.h))
-            if intersect:
-                for y in intersect.rows:
-                    if pixel == self.buffer[x, y]:
-                        pass
-                    else:
-                        self.buffer[x, y] = pixel
-                        self._sysexBuffer.write(self.generateRGB(x, y, self.buffer[x, y]))
-                if self._sysexBuffer.readable:
-                    self.sendSysex(self._header + [3] + self._sysexBuffer.read())
+        super().updateColumn(x, pixel)
+        if self._sysexBuffer.readable:
+            self.sendSysex(self._header + [3] + self._sysexBuffer.read())
 
     def updateArea(self, x: int, y: int, width: int, height: int, pixel: PyxelWidgets.Helpers.Pixel):
-        if self.connected:
-            intersect = self.rect.intersect(PyxelWidgets.Helpers.Rectangle2D(x, y, width, height))
-            if intersect:
-                for _x in intersect.columns:
-                    for _y in intersect.rows:
-                        if pixel == self.buffer[_x, _y]:
-                            pass
-                        else:
-                            self.buffer[_x, _y] = pixel
-                            self._sysexBuffer.write(self.generateRGB(_x, _y, self.buffer[_x, _y]))
-                if self._sysexBuffer.readable:
-                    self.sendSysex(self._header + [3] + self._sysexBuffer.read())
+        super().updateArea(x, y, width, height, pixel)
+        if self._sysexBuffer.readable:
+            self.sendSysex(self._header + [3] + self._sysexBuffer.read())
 
     def update(self, buffer: numpy.ndarray):
-        if self.connected:
-            intersect = self.rect.intersect(PyxelWidgets.Helpers.Rectangle2D(0, 0, buffer.shape[0], buffer.shape[1]))
-            if intersect:
-                for x in intersect.columns:
-                    for y in intersect.rows:
-                        if buffer[x, y] == self.buffer[x, y]:
-                            pass
-                        else:
-                            self.buffer[x, y] = buffer[x, y]
-                            self._sysexBuffer.write(self.generateRGB(x, y, self.buffer[x, y]))
-                if self._sysexBuffer.readable:
-                    self.sendSysex(self._header + [3] + self._sysexBuffer.read())
+        super().update(buffer)
+        if self._sysexBuffer.readable:
+            self.sendSysex(self._header + [3] + self._sysexBuffer.read())
 
-class LaunchpadPro(Launchpad):
-
+class Pro(Launchpad):
+    """
+    Controller class for Launchpad Pro (first version)
+    """
     class layout(enum.Enum):
         Note        = 0
         Drum        = 1
@@ -395,30 +267,29 @@ class LaunchpadPro(Launchpad):
         Programmer  = 3
 
     def __init__(self, inPort: str, outPort: str, **kwargs):
-        super().__init__(inPort=inPort, outPort=outPort, width = 10, height = 10, **kwargs)
+        kwargs['width'] = kwargs.get('width', 10)
+        kwargs['height'] = kwargs.get('height', 10)
+        super().__init__(inPort=inPort, outPort=outPort, **kwargs)
         self._header = [0x00, 0x20, 0x29, 0x02, 0x10]
         self._sysexBuffer = PyxelWidgets.Util.RingBuffer.RingBuffer(1024)
     
     def setLayout(self, layout: layout):
         self.sendSysex(self._header + [0x2C, layout.value])
     
-    def generateRGB(self, x: int, y: int, color: PyxelWidgets.Helpers.Pixel):
+    def sendPixel(self, x: int, y: int, pixel: PyxelWidgets.Helpers.Pixel):
         index = (x + (y * 10)) & 0x7F
-        color = color * 0.25
-        return [index, color.r, color.g, color.b]
-
-    def sendRGB(self, x: int, y: int, color: PyxelWidgets.Helpers.Pixel):
-        self.sendSysex(self._header + [0x0B] + self.generateRGB(x, y, color))
+        pixel = pixel * 0.25
+        self._sysexBuffer.write([3, index, pixel.r, pixel.g, pixel.b])
 
     def connect(self):
         super().connect()
-        self.setLayout(LaunchpadPro.layout.Programmer)
+        self.setLayout(Pro.layout.Programmer)
     
     def disconnect(self):
-        self.setLayout(LaunchpadPro.layout.Note)
+        self.setLayout(Pro.layout.Note)
         super().disconnect()
 
-    def processInput(self, message, _):
+    def processMIDI(self, message, _):
         midi, delta = message
         cmd = midi[0] & 0xF0
         chn = midi[0] & 0x0F
@@ -428,65 +299,26 @@ class LaunchpadPro(Launchpad):
             self.setButton(x, y, midi[2] / 127.0)
 
     def updateOne(self, x: int, y: int, pixel: PyxelWidgets.Helpers.Pixel):
-        if self.connected:
-            intersect = self.rect.intersect(PyxelWidgets.Helpers.Rectangle2D(x, y, 1, 1))
-            if intersect:
-                if pixel == self.buffer[x, y]:
-                    pass
-                else:
-                    self.buffer[x, y] = pixel
-                    self.sendRGB(x, y, pixel)
+        super().updateOne(x, y, pixel)
+        if self._sysexBuffer.readable:
+            self.sendSysex(self._header + [3] + self._sysexBuffer.read())
     
     def updateRow(self, y: int, pixel: PyxelWidgets.Helpers.Pixel):
-        if self.connected:
-            intersect = self.rect.intersect(PyxelWidgets.Helpers.Rectangle2D(0, y, self.rect.w, 1))
-            if intersect:
-                for x in intersect.columns:
-                    if pixel == self.buffer[x, y]:
-                        pass
-                    else:
-                        self.buffer[x, y] = pixel
-                        self._sysexBuffer.write(self.generateRGB(x, y, self.buffer[x, y]))
-                if self._sysexBuffer.readable:
-                    self.sendSysex(self._header + [3] + self._sysexBuffer.read())
+        super().updateRow(y, pixel)
+        if self._sysexBuffer.readable:
+            self.sendSysex(self._header + [3] + self._sysexBuffer.read())
     
     def updateColumn(self, x: int, pixel: PyxelWidgets.Helpers.Pixel):
-        if self.connected:
-            intersect = self.rect.intersect(PyxelWidgets.Helpers.Rectangle2D(x, 0, 1, self.rect.h))
-            if intersect:
-                for y in intersect.rows:
-                    if pixel == self.buffer[x, y]:
-                        pass
-                    else:
-                        self.buffer[x, y] = pixel
-                        self._sysexBuffer.write(self.generateRGB(x, y, self.buffer[x, y]))
-                if self._sysexBuffer.readable:
-                    self.sendSysex(self._header + [3] + self._sysexBuffer.read())
+        super().updateColumn(x, pixel)
+        if self._sysexBuffer.readable:
+            self.sendSysex(self._header + [3] + self._sysexBuffer.read())
 
     def updateArea(self, x: int, y: int, width: int, height: int, pixel: PyxelWidgets.Helpers.Pixel):
-        if self.connected:
-            intersect = self.rect.intersect(PyxelWidgets.Helpers.Rectangle2D(x, y, width, height))
-            if intersect:
-                for _x in intersect.columns:
-                    for _y in intersect.rows:
-                        if pixel == self.buffer[_x, _y]:
-                            pass
-                        else:
-                            self.buffer[_x, _y] = pixel
-                            self._sysexBuffer.write(self.generateRGB(_x, _y, self.buffer[_x, _y]))
-                if self._sysexBuffer.readable:
-                    self.sendSysex(self._header + [3] + self._sysexBuffer.read())
+        super().updateArea(x, y, width, height, pixel)
+        if self._sysexBuffer.readable:
+            self.sendSysex(self._header + [3] + self._sysexBuffer.read())
 
     def update(self, buffer: numpy.ndarray):
-        if self.connected:
-            intersect = self.rect.intersect(PyxelWidgets.Helpers.Rectangle2D(0, 0, buffer.shape[0], buffer.shape[1]))
-            if intersect:
-                for x in intersect.columns:
-                    for y in intersect.rows:
-                        if buffer[x, y] == self.buffer[x, y]:
-                            pass
-                        else:
-                            self.buffer[x, y] = buffer[x, y]
-                            self._sysexBuffer.write(self.generateRGB(x, y, self.buffer[x, y]))
-                if self._sysexBuffer.readable:
-                    self.sendSysex(self._header + [3] + self._sysexBuffer.read())
+        super().update(buffer)
+        if self._sysexBuffer.readable:
+            self.sendSysex(self._header + [3] + self._sysexBuffer.read())
