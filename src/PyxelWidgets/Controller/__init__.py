@@ -55,21 +55,62 @@ class Controller():
     
     def setHeld(self, x: int, y: int) -> None:
         self._callback('held', (x, y, self.buttons[x, y]))
-
-    def processInput(self):
-        raise NotImplementedError("processInput method must be implemented")
+    
+    def sendPixel(self, x: int, y: int, pixel: PyxelWidgets.Helpers.Pixel):
+        raise NotImplementedError("sendPixel method must be implemented")
 
     def updateOne(self, x: int, y: int, pixel: PyxelWidgets.Helpers.Pixel):
-        raise NotImplementedError("updateOne method must be implemented")
+        if self.connected:
+            intersect = self.rect.intersect(PyxelWidgets.Helpers.Rectangle2D(x, y, 1, 1))
+            if intersect:
+                if pixel == self.buffer[x, y]:
+                    pass
+                else:
+                    self.buffer[x, y] = pixel
+                    self.sendPixel(x, y, pixel)
 
     def updateRow(self, y: int, pixel: PyxelWidgets.Helpers.Pixel):
-        raise NotImplementedError("updateRow method must be implemented")
+        if self.connected:
+            intersect = self.rect.intersect(PyxelWidgets.Helpers.Rectangle2D(0, y, self.rect.w, 1))
+            if intersect:
+                for x in intersect.columns:
+                    if pixel == self.buffer[x, y]:
+                        pass
+                    else:
+                        self.buffer[x, y] = pixel
+                        self.sendPixel(x, y, pixel)
 
     def updateColumn(self, x: int, pixel: PyxelWidgets.Helpers.Pixel):
-        raise NotImplementedError("updateColumn method must be implemented")
+        if self.connected:
+            intersect = self.rect.intersect(PyxelWidgets.Helpers.Rectangle2D(x, 0, 1, self.rect.h))
+            if intersect:
+                for y in intersect.rows:
+                    if pixel == self.buffer[x, y]:
+                        pass
+                    else:
+                        self.buffer[x, y] = pixel
+                        self.sendPixel(x, y, pixel)
     
     def updateArea(self, x: int, y: int, width: int, height: int, pixel: PyxelWidgets.Helpers.Pixel):
-        raise NotImplementedError("updateArea method must be implemented")
+        if self.connected:
+            intersect = self.rect.intersect(PyxelWidgets.Helpers.Rectangle2D(x, y, width, height))
+            if intersect:
+                for _x in intersect.columns:
+                    for _y in intersect.rows:
+                        if pixel == self.buffer[_x, _y]:
+                            pass
+                        else:
+                            self.buffer[_x, _y] = pixel
+                            self.sendPixel(x, y, pixel)
 
     def update(self, buffer):
-        raise NotImplementedError("update method must be implemented")
+        if self.connected:
+            intersect = self.rect.intersect(PyxelWidgets.Helpers.Rectangle2D(0, 0, buffer.shape[0], buffer.shape[1]))
+            if intersect:
+                for x in intersect.columns:
+                    for y in intersect.rows:
+                        if buffer[x, y] == self.buffer[x, y]:
+                            pass
+                        else:
+                            self.buffer[x, y] = buffer[x, y]
+                            self.sendPixel(x, y, self.buffer[x, y])
