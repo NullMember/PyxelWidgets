@@ -1,4 +1,4 @@
-from . import Widget, WidgetAreaNotValid
+from . import Widget
 from ..Helpers import *
 from enum import Enum, auto
 
@@ -53,8 +53,8 @@ class Button(Widget):
     def updateArea(self, sx, sy, sw, sh):
         self.updated = False
         intersect = self.rect.intersect(Rectangle2D(sx, sy, sw, sh))
-        area = intersect - self.rect
-        if area:
+        if intersect:
+            area = intersect - self.rect
             for x in area.columns:
                 for y in area.rows:
                     if self.value:
@@ -62,4 +62,4 @@ class Button(Widget):
                     else:
                         self.buffer[x, y] = self.deactiveColor
             return self.buffer[area.l:area.r, area.b:area.t]
-        raise WidgetAreaNotValid(self.rect, (sx, sy, sw, sh))
+        return None

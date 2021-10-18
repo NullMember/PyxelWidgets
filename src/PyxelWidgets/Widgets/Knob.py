@@ -1,4 +1,4 @@
-from . import Widget, WidgetAreaNotValid
+from . import Widget
 from ..Helpers import *
 from enum import Enum, auto
 
@@ -55,8 +55,8 @@ class Knob(Widget):
         halfval = self.value / 2.0
         halfvalpluspointfive = halfval + 0.5
         intersect = self.rect.intersect(Rectangle2D(sx, sy, sw, sh))
-        area = intersect - self.rect
-        if area:
+        if intersect:
+            area = intersect - self.rect
             for x in area.columns:
                 for y in area.rows:
                     index = self._calcKnobIndex(x, y)
@@ -66,7 +66,7 @@ class Knob(Widget):
                         self.buffer[x, y] = Colors.Invisible
                     else:
                         if self.type == KnobType.Single:
-                            if maxV <= self.value:
+                            if maxV < self.value:
                                 self.buffer[x, y] = self.deactiveColor
                             elif minV > self.value:
                                 self.buffer[x, y] = self.deactiveColor
@@ -147,7 +147,7 @@ class Knob(Widget):
                             else:
                                 self.buffer[x, y] = self.deactiveColor
             return self.buffer[area.l:area.r, area.b:area.t]
-        raise WidgetAreaNotValid(self.rect, (sx, sy, sw, sh))
+        return None
     
     def _resize(self, width, height):
         self.perimeter = self._calcPerimeter(width, height)

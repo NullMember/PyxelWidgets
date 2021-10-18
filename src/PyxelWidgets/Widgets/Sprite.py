@@ -1,4 +1,4 @@
-from . import Widget, WidgetAreaNotValid
+from . import Widget
 from ..Helpers import *
 import numpy
 
@@ -20,8 +20,8 @@ class Sprite(Widget):
     def updateArea(self, sx: int, sy: int, sw: int, sh: int):
         self.updated = False
         intersect = self.rect.intersect(Rectangle2D(sx, sy, sw, sh))
-        area = intersect - self.rect
-        if area:
+        if intersect:
+            area = intersect - self.rect
             self.buffer = self.frames[self.nextFrame]
             if self.animate:
                 self.tick += 1
@@ -33,4 +33,4 @@ class Sprite(Widget):
                         self.nextFrame = 0
                 self.updated = True
             return self.buffer[area.l:area.r, area.b:area.t]
-        raise WidgetAreaNotValid(self.rect, (sx, sy, sw, sh))
+        return None

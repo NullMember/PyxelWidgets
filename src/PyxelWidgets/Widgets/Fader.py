@@ -1,4 +1,4 @@
-from . import Widget, WidgetAreaNotValid
+from . import Widget
 from ..Helpers import *
 from enum import Enum, auto
 
@@ -57,13 +57,13 @@ class Fader(Widget):
         Parameters
         ----
         name: str
-            Unique widget name, used to find widgets registered on window
+            Unique widget name, used to find widgets registered on window.
         x: int
-            x axis where widget will be placed on window, from left to right
-             x value should be positive
+            x axis where widget will be placed on window, from left to right.
+            x value should be positive
         y: int
-            y axis where widget will be placed on window, from bottom to top
-             y value should be positive
+            y axis where widget will be placed on window, from bottom to top.
+            y value should be positive.
         width: int
             Widget width, should >= 1
         height: int
@@ -72,27 +72,27 @@ class Fader(Widget):
         Optional Parameters
         ----
         callback: function
-            If widget value is changed this function will be called
-             Should accept 2 parameters, (widget) name and value
+            If widget value is changed this function will be called.  
+            Should accept 2 parameters, (widget) name and value
         activeColor: [r: int, g: int, b: int] = [255, 255, 255]
-            If widget value is non-zero, this color will be used
+            If widget value is non-zero, this color will be used.
         deactiveColor: [r: int, g: int, b: int] = [0, 0, 0]
-            If widget value is zero, this color will be used
+            If widget value is zero, this color will be used.
         value: int = 0.0
-            Default value of widget
+            Default value of widget.
         direction: FaderDirection = FaderDirection.Vertical
-            Can be FaderDirection.Vertical or FaderDirection.Horizontal
-             This will affect how widget rendered and value is calculated
-              Vertical faders from bottom to top, horizontal faders from left to right
+            Can be FaderDirection.Vertical or FaderDirection.Horizontal.  
+            This will affect how widget rendered and value is calculated.  
+            Vertical faders from bottom to top, horizontal faders from left to right.
         grid: FaderGrid = FaderGrid.Simple
-            Can be FaderGrid.Simple or FaderGrid.Matrix
-             Simple faders will use only one axis
-              Matrix faders will use both x and y axis
+            Can be FaderGrid.Simple or FaderGrid.Matrix.  
+            Simple faders will use only one axis.  
+            Matrix faders will use both x and y axis.
         type: FaderType = FaderType.Wrap
-            Single: Only corresponding pad will active
-             BoostCut: Corresponding pads from middle active
-              Wrap: Corresponding pads from bottom active
-               Spread: Corresponding pads from middle active symmetrically
+            Single: Only corresponding pad will active.  
+            BoostCut: Corresponding pads from middle active.  
+            Wrap: Corresponding pads from bottom active.  
+            Spread: Corresponding pads from middle active symmetrically.  
         """
         kwargs['name'] = kwargs.get('name', f'Fader_{Fader._count}')
         super().__init__(x, y, width, height, **kwargs)
@@ -101,6 +101,8 @@ class Fader(Widget):
         self.type = kwargs.get('type', FaderType.Wrap)
         self.mode = kwargs.get('mode', FaderMode.Multi)
         self.resolution = kwargs.get('resolution', 4)
+        self._targetValue = self.value
+        self._valueInc = 1/32
         self._multiStep = 0
         self._oldButton = [-1, -1]
         self._heldButton = [-1, -1]
@@ -108,16 +110,21 @@ class Fader(Widget):
 
     def pressed(self, x: int, y: int, value: float):
         if self.mode == FaderMode.Simple:
-            self.value = self._pressedSimple(x, y, value)
+            self._targetValue = self._pressedSimple(x, y, value)
         elif self.mode == FaderMode.Multi:
-            self.value = self._pressedMulti(x, y, value)
+            self._targetValue = self._pressedMulti(x, y, value)
         elif self.mode == FaderMode.Magnitude:
-            self.value = self._pressedMagnitude(x, y, value)
+            self._targetValue = self._pressedMagnitude(x, y, value)
         elif self.mode == FaderMode.Sensitive:
-            self.value = self._pressedSensitive(x, y, value)
+            self._targetValue = self._pressedSensitive(x, y, value)
         elif self.mode == FaderMode.Relative:
-            self.value = self._pressedRelative(x, y, value)
-        super().pressed(x, y, value)
+            self._targetValue = self._pressedRelative(x, y, value)
+        if self.value < self._targetValue:
+            self._valueInc = 1/32
+        else:
+            self._valueInc = -(1/32)
+        super().pressed(x, y, self._targetValue)
+        self.updated = True
     
     def _pressedSimple(self, x, y, value):
         if self.type == FaderType.BoostCut:
@@ -183,32 +190,45 @@ class Fader(Widget):
     def held(self, x: int, y: int, value: float):
         if self.mode != FaderMode.Relative:
             if x == 0 and y == 0:
-                self.value = 0.0
+                self._targetValue = 0.0
             elif x == self.rect.w - 1 and y == self.rect.h - 1:
-                self.value = 1.0
+                self._targetValue = 1.0
             else:
-                self.value = 0.5
-        super().held(x, y, value)
+                self._targetValue = 0.5
+        super().held(x, y, self.value)
+        self.updated = True
     
     def released(self, x: int, y: int, value: float):
         if self._heldButton[0] == x and self._heldButton[1] == y:
             self._heldButton = [-1, -1]
-        super().released(x, y, value)
+        super().released(x, y, self.value)
 
     def updateArea(self, sx, sy, sw, sh):
-        self.updated = False
+        if self.value != self._targetValue:
+            if self._valueInc > 0:
+                if self.value + self._valueInc >= self._targetValue:
+                    self.value = self._targetValue
+                else:
+                    self.value += self._valueInc
+            else:
+                if self.value + self._valueInc <= self._targetValue:
+                    self.value = self._targetValue
+                else:
+                    self.value += self._valueInc
+        else:
+            self.updated = False
         halfval = self.value / 2.0
         halfvalpluspointfive = halfval + 0.5
         intersect = self.rect.intersect(Rectangle2D(sx, sy, sw, sh))
-        area = intersect - self.rect
-        if area:
+        if intersect:
+            area = intersect - self.rect
             for x in area.columns:
                 for y in area.rows:
                     minV = self._calcFaderValue(x, y, 0.0)
                     maxV = self._calcFaderValue(x, y, 1.0)
                     if self.type == FaderType.Single:
                         # if current pad lower than last pressed pad
-                        if maxV <= self.value:
+                        if maxV < self.value:
                             self.buffer[x, y] = self.deactiveColor
                         # if current pad higher than last pressed pad
                         elif minV > self.value:
@@ -323,17 +343,19 @@ class Fader(Widget):
                                 coefficient = 1.0 - self._calcPixelCoefficient(halfval - minV)
                                 self.buffer[x, y] = self.activeColor * coefficient
             return self.buffer[area.l:area.r, area.b:area.t]
-        raise WidgetAreaNotValid(self.rect, (sx, sy, sw, sh))
+        return None
 
-    # Calculate fader value from pad location
+    """
+        For 2-d widgets, where output values are single float,
+        we must calculate single float from 2-d area.
+        Calculation done from left to right, bottom to top in order
+        to get final value for vertical faders. its basically (y * step) + x.
+        Vertical matrix faders are left to right, bottom to up in order.
+        Horizontal matrix faders are bottom to up, left to right in order.
+        Simple faders are bottom to up for vertical, left to right for horizontal.
+    """
     def _calcFaderValue(self, x: int, y: int, value: float) -> float:
-        # For 2-d widgets, where output values are single float,
-        # we must calculate single float from 2-d area.
-        # Calculation done from left to right, bottom to up in order
-        # to get final value for vertical faders. its basically (y * step) + x
-        # vertical matrix faders are left to right, bottom to up in order
-        # horizontal matrix faders are bottom to up, left to right in order
-        # Simple faders are bottom to up for vertical, left to right for horizontal
+        """Calculate fader value from pad location"""
         if self.grid == FaderGrid.Simple:
             if self.direction == FaderDirection.Vertical:
                 return round(((y / self.rect.h) + (value / self.rect.h)), 6)
@@ -346,8 +368,8 @@ class Fader(Widget):
                 base = (y / (self.rect.h * self.rect.w)) + (x / self.rect.w)
             return round(base + (value / (self.rect.w * self.rect.h)), 6)
     
-    # Calculate pad magnitude from pad location
     def _calcFaderMagnitude(self, x: int, y: int) -> float:
+        """Calculate pad magnitude from pad location"""
         if self.grid == FaderGrid.Simple:
             if self.direction == FaderDirection.Vertical:
                 return self._calcFaderValue(x, y, y / (self.rect.h - 1))
@@ -360,8 +382,8 @@ class Fader(Widget):
                 base = (y / ((self.rect.h * self.rect.w) - 1)) + (x / (self.rect.w - 1))
             return self._calcFaderValue(x, y, base)
     
-    # Calculate pixel coefficient for different fader options
     def _calcPixelCoefficient(self, value: float) -> float:
+        """Calculate pixel coefficient for different fader options"""
         if self.grid == FaderGrid.Simple:
             if self.direction == FaderDirection.Vertical:
                 return (value * self.rect.h)
@@ -376,9 +398,9 @@ class Fader(Widget):
         elif self.mode == FaderMode.Multi:
             return 1.0 / self.resolution
         elif self.mode == FaderMode.Magnitude:
-            return 1.0 / 255
+            return 1.0 / 256
         elif self.mode == FaderMode.Sensitive:
-            return 1.0 / 255
+            return 1.0 / 256
         elif self.mode == FaderMode.Relative:
             if self.grid == FaderGrid.Simple:
                 if self.direction == FaderDirection.Vertical:

@@ -1,4 +1,4 @@
-from . import Widget, WidgetAreaNotValid
+from . import Widget
 from ..Helpers import *
 from ..Util.Clock import *
 from copy import deepcopy
@@ -31,8 +31,8 @@ class Life(Widget):
         self.updated = False
         newGrid = deepcopy(self._grid)
         intersect = self.rect.intersect(Rectangle2D(sx, sy, sw, sh))
-        area = intersect - self.rect
-        if area:
+        if intersect:
+            area = intersect - self.rect
             for x in area.columns:
                 for y in area.rows:
                     if self._running:
@@ -56,4 +56,4 @@ class Life(Widget):
                         self.buffer[x, y] = self.deactiveColor
             self._grid = newGrid
             return self.buffer[area.l:area.r, area.b:area.t]
-        raise WidgetAreaNotValid(self.rect, (sx, sy, sw, sh))
+        return None

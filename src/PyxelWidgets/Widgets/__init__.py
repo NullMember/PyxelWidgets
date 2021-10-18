@@ -4,10 +4,6 @@ import uuid
 import numpy
 from ..Helpers import *
 
-class WidgetAreaNotValid(Exception):
-    def __init__(self, widgetArea, requestedArea) -> None:
-        super().__init__(f'Widget area is {widgetArea} but {requestedArea} requested')
-
 class Widget:
 
     _count = 0
