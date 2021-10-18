@@ -195,6 +195,10 @@ class Fader(Widget):
                 self._targetValue = 1.0
             else:
                 self._targetValue = 0.5
+            if self.value < self._targetValue:
+                self._valueInc = 1/32
+            else:
+                self._valueInc = -(1/32)
         super().held(x, y, self.value)
         self.updated = True
     
