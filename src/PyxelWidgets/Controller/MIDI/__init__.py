@@ -1,4 +1,4 @@
-__all__ = ['Akai', 'Novation']
+__all__ = ['Akai', 'Novation', 'Presonus']
 
 import PyxelWidgets.Controller
 import rtmidi.midiutil
@@ -17,17 +17,20 @@ class MIDI(PyxelWidgets.Controller.Controller):
 
     def connect(self):
         super().connect()
-        self._midiInput.set_callback(self.processInput)
+        self._midiInput.set_callback(self.processMIDI)
     
     def disconnect(self):
         self._midiInput.set_callback(lambda *_, **__: None)
         super().disconnect()
+    
+    def processMIDI(self, message, _):
+        raise NotImplementedError("processMIDI must be implemented")
 
     def sendSysex(self, message):
         self._midiOutput.send_message([240] + message + [247])
     
-    def sendNoteOff(self, note, channel = 0):
-        self._midiOutput.send_message([0x80 | channel, note, 0])
+    def sendNoteOff(self, note, velocity = 0, channel = 0):
+        self._midiOutput.send_message([0x80 | channel, note, velocity])
 
     def sendNoteOn(self, note, velocity, channel = 0):
         self._midiOutput.send_message([0x90 | channel, note, velocity])
