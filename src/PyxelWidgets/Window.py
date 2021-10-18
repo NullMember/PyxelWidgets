@@ -1,5 +1,7 @@
+from .Widgets import Widget
 from .Helpers import *
 import numpy
+import traceback
 class Window():
 
     _count = 0
@@ -33,8 +35,12 @@ class Window():
         self.buffer[self.rect.l:self.rect.r, self.rect.b:self.rect.t].fill(Colors.Invisible)
         self.forceUpdate()
 
-    def addWidget(self, widget):
+    def addWidget(self, widget: Widget):
         self.widgets[widget.name] = widget
+    
+    def addWidgets(self, widgets):
+        for widget in widgets:
+            self.widgets[widget.name] = widget
     
     def forceUpdate(self):
         for widget in self.widgets.values():
@@ -56,11 +62,13 @@ class Window():
     def update(self):
         for widget in self.widgets.values():
             if widget.updated:
-                intersect = self.rect.intersect(widget.rect)
-                if intersect:
-                    update = intersect - widget.rect
-                    buffer = widget.updateArea(update.x, update.y, update.w, update.h)
-                    copy = intersect - self.rect
-                    view = self.buffer[copy.l:copy.r, copy.b:copy.t]
-                    view[:] = numpy.where(buffer == False, view, buffer)
+                buffer = widget.updateArea(self.rect.x, self.rect.y, self.rect.w, self.rect.h)
+                if buffer is not None:
+                    try:
+                        copy = Rectangle2D(widget.rect.x, widget.rect.y, buffer.shape[0], buffer.shape[1])
+                        view = self.buffer[copy.l:copy.r, copy.b:copy.t]
+                        view[:] = numpy.where(buffer == False, view, buffer)
+                    except Exception as e:
+                        traceback.print_exc()
+                        print("Unexpected exception", e)
         return self.buffer
