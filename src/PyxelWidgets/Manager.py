@@ -1,31 +1,31 @@
-from .Helpers import *
-from .Window import *
-from .Controller.Controller import *
+import PyxelWidgets.Helpers
+import PyxelWidgets.Window
+import PyxelWidgets.Controller
 import numpy
 
 class Manager():
     def __init__(self, width: int = 32, height: int = 32, **kwargs):
         self.windows = {}
         self.controllers = {}
-        self.rect = Rectangle2D(0, 0, width, height)
-        self.buffer = numpy.ndarray((self.rect.w, self.rect.h), Pixel)
-        self.buffer.fill(Colors.Invisible)
+        self.rect = PyxelWidgets.Helpers.Rectangle2D(0, 0, width, height)
+        self.buffer = numpy.ndarray((self.rect.w, self.rect.h), PyxelWidgets.Helpers.Pixel)
+        self.buffer.fill(PyxelWidgets.Helpers.Colors.Invisible)
 
-    def addWindow(self, window: Window, x: int, y: int, width: int, height: int) -> None:
+    def addWindow(self, window: PyxelWidgets.Window.Window, x: int, y: int, width: int, height: int) -> None:
         self.windows[window.name] = {}
         self.windows[window.name]['window'] = window
-        self.windows[window.name]['rect'] = Rectangle2D(x, y, width, height)
+        self.windows[window.name]['rect'] = PyxelWidgets.Helpers.Rectangle2D(x, y, width, height)
     
     def removeWindow(self, name: str):
         if name in self.windows:
             self.windows.pop(name)
 
-    def addController(self, controller: Controller, x: int, y: int):
+    def addController(self, controller: PyxelWidgets.Controller.Controller, x: int, y: int):
         self.controllers[controller.name] = {}
         self.controllers[controller.name]['controller'] = controller
-        self.controllers[controller.name]['rect'] = Rectangle2D(x, y, controller.rect.w, controller.rect.h)
+        self.controllers[controller.name]['rect'] = PyxelWidgets.Helpers.Rectangle2D(x, y, controller.rect.w, controller.rect.h)
         controller.connect()
-        controller.setCallback(lambda event, data: self.process(controller.name, event, data))
+        controller.setCallback(self.process)
     
     def removeController(self, name):
         if name in self.controllers:
