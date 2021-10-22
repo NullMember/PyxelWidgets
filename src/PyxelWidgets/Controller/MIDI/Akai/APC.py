@@ -32,7 +32,23 @@ class Mini(PyxelWidgets.Controller.MIDI.MIDI):
         midi, delta = message
         cmd = midi[0] & 0xF0
         chn = midi[0] & 0x0F
-        if cmd == 0x90 and midi[1] < 64:
-            x = midi[1] % 8
-            y = midi[1] // 8
-            self.setButton(x, y, midi[2] / 127.0)
+        if cmd == 0x80:
+            if midi[1] < 64:
+                x = midi[1] % 8
+                y = midi[1] // 6
+                self.setButton(x, y, 0.0)
+            elif midi[1] < 72:
+                self.setCustom('released', 'button', midi[1] - 62, 0, 0.0)
+            elif midi[1] < 90:
+                self.setCustom('released', 'button', 0, 8 - (midi[1] - 82), 0.0)
+        elif cmd == 0x90:
+            if midi[1] < 64:
+                x = midi[1] % 8
+                y = midi[1] // 8
+                self.setButton(x, y, 1.0)
+            elif midi[1] < 72:
+                self.setCustom('pressed', 'button', midi[1] - 62, 0, 1.0)
+            elif midi[1] < 90:
+                self.setCustom('pressed', 'button', 0, 8 - (midi[1] - 82), 1.0)
+        elif cmd == 0xB0:
+            self.setCustom('changed', 'slider', midi[1] - 48, 0, midi[2] / 127.0)
