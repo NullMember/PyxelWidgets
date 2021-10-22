@@ -46,18 +46,19 @@ class Window():
         for widget in self.widgets.values():
             widget.updated = True
 
-    def process(self, event, data):
-        x, y, value = data
-        for widget in self.widgets.values():
-            b = Rectangle2D(x, y)
-            w = widget.rect - self.rect
-            if b.collide(w):
-                if event == 'pressed':
-                    widget.pressed(b.x - w.x, b.y - w.y, value)
-                elif event == 'released':
-                    widget.released(b.x - w.x, b.y - w.y, value)
-                elif event == 'held':
-                    widget.held(b.x - w.x, b.y - w.y, value)
+    def process(self, name, event, data):
+        if event != 'custom':
+            x, y, value = data
+            for widget in self.widgets.values():
+                b = Rectangle2D(x, y)
+                w = widget.rect - self.rect
+                if b.collide(w):
+                    if event == 'pressed':
+                        widget.pressed(b.x - w.x, b.y - w.y, value)
+                    elif event == 'released':
+                        widget.released(b.x - w.x, b.y - w.y, value)
+                    elif event == 'held':
+                        widget.held(b.x - w.x, b.y - w.y, value)
 
     def update(self):
         for widget in self.widgets.values():
