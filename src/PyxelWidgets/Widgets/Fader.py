@@ -109,6 +109,7 @@ class Fader(Widget):
         Fader._count += 1
 
     def pressed(self, x: int, y: int, value: float):
+        super().pressed(x, y, value)
         if self.mode == FaderMode.Simple:
             self._targetValue = self._pressedSimple(x, y, value)
         elif self.mode == FaderMode.Multi:
@@ -119,11 +120,6 @@ class Fader(Widget):
             self._targetValue = self._pressedSensitive(x, y, value)
         elif self.mode == FaderMode.Relative:
             self._targetValue = self._pressedRelative(x, y, value)
-        if self.value < self._targetValue:
-            self._valueInc = 1/32
-        else:
-            self._valueInc = -(1/32)
-        super().pressed(x, y, self._targetValue)
         self.updated = True
     
     def _pressedSimple(self, x, y, value):
@@ -188,6 +184,7 @@ class Fader(Widget):
             return self._calcFaderValue(x, y, self._calcFaderMagnitude(x, y))
 
     def held(self, x: int, y: int, value: float):
+        super().held(x, y, value)
         if self.mode != FaderMode.Relative:
             if x == 0 and y == 0:
                 self._targetValue = 0.0
@@ -195,32 +192,26 @@ class Fader(Widget):
                 self._targetValue = 1.0
             else:
                 self._targetValue = 0.5
-            if self.value < self._targetValue:
-                self._valueInc = 1/32
-            else:
-                self._valueInc = -(1/32)
-        super().held(x, y, self.value)
         self.updated = True
     
     def released(self, x: int, y: int, value: float):
+        super().released(x, y, value)
         if self._heldButton[0] == x and self._heldButton[1] == y:
             self._heldButton = [-1, -1]
-        super().released(x, y, self.value)
 
     def updateArea(self, sx, sy, sw, sh):
+        self.updated = False
         if self.value != self._targetValue:
-            if self._valueInc > 0:
+            if self.value <= self._targetValue:
                 if self.value + self._valueInc >= self._targetValue:
-                    self.value = self._targetValue
+                    self.setValue(self._targetValue)
                 else:
-                    self.value += self._valueInc
+                    self.setValue(self.value + self._valueInc)
             else:
-                if self.value + self._valueInc <= self._targetValue:
-                    self.value = self._targetValue
+                if self.value - self._valueInc <= self._targetValue:
+                    self.setValue(self._targetValue)
                 else:
-                    self.value += self._valueInc
-        else:
-            self.updated = False
+                    self.setValue(self.value - self._valueInc)
         halfval = self.value / 2.0
         halfvalpluspointfive = halfval + 0.5
         intersect = self.rect.intersect(Rectangle2D(sx, sy, sw, sh))
@@ -232,7 +223,7 @@ class Fader(Widget):
                     maxV = self._calcFaderValue(x, y, 1.0)
                     if self.type == FaderType.Single:
                         # if current pad lower than last pressed pad
-                        if maxV < self.value:
+                        if maxV <= self.value:
                             self.buffer[x, y] = self.deactiveColor
                         # if current pad higher than last pressed pad
                         elif minV > self.value:
