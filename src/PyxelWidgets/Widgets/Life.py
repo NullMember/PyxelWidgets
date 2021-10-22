@@ -12,10 +12,10 @@ class Life(Widget):
         Life._count += 1
     
     def pressed(self, x: int, y: int, value: float):
+        super().pressed(x, y, value)
         if not self._running:
             self._grid[x][y] = not self._grid[x][y]
             self.updated = True
-        super().pressed(x, y, value)
 
     def start(self):
         self._running = True

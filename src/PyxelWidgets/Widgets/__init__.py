@@ -5,22 +5,26 @@ import numpy
 from ..Helpers import *
 
 class Widget:
-
+    """
+    Base class for all Widgets
+    """
     _count = 0
 
     def __init__(self, x: int = 0, y: int = 0, width: int = 1, height: int = 1, **kwargs):
         """
+        Widget constructor
+        ----
         Parameters
         ----
         name: str
             Unique widget name, used to find widgets registered on window and
-             callbacks returning widget value when changed
+            callbacks returning widget value when changed.
         x: int
-            x axis where widget will be placed on window, from left to right
-             x value should be positive
+            x axis where widget will be placed on window, from left to right.
+            x value should be positive.
         y: int
-            y axis where widget will be placed on window, from bottom to top
-             y value should be positive
+            y axis where widget will be placed on window, from bottom to top.
+            y value should be positive.
         width: int
             Widget width, should >= 1
         height: int
@@ -29,15 +33,15 @@ class Widget:
         Optional Parameters
         ----
         callback: function
-            If widget value is changed this function will be called
-             Should get 2 parameters, (widget) name and value
-        activeColor: [r: int, g: int, b: int] = [255, 255, 255]
-            If widget value is non-zero, this color will be used
-        deactiveColor: [r: int, g: int, b: int] = [0, 0, 0]
-            If widget value is zero, this color will be used
+            If widget value is changed this function will be called.
+            Should get 2 parameters, (widget) name and value
+        activeColor: Pixel = Pixel(255, 255, 255, 1.0)
+            If widget value is non-zero, this color will be used.
+        deactiveColor: Pixel = Pixel(0, 0, 0, 0.0)
+            If widget value is zero, this color will be used.
         value: int = 0.0
-            Default value of widget
-        """
+            Default value of widget.
+        """    
         self.id = uuid.uuid1()
         self.name = kwargs.get('name', f'Widget_{Widget._count}')
         self.rect = Rectangle2D(x, y, width, height)
@@ -47,6 +51,7 @@ class Widget:
         self.updated = True
         self.buffer = numpy.ndarray((self.rect.w, self.rect.h), Pixel)
         self.buffer.fill(self.deactiveColor)
+        self.lock = False
         self._value = 0.0
         self._callback = kwargs.get('callback', lambda *_, **__: None)
 
@@ -79,17 +84,22 @@ class Widget:
                 self._callback(self.name, 'resized', (self.rect.w, self.rect.h))
 
     @property
-    def value(self) -> float or list:
+    def value(self) -> float:
         return self._value
     
     @value.setter
-    def value(self, value: float or list) -> None:
+    def value(self, value: float) -> None:
         if value != self._value:
             oldValue = self._value
             self._value = round(min(1.0, max(0.0, value)), 6)
             self.delta = self._value - oldValue
             if self._value != oldValue:
                 self.updated = True
+    
+    def setValue(self, value: float):
+        if not self.lock:
+            self.value = value
+            if self.updated:
                 self._callback(self.name, 'changed', self._value)
 
     def setCallback(self, callback) -> None:

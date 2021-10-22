@@ -17,38 +17,39 @@ class Button(Widget):
         Button._count += 1
 
     def pressed(self, x: int, y: int, value: float):
+        super().pressed(x, y, value)
         if self.mode == ButtonMode.Button:
-            self.value = value
+            self.setValue(value)
         elif self.mode == ButtonMode.Switch:
             if self.state:
-                self.value = 0.0
+                self.setValue(0.0)
                 self.state = False
             else:
-                self.value = value
+                self.setValue(value)
                 self.state = True
         elif self.mode == ButtonMode.Mixed:
             if self.hold:
                 return
             else:
-                self.value = value
-        super().pressed(x, y, self.value)
+                self.setValue(value)
+        
     
     def released(self, x: int, y: int, value: float):
+        super().released(x, y, value)
         if self.mode == ButtonMode.Button:
-            self.value = 0.0
+            self.setValue(0.0)
         elif self.mode == ButtonMode.Switch:
             pass
         elif self.mode == ButtonMode.Mixed:
             if self.hold:
                 return
             else:
-                self.value = 0.0
-        super().released(x, y, self.value)
+                self.setValue(0.0)
     
     def held(self, x: int, y: int, value: float):
+        super().held(x, y, value)
         if self.mode == ButtonMode.Mixed:
             self.hold = not self.hold
-        super().held(x, y, self.value)
 
     def updateArea(self, sx, sy, sw, sh):
         self.updated = False

@@ -27,25 +27,24 @@ class XY(Widget):
             self.delta[1] = self._value[1] - oldValue[1]
             if self._value != oldValue:
                 self.updated = True
-                self._callback(self.name, 'changed', self._value)
 
     def pressed(self, x: int, y: int, value: float):
-        if self._heldButton[0] >= 0 and self._heldButton[1] >= 0:
-            self.value = self._calcXYValueWithMagnitude(self._heldButton[0], self._heldButton[1], x, y)
-        else:
-            self.value = self._calcXYValue(x, y, value)
         super().pressed(x, y, value)
+        if self._heldButton[0] >= 0 and self._heldButton[1] >= 0:
+            self.setValue(self._calcXYValueWithMagnitude(self._heldButton[0], self._heldButton[1], x, y))
+        else:
+            self.setValue(self._calcXYValue(x, y, value))
     
     def held(self, x: int, y: int, value: float):
+        super().held(x, y, value)
         if self._heldButton[0] == -1 and self._heldButton[1] == -1:
             self._heldButton = [x, y]
-            self.value = self._calcXYValueWithMagnitude(x, y, x, y)
-        super().held(x, y, value)
+            self.setValue(self._calcXYValueWithMagnitude(x, y, x, y))
     
     def released(self, x: int, y: int, value: float):
+        super().released(x, y, value)
         if self._heldButton[0] == x and self._heldButton[1] == y:
             self._heldButton = [-1, -1]
-        super().released(x, y, value)
 
     def updateArea(self, sx, sy, sw, sh):
         self.updated = False

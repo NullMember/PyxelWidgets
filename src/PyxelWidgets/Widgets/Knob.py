@@ -21,6 +21,7 @@ class Knob(Widget):
         Knob._count += 1
 
     def pressed(self, x: int, y: int, value: float):
+        super().pressed(x, y, value)
         if self._held == [-1, -1]:
             if self._calcKnobIndex(x, y) != -1:
                 self._held = [x, y]
@@ -33,21 +34,21 @@ class Knob(Widget):
             if heldIndex != -1 and curIndex != -1:
                 if (heldIndex < halfPerimeter and curIndex >= halfPerimeter) or (curIndex < halfPerimeter and heldIndex >= halfPerimeter):
                     self.state = False
-                    self.value = 0.5
-        return super().pressed(x, y, self.value)
+                    self.setValue(0.5)
     
     def released(self, x: int, y: int, value: float):
+        super().released(x, y, value)
         self._held = [-1, -1]
         self.state = False
-        return super().released(x, y, self.value)
     
     def tick(self):
         if self.state:
             index = self._calcKnobIndex(self._held[0], self._held[1])
             if index != -1:
-                self.value += self._calcKnobWeight(index) * self.coefficient
+                self.setValue(self.value + (self._calcKnobWeight(index) * self.coefficient))
 
     def updateArea(self, sx, sy, sw, sh):
+        # self.updated = False
         if self.state:
             self.tick()
         else:
