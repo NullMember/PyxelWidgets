@@ -73,7 +73,7 @@ class Clock(Thread):
     _count = 0
 
     def __init__(self, bpm: float = 60, ppq: float = 24) -> None:
-        super().__init__(name = f'Clock_{Clock.counter}')
+        super().__init__(name = f'Clock_{Clock._count}')
         self._pool = ThreadPoolExecutor(thread_name_prefix = f'Clock_{self._count}_Target')
         self._bpm: float = bpm
         self._ppq: float = ppq
@@ -84,7 +84,7 @@ class Clock(Thread):
         self._running = True
         self._pause = False
         self._terminate = False
-        Clock.counter += 1
+        Clock._count += 1
 
     @property
     def bpm(self) -> float:
