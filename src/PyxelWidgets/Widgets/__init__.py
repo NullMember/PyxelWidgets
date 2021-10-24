@@ -52,7 +52,7 @@ class Widget:
         self.buffer = numpy.ndarray((self.rect.w, self.rect.h), Pixel)
         self.buffer.fill(self.deactiveColor)
         self.lock = False
-        self._value = 0.0
+        self._value = kwargs.get('value', 0.0)
         self._callback = kwargs.get('callback', lambda *_, **__: None)
 
     @property
