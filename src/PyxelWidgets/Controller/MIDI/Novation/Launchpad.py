@@ -13,7 +13,7 @@ class Launchpad(PyxelWidgets.Controller.MIDI.MIDI):
 
 class MK1(Launchpad):
 
-    class layout(enum.Enum):
+    class Layout(enum.Enum):
         Reset   = 0
         XY      = 1
         Drum    = 2
@@ -28,7 +28,7 @@ class MK1(Launchpad):
         kwargs['height'] = kwargs.get('height', 9)
         super().__init__(inPort=inPort, outPort=outPort, **kwargs)
 
-    def setLayout(self, layout: layout):
+    def setLayout(self, layout: Layout):
         self.sendControlChange(0, layout.value)
 
     def sendPixel(self, x: int, y: int, pixel: PyxelWidgets.Helpers.Pixel):
@@ -42,11 +42,11 @@ class MK1(Launchpad):
 
     def connect(self):
         super().connect()
-        self.setLayout(MK1.layout.Reset)
-        self.setLayout(MK1.layout.XY)
+        self.setLayout(MK1.Layout.Reset)
+        self.setLayout(MK1.Layout.XY)
 
     def disconnect(self):
-        self.setLayout(MK1.layout.Reset)
+        self.setLayout(MK1.Layout.Reset)
         super().disconnect()
 
     def processMIDI(self, message, _):
@@ -66,7 +66,7 @@ class MK2(Launchpad):
     """
     Controller class for Launchpad MK2
     """
-    class layout(enum.Enum):
+    class Layout(enum.Enum):
         Session     = 0
         User1       = 1
         User2       = 2
@@ -81,7 +81,7 @@ class MK2(Launchpad):
         self._header = [0x00, 0x20, 0x29, 0x02, 0x18]
         self._sysexBuffer = PyxelWidgets.Util.RingBuffer.RingBuffer(1024)
     
-    def setLayout(self, layout: layout):
+    def setLayout(self, layout: Layout):
         self.sendSysex(self._header + [0x22, layout.value])
 
     def sendPixel(self, x: int, y: int, pixel: PyxelWidgets.Helpers.Pixel):
@@ -91,10 +91,10 @@ class MK2(Launchpad):
 
     def connect(self):
         super().connect()
-        self.setLayout(MK2.layout.Session)
+        self.setLayout(MK2.Layout.Session)
     
     def disconnect(self):
-        self.setLayout(MK2.layout.User1)
+        self.setLayout(MK2.Layout.User1)
         super().disconnect()
     
     def processMIDI(self, message, _):
@@ -137,12 +137,12 @@ class MK3(Launchpad):
     """
     Controller class for Launchpad Mini MK3, Launchpad X, Launchpad Pro MK3
     """
-    class model(enum.Enum):
+    class Model(enum.Enum):
         X                           = 12
         Mini                        = 13
         Pro                         = 14
 
-    class proLayout(enum.Enum):
+    class ProLayout(enum.Enum):
         Session                     = 0
         Fader                       = 1
         Chord                       = 2
@@ -164,7 +164,7 @@ class MK3(Launchpad):
         Settings                    = 18
         CustomLayoutSettings        = 19
 
-    class xLayout(enum.Enum):
+    class XLayout(enum.Enum):
         Session                     = 0
         Note                        = 1
         Custom1                     = 4
@@ -174,7 +174,7 @@ class MK3(Launchpad):
         Fader                       = 13
         Programmer                  = 127
 
-    class miniLayout(enum.Enum):
+    class MiniLayout(enum.Enum):
         Session                     = 0
         Custom1                     = 4
         Custom2                     = 5
@@ -182,7 +182,7 @@ class MK3(Launchpad):
         Fader                       = 13
         Programmer                  = 127
 
-    class mode(enum.Enum):
+    class Mode(enum.Enum):
         DAW                         = 0
         Programmer                  = 1
 
@@ -195,19 +195,19 @@ class MK3(Launchpad):
         self._sysexBuffer = PyxelWidgets.Util.RingBuffer.RingBuffer(1024)
     
     def setLayout(self, layout, page = 0):
-        if self._model == MK3.model.X or self._model == MK3.model.Mini:
+        if self._model == MK3.Model.X or self._model == MK3.Model.Mini:
             self.sendSysex(self._header + [0, layout.value])
         else:
             self.sendSysex(self._header + [0, layout.value, page])
     
-    def setMode(self, mode: mode):
-        if self._model == MK3.model.X or self._model == MK3.model.Mini:
+    def setMode(self, mode: Mode):
+        if self._model == MK3.Model.X or self._model == MK3.Model.Mini:
             self.sendSysex(self._header + [14, mode.value])
         else:
-            if mode == MK3.mode.DAW:
-                self.setLayout(MK3.proLayout.Session)
-            elif mode == MK3.mode.Programmer:
-                self.setLayout(MK3.proLayout.Programmer)
+            if mode == MK3.Mode.DAW:
+                self.setLayout(MK3.ProLayout.Session)
+            elif mode == MK3.Mode.Programmer:
+                self.setLayout(MK3.ProLayout.Programmer)
 
     def sendPixel(self, x: int, y: int, pixel: PyxelWidgets.Helpers.Pixel):
         index = (x + (y * 10)) & 0x7F
@@ -216,10 +216,10 @@ class MK3(Launchpad):
 
     def connect(self):
         super().connect()
-        self.setMode(MK3.mode.Programmer)
+        self.setMode(MK3.Mode.Programmer)
     
     def disconnect(self):
-        self.setMode(MK3.mode.DAW)
+        self.setMode(MK3.Mode.DAW)
         super().disconnect()
 
     def processMIDI(self, message, _):
@@ -260,7 +260,7 @@ class Pro(Launchpad):
     """
     Controller class for Launchpad Pro (first version)
     """
-    class layout(enum.Enum):
+    class Layout(enum.Enum):
         Note        = 0
         Drum        = 1
         Fader       = 2
@@ -273,7 +273,7 @@ class Pro(Launchpad):
         self._header = [0x00, 0x20, 0x29, 0x02, 0x10]
         self._sysexBuffer = PyxelWidgets.Util.RingBuffer.RingBuffer(1024)
     
-    def setLayout(self, layout: layout):
+    def setLayout(self, layout: Layout):
         self.sendSysex(self._header + [0x2C, layout.value])
     
     def sendPixel(self, x: int, y: int, pixel: PyxelWidgets.Helpers.Pixel):
@@ -283,10 +283,10 @@ class Pro(Launchpad):
 
     def connect(self):
         super().connect()
-        self.setLayout(Pro.layout.Programmer)
+        self.setLayout(Pro.Layout.Programmer)
     
     def disconnect(self):
-        self.setLayout(Pro.layout.Note)
+        self.setLayout(Pro.Layout.Note)
         super().disconnect()
 
     def processMIDI(self, message, _):

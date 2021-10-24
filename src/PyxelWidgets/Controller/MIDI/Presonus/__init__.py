@@ -6,7 +6,7 @@ import enum
 
 class ATOM(PyxelWidgets.Controller.MIDI.MIDI):
 
-    class buttons(enum.Enum):
+    class Controls(enum.Enum):
         Encoder1 = 14
         Encoder2 = 15
         Encoder3 = 16
@@ -32,7 +32,7 @@ class ATOM(PyxelWidgets.Controller.MIDI.MIDI):
         Play = 109
         Stop = 111
 
-    class nativeControl(enum.Enum):
+    class NativeControl(enum.Enum):
         Enable = 127
         Disable = 0
 
@@ -46,14 +46,14 @@ class ATOM(PyxelWidgets.Controller.MIDI.MIDI):
 
     def connect(self):
         super().connect()
-        self.setNativeControl(ATOM.nativeControl.Enable)
+        self.setNativeControl(ATOM.NativeControl.Enable)
         for i in range(36, 52):
             self.sendNoteOn(i, 127)
     
     def disconnect(self):
         for i in range(36, 52):
             self.sendNoteOn(i, 0)
-        self.setNativeControl(ATOM.nativeControl.Disable)
+        self.setNativeControl(ATOM.NativeControl.Disable)
         super().disconnect()
     
     def sendPixel(self, x: int, y: int, pixel: PyxelWidgets.Helpers.Pixel):
@@ -77,11 +77,11 @@ class ATOM(PyxelWidgets.Controller.MIDI.MIDI):
             value = midi[2]
             if control > 17:
                 if value > 0.0:
-                    self.setCustom('pressed', ATOM.buttons(control).name, 0, 0, 1.0)
+                    self.setCustom('pressed', ATOM.Controls(control).name, 1.0)
                 else:
-                    self.setCustom('released', ATOM.buttons(control).name, 0, 0, 0.0)
+                    self.setCustom('released', ATOM.Controls(control).name, 0.0)
             else:
                 if value == 1:
-                    self.setCustom('incremented', ATOM.buttons(control).name, 0, 0, 1.0)
+                    self.setCustom('incremented', ATOM.Controls(control).name, 1.0)
                 elif value == 65:
-                    self.setCustom('decremented', ATOM.buttons(control).name, 0, 0, 0.0)
+                    self.setCustom('decremented', ATOM.Controls(control).name, -1.0)

@@ -4,7 +4,7 @@ import enum
 
 class Mini(PyxelWidgets.Controller.MIDI.MIDI):
 
-    class colors(enum.Enum):
+    class Colors(enum.Enum):
         Off = 0x00
         Green = 0x01
         GreenBlink = 0x02
@@ -17,7 +17,7 @@ class Mini(PyxelWidgets.Controller.MIDI.MIDI):
         kwargs['width'] = kwargs.get('width', 8)
         kwargs['height'] = kwargs.get('height', 8)
         super().__init__(inPort, outPort, **kwargs)
-        self.colorList = [Mini.colors.Off, Mini.colors.Red, Mini.colors.Yellow, Mini.colors.Green]
+        self.colorList = [Mini.Colors.Off, Mini.Colors.Red, Mini.Colors.Yellow, Mini.Colors.Green]
     
     def sendColor(self, x: int, y: int, color):
         index = (x + (y * 8)) & 0x7F

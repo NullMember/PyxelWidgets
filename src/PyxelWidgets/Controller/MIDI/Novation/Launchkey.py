@@ -14,11 +14,11 @@ class MK1(Launchkey):
     """ 
     Controller Class for Launchkey MK1 serie controllers
     """
-    class mode(enum.Enum):
+    class Mode(enum.Enum):
         Basic = 0
         Extended = 127
     
-    class inControl(enum.Enum):
+    class InControl(enum.Enum):
         pots = 0x0D
         slider = 0x0E
         pads = 0x0F
@@ -30,13 +30,13 @@ class MK1(Launchkey):
         kwargs['height'] = kwargs.get('height', 2)
         super().__init__(inPort=inPort, outPort=outPort, **kwargs)
 
-    def setMode(self, mode: mode):
+    def setMode(self, mode: Mode):
         self.sendNoteOn(0x0C, mode.value, 0xF)
 
-    def enableInControl(self, control: inControl):
+    def enableInControl(self, control: InControl):
         self.sendNoteOn(control.value, 0x7F, 0xF)
     
-    def disableInControl(self, control: inControl):
+    def disableInControl(self, control: InControl):
         self.sendNoteOn(control.value, 0x00, 0xF)
 
     def sendPixel(self, x: int, y: int, pixel: PyxelWidgets.Helpers.Pixel):
@@ -52,12 +52,12 @@ class MK1(Launchkey):
 
     def connect(self):
         super().connect()
-        self.setMode(MK1.mode.Extended)
-        self.enableInControl(MK1.inControl.pads)
+        self.setMode(MK1.Mode.Extended)
+        self.enableInControl(MK1.InControl.pads)
 
     def disconnect(self):
-        self.disableInControl(MK1.inControl.pads)
-        self.setMode(MK1.mode.Basic)
+        self.disableInControl(MK1.InControl.pads)
+        self.setMode(MK1.Mode.Basic)
         super().disconnect()
 
     def processMIDI(self, message, _):
@@ -72,11 +72,11 @@ class MK1(Launchkey):
 
 class MK2(Launchkey):
 
-    class mode(enum.Enum):
+    class Mode(enum.Enum):
         Basic = 0
         Extended = 127
     
-    class inControl(enum.Enum):
+    class InControl(enum.Enum):
         pots = 0x0D
         slider = 0x0E
         pads = 0x0F
@@ -119,13 +119,13 @@ class MK2(Launchkey):
         kwargs['height'] = kwargs.get('height', 2)
         super().__init__(inPort=inPort, outPort=outPort, **kwargs)
 
-    def setMode(self, mode: mode):
+    def setMode(self, mode: Mode):
         self.sendNoteOn(0x0C, mode.value, 0xF)
 
-    def enableInControl(self, control: inControl):
+    def enableInControl(self, control: InControl):
         self.sendNoteOn(control.value, 0x7F, 0xF)
     
-    def disableInControl(self, control: inControl):
+    def disableInControl(self, control: InControl):
         self.sendNoteOn(control.value, 0x00, 0xF)
 
     def sendPixel(self, x: int, y: int, pixel: PyxelWidgets.Helpers.Pixel):
@@ -140,12 +140,12 @@ class MK2(Launchkey):
 
     def connect(self):
         super().connect()
-        self.setMode(MK2.mode.Extended)
-        self.enableInControl(MK2.inControl.pads)
+        self.setMode(MK2.Mode.Extended)
+        self.enableInControl(MK2.InControl.pads)
 
     def disconnect(self):
-        self.disableInControl(MK2.inControl.pads)
-        self.setMode(MK2.mode.Basic)
+        self.disableInControl(MK2.InControl.pads)
+        self.setMode(MK2.Mode.Basic)
         super().disconnect()
 
     def processMIDI(self, message, _):
@@ -160,11 +160,11 @@ class MK2(Launchkey):
 
 class MK3(Launchkey):
 
-    class mode(enum.Enum):
+    class Mode(enum.Enum):
         Other = 0
         DAW = 127
 
-    class layout(enum.Enum):
+    class Layout(enum.Enum):
         Drum = 1
         Session = 2
         Custom = 5
@@ -210,10 +210,10 @@ class MK3(Launchkey):
         kwargs['height'] = kwargs.get('height', 2)
         super().__init__(inPort=inPort, outPort=outPort, **kwargs)
 
-    def setMode(self, mode: mode):
+    def setMode(self, mode: Mode):
         self.sendNoteOn(12, mode.value, 15)
 
-    def setLayout(self, layout: layout):
+    def setLayout(self, layout: Layout):
         self.sendControlChange(3, layout.value, 15)
 
     def sendPixel(self, x: int, y: int, pixel: PyxelWidgets.Helpers.Pixel):
@@ -228,12 +228,12 @@ class MK3(Launchkey):
 
     def connect(self):
         super().connect()
-        self.setMode(MK3.mode.DAW)
-        self.setLayout(MK3.layout.Session)
+        self.setMode(MK3.Mode.DAW)
+        self.setLayout(MK3.Layout.Session)
 
     def disconnect(self):
-        self.setMode(MK3.mode.Other)
-        self.setLayout(MK3.layout.Drum)
+        self.setMode(MK3.Mode.Other)
+        self.setLayout(MK3.Layout.Drum)
         super().disconnect()
 
     def processMIDI(self, message, _):
