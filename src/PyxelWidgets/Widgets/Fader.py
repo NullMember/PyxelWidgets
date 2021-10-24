@@ -6,10 +6,10 @@ class FaderDirection(Enum):
     """
     Description
     ----
-    Fader direction class\n
-    Determines fader direction
+    Vertical faders are bottom to top,
+    Horizontal faders are left to right.
     
-    Options
+    Enums
     ----
     Vertical\n
     Horizontal
@@ -21,11 +21,10 @@ class FaderGrid(Enum):
     """
     Description
     ----
-    Fader grid class\n
-    Determines how multi-width vertical faders\n 
+    Determines how multi-width vertical faders
     or multi-height horizontal faders will work
     
-    Options
+    Enums
     ----
     Simple\n
     Matrix
