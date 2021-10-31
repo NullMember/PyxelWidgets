@@ -19,19 +19,55 @@ class MK1(Launchkey):
         Extended = 127
     
     class InControl(enum.Enum):
-        pots = 0x0D
-        slider = 0x0E
-        pads = 0x0F
+        Pots = 0x0D
+        Slider = 0x0E
+        Pads = 0x0F
+    
+    class Controls(enum.Enum):
+        Track_L = 102
+        Track_R = 103
+        Rewind = 112
+        Forward = 113
+        Stop = 114
+        Play = 115
+        Loop = 116
+        Record = 117
+        Fader_0 = 41
+        Fader_1 = 42
+        Fader_2 = 43
+        Fader_3 = 44
+        Fader_4 = 45
+        Fader_5 = 46
+        Fader_6 = 47
+        Fader_7 = 48
+        Fader_8 = 7
+        Button_0 = 51
+        Button_1 = 52
+        Button_2 = 53
+        Button_3 = 54
+        Button_4 = 55
+        Button_5 = 56
+        Button_6 = 57
+        Button_7 = 58
+        Button_8 = 59
+        Knob_0 = 21
+        Knob_1 = 22
+        Knob_2 = 23
+        Knob_3 = 24
+        Knob_4 = 25
+        Knob_5 = 26
+        Knob_6 = 27
+        Knob_7 = 28
     
     colors = [0x0C, 0x0D, 0x0F, 0x1D, 0x3F, 0x3E, 0x1C, 0x3C]
 
     def __init__(self, inPort: str, outPort: str, **kwargs):
-        kwargs['width'] = kwargs.get('width', 8)
+        kwargs['width'] = kwargs.get('width', 9)
         kwargs['height'] = kwargs.get('height', 2)
         super().__init__(inPort=inPort, outPort=outPort, **kwargs)
 
     def setMode(self, mode: Mode):
-        self.sendNoteOn(0x0C, mode.value, 0xF)
+        self.sendNoteOn(0x0C, mode.value)
 
     def enableInControl(self, control: InControl):
         self.sendNoteOn(control.value, 0x7F, 0xF)
@@ -53,10 +89,9 @@ class MK1(Launchkey):
     def connect(self):
         super().connect()
         self.setMode(MK1.Mode.Extended)
-        self.enableInControl(MK1.InControl.pads)
+        self.enableInControl(MK1.InControl.Pads)
 
     def disconnect(self):
-        self.disableInControl(MK1.InControl.pads)
         self.setMode(MK1.Mode.Basic)
         super().disconnect()
 
@@ -69,6 +104,14 @@ class MK1(Launchkey):
                 x = midi[1] % 0x10
                 y = 7 - (midi[1] // 0x10)
                 self.setButton(x, y, midi[2] / 127.0)
+        if cmd == 0xB0:
+            if midi[1] > 50:
+                if midi[2] > 0:
+                    self.setCustom('pressed', MK1.Controls(midi[1]).name, 1.0)
+                else:
+                    self.setCustom('released', MK1.Controls(midi[1]).name, 0.0)
+            else:
+                self.setCustom('changed', MK1.Controls(midi[1]).name, midi[2] / 127)
 
 class MK2(Launchkey):
 
