@@ -15,6 +15,7 @@ class Target:
         self._active = True
         self._lock = False
         self._tick = 0
+        Target._count += 1
     
     @property
     def name(self) -> str:
@@ -85,6 +86,9 @@ class Clock(Thread):
         self._pause = False
         self._terminate = False
         Clock._count += 1
+    
+    def __del__(self):
+        self.terminate()
 
     @property
     def bpm(self) -> float:
