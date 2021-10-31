@@ -1,24 +1,22 @@
-__all__ = ['Button', 'Fader', 'Knob', 'Life', 'Sequencer', 'Sprite', 'XY', 'Extra']
+__all__ = ['Button', 'Fader', 'Knob', 'Sequencer', 'Sprite', 'XY', 'Extra']
 
+import PyxelWidgets.Helpers
 import uuid
 import numpy
-from ..Helpers import *
 
 class Widget:
     """
-    Base class for all Widgets
+    Base class for all Widgets.
     """
     _count = 0
 
     def __init__(self, x: int = 0, y: int = 0, width: int = 1, height: int = 1, **kwargs):
         """
-        Widget constructor
-        ----
+        Widget Constructor
+        ------------------
+        
         Parameters
-        ----
-        name: str
-            Unique widget name, used to find widgets registered on window and
-            callbacks returning widget value when changed.
+        ----------
         x: int
             x axis where widget will be placed on window, from left to right.
             x value should be positive.
@@ -29,30 +27,36 @@ class Widget:
             Widget width, should >= 1
         height: int
             Widget height, should >= 1
-        
-        Optional Parameters
-        ----
-        callback: function
+        name: str, optional
+            Unique widget name, used to find widgets registered on window and
+            callbacks returning widget value when changed.
+        callback: function, optional
             If widget value is changed this function will be called.
-            Should get 2 parameters, (widget) name and value
-        activeColor: Pixel = Pixel(255, 255, 255, 1.0)
+            Should get 3 parameters, (widget) name, event and value
+        activeColor: Pixel = Pixel(255, 255, 255, 1.0), optional
             If widget value is non-zero, this color will be used.
-        deactiveColor: Pixel = Pixel(0, 0, 0, 0.0)
+        deactiveColor: Pixel = Pixel(0, 0, 0, 0.0), optional
             If widget value is zero, this color will be used.
-        value: int = 0.0
+        value: float = 0.0, optional
             Default value of widget.
+        
+        Returns
+        -------
+        Widget
+            new Widget instance
         """    
         self.id = uuid.uuid1()
         self.name = kwargs.get('name', f'Widget_{Widget._count}')
-        self.rect = Rectangle2D(x, y, width, height)
-        self.activeColor = kwargs.get('activeColor', Colors.White)
-        self.deactiveColor = kwargs.get('deactiveColor', Colors.Black)
+        self.rect = PyxelWidgets.Helpers.Rectangle2D(x, y, width, height)
+        self.activeColor = kwargs.get('activeColor', PyxelWidgets.Helpers.Colors.White)
+        self.deactiveColor = kwargs.get('deactiveColor', PyxelWidgets.Helpers.Colors.Black)
         self.delta = 0.0
         self.updated = True
-        self.buffer = numpy.ndarray((self.rect.w, self.rect.h), Pixel)
+        self.buffer = numpy.ndarray((self.rect.w, self.rect.h), PyxelWidgets.Helpers.Pixel)
         self.buffer.fill(self.deactiveColor)
         self.lock = False
         self._value = kwargs.get('value', 0.0)
+        self._oldValue = self._value
         self._callback = kwargs.get('callback', lambda *_, **__: None)
 
     @property
@@ -90,10 +94,10 @@ class Widget:
     @value.setter
     def value(self, value: float) -> None:
         if value != self._value:
-            oldValue = self._value
+            self._oldValue = self._value
             self._value = round(min(1.0, max(0.0, value)), 6)
-            self.delta = self._value - oldValue
-            if self._value != oldValue:
+            self.delta = self._value - self._oldValue
+            if self._value != self._oldValue:
                 self.updated = True
     
     def setValue(self, value: float):
@@ -104,6 +108,19 @@ class Widget:
 
     def setCallback(self, callback) -> None:
         self._callback = callback
+
+    def process(self, name, event, data):
+        if event != 'custom':
+            x, y, value = data
+            btn = PyxelWidgets.Helpers.Rectangle2D(x, y)
+            if btn.collide(self.rect):
+                btn = btn - self.rect
+                if event == 'pressed':
+                    self.pressed(btn.x, btn.y, value)
+                elif event == 'released':
+                    self.released(btn.x, btn.y, value)
+                elif event == 'held':
+                    self.held(btn.x, btn.y, value)
 
     def pressed(self, x: int, y: int, value: float):
         """
@@ -159,10 +176,10 @@ class Widget:
         """
         self._callback(self.name, 'held', (x, y))
     
-    def updateArea(self, sx, sy, sw, sh):
-        return self.buffer[sx:sx+sw, sy:sy+sh]
+    def updateArea(self, area: PyxelWidgets.Helpers.Rectangle2D) -> tuple:
+        return area, self.buffer[area.l:area.r, area.b:area.t]
 
-    def update(self) -> list:
+    def update(self) -> tuple:
         """
         Description
         ----
@@ -172,7 +189,7 @@ class Widget:
            Pixel list should [x][y][r, g, b]
             If nothing is updated return empty list
         """
-        return self.updateArea(0, 0, self.rect.w, self.rect.h)
+        return self.updateArea(self.rect)
     
     def _resize(self, width, height) -> bool:
         return True
