@@ -71,11 +71,11 @@ class Keyboard():
         self.name = kwargs.get('name', f'Keyboard_{Keyboard._count}')
         if 'name' in kwargs.keys():
             del kwargs['name']
-        self.buttons = numpy.array([[Button(self.rect.x + _x, self.rect.y + _y, 1, 1, \
-                                    name = f'{self.name}_{_x}_{_y}', callback = self.process, **kwargs) \
-                                    for _y in range(height)] for _x in range(width)])
-        self.notes = numpy.array([[-1 for y in range(height)] for x in range(width)])
         self.rect = Rectangle2D(x, y, width, height)
+        self.buttons = numpy.array([[Button(self.rect.x + _x, self.rect.y + _y, 1, 1, \
+                                    name = f'{self.name}_{_x}_{_y}', callback = self.process) \
+                                    for _y in range(self.rect.h)] for _x in range(self.rect.w)])
+        self.notes = numpy.array([[-1 for y in range(self.rect.h)] for x in range(self.rect.w)])
         self._mode = kwargs.get('mode', KeyboardMode.Diatonic)
         self._scale = kwargs.get('scale', KeyboardScale.Major)
         self._tone = kwargs.get('tone', KeyboardTone.C)
@@ -186,7 +186,7 @@ class Keyboard():
     
     @property
     def widgets(self):
-        return self.buttons.buttons.flatten()
+        return self.buttons.flatten()
 
     def setCallback(self, callback):
         self._callback = callback
@@ -196,7 +196,7 @@ class Keyboard():
         x = int(x)
         y = int(y)
         if self.notes[x, y] != -1:
-            self._callback(self.buttons[x, y].name, event, (self.notes[x, y], self.buttons[x, y].value))
+            self._callback(self.name, event, (self.notes[x, y], self.buttons[x, y].value))
     
     def _calcNotes(self):
         base = self._tone.value + (self._octave * 12)
