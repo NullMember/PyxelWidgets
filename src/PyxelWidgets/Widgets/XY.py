@@ -1,23 +1,24 @@
-from . import Widget
-from ..Helpers import *
-from enum import Enum, auto
+import PyxelWidgets.Widgets
+import PyxelWidgets.Helpers
+import enum
 
-class XYDirection(Enum):
-    Vertical    = auto()
-    Horizontal  = auto()
+class XY(PyxelWidgets.Widgets.Widget):
 
-class XY(Widget):
+    class XYDirection(enum.Enum):
+        Vertical    = enum.auto()
+        Horizontal  = enum.auto()
+
     def __init__(self, x: int, y: int, width: int, height: int, **kwargs):
         kwargs['name'] = kwargs.get('name', f'XY_{XY._count}')
         super().__init__(x, y, width, height, **kwargs)
-        self.xColor = kwargs.get('xColor', Colors.Cyan)
-        self.yColor = kwargs.get('yColor', Colors.Magenta)
+        self.xColor = kwargs.get('xColor', PyxelWidgets.Helpers.Colors.Cyan)
+        self.yColor = kwargs.get('yColor', PyxelWidgets.Helpers.Colors.Magenta)
         self.delta = [0.0, 0.0]
         self._value = [0.0, 0.0]
         self._heldButton = [-1, -1]
         XY._count += 1
     
-    @Widget.value.setter
+    @PyxelWidgets.Widgets.Widget.value.setter
     def value(self, value: list) -> None:
         if value != self._value:
             oldValue = [self._value[0], self._value[1]]
@@ -46,9 +47,9 @@ class XY(Widget):
         if self._heldButton[0] == x and self._heldButton[1] == y:
             self._heldButton = [-1, -1]
 
-    def updateArea(self, sx, sy, sw, sh):
+    def updateArea(self, rect: PyxelWidgets.Helpers.Rectangle2D):
         self.updated = False
-        intersect = self.rect.intersect(Rectangle2D(sx, sy, sw, sh))
+        intersect = self.rect.intersect(rect)
         if intersect:
             area = intersect - self.rect
             for x in area.columns:
@@ -73,7 +74,7 @@ class XY(Widget):
                     # unlit every other pad
                     else:
                         self.buffer[x, y] = self.deactiveColor
-            return self.buffer[area.l:area.r, area.b:area.t]
+            return intersect, self.buffer[area.l:area.r, area.b:area.t]
         return None
 
     def _calcXValue(self, x: int, value: float) -> float:

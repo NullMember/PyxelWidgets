@@ -1,8 +1,8 @@
-from . import Widget
-from ..Helpers import *
+import PyxelWidgets.Widgets
+import PyxelWidgets.Helpers
 import numpy
 
-class Sprite(Widget):
+class Sprite(PyxelWidgets.Widgets.Widget):
     def __init__(self, x: int, y: int, width: int, height: int, **kwargs):
         kwargs['name'] = kwargs.get('name', f'Sprite_{Sprite._count}')
         super().__init__(x=x, y=y, width=width, height=height, **kwargs)
@@ -14,12 +14,12 @@ class Sprite(Widget):
         self.nextFrame = 0
         if not isinstance(self.frames, numpy.ndarray):
             self.frames = [numpy.ndarray((self.rect.w, self.rect.h))]
-            self.frames[0].fill(Colors.Invisible)
+            self.frames[0].fill(PyxelWidgets.Helpers.Colors.Invisible)
         self.buffer = self.frames[0]
 
-    def updateArea(self, sx: int, sy: int, sw: int, sh: int):
+    def updateArea(self, rect: PyxelWidgets.Helpers.Rectangle2D):
         self.updated = False
-        intersect = self.rect.intersect(Rectangle2D(sx, sy, sw, sh))
+        intersect = self.rect.intersect(rect)
         if intersect:
             area = intersect - self.rect
             self.buffer = self.frames[self.nextFrame]
@@ -32,5 +32,5 @@ class Sprite(Widget):
                     if self.nextFrame == len(self.frames):
                         self.nextFrame = 0
                 self.updated = True
-            return self.buffer[area.l:area.r, area.b:area.t]
+            return intersect, self.buffer[area.l:area.r, area.b:area.t]
         return None
