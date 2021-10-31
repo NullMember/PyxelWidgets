@@ -17,7 +17,7 @@ class Controller():
         self.buffer.fill(PyxelWidgets.Helpers.Colors.Invisible)
         self.buttons = numpy.ndarray((self.rect.w, self.rect.h))
         self.buttons.fill(0.0)
-        self._timers = numpy.ndarray((self.rect.w, self.rect.h), threading.Timer)
+        self._held = numpy.ndarray((self.rect.w, self.rect.h), threading.Timer)
         self._callback = lambda *_, **__ : None
         Controller._count += 1
 
@@ -45,12 +45,12 @@ class Controller():
         return
     
     def setPressed(self, x: int, y: int) -> None:
-        self._timers[x, y] = threading.Timer(interval = self.heldTime, function = self.setHeld, args = (x, y))
-        self._timers[x, y].start()
+        self._held[x, y] = threading.Timer(interval = self.heldTime, function = self.setHeld, args = (x, y))
+        self._held[x, y].start()
         self._callback(self.name, 'pressed', (x, y, self.buttons[x, y]))
     
     def setReleased(self, x: int, y: int) -> None:
-        self._timers[x, y].cancel()
+        self._held[x, y].cancel()
         self._callback(self.name, 'released', (x, y, self.buttons[x, y]))
     
     def setHeld(self, x: int, y: int) -> None:
@@ -66,9 +66,7 @@ class Controller():
         if self.connected:
             intersect = self.rect.intersect(PyxelWidgets.Helpers.Rectangle2D(x, y, 1, 1))
             if intersect:
-                if pixel == self.buffer[x, y]:
-                    pass
-                else:
+                if pixel != self.buffer[x, y]:
                     self.buffer[x, y] = pixel
                     self.sendPixel(x, y, pixel)
 
@@ -77,9 +75,7 @@ class Controller():
             intersect = self.rect.intersect(PyxelWidgets.Helpers.Rectangle2D(0, y, self.rect.w, 1))
             if intersect:
                 for x in intersect.columns:
-                    if pixel == self.buffer[x, y]:
-                        pass
-                    else:
+                    if pixel != self.buffer[x, y]:
                         self.buffer[x, y] = pixel
                         self.sendPixel(x, y, pixel)
 
@@ -88,32 +84,27 @@ class Controller():
             intersect = self.rect.intersect(PyxelWidgets.Helpers.Rectangle2D(x, 0, 1, self.rect.h))
             if intersect:
                 for y in intersect.rows:
-                    if pixel == self.buffer[x, y]:
-                        pass
-                    else:
+                    if pixel != self.buffer[x, y]:
                         self.buffer[x, y] = pixel
                         self.sendPixel(x, y, pixel)
     
-    def updateArea(self, x: int, y: int, width: int, height: int, pixel: PyxelWidgets.Helpers.Pixel):
+    def updateArea(self, rect: PyxelWidgets.Helpers.Rectangle2D, pixel: PyxelWidgets.Helpers.Pixel):
         if self.connected:
-            intersect = self.rect.intersect(PyxelWidgets.Helpers.Rectangle2D(x, y, width, height))
-            if intersect:
-                for _x in intersect.columns:
-                    for _y in intersect.rows:
-                        if pixel == self.buffer[_x, _y]:
-                            pass
-                        else:
-                            self.buffer[_x, _y] = pixel
-                            self.sendPixel(x, y, pixel)
-
-    def update(self, buffer):
-        if self.connected:
-            intersect = self.rect.intersect(PyxelWidgets.Helpers.Rectangle2D(0, 0, buffer.shape[0], buffer.shape[1]))
+            intersect = self.rect.intersect(rect)
             if intersect:
                 for x in intersect.columns:
                     for y in intersect.rows:
-                        if buffer[x, y] == self.buffer[x, y]:
-                            pass
-                        else:
-                            self.buffer[x, y] = buffer[x, y]
+                        if pixel != self.buffer[x, y]:
+                            self.buffer[x, y] = pixel
+                            self.sendPixel(x, y, pixel)
+
+    def update(self, data: tuple):
+        rect, buffer = data
+        if self.connected:
+            intersect = self.rect.intersect(rect)
+            if intersect:
+                for x in intersect.columns:
+                    for y in intersect.rows:
+                        if buffer[x - rect.x, y - rect.y] != self.buffer[x, y]:
+                            self.buffer[x, y] = buffer[x - rect.x, y - rect.y]
                             self.sendPixel(x, y, self.buffer[x, y])
