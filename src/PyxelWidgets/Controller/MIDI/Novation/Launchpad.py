@@ -128,8 +128,8 @@ class MK2(Launchpad):
         if self._sysexBuffer.readable:
             self.sendSysex(self._header + [3] + self._sysexBuffer.read())
 
-    def update(self, buffer: numpy.ndarray):
-        super().update(buffer)
+    def update(self, data: tuple):
+        super().update(data)
         if self._sysexBuffer.readable:
             self.sendSysex(self._header + [3] + self._sysexBuffer.read())
 
@@ -251,8 +251,8 @@ class MK3(Launchpad):
         if self._sysexBuffer.readable:
             self.sendSysex(self._header + [3] + self._sysexBuffer.read())
 
-    def update(self, buffer: numpy.ndarray):
-        super().update(buffer)
+    def update(self, data: tuple):
+        super().update(data)
         if self._sysexBuffer.readable:
             self.sendSysex(self._header + [3] + self._sysexBuffer.read())
 
@@ -318,7 +318,7 @@ class Pro(Launchpad):
         if self._sysexBuffer.readable:
             self.sendSysex(self._header + [3] + self._sysexBuffer.read())
 
-    def update(self, buffer: numpy.ndarray):
-        super().update(buffer)
+    def update(self, data: tuple):
+        super().update(data)
         if self._sysexBuffer.readable:
             self.sendSysex(self._header + [3] + self._sysexBuffer.read())
