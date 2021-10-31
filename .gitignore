@@ -130,3 +130,6 @@ dmypy.json
 
 # VSCode folders
 .vscode/
+
+# Internal test scripts
+internaltest
