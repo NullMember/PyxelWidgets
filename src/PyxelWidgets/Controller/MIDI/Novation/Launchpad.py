@@ -4,14 +4,7 @@ import PyxelWidgets.Util.RingBuffer
 import enum
 import numpy
 
-class Launchpad(PyxelWidgets.Controller.MIDI.MIDI):
-    """
-    Base class for Novation's Launchpad devices
-    """
-    def __init__(self, inPort: str = None, outPort: str = None, **kwargs):
-        super().__init__(inPort, outPort, **kwargs)
-
-class MK1(Launchpad):
+class MK1(PyxelWidgets.Controller.MIDI.MIDI):
 
     class Layout(enum.Enum):
         Reset   = 0
@@ -62,7 +55,7 @@ class MK1(Launchpad):
             y = 8
             self.setButton(x, y, midi[2] / 127.0)
 
-class MK2(Launchpad):
+class MK2(PyxelWidgets.Controller.MIDI.MIDI):
     """
     Controller class for Launchpad MK2
     """
@@ -133,7 +126,7 @@ class MK2(Launchpad):
         if self._sysexBuffer.readable:
             self.sendSysex(self._header + [3] + self._sysexBuffer.read())
 
-class MK3(Launchpad):
+class MK3(PyxelWidgets.Controller.MIDI.MIDI):
     """
     Controller class for Launchpad Mini MK3, Launchpad X, Launchpad Pro MK3
     """
@@ -256,7 +249,7 @@ class MK3(Launchpad):
         if self._sysexBuffer.readable:
             self.sendSysex(self._header + [3] + self._sysexBuffer.read())
 
-class Pro(Launchpad):
+class Pro(PyxelWidgets.Controller.MIDI.MIDI):
     """
     Controller class for Launchpad Pro (first version)
     """
