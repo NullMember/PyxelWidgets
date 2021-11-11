@@ -1,1 +1,1 @@
-__all__ = ['Clock', 'RingBuffer']
+__all__ = ['Clock']
