@@ -1,6 +1,6 @@
 import PyxelWidgets.Controller.MIDI
 import PyxelWidgets.Helpers
-import PyxelWidgets.Util.RingBuffer
+import collections
 import enum
 import numpy
 
@@ -72,7 +72,7 @@ class MK2(PyxelWidgets.Controller.MIDI.MIDI):
         kwargs['height'] = kwargs.get('height', 9)
         super().__init__(inPort=inPort, outPort=outPort, **kwargs)
         self._header = [0x00, 0x20, 0x29, 0x02, 0x18]
-        self._sysexBuffer = PyxelWidgets.Util.RingBuffer.RingBuffer(1024)
+        self._sysexBuffer = collections.deque(maxlen = 1024)
     
     def setLayout(self, layout: Layout):
         self.sendSysex(self._header + [0x22, layout.value])
@@ -103,28 +103,33 @@ class MK2(PyxelWidgets.Controller.MIDI.MIDI):
 
     def updateOne(self, x: int, y: int, pixel: PyxelWidgets.Helpers.Pixel):
         super().updateOne(x, y, pixel)
-        if self._sysexBuffer.readable:
-            self.sendSysex(self._header + [3] + self._sysexBuffer.read())
+        if len(self._sysexBuffer):
+            self.sendSysex(self._header + [3] + list(self._sysexBuffer))
+            self._sysexBuffer.clear()
     
     def updateRow(self, y: int, pixel: PyxelWidgets.Helpers.Pixel):
         super().updateRow(y, pixel)
-        if self._sysexBuffer.readable:
-            self.sendSysex(self._header + [3] + self._sysexBuffer.read())
+        if len(self._sysexBuffer):
+            self.sendSysex(self._header + [3] + list(self._sysexBuffer))
+            self._sysexBuffer.clear()
     
     def updateColumn(self, x: int, pixel: PyxelWidgets.Helpers.Pixel):
         super().updateColumn(x, pixel)
-        if self._sysexBuffer.readable:
-            self.sendSysex(self._header + [3] + self._sysexBuffer.read())
+        if len(self._sysexBuffer):
+            self.sendSysex(self._header + [3] + list(self._sysexBuffer))
+            self._sysexBuffer.clear()
 
     def updateArea(self, x: int, y: int, width: int, height: int, pixel: PyxelWidgets.Helpers.Pixel):
         super().updateArea(x, y, width, height, pixel)
-        if self._sysexBuffer.readable:
-            self.sendSysex(self._header + [3] + self._sysexBuffer.read())
+        if len(self._sysexBuffer):
+            self.sendSysex(self._header + [3] + list(self._sysexBuffer))
+            self._sysexBuffer.clear()
 
     def update(self, data: tuple):
         super().update(data)
-        if self._sysexBuffer.readable:
-            self.sendSysex(self._header + [3] + self._sysexBuffer.read())
+        if len(self._sysexBuffer):
+            self.sendSysex(self._header + [3] + list(self._sysexBuffer))
+            self._sysexBuffer.clear()
 
 class MK3(PyxelWidgets.Controller.MIDI.MIDI):
     """
@@ -185,7 +190,7 @@ class MK3(PyxelWidgets.Controller.MIDI.MIDI):
         super().__init__(inPort=inPort, outPort=outPort, **kwargs)
         self._model = model
         self._header = [0x00, 0x20, 0x29, 0x02, self._model.value]
-        self._sysexBuffer = PyxelWidgets.Util.RingBuffer.RingBuffer(1024)
+        self._sysexBuffer = collections.deque(maxlen = 1024)
     
     def setLayout(self, layout, page = 0):
         if self._model == MK3.Model.X or self._model == MK3.Model.Mini:
@@ -226,28 +231,33 @@ class MK3(PyxelWidgets.Controller.MIDI.MIDI):
 
     def updateOne(self, x: int, y: int, pixel: PyxelWidgets.Helpers.Pixel):
         super().updateOne(x, y, pixel)
-        if self._sysexBuffer.readable:
-            self.sendSysex(self._header + [3] + self._sysexBuffer.read())
+        if len(self._sysexBuffer):
+            self.sendSysex(self._header + [3] + list(self._sysexBuffer))
+            self._sysexBuffer.clear()
     
     def updateRow(self, y: int, pixel: PyxelWidgets.Helpers.Pixel):
         super().updateRow(y, pixel)
-        if self._sysexBuffer.readable:
-            self.sendSysex(self._header + [3] + self._sysexBuffer.read())
+        if len(self._sysexBuffer):
+            self.sendSysex(self._header + [3] + list(self._sysexBuffer))
+            self._sysexBuffer.clear()
     
     def updateColumn(self, x: int, pixel: PyxelWidgets.Helpers.Pixel):
         super().updateColumn(x, pixel)
-        if self._sysexBuffer.readable:
-            self.sendSysex(self._header + [3] + self._sysexBuffer.read())
+        if len(self._sysexBuffer):
+            self.sendSysex(self._header + [3] + list(self._sysexBuffer))
+            self._sysexBuffer.clear()
 
     def updateArea(self, x: int, y: int, width: int, height: int, pixel: PyxelWidgets.Helpers.Pixel):
         super().updateArea(x, y, width, height, pixel)
-        if self._sysexBuffer.readable:
-            self.sendSysex(self._header + [3] + self._sysexBuffer.read())
+        if len(self._sysexBuffer):
+            self.sendSysex(self._header + [3] + list(self._sysexBuffer))
+            self._sysexBuffer.clear()
 
     def update(self, data: tuple):
         super().update(data)
-        if self._sysexBuffer.readable:
-            self.sendSysex(self._header + [3] + self._sysexBuffer.read())
+        if len(self._sysexBuffer):
+            self.sendSysex(self._header + [3] + list(self._sysexBuffer))
+            self._sysexBuffer.clear()
 
 class Pro(PyxelWidgets.Controller.MIDI.MIDI):
     """
@@ -264,7 +274,7 @@ class Pro(PyxelWidgets.Controller.MIDI.MIDI):
         kwargs['height'] = kwargs.get('height', 10)
         super().__init__(inPort=inPort, outPort=outPort, **kwargs)
         self._header = [0x00, 0x20, 0x29, 0x02, 0x10]
-        self._sysexBuffer = PyxelWidgets.Util.RingBuffer.RingBuffer(1024)
+        self._sysexBuffer = collections.deque(maxlen = 1024)
     
     def setLayout(self, layout: Layout):
         self.sendSysex(self._header + [0x2C, layout.value])
@@ -293,25 +303,30 @@ class Pro(PyxelWidgets.Controller.MIDI.MIDI):
 
     def updateOne(self, x: int, y: int, pixel: PyxelWidgets.Helpers.Pixel):
         super().updateOne(x, y, pixel)
-        if self._sysexBuffer.readable:
-            self.sendSysex(self._header + [3] + self._sysexBuffer.read())
+        if len(self._sysexBuffer):
+            self.sendSysex(self._header + [3] + list(self._sysexBuffer))
+            self._sysexBuffer.clear()
     
     def updateRow(self, y: int, pixel: PyxelWidgets.Helpers.Pixel):
         super().updateRow(y, pixel)
-        if self._sysexBuffer.readable:
-            self.sendSysex(self._header + [3] + self._sysexBuffer.read())
+        if len(self._sysexBuffer):
+            self.sendSysex(self._header + [3] + list(self._sysexBuffer))
+            self._sysexBuffer.clear()
     
     def updateColumn(self, x: int, pixel: PyxelWidgets.Helpers.Pixel):
         super().updateColumn(x, pixel)
-        if self._sysexBuffer.readable:
-            self.sendSysex(self._header + [3] + self._sysexBuffer.read())
+        if len(self._sysexBuffer):
+            self.sendSysex(self._header + [3] + list(self._sysexBuffer))
+            self._sysexBuffer.clear()
 
     def updateArea(self, x: int, y: int, width: int, height: int, pixel: PyxelWidgets.Helpers.Pixel):
         super().updateArea(x, y, width, height, pixel)
-        if self._sysexBuffer.readable:
-            self.sendSysex(self._header + [3] + self._sysexBuffer.read())
+        if len(self._sysexBuffer):
+            self.sendSysex(self._header + [3] + list(self._sysexBuffer))
+            self._sysexBuffer.clear()
 
     def update(self, data: tuple):
         super().update(data)
-        if self._sysexBuffer.readable:
-            self.sendSysex(self._header + [3] + self._sysexBuffer.read())
+        if len(self._sysexBuffer):
+            self.sendSysex(self._header + [3] + list(self._sysexBuffer))
+            self._sysexBuffer.clear()
