@@ -58,6 +58,10 @@ class Rectangle2D(Position2D, Dimension2D):
         return self.y + self.h
     
     @property
+    def slice(self) -> slice:
+        return (slice(self.l, self.r, 1), slice(self.b, self.t, 1))
+    
+    @property
     def columns(self) -> range:
         return range(self.x, self.x + self.w)
     
@@ -77,6 +81,9 @@ class Rectangle2D(Position2D, Dimension2D):
     
     def get(self) -> tuple:
         return self.x, self.y, self.w, self.h
+    
+    def copy(self):
+        return Rectangle2D(self.x, self.y, self.w, self.h)
 
     def intersect(self, rect):
         if self.collide(rect):
@@ -94,14 +101,10 @@ class Rectangle2D(Position2D, Dimension2D):
                 rect.y < self.y + self.h)
 
     def __add__(self, other):
-        if isinstance(other, Rectangle2D):
-            return Rectangle2D(self.x + other.x, self.y + other.y, self.w, self.h)
-        raise TypeError
+        return Rectangle2D(self.x + other.x, self.y + other.y, self.w, self.h)
     
     def __sub__(self, other):
-        if isinstance(other, Rectangle2D):
-            return Rectangle2D(self.x - other.x, self.y - other.y, self.w, self.h)
-        raise TypeError
+        return Rectangle2D(self.x - other.x, self.y - other.y, self.w, self.h)
 
     def __repr__(self) -> str:
         return f'({self.x}, {self.y}, {self.w}, {self.h})'
