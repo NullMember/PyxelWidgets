@@ -48,6 +48,7 @@ class Widget:
         self.id = uuid.uuid1()
         self.name = kwargs.get('name', f'Widget_{Widget._count}')
         self.rect = PyxelWidgets.Helpers.Rectangle2D(x, y, width, height)
+        self._resize(self.rect.w, self.rect.h)
         self.activeColor = kwargs.get('activeColor', PyxelWidgets.Helpers.Colors.White)
         self.deactiveColor = kwargs.get('deactiveColor', PyxelWidgets.Helpers.Colors.Black)
         self.delta = 0.0
@@ -177,7 +178,7 @@ class Widget:
         self._callback(self.name, 'held', (x, y))
     
     def updateArea(self, area: PyxelWidgets.Helpers.Rectangle2D) -> tuple:
-        return area, self.buffer[area.l:area.r, area.b:area.t]
+        return area, self.buffer[area.slice]
 
     def update(self) -> tuple:
         """
