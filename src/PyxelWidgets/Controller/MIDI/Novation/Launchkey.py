@@ -54,10 +54,10 @@ class MK1(PyxelWidgets.Controller.MIDI.MIDI):
     
     colors = [0x0C, 0x0D, 0x0F, 0x1D, 0x3F, 0x3E, 0x1C, 0x3C]
 
-    def __init__(self, inPort: str, outPort: str, **kwargs):
+    def __init__(self, **kwargs):
         kwargs['width'] = kwargs.get('width', 9)
         kwargs['height'] = kwargs.get('height', 2)
-        super().__init__(inPort=inPort, outPort=outPort, **kwargs)
+        super().__init__(**kwargs)
 
     def setMode(self, mode: Mode):
         self.sendNoteOn(0x0C, mode.value)
@@ -79,8 +79,8 @@ class MK1(PyxelWidgets.Controller.MIDI.MIDI):
             return
         self.sendNoteOn(index, MK1.colors[colorIndex])
 
-    def connect(self):
-        super().connect()
+    def connect(self, inPort: str = None, outPort: str = None):
+        super().connect(inPort=inPort, outPort=outPort)
         self.setMode(MK1.Mode.Extended)
         self.enableInControl(MK1.InControl.Pads)
 
@@ -150,10 +150,10 @@ class MK2(PyxelWidgets.Controller.MIDI.MIDI):
                            (159, 0, 0), (55, 0, 0), (27, 207, 0), (7, 67, 0), 
                            (183, 175, 0), (63, 51, 0), (179, 95, 0), (75, 23, 0)])
     
-    def __init__(self, inPort: str = None, outPort: str = None, **kwargs):
+    def __init__(self, **kwargs):
         kwargs['width'] = kwargs.get('width', 8)
         kwargs['height'] = kwargs.get('height', 2)
-        super().__init__(inPort=inPort, outPort=outPort, **kwargs)
+        super().__init__(**kwargs)
 
     def setMode(self, mode: Mode):
         self.sendNoteOn(0x0C, mode.value, 0xF)
@@ -174,8 +174,8 @@ class MK2(PyxelWidgets.Controller.MIDI.MIDI):
             return
         self.sendNoteOn(index, pixel.findInPalette(self.palette))
 
-    def connect(self):
-        super().connect()
+    def connect(self, inPort: str = None, outPort: str = None):
+        super().connect(inPort=inPort, outPort=outPort)
         self.setMode(MK2.Mode.Extended)
         self.enableInControl(MK2.InControl.pads)
 
@@ -241,10 +241,10 @@ class MK3(PyxelWidgets.Controller.MIDI.MIDI):
                            (159, 0, 0), (55, 0, 0), (27, 207, 0), (7, 67, 0), 
                            (183, 175, 0), (63, 51, 0), (179, 95, 0), (75, 23, 0)])
     
-    def __init__(self, inPort: str = None, outPort: str = None, **kwargs):
+    def __init__(self, **kwargs):
         kwargs['width'] = kwargs.get('width', 8)
         kwargs['height'] = kwargs.get('height', 2)
-        super().__init__(inPort=inPort, outPort=outPort, **kwargs)
+        super().__init__(**kwargs)
 
     def setMode(self, mode: Mode):
         self.sendNoteOn(12, mode.value, 15)
@@ -262,8 +262,8 @@ class MK3(PyxelWidgets.Controller.MIDI.MIDI):
             return
         self.sendNoteOn(index, pixel.findInPalette(self.palette))
 
-    def connect(self):
-        super().connect()
+    def connect(self, inPort: str = None, outPort: str = None):
+        super().connect(inPort=inPort, outPort=outPort)
         self.setMode(MK3.Mode.DAW)
         self.setLayout(MK3.Layout.Session)
 

@@ -16,10 +16,10 @@ class MK1(PyxelWidgets.Controller.MIDI.MIDI):
     """ 
     Controller Class for Launchpad, Launchpad S, Launchpad Mini, Launchpad Mini MK2
     """
-    def __init__(self, inPort: str, outPort: str, **kwargs):
+    def __init__(self, **kwargs):
         kwargs['width'] = kwargs.get('width', 9)
         kwargs['height'] = kwargs.get('height', 9)
-        super().__init__(inPort=inPort, outPort=outPort, **kwargs)
+        super().__init__(**kwargs)
 
     def setLayout(self, layout: Layout):
         self.sendControlChange(0, layout.value)
@@ -33,8 +33,8 @@ class MK1(PyxelWidgets.Controller.MIDI.MIDI):
             index = (0x68 + x) & 0x7F
             self.sendControlChange(index, MK1.colors[colorIndex])
 
-    def connect(self):
-        super().connect()
+    def connect(self, inPort: str = None, outPort: str = None):
+        super().connect(inPort=inPort, outPort=outPort)
         self.setLayout(MK1.Layout.Reset)
         self.setLayout(MK1.Layout.XY)
 
@@ -67,10 +67,10 @@ class MK2(PyxelWidgets.Controller.MIDI.MIDI):
         Volume      = 4
         Pan         = 5
 
-    def __init__(self, inPort: str, outPort: str, **kwargs):
+    def __init__(self, **kwargs):
         kwargs['width'] = kwargs.get('width', 9)
         kwargs['height'] = kwargs.get('height', 9)
-        super().__init__(inPort=inPort, outPort=outPort, **kwargs)
+        super().__init__(**kwargs)
         self._header = [0x00, 0x20, 0x29, 0x02, 0x18]
         self._sysexBuffer = collections.deque(maxlen = 1024)
     
@@ -80,10 +80,10 @@ class MK2(PyxelWidgets.Controller.MIDI.MIDI):
     def sendPixel(self, x: int, y: int, pixel: PyxelWidgets.Helpers.Pixel):
         index = (x + (y * 10)) & 0x7F
         pixel = pixel * 0.25
-        self._sysexBuffer.write([3, index, pixel.r, pixel.g, pixel.b])
+        self._sysexBuffer.extend([3, index, pixel.r, pixel.g, pixel.b])
 
-    def connect(self):
-        super().connect()
+    def connect(self, inPort: str = None, outPort: str = None):
+        super().connect(inPort=inPort, outPort=outPort)
         self.setLayout(MK2.Layout.Session)
     
     def disconnect(self):
@@ -184,10 +184,10 @@ class MK3(PyxelWidgets.Controller.MIDI.MIDI):
         DAW                         = 0
         Programmer                  = 1
 
-    def __init__(self, inPort: str, outPort: str, model, **kwargs):
+    def __init__(self, model, **kwargs):
         kwargs['width'] = kwargs.get('width', 10)
         kwargs['height'] = kwargs.get('height', 10)
-        super().__init__(inPort=inPort, outPort=outPort, **kwargs)
+        super().__init__(**kwargs)
         self._model = model
         self._header = [0x00, 0x20, 0x29, 0x02, self._model.value]
         self._sysexBuffer = collections.deque(maxlen = 1024)
@@ -209,11 +209,10 @@ class MK3(PyxelWidgets.Controller.MIDI.MIDI):
 
     def sendPixel(self, x: int, y: int, pixel: PyxelWidgets.Helpers.Pixel):
         index = (x + (y * 10)) & 0x7F
-        pixel = pixel * 0.5
-        self._sysexBuffer.write([3, index, pixel.r, pixel.g, pixel.b])
+        self._sysexBuffer.extend([3, index, pixel.r >> 1, pixel.g >> 1, pixel.b >> 1])
 
-    def connect(self):
-        super().connect()
+    def connect(self, inPort: str = None, outPort: str = None):
+        super().connect(inPort=inPort, outPort=outPort)
         self.setMode(MK3.Mode.Programmer)
     
     def disconnect(self):
@@ -269,10 +268,10 @@ class Pro(PyxelWidgets.Controller.MIDI.MIDI):
         Fader       = 2
         Programmer  = 3
 
-    def __init__(self, inPort: str, outPort: str, **kwargs):
+    def __init__(self, **kwargs):
         kwargs['width'] = kwargs.get('width', 10)
         kwargs['height'] = kwargs.get('height', 10)
-        super().__init__(inPort=inPort, outPort=outPort, **kwargs)
+        super().__init__(**kwargs)
         self._header = [0x00, 0x20, 0x29, 0x02, 0x10]
         self._sysexBuffer = collections.deque(maxlen = 1024)
     
@@ -282,10 +281,10 @@ class Pro(PyxelWidgets.Controller.MIDI.MIDI):
     def sendPixel(self, x: int, y: int, pixel: PyxelWidgets.Helpers.Pixel):
         index = (x + (y * 10)) & 0x7F
         pixel = pixel * 0.25
-        self._sysexBuffer.write([3, index, pixel.r, pixel.g, pixel.b])
+        self._sysexBuffer.extend([3, index, pixel.r, pixel.g, pixel.b])
 
-    def connect(self):
-        super().connect()
+    def connect(self, inPort: str = None, outPort: str = None):
+        super().connect(inPort=inPort, outPort=outPort)
         self.setLayout(Pro.Layout.Programmer)
     
     def disconnect(self):

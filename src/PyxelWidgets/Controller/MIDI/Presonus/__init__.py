@@ -36,16 +36,16 @@ class ATOM(PyxelWidgets.Controller.MIDI.MIDI):
         Enable = 127
         Disable = 0
 
-    def __init__(self, inPort: str, outPort: str, **kwargs):
+    def __init__(self, **kwargs):
         kwargs['width'] = kwargs.get('width', 4)
         kwargs['height'] = kwargs.get('height', 4)
-        super().__init__(inPort, outPort, **kwargs)
+        super().__init__(**kwargs)
 
     def setNativeControl(self, state):
         self.sendNoteOff(0, state.value, 15)
 
-    def connect(self):
-        super().connect()
+    def connect(self, inPort: str = None, outPort: str = None):
+        super().connect(inPort=inPort, outPort=outPort)
         self.setNativeControl(ATOM.NativeControl.Enable)
         for i in range(36, 52):
             self.sendNoteOn(i, 127)
