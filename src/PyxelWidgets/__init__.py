@@ -45,7 +45,7 @@ class Window():
                 area, buffer = widget.updateArea(self.rect)
                 if buffer is not None:
                     try:
-                        view = self.buffer[area.l:area.r, area.b:area.t]
+                        view = self.buffer[area.slice]
                         view[:] = numpy.where(buffer == False, view, buffer)
                     except Exception as e:
                         traceback.print_exc()
@@ -64,6 +64,11 @@ class Manager():
         self.buffer = numpy.ndarray((self.rect.w, self.rect.h), PyxelWidgets.Helpers.Pixel)
         self.buffer.fill(PyxelWidgets.Helpers.Colors.Invisible)
         Manager._count += 1
+    
+    def destroy(self):
+        for controller in list(self.controllers):
+            self.controllers[controller]['controller'].disconnect()
+            self.removeController(controller)
 
     def addWindow(self, window: Window, x: int, y: int, width: int, height: int) -> None:
         self.windows[window.name] = {}
@@ -95,17 +100,17 @@ class Manager():
             wr = window['rect']
             if cr.collide(wr):
                 cwr = cr - wr
-                window['window'].process(event, (data[0] + cwr.x, data[1] + cwr.y, data[2]))
+                window['window'].process(name, event, (data[0] + cwr.x, data[1] + cwr.y, data[2]))
 
     def update(self):
         for window in list(self.windows.values()):
             wr = window['rect']
             intersect = self.rect.intersect(wr)
             if intersect:
-                buffer = window['window'].update()
+                rect, buffer = window['window'].update()
                 update = intersect - self.rect
-                self.buffer[update.l:update.r, update.b:update.t] = buffer[:wr.w, :wr.h]
+                self.buffer[update.slice] = buffer[:wr.w, :wr.h]
         for controller in list(self.controllers.values()):
             intersect = self.rect.intersect(controller['rect'])
             if intersect:
-                controller['controller'].update(self.buffer[intersect.l:intersect.r, intersect.b:intersect.t])
+                controller['controller'].update((intersect.origin, self.buffer[intersect.slice]))
