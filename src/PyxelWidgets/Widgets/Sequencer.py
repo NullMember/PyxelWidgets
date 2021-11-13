@@ -11,7 +11,7 @@ class Sequencer(PyxelWidgets.Widgets.Widget):
         self.denominator = kwargs.get('denominator', 4.0)
         self.ppq = kwargs.get('ppq', 24)
         self.currentColor = kwargs.get('currentColor', PyxelWidgets.Helpers.Colors.Lime)
-        self._tickTarget = self.rect.w * self.rect.h
+        self.currentActiveColor = kwargs.get('currentActiveColor', PyxelWidgets.Helpers.Colors.Red)
         self._tick = 0
         self.target = PyxelWidgets.Util.Clock.Target(self.tick)
         if clock != None:
@@ -42,14 +42,19 @@ class Sequencer(PyxelWidgets.Widgets.Widget):
         intersect = self.rect.intersect(rect)
         if intersect:
             area = intersect - self.rect
+            tickX = self._tickX()
+            tickY = self._tickY()
             for x in area.columns:
                 for y in area.rows:
                     if self.active[x][y]:
                         self.buffer[x, y] = self.activeColor
                     else:
                         self.buffer[x, y] = self.deactiveColor
-            self.buffer[self._tickX()][self._tickY()] = self.currentColor
-            return intersect, self.buffer[area.l:area.r, area.b:area.t]
+            if self.buffer[tickX, tickY] == self.activeColor:
+                self.buffer[tickX, tickY] = self.currentActiveColor
+            else:
+                self.buffer[tickX, tickY] = self.currentColor
+            return intersect, self.buffer[area.slice]
         return None
     
     def _resize(self, width, height):

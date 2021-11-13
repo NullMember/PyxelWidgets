@@ -17,7 +17,6 @@ class Knob(PyxelWidgets.Widgets.Widget):
         self.coefficient = kwargs.get('coefficient', 0.05)
         self.type = kwargs.get('type', Knob.KnobType.Wrap)
         self.state = False
-        self.perimeter = self._calcPerimeter(self.rect.w, self.rect.h)
         self._held = [-1, -1]
         Knob._count += 1
 
@@ -46,55 +45,55 @@ class Knob(PyxelWidgets.Widgets.Widget):
         if self.state:
             index = self._calcKnobIndex(self._held[0], self._held[1])
             if index != -1:
-                self.setValue(self.value + (self._calcKnobWeight(index) * self.coefficient))
+                self.setValue(self._value + (self._calcKnobWeight(index) * self.coefficient))
 
     def updateArea(self, rect: PyxelWidgets.Helpers.Rectangle2D):
         self.updated = False
         if self.state:
             self.tick()
-        halfval = self.value / 2.0
+        halfval = self._value / 2.0
         halfvalpluspointfive = halfval + 0.5
         intersect = self.rect.intersect(rect)
         if intersect:
             area = intersect - self.rect
             for x in area.columns:
                 for y in area.rows:
-                    index = self._calcKnobIndex(x, y)
-                    minV = self._calcKnobValue(index, 0.0)
-                    maxV = self._calcKnobValue(index, 1.0)
+                    index = self.indexes[x][y]
+                    minV = self._minV[index]
+                    maxV = self._maxV[index]
                     if index == -1:
                         self.buffer[x, y] = PyxelWidgets.Helpers.Colors.Invisible
                     else:
                         if self.type == Knob.KnobType.Single:
-                            if maxV < self.value:
+                            if maxV < self._value:
                                 self.buffer[x, y] = self.deactiveColor
-                            elif minV > self.value:
+                            elif minV > self._value:
                                 self.buffer[x, y] = self.deactiveColor
                             else:
-                                coefficient = self._calcPixelCoefficient(self.value - minV)
+                                coefficient = self._calcPixelCoefficient(self._value - minV)
                                 self.buffer[x, y] = self.activeColor * coefficient
                         elif self.type == Knob.KnobType.BoostCut:
-                            if self.value > 0.5:
+                            if self._value > 0.5:
                                 if minV < 0.5:
                                     self.buffer[x, y] = self.deactiveColor
                                 else:
-                                    if maxV <= self.value:
+                                    if maxV <= self._value:
                                         self.buffer[x, y] = self.activeColor
-                                    elif minV > self.value:
+                                    elif minV > self._value:
                                         self.buffer[x, y] = self.deactiveColor
                                     else:
-                                        coefficient = self._calcPixelCoefficient(self.value - minV)
+                                        coefficient = self._calcPixelCoefficient(self._value - minV)
                                         self.buffer[x, y] = self.activeColor * coefficient
-                            elif self.value < 0.5:
+                            elif self._value < 0.5:
                                 if maxV > 0.5:
                                     self.buffer[x, y] = self.deactiveColor
                                 else:
-                                    if minV >= self.value:
+                                    if minV >= self._value:
                                         self.buffer[x, y] = self.activeColor
-                                    elif maxV < self.value:
+                                    elif maxV < self._value:
                                         self.buffer[x, y] = self.deactiveColor
                                     else:
-                                        coefficient = 1.0 - self._calcPixelCoefficient(self.value - minV)
+                                        coefficient = 1.0 - self._calcPixelCoefficient(self._value - minV)
                                         self.buffer[x, y] = self.activeColor * coefficient
                             else:
                                 if minV == 0.5 or maxV == 0.5:
@@ -102,12 +101,12 @@ class Knob(PyxelWidgets.Widgets.Widget):
                                 else:
                                     self.buffer[x, y] = self.deactiveColor
                         elif self.type == Knob.KnobType.Wrap:
-                            if maxV <= self.value:
+                            if maxV <= self._value:
                                 self.buffer[x, y] = self.activeColor
-                            elif minV > self.value:
+                            elif minV > self._value:
                                 self.buffer[x, y] = self.deactiveColor
                             else:
-                                coefficient = self._calcPixelCoefficient(self.value - minV)
+                                coefficient = self._calcPixelCoefficient(self._value - minV)
                                 self.buffer[x, y] = self.activeColor * coefficient
                         elif self.type == Knob.KnobType.Spread:
                             if minV >= 0.5:
@@ -146,11 +145,14 @@ class Knob(PyxelWidgets.Widgets.Widget):
                                         self.buffer[x, y] = self.activeColor * coefficient
                             else:
                                 self.buffer[x, y] = self.deactiveColor
-            return intersect, self.buffer[area.l:area.r, area.b:area.t]
+            return intersect, self.buffer[area.slice]
         return None
     
     def _resize(self, width, height):
         self.perimeter = self._calcPerimeter(width, height)
+        self.indexes = [[self._calcKnobIndex(x, y) for y in range(height)] for x in range(width)]
+        self._minV = [self._calcKnobValue(index, 0.0) for index in range(self.perimeter)]
+        self._maxV = [self._calcKnobValue(index, 1.0) for index in range(self.perimeter)]
         return True
 
     def _calcKnobIndex(self, x: int, y: int) -> float:
@@ -183,9 +185,9 @@ class Knob(PyxelWidgets.Widgets.Widget):
             return 0.0
         halfperimeter = int(self.perimeter / 2)
         if index < halfperimeter:
-            return round(-(0.5 - self._calcKnobValue(index, 0.0)), 6)
+            return round(-(0.5 - self._minV[index]), 6)
         else:
-            return round(self._calcKnobValue(index, 1.0) - 0.5, 6)
+            return round(self._maxV[index] - 0.5, 6)
 
     def _calcPixelCoefficient(self, value: float) -> float:
         return value * self.perimeter

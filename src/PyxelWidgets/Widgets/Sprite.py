@@ -32,5 +32,5 @@ class Sprite(PyxelWidgets.Widgets.Widget):
                     if self.nextFrame == len(self.frames):
                         self.nextFrame = 0
                 self.updated = True
-            return intersect, self.buffer[area.l:area.r, area.b:area.t]
+            return intersect, self.buffer[area.slice]
         return None

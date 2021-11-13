@@ -95,12 +95,12 @@ class Fader(PyxelWidgets.Widgets.Widget):
             Spread: Corresponding pads from middle active symmetrically.  
         """
         kwargs['name'] = kwargs.get('name', f'Fader_{Fader._count}')
-        super().__init__(x, y, width, height, **kwargs)
         self.direction = kwargs.get('direction', Fader.FaderDirection.Vertical)
         self.grid = kwargs.get('grid', Fader.FaderGrid.Simple)
         self.type = kwargs.get('type', Fader.FaderType.Wrap)
         self.mode = kwargs.get('mode', Fader.FaderMode.Multi)
         self.resolution = kwargs.get('resolution', 4)
+        super().__init__(x, y, width, height, **kwargs)
         self._multiStep = 0
         self._oldButton = [-1, -1]
         self._heldButton = [-1, -1]
@@ -122,16 +122,16 @@ class Fader(PyxelWidgets.Widgets.Widget):
     
     def _pressedSimple(self, x, y, value):
         if self.type == Fader.FaderType.BoostCut:
-            if self._calcFaderValue(x, y, 0.0) < 0.5:
-                return self._calcFaderValue(x, y, 0.0)
+            if self._minV[x][y] < 0.5:
+                return self._minV[x][y]
             else:
-                return self._calcFaderValue(x, y, 1.0)
+                return self._maxV[x][y]
         else:
-            return self._calcFaderValue(x, y, 0.0)
+            return self._minV[x][y]
 
     def _pressedMulti(self, x, y, value):
         if self.type == Fader.FaderType.BoostCut:
-            if self._calcFaderValue(x, y, 0.0) < 0.5:
+            if self._minV[x][y] < 0.5:
                 if self._oldButton[0] == x and self._oldButton[1] == y:
                     self._multiStep = (self._multiStep - 1) % self.resolution
                 else:
@@ -165,7 +165,7 @@ class Fader(PyxelWidgets.Widgets.Widget):
 
     def _pressedSensitive(self, x, y, value):
         if self.type == Fader.FaderType.BoostCut:
-            if self._calcFaderValue(x, y, 0.0) < 0.5:
+            if self._minV[x][y] < 0.5:
                 return self._calcFaderValue(x, y, 1.0 - value)
             else:
                 return self._calcFaderValue(x, y, value)
@@ -199,61 +199,61 @@ class Fader(PyxelWidgets.Widgets.Widget):
 
     def updateArea(self, rect: PyxelWidgets.Helpers.Rectangle2D):
         self.updated = False
-        halfval = self.value / 2.0
+        halfval = self._value / 2.0
         halfvalpluspointfive = halfval + 0.5
         intersect = self.rect.intersect(rect)
         if intersect:
             area = intersect - self.rect
             for x in area.columns:
                 for y in area.rows:
-                    minV = self._calcFaderValue(x, y, 0.0)
-                    maxV = self._calcFaderValue(x, y, 1.0)
+                    minV = self._minV[x][y]
+                    maxV = self._maxV[x][y]
                     if self.type == Fader.FaderType.Single:
                         # if current pad lower than last pressed pad
-                        if maxV <= self.value:
+                        if maxV <= self._value:
                             self.buffer[x, y] = self.deactiveColor
                         # if current pad higher than last pressed pad
-                        elif minV > self.value:
+                        elif minV > self._value:
                             self.buffer[x, y] = self.deactiveColor
                         # if current pad is last pressed pad
                         else:
-                            coefficient = min(self._calcPixelCoefficient(self.value - minV) + self._calcPixelStep(), 1.0)
+                            coefficient = min(self._calcPixelCoefficient(self._value - minV) + self._calcPixelStep(), 1.0)
                             self.buffer[x, y] = self.activeColor * coefficient
                     elif self.type == Fader.FaderType.BoostCut:
                         # if last pressed pad in upper half
-                        if self.value > 0.5:
+                        if self._value > 0.5:
                             # if current pad in lower half
                             if minV < 0.5:
                                 self.buffer[x, y] = self.deactiveColor
                             # if current pad in upper half
                             else:
                                 # if current pad is lower than last pressed pad
-                                if maxV <= self.value:
+                                if maxV <= self._value:
                                     self.buffer[x, y] = self.activeColor
                                 # if current pad is higher than last pressed pad
-                                elif minV > self.value:
+                                elif minV > self._value:
                                     self.buffer[x, y] = self.deactiveColor
                                 # if current pad is last pressed pad
                                 else:
-                                    coefficient = min(self._calcPixelCoefficient(self.value - minV) + self._calcPixelStep(), 1.0)
+                                    coefficient = min(self._calcPixelCoefficient(self._value - minV) + self._calcPixelStep(), 1.0)
                                     self.buffer[x, y] = self.activeColor * coefficient
                         # if last pressed pad in lower half
-                        elif self.value < 0.5:
+                        elif self._value < 0.5:
                             # if current pad in upper half
                             if maxV > 0.5:
                                 self.buffer[x, y] = self.deactiveColor
                             # if current pad in lower half
                             else:
                                 # if current pad is higher than last pressed pad
-                                if minV >= self.value:
+                                if minV >= self._value:
                                     self.buffer[x, y] = self.activeColor
                                 # if current pad is lower than last pressed pad
-                                elif maxV < self.value:
+                                elif maxV < self._value:
                                     self.buffer[x, y] = self.deactiveColor
                                 # if current pad is last pressed pad
                                 else:
                                     # reverse brightness to match type
-                                    coefficient = 1.0 - self._calcPixelCoefficient(self.value - minV)
+                                    coefficient = 1.0 - self._calcPixelCoefficient(self._value - minV)
                                     self.buffer[x, y] = self.activeColor * coefficient
                         # if current value is 0.5
                         else:
@@ -265,14 +265,14 @@ class Fader(PyxelWidgets.Widgets.Widget):
                                 self.buffer[x, y] = self.deactiveColor
                     elif self.type == Fader.FaderType.Wrap:
                         # if current pad lower than last pressed pad
-                        if maxV <= self.value:
+                        if maxV <= self._value:
                             self.buffer[x, y] = self.activeColor
                         # if current pad higher than last pressed pad
-                        elif minV > self.value:
+                        elif minV > self._value:
                             self.buffer[x, y] = self.deactiveColor
                         # if current pad is last pressed pad
                         else:
-                            coefficient = min(self._calcPixelCoefficient(self.value - minV) + self._calcPixelStep(), 1.0)
+                            coefficient = min(self._calcPixelCoefficient(self._value - minV) + self._calcPixelStep(), 1.0)
                             self.buffer[x, y] = self.activeColor * coefficient
                     elif self.type == Fader.FaderType.Spread:
                         # if current pad in upper half
@@ -324,8 +324,13 @@ class Fader(PyxelWidgets.Widgets.Widget):
                             else:
                                 coefficient = 1.0 - self._calcPixelCoefficient(halfval - minV)
                                 self.buffer[x, y] = self.activeColor * coefficient
-            return intersect, self.buffer[area.l:area.r, area.b:area.t]
+            return intersect, self.buffer[area.slice]
         return None
+
+    def _resize(self, width, height):
+        self._minV = [[self._calcFaderValue(x, y, 0.0) for y in range(height)] for x in range(width)]
+        self._maxV = [[self._calcFaderValue(x, y, 1.0) for y in range(height)] for x in range(width)]
+        return True
 
     """
         For 2-d widgets, where output values are single float,

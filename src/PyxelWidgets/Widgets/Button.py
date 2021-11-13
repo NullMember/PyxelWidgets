@@ -59,9 +59,9 @@ class Button(PyxelWidgets.Widgets.Widget):
             area = intersect - self.rect
             for x in area.columns:
                 for y in area.rows:
-                    if self.value:
-                        self.buffer[x, y] = self.activeColor * self.value
+                    if self._value:
+                        self.buffer[x, y] = self.activeColor * self._value
                     else:
                         self.buffer[x, y] = self.deactiveColor
-            return intersect, self.buffer[area.l:area.r, area.b:area.t]
+            return intersect, self.buffer[area.slice]
         return None
