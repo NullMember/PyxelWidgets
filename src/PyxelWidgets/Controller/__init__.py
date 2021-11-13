@@ -1,6 +1,7 @@
 __all__ = ['OSC', 'MIDI']
 
 import PyxelWidgets.Helpers
+import PyxelWidgets.Util.Clock
 import numpy
 import threading
 
@@ -13,10 +14,12 @@ class Controller():
         self.rect = PyxelWidgets.Helpers.Rectangle2D(kwargs.get('x', 0), kwargs.get('y', 0), kwargs.get('width', 1), kwargs.get('height', 1))
         self.heldTime = kwargs.get('heldTime', 1.0)
         self.connected = False
+        self.terminated = False
         self.buffer = numpy.ndarray((self.rect.w, self.rect.h), PyxelWidgets.Helpers.Pixel)
         self.buffer.fill(PyxelWidgets.Helpers.Colors.Invisible)
         self.buttons = numpy.ndarray((self.rect.w, self.rect.h))
         self.buttons.fill(0.0)
+        self.clock = PyxelWidgets.Util.Clock.Clock()
         self._held = numpy.ndarray((self.rect.w, self.rect.h), threading.Timer)
         self._callback = lambda *_, **__ : None
         Controller._count += 1
@@ -24,7 +27,20 @@ class Controller():
     def setCallback(self, callback):
         self._callback = callback
 
+    def init(self):
+        self.clock.start()
+    
+    def close(self):
+        if self.connected:
+            self.disconnect()
+        self.clock.terminate()
+        while self.clock.is_alive():
+            pass
+        self.terminated = True
+
     def connect(self):
+        if self.connected:
+            self.disconnect()
         self.connected = True
 
     def disconnect(self):
@@ -103,8 +119,9 @@ class Controller():
         if self.connected:
             intersect = self.rect.intersect(rect)
             if intersect:
+                updated = numpy.where(buffer[(intersect - rect).slice] != self.buffer[intersect.slice], True, False)
+                self.buffer[intersect.slice] = numpy.where(updated, buffer[(intersect - rect).slice], self.buffer[intersect.slice])
                 for x in intersect.columns:
                     for y in intersect.rows:
-                        if buffer[x - rect.x, y - rect.y] != self.buffer[x, y]:
-                            self.buffer[x, y] = buffer[x - rect.x, y - rect.y]
+                        if updated[x, y]:
                             self.sendPixel(x, y, self.buffer[x, y])
