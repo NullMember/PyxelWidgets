@@ -52,30 +52,51 @@ class XY(PyxelWidgets.Widgets.Widget):
         intersect = self.rect.intersect(rect)
         if intersect:
             area = intersect - self.rect
+            xColor = self.xColor * self._value[0]
+            yColor = self.yColor * self._value[1]
+            xPoint = self._findXPoint()
+            yPoint = self._findYPoint()
             for x in area.columns:
                 for y in area.rows:
-                    minV = self._calcXYValue(x, y, 0.0)
-                    maxV = self._calcXYValue(x, y, 1.0)
+                    minV = self._minV[x][y]
+                    maxV = self._maxV[x][y]
                     # junction point
                     # if current padx is last pressed pad and current pady is last pressed pad
-                    if minV[0] < self.value[0] and maxV[0] >= self.value[0] and minV[1] < self.value[1] and maxV[1] >= self.value[1]:
+                    if x == xPoint and y == yPoint:
                         coefficientX = ((self.value[0] - minV[0]) * self.rect.w) / 2
                         coefficientY = ((self.value[1] - minV[1]) * self.rect.h) / 2
                         color = (self.xColor * coefficientX) + (self.yColor * coefficientY)
                         self.buffer[x, y] = color
                     # x axis
                     # if current padx is in same column of last pressed pad
-                    elif minV[0] < self.value[0] and maxV[0] >= self.value[0]:
-                        self.buffer[x, y] = self.xColor * self.value[0]
+                    elif x == xPoint:
+                        self.buffer[x, y] = xColor
                     # y axis
                     # if current pady is in same row of last pressed pad
-                    elif minV[1] < self.value[1] and maxV[1] >= self.value[1]:
-                        self.buffer[x, y] = self.yColor * self.value[1]
+                    elif y == yPoint:
+                        self.buffer[x, y] = yColor
                     # unlit every other pad
                     else:
                         self.buffer[x, y] = self.deactiveColor
             return intersect, self.buffer[area.l:area.r, area.b:area.t]
         return None
+
+    def _resize(self, width, height) -> bool:
+        self._minV = [[self._calcXYValue(x, y, 0.0) for y in range(height)] for x in range(width)]
+        self._maxV = [[self._calcXYValue(x, y, 1.0) for y in range(height)] for x in range(width)]
+        return True
+
+    def _findXPoint(self):
+        point = (self._value[0] * self.rect.w)
+        if point > 0.0:
+            point = point - 1 if point % 1.0 == 0.0 else point
+        return int(point)
+    
+    def _findYPoint(self):
+        point = (self._value[1] * self.rect.h)
+        if point > 0.0:
+            point = point - 1 if point % 1.0 == 0.0 else point
+        return int(point)
 
     def _calcXValue(self, x: int, value: float) -> float:
         return round(((x / self.rect.w) + (value / self.rect.w)), 6)
