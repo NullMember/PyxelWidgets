@@ -8,42 +8,14 @@ class Target:
     _count = 0
 
     def __init__(self, target: Callable, wrap = 1, delay = 0, **kwargs) -> None:
-        self._name = kwargs.get('name', f'Target_{Target._count}')
-        self._target = target
-        self._wrap = wrap
-        self._delay = delay
-        self._active = True
-        self._lock = False
+        self.name = kwargs.get('name', f'Target_{Target._count}')
+        self.target = target
+        self.wrap = wrap
+        self.delay = delay
+        self.active = True
+        self.lock = False
         self._tick = 0
         Target._count += 1
-    
-    @property
-    def name(self) -> str:
-        return self._name
-
-    @property
-    def wrap(self) -> int:
-        return self._wrap
-    
-    @wrap.setter
-    def wrap(self, value: int) -> None:
-        self._wrap = value if value >= 0 else 0
-    
-    @property
-    def delay(self) -> int:
-        return self._delay
-    
-    @delay.setter
-    def delay(self, value: int) -> None:
-        self._delay = value
-
-    @property
-    def active(self) -> bool:
-        return self._active
-    
-    @active.setter
-    def active(self, value: bool) -> None:
-        self._active = value
     
     @property
     def tick(self) -> int:
@@ -51,22 +23,22 @@ class Target:
 
     @tick.setter
     def tick(self, value: int) -> None:
-        if not self._lock:
-            self._lock = True
+        if not self.lock:
+            self.lock = True
             self._tick = value
-            if (self._tick + self._delay) % self._wrap == 0:
-                self._target(self._tick)
-            self._lock = False
+            if (self._tick + self.delay) % self.wrap == 0:
+                self.target(self._tick)
+            self.lock = False
 
     def step(self) -> None:
-        if not self._lock:
-            self._lock = True
+        if not self.lock:
+            self.lock = True
             self._tick += 1
-            if (self._tick + self._delay) % self._wrap == 0:
-                self._target(self._tick)
-            self._lock = False
+            if (self._tick + self.delay) % self.wrap == 0:
+                self.target(self._tick)
+            self.lock = False
     
-    def set(self, tick: int) -> None:
+    def set(self, tick: int):
         self.tick = tick
 
 class Clock(Thread):
@@ -78,17 +50,15 @@ class Clock(Thread):
         self._pool = ThreadPoolExecutor(thread_name_prefix = f'Clock_{self._count}_Target')
         self._bpm: float = bpm
         self._ppq: float = ppq
-        self._delay: float = 60.0 / (bpm * ppq)
-        self._tick: int = 0
-        self._currentTime: float = 0
-        self._targets = {}
-        self._running = True
+        self.delay: float = 60.0 / (bpm * ppq)
+        self.tick: int = 0
+        self.currentTime: float = 0
+        self.targets = {}
+        self.futures = {}
+        self.running = True
         self._pause = False
         self._terminate = False
         Clock._count += 1
-    
-    def __del__(self):
-        self.terminate()
 
     @property
     def bpm(self) -> float:
@@ -97,7 +67,7 @@ class Clock(Thread):
     @bpm.setter
     def bpm(self, value: float) -> None:
         self._bpm = value
-        self._delay = 60.0 / (self._bpm * self._ppq)
+        self.delay = 60.0 / (self._bpm * self._ppq)
     
     @property
     def ppq(self) -> float:
@@ -106,37 +76,13 @@ class Clock(Thread):
     @ppq.setter
     def ppq(self, value: float) -> None:
         self._ppq = value
-        self._delay = 60.0 / (self._bpm * self._ppq)
-    
-    @property
-    def delay(self) -> float:
-        return self._delay
-
-    @delay.setter
-    def delay(self, value: float) -> None:
-        self._delay = value
-
-    @property
-    def tick(self) -> int:
-        return self._tick
-    
-    @property
-    def names(self) -> list:
-        return list(self._targets)
-    
-    @property
-    def values(self) -> list:
-        return list(self._targets.values())
-
-    @property
-    def targets(self) -> dict:
-        return self._targets
+        self.delay = 60.0 / (self._bpm * self._ppq)
     
     @property
     def state(self) -> str:
         if self._terminate:
             return "terminated"
-        elif not self._running:
+        elif not self.running:
             return "stopped"
         elif self._pause:
             return "paused"
@@ -144,47 +90,52 @@ class Clock(Thread):
             return "running"
 
     def addTarget(self, target: Target) -> None:
-        self._targets[target.name] = target
+        self.targets[target.name] = target
     
     def addTargets(self, targets: dict) -> None:
         for target in targets:
-            self._targets[target.name] = target
+            self.targets[target.name] = target
     
     def removeTarget(self, name: str) -> Target:
-        if name in self._targets:
-            return self._targets.pop(name)
+        if name in self.targets:
+            return self.targets.pop(name)
     
     def getTarget(self, name: str) -> Target:
-        if name in self._targets:
-            return self._targets[name]
+        if name in self.targets:
+            return self.targets[name]
 
     def run(self):
         while not self._terminate:
-            self._currentTime = time.time()
-            self.step()
-            delay = self._delay - (time.time() - self._currentTime)
+            self.currentTime = time.time()
+            self._step()
+            delay = self.delay - (time.time() - self.currentTime)
             time.sleep(0.0 if delay < 0.0 else delay)
     
     def step(self):
-        if self._running:
-            for target in self.values:
-                if target.active:
-                    self._pool.submit(target.set, self._tick)
-            if not self._pause:
-                self._tick += 1
+        for target in self.targets.values():
+            if target.active:
+                self._pool.submit(target.set, self.tick)
+        if not self._pause:
+            self.tick += 1
+    
+    def _step(self):
+        if self.running:
+            self.step()
     
     def pause(self):
         self._pause = True
     
     def resume(self):
         self._pause = False
-        self._running = True
+        self.running = True
     
     def reset(self):
-        self._tick = 0
+        self.tick = 0
     
     def stop(self):
-        self._running = False
+        self.running = False
+        self.reset()
     
     def terminate(self):
         self._terminate = True
+        self._pool.shutdown(wait = True)
