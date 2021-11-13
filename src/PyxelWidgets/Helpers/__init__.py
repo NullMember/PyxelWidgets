@@ -111,13 +111,10 @@ class Rectangle2D(Position2D, Dimension2D):
 
 class Pixel():
     def __init__(self, r: int = 0, g: int = 0, b: int = 0, a: float = 1.0) -> None:
-        r = int(r)
-        g = int(g)
-        b = int(b)
-        self.color = [0 if r < 0 else (255 if r > 255 else r),
-                     0 if g < 0 else (255 if g > 255 else g),
-                     0 if b < 0 else (255 if b > 255 else b)]
-        self.alpha = 0.0 if a < 0.0 else (a / 256.0 if a > 1.0 else float(a))
+        self.color = [0 if r < 0 else (255 if r > 255 else int(r)),
+                     0 if g < 0 else (255 if g > 255 else int(g)),
+                     0 if b < 0 else (255 if b > 255 else int(b))]
+        self.alpha = 0.0 if a < 0.0 else (1.0 if a > 1.0 else a)
         self._value = (int(self.alpha * 255) << 24) | (self.color[0] << 16) | (self.color[1] << 8) | self.color[2]
 
     @property
@@ -126,7 +123,7 @@ class Pixel():
 
     @a.setter
     def a(self, value: float) -> None:
-        self.alpha = 0.0 if value < 0.0 else (value / 256.0 if value > 1.0 else float(value))
+        self.alpha = 0.0 if value < 0.0 else (1.0 if value > 1.0 else value)
         self._value &= 0x00FFFFFF
         self._value |= (int(self.alpha * 255) << 24)
 
@@ -203,7 +200,7 @@ class Pixel():
     
     @property
     def mono(self) -> int:
-        return int((self.r + self.g + self.b) / 3)
+        return (self.r + self.g + self.b) // 3
 
     @property
     def value(self) -> int:
@@ -224,140 +221,71 @@ class Pixel():
         return numpy.argmin(dist_2)
 
     def __eq__(self, other) -> bool:
-        if isinstance(other, Pixel):
-            return self._value == other._value
-        elif isinstance(other, bool):
-            return bool(self) == other
-        elif isinstance(other, int):
-            return self._value == other
-        return False
+        return self._value == other._value
     
     def __ne__(self, other) -> bool:
-        if isinstance(other, Pixel):
-            return self._value != other._value
-        elif isinstance(other, bool):
-            return bool(self) != other
-        elif isinstance(other, int):
-            return self._value != other
-        return False
+        return self._value != other._value
     
     def __lt__(self, other) -> bool:
-        if isinstance(other, Pixel):
-            return self.l < other.l
-        return False
+        return self.l < other.l
     
     def __gt__(self, other) -> bool:
-        if isinstance(other, Pixel):
-            return self.l > other.l
-        return False
+        return self.l > other.l
     
     def __le__(self, other) -> bool:
-        if isinstance(other, Pixel):
-            result = [min(s, o) for s, o in zip(self.color, other.color)] + [min(self.alpha, other.alpha)]
-        elif isinstance(other, int):
-            result = [min(s, other) for s in self.color] + [self.alpha]
-        elif isinstance(other, float):
-            result = self.color + [min(self.alpha, other)]
-        else:
-            raise TypeError(f"should Pixel, int or float, not {type(other).__name__}")
+        result = [min(s, o) for s, o in zip(self.color, other.color)] + [min(self.alpha, other.alpha)]
         return Pixel(result[0], result[1], result[2], result[3])
 
     def __ge__(self, other) -> bool:
-        if isinstance(other, Pixel):
-            result = [max(s, o) for s, o in zip(self.color, other.color)] + [max(self.alpha, other.alpha)]
-        elif isinstance(other, int):
-            result = [max(s, other) for s in self.color] + [self.alpha]
-        elif isinstance(other, float):
-            result = self.color + [max(self.alpha, other)]
-        else:
-            raise TypeError(f"should Pixel, int or float, not {type(other).__name__}")
+        result = [max(s, o) for s, o in zip(self.color, other.color)] + [max(self.alpha, other.alpha)]
         return Pixel(result[0], result[1], result[2], result[3])
 
-    def __add__(self, other):
-        if isinstance(other, Pixel):
-            result = [s + o for s, o in zip(self.color, other.color)] + [self.alpha + other.alpha]
-        elif isinstance(other, int):
-            result = [s + other for s in self.color] + [self.alpha]
-        elif isinstance(other, float):
-            result = self.color + [self.alpha + other]
-        else:
-            raise TypeError(f"should Pixel, int or float, not {type(other).__name__}")
+    def __add__(self, other: int):
+        result = [s + o for s, o in zip(self.color, other.color)] + [self.alpha + other.alpha]
         return Pixel(result[0], result[1], result[2], result[3])
     
-    def __sub__(self, other):
-        if isinstance(other, Pixel):
-            result = [s - o for s, o in zip(self.color, other.color)] + [self.alpha - other.alpha]
-        elif isinstance(other, int):
-            result = [s - other for s in self.color] + [self.alpha]
-        elif isinstance(other, float):
-            result = self.color + [self.alpha - other]
-        else:
-            raise TypeError(f"should Pixel, int or float, not {type(other).__name__}")
+    def __sub__(self, other: int):
+        result = [s - o for s, o in zip(self.color, other.color)] + [self.alpha - other.alpha]
         return Pixel(result[0], result[1], result[2], result[3])
     
-    def __mul__(self, other):
-        if isinstance(other, Pixel):
-            result = [s * o for s, o in zip(self.color, other.color)] + [self.alpha * other.alpha]
-        elif isinstance(other, (int, float)):
-            result = [s * other for s in self.color] + [self.alpha]
-        else:
-            raise TypeError(f"should Pixel, int or float, not {type(other).__name__}")
+    def __mul__(self, other: float):
+        result = [s * other for s in self.color] + [self.alpha]
+        return Pixel(result[0], result[1], result[2], result[3])
+    
+    def __truediv__(self, other: float):
+        result = [s / other for s in self.color] + [self.alpha]
+        return Pixel(result[0], result[1], result[2], result[3])
+    
+    def __floordiv__(self, other: float):
+        result = [s // other for s in self.color] + [self.alpha]
         return Pixel(result[0], result[1], result[2], result[3])
 
-    def __mod__(self, other):
-        if isinstance(other, Pixel):
-            result = [s % o for s, o in zip(self.color, other.color)] + [self.alpha % other.alpha]
-        elif isinstance(other, int):
-            result = [s % other for s in self.color] + [self.alpha]
-        elif isinstance(other, float):
-            result = self.color + [self.alpha % other]
-        else:
-            raise TypeError(f"should Pixel, int or float, not {type(other).__name__}")
+    def __mod__(self, other: int):
+        result = [s % other for s in self.color] + [self.alpha]
         return Pixel(result[0], result[1], result[2], result[3])
 
     def __lshift__(self, other):
-        if isinstance(other, Pixel):
-            invalpha = 1.0 - self.alpha
-            alpha = self.alpha + (other.alpha * invalpha)
-            result = [int((s + (o * invalpha))) for s, o in zip(self.rgb, other.rgb)] + [alpha]
-        else:
-            raise TypeError(f"should Pixel, not {type(other).__name__}")
+        invalpha = 1.0 - self.alpha
+        alpha = self.alpha + (other.alpha * invalpha)
+        result = [int((s + (o * invalpha))) for s, o in zip(self.rgb, other.rgb)] + [alpha]
         return Pixel(result[0], result[1], result[2], result[3])
     
     def __rshift__(self, other):
-        if isinstance(other, Pixel):
-            invalpha = 1.0 - other.alpha
-            alpha = other.alpha + (self.alpha * invalpha)
-            result = [int((o + (s * invalpha))) for s, o in zip(self.rgb, other.rgb)] + [alpha]
-        else:
-            raise TypeError(f"should Pixel, not {type(other).__name__}")
+        invalpha = 1.0 - other.alpha
+        alpha = other.alpha + (self.alpha * invalpha)
+        result = [int((o + (s * invalpha))) for s, o in zip(self.rgb, other.rgb)] + [alpha]
         return Pixel(result[0], result[1], result[2], result[3])
 
-    def __and__(self, other):
-        if isinstance(other, Pixel):
-            result = [s & o for s, o in zip(self.color, other.color)] + [self.alpha]
-        elif isinstance(other, int):
-            result = [s & other for s in self.color] + [self.alpha]
-        else:
-            raise TypeError(f"should Pixel or int, not {type(other).__name__}")
+    def __and__(self, other: int):
+        result = [s & other for s in self.color] + [self.alpha]
         return Pixel(result[0], result[1], result[2], result[3])
 
-    def __or__(self, other):
-        if isinstance(other, Pixel):
-            result = [s | o for s, o in zip(self.color, other.color)] + [self.alpha]
-        elif isinstance(other, int):
-            result = [s | other for s in self.color] + [self.alpha]
-        else:
-            raise TypeError(f"should Pixel or int, not {type(other).__name__}")
+    def __or__(self, other: int):
+        result = [s | other for s in self.color] + [self.alpha]
         return Pixel(result[0], result[1], result[2], result[3])
     
     def __xor__(self, other):
-        if isinstance(other, Pixel):
-            result = [s ^ o for s, o in zip(self.color, other.color)] + [self.alpha]
-        elif isinstance(other, int):
-            result = [s ^ other for s in self.color] + [self.alpha]
-        else:
-            raise TypeError(f"should Pixel or int, not {type(other).__name__}")
+        result = [s ^ other for s in self.color] + [self.alpha]
         return Pixel(result[0], result[1], result[2], result[3])
 
     def __bool__(self):
