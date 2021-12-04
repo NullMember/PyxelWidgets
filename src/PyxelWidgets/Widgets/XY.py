@@ -4,7 +4,7 @@ import enum
 
 class XY(PyxelWidgets.Widgets.Widget):
 
-    class XYDirection(enum.Enum):
+    class Direction(enum.Enum):
         Vertical    = enum.auto()
         Horizontal  = enum.auto()
 
