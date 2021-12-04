@@ -13,6 +13,7 @@ class Controller():
         self.name = kwargs.get('name', f'Controller_{Controller._count}')
         self.rect = PyxelWidgets.Helpers.Rectangle2D(kwargs.get('x', 0), kwargs.get('y', 0), kwargs.get('width', 1), kwargs.get('height', 1))
         self.heldTime = kwargs.get('heldTime', 1.0)
+        self.initialized = False
         self.connected = False
         self.terminated = False
         self.buffer = numpy.ndarray((self.rect.w, self.rect.h), PyxelWidgets.Helpers.Pixel)
@@ -28,14 +29,15 @@ class Controller():
         self._callback = callback
 
     def init(self):
+        if self.initialized:
+            raise Exception(f'{self.name} already initialized')
         self.clock.start()
+        self.initialized = True
     
     def close(self):
         if self.connected:
             self.disconnect()
         self.clock.terminate()
-        while self.clock.is_alive():
-            pass
         self.terminated = True
 
     def connect(self):
@@ -81,7 +83,7 @@ class Controller():
     def updateOne(self, x: int, y: int, pixel: PyxelWidgets.Helpers.Pixel):
         if self.connected:
             intersect = self.rect.intersect(PyxelWidgets.Helpers.Rectangle2D(x, y, 1, 1))
-            if intersect:
+            if intersect is not None:
                 if pixel != self.buffer[x, y]:
                     self.buffer[x, y] = pixel
                     self.sendPixel(x, y, pixel)
@@ -89,7 +91,7 @@ class Controller():
     def updateRow(self, y: int, pixel: PyxelWidgets.Helpers.Pixel):
         if self.connected:
             intersect = self.rect.intersect(PyxelWidgets.Helpers.Rectangle2D(0, y, self.rect.w, 1))
-            if intersect:
+            if intersect is not None:
                 for x in intersect.columns:
                     if pixel != self.buffer[x, y]:
                         self.buffer[x, y] = pixel
@@ -98,7 +100,7 @@ class Controller():
     def updateColumn(self, x: int, pixel: PyxelWidgets.Helpers.Pixel):
         if self.connected:
             intersect = self.rect.intersect(PyxelWidgets.Helpers.Rectangle2D(x, 0, 1, self.rect.h))
-            if intersect:
+            if intersect is not None:
                 for y in intersect.rows:
                     if pixel != self.buffer[x, y]:
                         self.buffer[x, y] = pixel
@@ -107,7 +109,7 @@ class Controller():
     def updateArea(self, rect: PyxelWidgets.Helpers.Rectangle2D, pixel: PyxelWidgets.Helpers.Pixel):
         if self.connected:
             intersect = self.rect.intersect(rect)
-            if intersect:
+            if intersect is not None:
                 for x in intersect.columns:
                     for y in intersect.rows:
                         if pixel != self.buffer[x, y]:
@@ -118,7 +120,7 @@ class Controller():
         rect, buffer = data
         if self.connected:
             intersect = self.rect.intersect(rect)
-            if intersect:
+            if intersect is not None:
                 updated = numpy.where(buffer[(intersect - rect).slice] != self.buffer[intersect.slice], True, False)
                 self.buffer[intersect.slice] = numpy.where(updated, buffer[(intersect - rect).slice], self.buffer[intersect.slice])
                 for x in intersect.columns:
