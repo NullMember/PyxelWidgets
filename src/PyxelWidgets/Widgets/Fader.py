@@ -4,7 +4,7 @@ import enum
 
 class Fader(PyxelWidgets.Widgets.Widget):
 
-    class FaderDirection(enum.Enum):
+    class Direction(enum.Enum):
         """
         Description
         ----
@@ -19,7 +19,7 @@ class Fader(PyxelWidgets.Widgets.Widget):
         Vertical    = enum.auto()
         Horizontal  = enum.auto()
 
-    class FaderGrid(enum.Enum):
+    class Grid(enum.Enum):
         """
         Description
         ----
@@ -34,14 +34,14 @@ class Fader(PyxelWidgets.Widgets.Widget):
         Simple      = enum.auto()
         Matrix      = enum.auto()
 
-    class FaderType(enum.Enum):
+    class Type(enum.Enum):
         Single      = enum.auto()
         BoostCut    = enum.auto()
         Wrap        = enum.auto()
         Spread      = enum.auto()
         Collapse    = enum.auto()
 
-    class FaderMode(enum.Enum):
+    class Mode(enum.Enum):
         Simple      = enum.auto()
         Multi       = enum.auto()
         Magnitude   = enum.auto()
@@ -95,10 +95,10 @@ class Fader(PyxelWidgets.Widgets.Widget):
             Spread: Corresponding pads from middle active symmetrically.  
         """
         kwargs['name'] = kwargs.get('name', f'Fader_{Fader._count}')
-        self.direction = kwargs.get('direction', Fader.FaderDirection.Vertical)
-        self.grid = kwargs.get('grid', Fader.FaderGrid.Simple)
-        self.type = kwargs.get('type', Fader.FaderType.Wrap)
-        self.mode = kwargs.get('mode', Fader.FaderMode.Multi)
+        self.direction = kwargs.get('direction', Fader.Direction.Vertical)
+        self.grid = kwargs.get('grid', Fader.Grid.Simple)
+        self.type = kwargs.get('type', Fader.Type.Wrap)
+        self.mode = kwargs.get('mode', Fader.Mode.Multi)
         self.resolution = kwargs.get('resolution', 4)
         super().__init__(x, y, width, height, **kwargs)
         self._multiStep = 0
@@ -108,20 +108,20 @@ class Fader(PyxelWidgets.Widgets.Widget):
 
     def pressed(self, x: int, y: int, value: float):
         super().pressed(x, y, value)
-        if self.mode == Fader.FaderMode.Simple:
+        if self.mode == Fader.Mode.Simple:
             self.setValue(self._pressedSimple(x, y, value))
-        elif self.mode == Fader.FaderMode.Multi:
+        elif self.mode == Fader.Mode.Multi:
             self.setValue(self._pressedMulti(x, y, value))
-        elif self.mode == Fader.FaderMode.Magnitude:
+        elif self.mode == Fader.Mode.Magnitude:
             self.setValue(self._pressedMagnitude(x, y, value))
-        elif self.mode == Fader.FaderMode.Sensitive:
+        elif self.mode == Fader.Mode.Sensitive:
             self.setValue(self._pressedSensitive(x, y, value))
-        elif self.mode == Fader.FaderMode.Relative:
+        elif self.mode == Fader.Mode.Relative:
             self.setValue(self._pressedRelative(x, y, value))
         self.updated = True
     
     def _pressedSimple(self, x, y, value):
-        if self.type == Fader.FaderType.BoostCut:
+        if self.type == Fader.Type.BoostCut:
             if self._minV[x][y] < 0.5:
                 return self._minV[x][y]
             else:
@@ -130,7 +130,7 @@ class Fader(PyxelWidgets.Widgets.Widget):
             return self._minV[x][y]
 
     def _pressedMulti(self, x, y, value):
-        if self.type == Fader.FaderType.BoostCut:
+        if self.type == Fader.Type.BoostCut:
             if self._minV[x][y] < 0.5:
                 if self._oldButton[0] == x and self._oldButton[1] == y:
                     self._multiStep = (self._multiStep - 1) % self.resolution
@@ -145,7 +145,7 @@ class Fader(PyxelWidgets.Widgets.Widget):
                     self._oldButton = [x, y]
                     self._multiStep = 0
                 return self._calcFaderValue(x, y, self._multiStep / self.resolution)
-        elif self.type == Fader.FaderType.Collapse:
+        elif self.type == Fader.Type.Collapse:
             if self._oldButton[0] == x and self._oldButton[1] == y:
                 self._multiStep = (self._multiStep - 1) % self.resolution
             else:
@@ -164,12 +164,12 @@ class Fader(PyxelWidgets.Widgets.Widget):
         return self._calcFaderValue(x, y, self._calcFaderMagnitude(x, y))
 
     def _pressedSensitive(self, x, y, value):
-        if self.type == Fader.FaderType.BoostCut:
+        if self.type == Fader.Type.BoostCut:
             if self._minV[x][y] < 0.5:
                 return self._calcFaderValue(x, y, 1.0 - value)
             else:
                 return self._calcFaderValue(x, y, value)
-        elif self.type == Fader.FaderType.Collapse:
+        elif self.type == Fader.Type.Collapse:
             return self._calcFaderValue(x, y, 1.0 - value)
         else:
             return self._calcFaderValue(x, y, value)
@@ -183,7 +183,7 @@ class Fader(PyxelWidgets.Widgets.Widget):
 
     def held(self, x: int, y: int, value: float):
         super().held(x, y, value)
-        if self.mode != Fader.FaderMode.Relative:
+        if self.mode != Fader.Mode.Relative:
             if x == 0 and y == 0:
                 self.setValue(0.0)
             elif x == self.rect.w - 1 and y == self.rect.h - 1:
@@ -208,7 +208,7 @@ class Fader(PyxelWidgets.Widgets.Widget):
                 for y in area.rows:
                     minV = self._minV[x][y]
                     maxV = self._maxV[x][y]
-                    if self.type == Fader.FaderType.Single:
+                    if self.type == Fader.Type.Single:
                         # if current pad lower than last pressed pad
                         if maxV <= self._value:
                             self.buffer[x, y] = self.deactiveColor
@@ -219,7 +219,7 @@ class Fader(PyxelWidgets.Widgets.Widget):
                         else:
                             coefficient = min(self._calcPixelCoefficient(self._value - minV) + self._calcPixelStep(), 1.0)
                             self.buffer[x, y] = self.activeColor * coefficient
-                    elif self.type == Fader.FaderType.BoostCut:
+                    elif self.type == Fader.Type.BoostCut:
                         # if last pressed pad in upper half
                         if self._value > 0.5:
                             # if current pad in lower half
@@ -263,7 +263,7 @@ class Fader(PyxelWidgets.Widgets.Widget):
                             # unlit every other pad
                             else:
                                 self.buffer[x, y] = self.deactiveColor
-                    elif self.type == Fader.FaderType.Wrap:
+                    elif self.type == Fader.Type.Wrap:
                         # if current pad lower than last pressed pad
                         if maxV <= self._value:
                             self.buffer[x, y] = self.activeColor
@@ -274,7 +274,7 @@ class Fader(PyxelWidgets.Widgets.Widget):
                         else:
                             coefficient = min(self._calcPixelCoefficient(self._value - minV) + self._calcPixelStep(), 1.0)
                             self.buffer[x, y] = self.activeColor * coefficient
-                    elif self.type == Fader.FaderType.Spread:
+                    elif self.type == Fader.Type.Spread:
                         # if current pad in upper half
                         if minV >= 0.5:
                             # if current pad higher than current value
@@ -299,7 +299,7 @@ class Fader(PyxelWidgets.Widgets.Widget):
                             else:
                                 coefficient = 1.0 - self._calcPixelCoefficient((1.0 - halfvalpluspointfive) - minV)
                                 self.buffer[x, y] = self.activeColor * coefficient
-                    elif self.type == Fader.FaderType.Collapse:
+                    elif self.type == Fader.Type.Collapse:
                         # if current pad in upper half
                         if minV >= 0.5:
                             # if current pad lower than current value
@@ -343,56 +343,56 @@ class Fader(PyxelWidgets.Widgets.Widget):
     """
     def _calcFaderValue(self, x: int, y: int, value: float) -> float:
         """Calculate fader value from pad location"""
-        if self.grid == Fader.FaderGrid.Simple:
-            if self.direction == Fader.FaderDirection.Vertical:
+        if self.grid == Fader.Grid.Simple:
+            if self.direction == Fader.Direction.Vertical:
                 return round(((y / self.rect.h) + (value / self.rect.h)), 6)
-            elif self.direction == Fader.FaderDirection.Horizontal:
+            elif self.direction == Fader.Direction.Horizontal:
                 return round(((x / self.rect.w) + (value / self.rect.w)), 6)
-        elif self.grid == Fader.FaderGrid.Matrix:
-            if self.direction == Fader.FaderDirection.Vertical:
+        elif self.grid == Fader.Grid.Matrix:
+            if self.direction == Fader.Direction.Vertical:
                 base = (x / (self.rect.h * self.rect.w)) + (y / self.rect.h)
-            elif self.direction == Fader.FaderDirection.Horizontal:
+            elif self.direction == Fader.Direction.Horizontal:
                 base = (y / (self.rect.h * self.rect.w)) + (x / self.rect.w)
             return round(base + (value / (self.rect.w * self.rect.h)), 6)
     
     def _calcFaderMagnitude(self, x: int, y: int) -> float:
         """Calculate pad magnitude from pad location"""
-        if self.grid == Fader.FaderGrid.Simple:
-            if self.direction == Fader.FaderDirection.Vertical:
+        if self.grid == Fader.Grid.Simple:
+            if self.direction == Fader.Direction.Vertical:
                 return self._calcFaderValue(x, y, y / (self.rect.h - 1))
-            elif self.direction == Fader.FaderDirection.Horizontal:
+            elif self.direction == Fader.Direction.Horizontal:
                 return self._calcFaderValue(x, y, x / (self.rect.w - 1))
-        elif self.grid == Fader.FaderGrid.Matrix:
-            if self.direction == Fader.FaderDirection.Vertical:
+        elif self.grid == Fader.Grid.Matrix:
+            if self.direction == Fader.Direction.Vertical:
                 base = (x / ((self.rect.h * self.rect.w) - 1)) + (y / (self.rect.h - 1))
-            elif self.direction == Fader.FaderDirection.Horizontal:
+            elif self.direction == Fader.Direction.Horizontal:
                 base = (y / ((self.rect.h * self.rect.w) - 1)) + (x / (self.rect.w - 1))
             return self._calcFaderValue(x, y, base)
     
     def _calcPixelCoefficient(self, value: float) -> float:
         """Calculate pixel coefficient for different fader options"""
-        if self.grid == Fader.FaderGrid.Simple:
-            if self.direction == Fader.FaderDirection.Vertical:
+        if self.grid == Fader.Grid.Simple:
+            if self.direction == Fader.Direction.Vertical:
                 return (value * self.rect.h)
-            elif self.direction == Fader.FaderDirection.Horizontal:
+            elif self.direction == Fader.Direction.Horizontal:
                 return (value * self.rect.w)
-        elif self.grid == Fader.FaderGrid.Matrix:
+        elif self.grid == Fader.Grid.Matrix:
             return (value * (self.rect.h * self.rect.w))
     
     def _calcPixelStep(self):
-        if self.mode == Fader.FaderMode.Simple:
+        if self.mode == Fader.Mode.Simple:
             return 0.5
-        elif self.mode == Fader.FaderMode.Multi:
+        elif self.mode == Fader.Mode.Multi:
             return 1.0 / self.resolution
-        elif self.mode == Fader.FaderMode.Magnitude:
+        elif self.mode == Fader.Mode.Magnitude:
             return 1.0 / 256
-        elif self.mode == Fader.FaderMode.Sensitive:
+        elif self.mode == Fader.Mode.Sensitive:
             return 1.0 / 256
-        elif self.mode == Fader.FaderMode.Relative:
-            if self.grid == Fader.FaderGrid.Simple:
-                if self.direction == Fader.FaderDirection.Vertical:
+        elif self.mode == Fader.Mode.Relative:
+            if self.grid == Fader.Grid.Simple:
+                if self.direction == Fader.Direction.Vertical:
                     return 1.0/ self.rect.h
-                elif self.direction == Fader.FaderDirection.Horizontal:
+                elif self.direction == Fader.Direction.Horizontal:
                     return 1.0 / self.rect.w
-            elif self.grid == Fader.FaderGrid.Matrix:
+            elif self.grid == Fader.Grid.Matrix:
                 return 1.0 / (self.rect.w * self.rect.h)
