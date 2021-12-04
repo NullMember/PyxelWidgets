@@ -54,7 +54,7 @@ class Knob(PyxelWidgets.Widgets.Widget):
         halfval = self._value / 2.0
         halfvalpluspointfive = halfval + 0.5
         intersect = self.rect.intersect(rect)
-        if intersect:
+        if intersect is not None:
             area = intersect - self.rect
             for x in area.columns:
                 for y in area.rows:
@@ -146,7 +146,7 @@ class Knob(PyxelWidgets.Widgets.Widget):
                             else:
                                 self.buffer[x, y] = self.deactiveColor
             return intersect, self.buffer[area.slice]
-        return None
+        return None, None
     
     def _resize(self, width, height):
         self.perimeter = self._calcPerimeter(width, height)

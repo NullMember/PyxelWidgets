@@ -20,7 +20,7 @@ class Sprite(PyxelWidgets.Widgets.Widget):
     def updateArea(self, rect: PyxelWidgets.Helpers.Rectangle2D):
         self.updated = False
         intersect = self.rect.intersect(rect)
-        if intersect:
+        if intersect is not None:
             area = intersect - self.rect
             self.buffer = self.frames[self.nextFrame]
             if self.animate:
@@ -33,4 +33,4 @@ class Sprite(PyxelWidgets.Widgets.Widget):
                         self.nextFrame = 0
                 self.updated = True
             return intersect, self.buffer[area.slice]
-        return None
+        return None, None

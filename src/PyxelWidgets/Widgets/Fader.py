@@ -202,7 +202,7 @@ class Fader(PyxelWidgets.Widgets.Widget):
         halfval = self._value / 2.0
         halfvalpluspointfive = halfval + 0.5
         intersect = self.rect.intersect(rect)
-        if intersect:
+        if intersect is not None:
             area = intersect - self.rect
             for x in area.columns:
                 for y in area.rows:
@@ -325,7 +325,7 @@ class Fader(PyxelWidgets.Widgets.Widget):
                                 coefficient = 1.0 - self._calcPixelCoefficient(halfval - minV)
                                 self.buffer[x, y] = self.activeColor * coefficient
             return intersect, self.buffer[area.slice]
-        return None
+        return None, None
 
     def _resize(self, width, height):
         self._minV = [[self._calcFaderValue(x, y, 0.0) for y in range(height)] for x in range(width)]

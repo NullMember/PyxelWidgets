@@ -40,7 +40,7 @@ class Sequencer(PyxelWidgets.Widgets.Widget):
     def updateArea(self, rect: PyxelWidgets.Helpers.Rectangle2D):
         self.updated = False
         intersect = self.rect.intersect(rect)
-        if intersect:
+        if intersect is not None:
             area = intersect - self.rect
             tickX = self._tickX()
             tickY = self._tickY()
@@ -55,7 +55,7 @@ class Sequencer(PyxelWidgets.Widgets.Widget):
             else:
                 self.buffer[tickX, tickY] = self.currentColor
             return intersect, self.buffer[area.slice]
-        return None
+        return None, None
     
     def _resize(self, width, height):
         self._tickTarget = width * height

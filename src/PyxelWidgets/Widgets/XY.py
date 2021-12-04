@@ -50,7 +50,7 @@ class XY(PyxelWidgets.Widgets.Widget):
     def updateArea(self, rect: PyxelWidgets.Helpers.Rectangle2D):
         self.updated = False
         intersect = self.rect.intersect(rect)
-        if intersect:
+        if intersect is not None:
             area = intersect - self.rect
             xColor = self.xColor * self._value[0]
             yColor = self.yColor * self._value[1]
@@ -79,7 +79,7 @@ class XY(PyxelWidgets.Widgets.Widget):
                     else:
                         self.buffer[x, y] = self.deactiveColor
             return intersect, self.buffer[area.l:area.r, area.b:area.t]
-        return None
+        return None, None
 
     def _resize(self, width, height) -> bool:
         self._minV = [[self._calcXYValue(x, y, 0.0) for y in range(height)] for x in range(width)]
