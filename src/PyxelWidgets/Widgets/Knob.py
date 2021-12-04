@@ -4,7 +4,7 @@ import enum
 
 class Knob(PyxelWidgets.Widgets.Widget):
 
-    class KnobType(enum.Enum):
+    class Type(enum.Enum):
         Single      = enum.auto()
         BoostCut    = enum.auto()
         Wrap        = enum.auto()
@@ -15,7 +15,7 @@ class Knob(PyxelWidgets.Widgets.Widget):
         kwargs['name'] = kwargs.get('name', f'Knob_{Knob._count}')
         super().__init__(x, y, width, height, **kwargs)
         self.coefficient = kwargs.get('coefficient', 0.05)
-        self.type = kwargs.get('type', Knob.KnobType.Wrap)
+        self.type = kwargs.get('type', Knob.Type.Wrap)
         self.state = False
         self._held = [-1, -1]
         Knob._count += 1
@@ -64,7 +64,7 @@ class Knob(PyxelWidgets.Widgets.Widget):
                     if index == -1:
                         self.buffer[x, y] = PyxelWidgets.Helpers.Colors.Invisible
                     else:
-                        if self.type == Knob.KnobType.Single:
+                        if self.type == Knob.Type.Single:
                             if maxV < self._value:
                                 self.buffer[x, y] = self.deactiveColor
                             elif minV > self._value:
@@ -72,7 +72,7 @@ class Knob(PyxelWidgets.Widgets.Widget):
                             else:
                                 coefficient = self._calcPixelCoefficient(self._value - minV)
                                 self.buffer[x, y] = self.activeColor * coefficient
-                        elif self.type == Knob.KnobType.BoostCut:
+                        elif self.type == Knob.Type.BoostCut:
                             if self._value > 0.5:
                                 if minV < 0.5:
                                     self.buffer[x, y] = self.deactiveColor
@@ -100,7 +100,7 @@ class Knob(PyxelWidgets.Widgets.Widget):
                                     self.buffer[x, y] = self.activeColor
                                 else:
                                     self.buffer[x, y] = self.deactiveColor
-                        elif self.type == Knob.KnobType.Wrap:
+                        elif self.type == Knob.Type.Wrap:
                             if maxV <= self._value:
                                 self.buffer[x, y] = self.activeColor
                             elif minV > self._value:
@@ -108,7 +108,7 @@ class Knob(PyxelWidgets.Widgets.Widget):
                             else:
                                 coefficient = self._calcPixelCoefficient(self._value - minV)
                                 self.buffer[x, y] = self.activeColor * coefficient
-                        elif self.type == Knob.KnobType.Spread:
+                        elif self.type == Knob.Type.Spread:
                             if minV >= 0.5:
                                 if minV > halfvalpluspointfive:
                                     self.buffer[x, y] = self.deactiveColor
@@ -125,7 +125,7 @@ class Knob(PyxelWidgets.Widgets.Widget):
                                 else:
                                     coefficient = 1.0 - self._calcPixelCoefficient((1.0 - halfvalpluspointfive) - minV)
                                     self.buffer[x, y] = self.activeColor * coefficient
-                        elif self.type == Knob.KnobType.Collapse:
+                        elif self.type == Knob.Type.Collapse:
                             if halfval < 0.5:
                                 if maxV <= 0.5:
                                     if minV > halfval:
