@@ -4,7 +4,7 @@ import enum
 
 class Button(PyxelWidgets.Widgets.Widget):
 
-    class ButtonMode(enum.Enum):
+    class Type(enum.Enum):
         Button  = enum.auto()
         Switch  = enum.auto()
         Mixed   = enum.auto()
@@ -12,23 +12,23 @@ class Button(PyxelWidgets.Widgets.Widget):
     def __init__(self, x: int, y: int, width: int, height: int, **kwargs):
         kwargs['name'] = kwargs.get('name', f'Button_{Button._count}')
         super().__init__(x, y, width, height, **kwargs)
-        self.mode = kwargs.get('mode', Button.ButtonMode.Button)
+        self.mode = kwargs.get('mode', Button.Type.Button)
         self.hold = False
         self.state = False
         Button._count += 1
 
     def pressed(self, x: int, y: int, value: float):
         super().pressed(x, y, value)
-        if self.mode == Button.ButtonMode.Button:
+        if self.mode == Button.Type.Button:
             self.setValue(value)
-        elif self.mode == Button.ButtonMode.Switch:
+        elif self.mode == Button.Type.Switch:
             if self.state:
                 self.setValue(0.0)
                 self.state = False
             else:
                 self.setValue(value)
                 self.state = True
-        elif self.mode == Button.ButtonMode.Mixed:
+        elif self.mode == Button.Type.Mixed:
             if self.hold:
                 return
             else:
@@ -37,11 +37,11 @@ class Button(PyxelWidgets.Widgets.Widget):
     
     def released(self, x: int, y: int, value: float):
         super().released(x, y, value)
-        if self.mode == Button.ButtonMode.Button:
+        if self.mode == Button.Type.Button:
             self.setValue(0.0)
-        elif self.mode == Button.ButtonMode.Switch:
+        elif self.mode == Button.Type.Switch:
             pass
-        elif self.mode == Button.ButtonMode.Mixed:
+        elif self.mode == Button.Type.Mixed:
             if self.hold:
                 return
             else:
@@ -49,7 +49,7 @@ class Button(PyxelWidgets.Widgets.Widget):
     
     def held(self, x: int, y: int, value: float):
         super().held(x, y, value)
-        if self.mode == Button.ButtonMode.Mixed:
+        if self.mode == Button.Type.Mixed:
             self.hold = not self.hold
 
     def updateArea(self, rect: PyxelWidgets.Helpers.Rectangle2D):
