@@ -1,4 +1,4 @@
-__all__ = ['Button', 'Fader', 'Knob', 'Sequencer', 'Sprite', 'XY', 'Extra']
+__all__ = ['Button', 'ButtonGroup', 'Fader', 'Keyboard', 'Knob', 'Sequencer', 'Sprite', 'XY']
 
 import PyxelWidgets.Helpers
 import uuid
@@ -177,8 +177,8 @@ class Widget:
         """
         self._callback(self.name, 'held', (x, y))
     
-    def updateArea(self, area: PyxelWidgets.Helpers.Rectangle2D) -> tuple:
-        return area, self.buffer[area.slice]
+    def updateArea(self, rect: PyxelWidgets.Helpers.Rectangle2D) -> tuple:
+        return rect, self.buffer[rect.slice]
 
     def update(self) -> tuple:
         """
