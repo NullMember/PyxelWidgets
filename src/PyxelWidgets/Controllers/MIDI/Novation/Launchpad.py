@@ -1,10 +1,10 @@
-import PyxelWidgets.Controller.MIDI
+import PyxelWidgets.Controllers.MIDI
 import PyxelWidgets.Helpers
 import collections
 import enum
 import numpy
 
-class MK1(PyxelWidgets.Controller.MIDI.MIDI):
+class MK1(PyxelWidgets.Controllers.MIDI.MIDI):
 
     class Layout(enum.Enum):
         Reset   = 0
@@ -55,7 +55,7 @@ class MK1(PyxelWidgets.Controller.MIDI.MIDI):
             y = 8
             self.setButton(x, y, midi[2] / 127.0)
 
-class MK2(PyxelWidgets.Controller.MIDI.MIDI):
+class MK2(PyxelWidgets.Controllers.MIDI.MIDI):
     """
     Controller class for Launchpad MK2
     """
@@ -131,7 +131,7 @@ class MK2(PyxelWidgets.Controller.MIDI.MIDI):
             self.sendSysex(self._header + [3] + list(self._sysexBuffer))
             self._sysexBuffer.clear()
 
-class MK3(PyxelWidgets.Controller.MIDI.MIDI):
+class MK3(PyxelWidgets.Controllers.MIDI.MIDI):
     """
     Controller class for Launchpad Mini MK3, Launchpad X, Launchpad Pro MK3
     """
@@ -258,7 +258,7 @@ class MK3(PyxelWidgets.Controller.MIDI.MIDI):
             self.sendSysex(self._header + [3] + list(self._sysexBuffer))
             self._sysexBuffer.clear()
 
-class Pro(PyxelWidgets.Controller.MIDI.MIDI):
+class Pro(PyxelWidgets.Controllers.MIDI.MIDI):
     """
     Controller class for Launchpad Pro (first version)
     """

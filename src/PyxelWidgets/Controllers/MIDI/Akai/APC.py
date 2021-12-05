@@ -1,8 +1,8 @@
-import PyxelWidgets.Controller.MIDI
+import PyxelWidgets.Controllers.MIDI
 import PyxelWidgets.Helpers
 import enum
 
-class Mini(PyxelWidgets.Controller.MIDI.MIDI):
+class Mini(PyxelWidgets.Controllers.MIDI.MIDI):
     """
     Akai APC Mini Controller class
     ------------------------------

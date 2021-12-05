@@ -1,11 +1,11 @@
 __all__ = []
 
-import PyxelWidgets.Controller.MIDI
+import PyxelWidgets.Controllers.MIDI
 import PyxelWidgets.Helpers
 import enum
 import numpy
 
-class Push2(PyxelWidgets.Controller.MIDI.MIDI):
+class Push2(PyxelWidgets.Controllers.MIDI.MIDI):
     
     class Mode(enum.Enum):
         Live = 0

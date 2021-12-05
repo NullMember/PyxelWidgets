@@ -6,9 +6,9 @@ import pythonosc.osc_server
 import pythonosc.osc_bundle_builder
 import pythonosc.osc_message_builder
 import threading
-import PyxelWidgets.Controller
+import PyxelWidgets.Controllers
 
-class OSC(PyxelWidgets.Controller.Controller):
+class OSC(PyxelWidgets.Controllers.Controller):
     def __init__(self, ip, in_port = 8000, out_port = 9000, **kwargs):
         super().__init__(**kwargs)
         self.client = pythonosc.udp_client.SimpleUDPClient(ip, out_port)

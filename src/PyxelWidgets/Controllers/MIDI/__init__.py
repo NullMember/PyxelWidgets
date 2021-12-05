@@ -1,13 +1,13 @@
 __all__ = ['Akai', 'Novation', 'Presonus']
 
-import PyxelWidgets.Controller
+import PyxelWidgets.Controllers
 import rtmidi.midiutil
 
 class InvalidMIDIPortException(Exception):
     def __init__(self, *args: object) -> None:
         super().__init__("MIDI Port Invalid", *args)
 
-class MIDI(PyxelWidgets.Controller.Controller):
+class MIDI(PyxelWidgets.Controllers.Controller):
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
         self._midiInput = None
@@ -65,22 +65,22 @@ class MIDI(PyxelWidgets.Controller.Controller):
         self._midiOutput.send_message([240] + message + [247])
     
     def sendNoteOff(self, note, velocity = 0, channel = 0):
-        self._midiOutput.send_message([0x80 | channel, note, velocity])
+        self._midiOutput.send_message([0x80 | channel, note & 0x7F, velocity & 0x7F])
 
     def sendNoteOn(self, note, velocity, channel = 0):
-        self._midiOutput.send_message([0x90 | channel, note, velocity])
+        self._midiOutput.send_message([0x90 | channel, note & 0x7F, velocity & 0x7F])
 
     def sendAftertouch(self, note, velocity, channel = 0):
-        self._midiOutput.send_message([0xA0 | channel, note, velocity])
+        self._midiOutput.send_message([0xA0 | channel, note & 0x7F, velocity & 0x7F])
     
     def sendControlChange(self, control, value, channel = 0):
-        self._midiOutput.send_message([0xB0 | channel, control, value])
+        self._midiOutput.send_message([0xB0 | channel, control & 0x7F, value & 0x7F])
     
     def sendProgramChange(self, program, channel = 0):
-        self._midiOutput.send_message([0xC0 | channel, program])
+        self._midiOutput.send_message([0xC0 | channel, program & 0x7F])
     
     def sendChannelAftertouch(self, velocity, channel = 0):
-        self._midiOutput.send_message([0xD0 | channel, velocity])
+        self._midiOutput.send_message([0xD0 | channel, velocity & 0x7F])
     
     def sendPitchBend(self, bend, channel = 0):
         self._midiOutput.send_message([0xE0 | channel, bend & 0x7F, (bend >> 7) & 0x7F])

@@ -1,9 +1,9 @@
-import PyxelWidgets.Controller.MIDI
+import PyxelWidgets.Controllers.MIDI
 import PyxelWidgets.Helpers
 import enum
 import numpy
 
-class MK1(PyxelWidgets.Controller.MIDI.MIDI):
+class MK1(PyxelWidgets.Controllers.MIDI.MIDI):
     """ 
     Controller Class for Launchkey MK1 serie controllers
     """
@@ -106,7 +106,7 @@ class MK1(PyxelWidgets.Controller.MIDI.MIDI):
             else:
                 self.setCustom('changed', MK1.Controls(midi[1]).name, midi[2] / 127)
 
-class MK2(PyxelWidgets.Controller.MIDI.MIDI):
+class MK2(PyxelWidgets.Controllers.MIDI.MIDI):
 
     class Mode(enum.Enum):
         Basic = 0
@@ -194,7 +194,7 @@ class MK2(PyxelWidgets.Controller.MIDI.MIDI):
                 y = 7 - (midi[1] // 0x10)
                 self.setButton(x, y, midi[2] / 127.0)
 
-class MK3(PyxelWidgets.Controller.MIDI.MIDI):
+class MK3(PyxelWidgets.Controllers.MIDI.MIDI):
 
     class Mode(enum.Enum):
         Other = 0

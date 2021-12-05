@@ -1,10 +1,10 @@
 __all__ = []
 
-import PyxelWidgets.Controller.MIDI
+import PyxelWidgets.Controllers.MIDI
 import PyxelWidgets.Helpers
 import enum
 
-class ATOM(PyxelWidgets.Controller.MIDI.MIDI):
+class ATOM(PyxelWidgets.Controllers.MIDI.MIDI):
 
     class Controls(enum.Enum):
         Encoder1 = 14
