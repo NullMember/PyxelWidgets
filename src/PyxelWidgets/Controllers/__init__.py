@@ -1,7 +1,7 @@
 __all__ = ['OSC', 'MIDI']
 
 import PyxelWidgets.Helpers
-import PyxelWidgets.Util.Clock
+import PyxelWidgets.Utils.Clock
 import numpy
 import threading
 
@@ -20,7 +20,7 @@ class Controller():
         self.buffer.fill(PyxelWidgets.Helpers.Colors.Invisible)
         self.buttons = numpy.ndarray((self.rect.w, self.rect.h))
         self.buttons.fill(0.0)
-        self.clock = PyxelWidgets.Util.Clock.Clock()
+        self.clock = PyxelWidgets.Utils.Clock.Clock()
         self._held = numpy.ndarray((self.rect.w, self.rect.h), threading.Timer)
         self._callback = lambda *_, **__ : None
         Controller._count += 1
