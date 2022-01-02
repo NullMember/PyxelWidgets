@@ -1,8 +1,8 @@
-__all__ = ['Controller', 'Helpers', 'Util', 'Widgets']
+__all__ = ['Controllers', 'Helpers', 'Utils', 'Widgets']
 
 import PyxelWidgets.Helpers
 import PyxelWidgets.Widgets
-import PyxelWidgets.Controller
+import PyxelWidgets.Controllers
 import traceback
 import numpy
 
@@ -26,7 +26,12 @@ class Window():
         for widget in widgets:
             self.widgets[widget.name] = widget
     
+    def removeWidget(self, name: str):
+        if name in self.widgets:
+            self.widgets.pop(name)
+    
     def forceUpdate(self):
+        self.buffer.fill(PyxelWidgets.Helpers.Colors.Invisible)
         for widget in self.widgets.values():
             widget.updated = True
 
@@ -39,6 +44,21 @@ class Window():
                     if widget.rect.collide(b):
                         widget.process(name, event, data)
 
+    def updateArea(self, rect: PyxelWidgets.Helpers.Rectangle2D):
+        intersect = self.rect.intersect(rect)
+        if intersect:
+            for widget in self.widgets.values():
+                if widget.updated:
+                    area, buffer = widget.updateArea(intersect)
+                    if buffer is not None:
+                        try:
+                            view = self.buffer[area.slice]
+                            view[:] = numpy.where(buffer == False, view, buffer)
+                        except BaseException as e:
+                            traceback.print_exc()
+                            print("Unexpected exception", e)
+        return intersect, self.buffer[intersect.slice]
+
     def update(self):
         for widget in self.widgets.values():
             if widget.updated:
@@ -47,10 +67,10 @@ class Window():
                     try:
                         view = self.buffer[area.slice]
                         view[:] = numpy.where(buffer == False, view, buffer)
-                    except Exception as e:
+                    except BaseException as e:
                         traceback.print_exc()
                         print("Unexpected exception", e)
-        return self.rect, self.buffer[self.rect.l:self.rect.r, self.rect.b:self.rect.t]
+        return self.rect, self.buffer[self.rect.slice]
 
 class Manager():
 
@@ -67,7 +87,7 @@ class Manager():
     
     def destroy(self):
         for controller in list(self.controllers):
-            self.controllers[controller]['controller'].disconnect()
+            self.controllers[controller]['controller'].close()
             self.removeController(controller)
 
     def addWindow(self, window: Window, x: int, y: int, width: int, height: int) -> None:
@@ -79,11 +99,10 @@ class Manager():
         if name in self.windows:
             self.windows.pop(name)
 
-    def addController(self, controller: PyxelWidgets.Controller.Controller, x: int, y: int):
+    def addController(self, controller: PyxelWidgets.Controllers.Controller, x: int, y: int):
         self.controllers[controller.name] = {}
         self.controllers[controller.name]['controller'] = controller
         self.controllers[controller.name]['rect'] = PyxelWidgets.Helpers.Rectangle2D(x, y, controller.rect.w, controller.rect.h)
-        controller.connect()
         controller.setCallback(self.process)
     
     def removeController(self, name):
@@ -104,12 +123,13 @@ class Manager():
 
     def update(self):
         for window in list(self.windows.values()):
-            wr = window['rect']
-            intersect = self.rect.intersect(wr)
+            intersect = self.rect.intersect(window['rect'])
             if intersect:
-                rect, buffer = window['window'].update()
-                update = intersect - self.rect
-                self.buffer[update.slice] = buffer[:wr.w, :wr.h]
+                rect, buffer = window['window'].updateArea(intersect.origin)
+                if rect is not None:
+                    update = rect + intersect
+                    self.buffer[update.slice] = buffer[rect.slice]
+        self.buffer = numpy.where(self.buffer == PyxelWidgets.Helpers.Colors.Invisible, PyxelWidgets.Helpers.Colors.Black, self.buffer)
         for controller in list(self.controllers.values()):
             intersect = self.rect.intersect(controller['rect'])
             if intersect:
