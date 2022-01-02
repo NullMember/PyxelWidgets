@@ -1,24 +1,27 @@
 import PyxelWidgets.Widgets
 import PyxelWidgets.Helpers
-import PyxelWidgets.Util.Clock
+import PyxelWidgets.Utils.Clock
+import numpy
 
 class Sequencer(PyxelWidgets.Widgets.Widget):
-    def __init__(self, x: int, y: int, width: int, height: int, clock: PyxelWidgets.Util.Clock.Clock = None, **kwargs):
+    def __init__(self, x: int, y: int, width: int, height: int, clock: PyxelWidgets.Utils.Clock.Clock = None, **kwargs):
         kwargs['name'] = kwargs.get('name', f'Sequencer_{Sequencer._count}')
+        self.state = numpy.ndarray((1, 1), dtype = numpy.bool8)
+        self._tickTarget = 1
+        self._tick = 0
         super().__init__(x, y, width, height, **kwargs)
-        self.active = [[False for y in range(self.rect.h)] for x in range(self.rect.w)]
+        self.state.fill(False)
         self.numerator = kwargs.get('numerator', 1.0)
         self.denominator = kwargs.get('denominator', 4.0)
         self.ppq = kwargs.get('ppq', 24)
         self.currentColor = kwargs.get('currentColor', PyxelWidgets.Helpers.Colors.Lime)
         self.currentActiveColor = kwargs.get('currentActiveColor', PyxelWidgets.Helpers.Colors.Red)
-        self._tick = 0
-        self.target = PyxelWidgets.Util.Clock.Target(self.tick)
+        self.target = PyxelWidgets.Utils.Clock.Target(self.tick)
         if clock != None:
             self.addToClock(clock)
         Sequencer._count += 1
     
-    def addToClock(self, clock: PyxelWidgets.Util.Clock.Clock):
+    def addToClock(self, clock: PyxelWidgets.Utils.Clock.Clock):
         self.ppq = clock.ppq
         clock.addTarget(self.target)
 
@@ -33,9 +36,12 @@ class Sequencer(PyxelWidgets.Widgets.Widget):
                 self._callback(self.name, 'active', int(self._tick))
 
     def pressed(self, x: int, y: int, value: float):
-        self.active[x][y] = not self.active[x][y]
+        self.state[x, y] = not self.state[x, y]
         self.updated = True
         super().pressed(x, y, value)
+
+    def reset(self):
+        self.state.fill(False)
 
     def updateArea(self, rect: PyxelWidgets.Helpers.Rectangle2D):
         self.updated = False
@@ -44,12 +50,7 @@ class Sequencer(PyxelWidgets.Widgets.Widget):
             area = intersect - self.rect
             tickX = self._tickX()
             tickY = self._tickY()
-            for x in area.columns:
-                for y in area.rows:
-                    if self.active[x][y]:
-                        self.buffer[x, y] = self.activeColor
-                    else:
-                        self.buffer[x, y] = self.deactiveColor
+            self.buffer[area.slice] = numpy.where(self.state[area.slice] == True, self.activeColor, self.deactiveColor)
             if self.buffer[tickX, tickY] == self.activeColor:
                 self.buffer[tickX, tickY] = self.currentActiveColor
             else:
@@ -58,7 +59,9 @@ class Sequencer(PyxelWidgets.Widgets.Widget):
         return None, None
     
     def _resize(self, width, height):
+        self.state.resize((width, height), refcheck = False)
         self._tickTarget = width * height
+        self._tick %= self._tickTarget
         return True
     
     def _calcTickPosition(self, x, y):
@@ -71,4 +74,4 @@ class Sequencer(PyxelWidgets.Widgets.Widget):
         return self.rect.h - (int(self._tick) // self.rect.w) - 1
     
     def _isTickActive(self):
-        return self.active[self._tickX()][self._tickY()]
+        return self.state[self._tickX()][self._tickY()]
