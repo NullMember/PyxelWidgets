@@ -48,7 +48,6 @@ class Widget:
         self.id = uuid.uuid1()
         self.name = kwargs.get('name', f'Widget_{Widget._count}')
         self.rect = PyxelWidgets.Helpers.Rectangle2D(x, y, width, height)
-        self._resize(self.rect.w, self.rect.h)
         self.activeColor = kwargs.get('activeColor', PyxelWidgets.Helpers.Colors.White)
         self.deactiveColor = kwargs.get('deactiveColor', PyxelWidgets.Helpers.Colors.Black)
         self.delta = 0.0
@@ -59,6 +58,7 @@ class Widget:
         self._value = kwargs.get('value', 0.0)
         self._oldValue = self._value
         self._callback = kwargs.get('callback', lambda *_, **__: None)
+        self._resize(self.rect.w, self.rect.h)
 
     @property
     def width(self) -> int:
