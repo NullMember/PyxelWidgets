@@ -8,43 +8,43 @@ class Keyboard(PyxelWidgets.Widgets.Widget):
     _count = 0
 
     class Mode(enum.Enum):
-        Keyboard            = enum.auto()
-        ChromaticVertical   = enum.auto()
-        ChromaticHorizontal = enum.auto()
-        Diatonic            = enum.auto()
-        DiatonicVertical    = enum.auto()
-        DiatonicHorizontal  = enum.auto()
+        Keyboard            = 0
+        ChromaticVertical   = 1
+        ChromaticHorizontal = 2
+        Diatonic            = 3
+        DiatonicVertical    = 4
+        DiatonicHorizontal  = 5
 
     class Scale(enum.Enum):
-        Major           = enum.auto()
-        Minor           = enum.auto()
-        Dorian          = enum.auto()
-        Mixolydian      = enum.auto()
-        Lydian          = enum.auto()
-        Phrygian        = enum.auto()
-        Locrian         = enum.auto()
-        Diminished      = enum.auto()
-        WholeHalf       = enum.auto()
-        WholeTone       = enum.auto()
-        MinorBlues      = enum.auto()
-        MinorPentatonic = enum.auto()
-        MajorPentatonic = enum.auto()
-        MinorHarmonic   = enum.auto()
-        MinorMelodic    = enum.auto()
+        Major           = 0
+        Minor           = 1
+        Dorian          = 2
+        Mixolydian      = 3
+        Lydian          = 4
+        Phrygian        = 5
+        Locrian         = 6
+        Diminished      = 7
+        WholeHalf       = 8
+        WholeTone       = 9
+        MinorBlues      = 10
+        MinorPentatonic = 11
+        MajorPentatonic = 12
+        MinorHarmonic   = 13
+        MinorMelodic    = 14
 
     class Tone(enum.Enum):
-        C   = enum.auto()
-        CS  = enum.auto()
-        D   = enum.auto()
-        DS  = enum.auto()
-        E   = enum.auto()
-        F   = enum.auto()
-        FS  = enum.auto()
-        G   = enum.auto()
-        GS  = enum.auto()
-        A   = enum.auto()
-        AS  = enum.auto()
-        B   = enum.auto()
+        C   = 0
+        CS  = 1
+        D   = 2
+        DS  = 3
+        E   = 4
+        F   = 5
+        FS  = 6
+        G   = 7
+        GS  = 8
+        A   = 9
+        AS  = 10
+        B   = 11
 
     Scales = {
         'Major': [0, 2, 4, 5, 7, 9, 11],
@@ -167,16 +167,18 @@ class Keyboard(PyxelWidgets.Widgets.Widget):
 
     def pressed(self, x: int, y: int, value: float):
         super().pressed(x, y, value)
-        for button in self.buttons[self.notes[x, y]]:
-            self.states[button[0], button[1]] = True
+        if self.notes[x, y] >= 0:
+            for button in self.buttons[self.notes[x, y]]:
+                self.states[button[0], button[1]] = True
         self._callback(self.name, 'changed', (self.notes[x, y], 1.0))
         self.updated = True
         
     
     def released(self, x: int, y: int, value: float):
         super().released(x, y, value)
-        for button in self.buttons[self.notes[x, y]]:
-            self.states[button[0], button[1]] = False
+        if self.notes[x, y] >= 0:
+            for button in self.buttons[self.notes[x, y]]:
+                self.states[button[0], button[1]] = False
         self._callback(self.name, 'changed', (self.notes[x, y], 0.0))
         self.updated = True
     
@@ -193,6 +195,8 @@ class Keyboard(PyxelWidgets.Widgets.Widget):
                             self.buffer[x, y] = self.activeColor
                         else:
                             self.buffer[x, y] = self.colors[note]
+                    else:
+                        self.buffer[x, y] = self.deactiveColor
             return intersect, self.buffer[area.slice]
         return None, None
 
