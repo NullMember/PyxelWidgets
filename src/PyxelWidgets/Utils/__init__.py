@@ -1,1 +1,1 @@
-__all__ = ['Clock']
+__all__ = ['Clock', 'Parser']
