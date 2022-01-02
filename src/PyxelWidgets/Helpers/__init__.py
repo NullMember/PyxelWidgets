@@ -111,10 +111,21 @@ class Rectangle2D(Position2D, Dimension2D):
 
 class Pixel():
     def __init__(self, r: int = 0, g: int = 0, b: int = 0, a: float = 1.0) -> None:
+        self.alpha = 0.0 if a < 0.0 else (1.0 if a > 1.0 else a)
+        
         self.color = [0 if r < 0 else (255 if r > 255 else int(r)),
                      0 if g < 0 else (255 if g > 255 else int(g)),
                      0 if b < 0 else (255 if b > 255 else int(b))]
-        self.alpha = 0.0 if a < 0.0 else (1.0 if a > 1.0 else a)
+
+        self.acolor = [int(self.color[0] * self.alpha),
+                       int(self.color[1] * self.alpha),
+                       int(self.color[2] * self.alpha)]
+
+        self.gammaCoefficient = ((1.0 / 255.0) ** 2.2) * 255
+        self.gcolor = [int((self.acolor[0] ** 2.2) * self.gammaCoefficient),
+                       int((self.acolor[1] ** 2.2) * self.gammaCoefficient),
+                       int((self.acolor[2] ** 2.2) * self.gammaCoefficient)]
+        
         self._value = (int(self.alpha * 255) << 24) | (self.color[0] << 16) | (self.color[1] << 8) | self.color[2]
 
     @property
@@ -124,54 +135,96 @@ class Pixel():
     @a.setter
     def a(self, value: float) -> None:
         self.alpha = 0.0 if value < 0.0 else (1.0 if value > 1.0 else value)
+
+        self.acolor = [int(self.color[0] * self.alpha),
+                       int(self.color[1] * self.alpha),
+                       int(self.color[2] * self.alpha)]
+
+        self.gammaCoefficient = ((1.0 / 256.0) ** 2.2) * 256.0
+        self.gcolor = [int((self.acolor[0] ** 2.2) * self.gammaCoefficient),
+                       int((self.acolor[1] ** 2.2) * self.gammaCoefficient),
+                       int((self.acolor[2] ** 2.2) * self.gammaCoefficient)]
+        
         self._value &= 0x00FFFFFF
         self._value |= (int(self.alpha * 255) << 24)
 
     @property
     def rgb(self):
-        return self.r, self.g, self.b
-    
+        # Raw (red, green, blue) tuple
+        return self.color[0], self.color[1], self.color[2]
+
     @property
     def frgb(self):
-        return self.r / 256.0, self.g / 256.0, self.b / 256.0
+        # Raw float (red, green, blue) tuple
+        return self.color[0] / 256.0, self.color[1] / 256.0, self.color[2] / 256.0
+
+    @property
+    def argb(self):
+        # Alpha blended (red, green, blue) tuple
+        return self.acolor[0], self.acolor[1], self.acolor[2]
+    
+    @property
+    def fargb(self):
+        # Alpha blended float (red, green, blue) tuple
+        return self.acolor[0] / 256.0, self.acolor[1] / 256.0, self.acolor[2] / 256.0
+
+    @property
+    def grgb(self):
+        # Alpha blended and gamma corrected (red, green, blue) tuple
+        return self.gcolor[0], self.gcolor[1], self.gcolor[2]
+    
+    @property
+    def fgrgb(self):
+        # Alpha blended and gamma corrected float (red, green, blue) tuple
+        return self.gcolor[0] / 256.0, self.gcolor[1] / 256.0, self.gcolor[2] / 256.0
 
     @property
     def r(self) -> int:
-        return int(self.color[0] * self.alpha)
+        # Raw red color
+        return self.color[0]
     
     @r.setter
     def r(self, value: int) -> None:
         value = int(value)
         self.color[0] = 0 if value < 0 else (255 if value > 255 else value)
+        self.acolor[0] = int(self.color[0] * self.alpha)
+        self.gcolor[0] = int((self.acolor[0] ** 2.2) * self.gammaCoefficient)
         self._value &= 0xFF00FFFF
         self._value |= self.color[0] << 16
 
     @property
     def g(self) -> int:
-        return int(self.color[1] * self.alpha)
+        # Raw green color
+        return self.color[1]
     
     @g.setter
     def g(self, value: int) -> None:
         value = int(value)
         self.color[1] = 0 if value < 0 else (255 if value > 255 else value)
+        self.acolor[1] = int(self.color[1] * self.alpha)
+        self.gcolor[1] = int((self.acolor[1] ** 2.2) * self.gammaCoefficient)
         self._value &= 0xFFFF00FF
         self._value |= self.color[1] << 8
 
     @property
     def b(self) -> int:
-        return int(self.color[2] * self.alpha)
+        # Raw blue color
+        return self.color[2]
     
     @b.setter
     def b(self, value: int) -> None:
         value = int(value)
         self.color[2] = 0 if value < 0 else (255 if value > 255 else value)
+        self.acolor[2] = int(self.color[2] * self.alpha)
+        self.gcolor[2] = int((self.acolor[2] ** 2.2) * self.gammaCoefficient)
         self._value &= 0xFFFFFF00
         self._value |= self.color[0]
 
     @property
     def h(self) -> int:
+        # Hue value calculated from alpha blended rgb
         h = 0.0
-        rgb = self.frgb
+        rgb = self.fargb
         minV = min(rgb)
         maxV = max(rgb)
         if maxV == rgb[0]:
@@ -184,7 +237,8 @@ class Pixel():
 
     @property
     def s(self) -> float:
-        rgb = self.frgb
+        # Saturation value calculated from alpha blended rgb
+        rgb = self.fargb
         minV = min(rgb)
         maxV = max(rgb)
         if self.l <= 0.5:
@@ -193,30 +247,50 @@ class Pixel():
 
     @property
     def l(self) -> float:
-        rgb = self.frgb
+        # Luminance value calculated from alpha blended rgb
+        rgb = self.fargb
         minV = min(rgb)
         maxV = max(rgb)
         return (maxV + minV) / 2.0
     
     @property
     def mono(self) -> int:
-        return (self.r + self.g + self.b) // 3
+        # Linear monophonic color calculated from alpha blended rgb
+        return int((self.acolor[0] * 0.2126) + (self.acolor[1] * 0.7152) + (self.acolor[2] * 0.0722))
+    
+    @property
+    def gmono(self) -> int:
+        # Linear monophonic color calculated from alpha blended rgb then applied gamma correction
+        return int((((self.acolor[0] * 0.2126) ** 2.2) * self.gammaCoefficient) + 
+                   (((self.acolor[1] * 0.7152) ** 2.2) * self.gammaCoefficient) + 
+                   (((self.acolor[2] * 0.0722) ** 2.2) * self.gammaCoefficient))
 
     @property
     def value(self) -> int:
+        # Raw 32-bit rgba value
         return self._value
     
     @value.setter
     def value(self, value: int) -> None:
         self._value = value & 0xFFFFFFFF
         self.alpha = ((self._value >> 24) & 0xFF) / 255.0
+
         self.color[0] = (self._value >> 16) & 0xFF
         self.color[1] = (self._value >> 8) & 0xFF
         self.color[2] = self._value & 0xFF
+        
+        self.acolor = [int(self.color[0] * self.alpha),
+                       int(self.color[1] * self.alpha),
+                       int(self.color[2] * self.alpha)]
+        
+        self.gcolor = [int((self.acolor[0] ** 2.2) * self.gammaCoefficient),
+                       int((self.acolor[1] ** 2.2) * self.gammaCoefficient),
+                       int((self.acolor[2] ** 2.2) * self.gammaCoefficient)]
     
     def findInPalette(self, palette):
+        # Find in palette using alpha blended rgb value
         palette = numpy.asarray(palette)
-        deltas = palette - self.rgb
+        deltas = palette - self.argb
         dist_2 = numpy.einsum('ij,ij->i', deltas, deltas)
         return numpy.argmin(dist_2)
 
@@ -267,13 +341,13 @@ class Pixel():
     def __lshift__(self, other):
         invalpha = 1.0 - self.alpha
         alpha = self.alpha + (other.alpha * invalpha)
-        result = [int((s + (o * invalpha))) for s, o in zip(self.rgb, other.rgb)] + [alpha]
+        result = [int((s + (o * invalpha))) for s, o in zip(self.color, other.color)] + [alpha]
         return Pixel(result[0], result[1], result[2], result[3])
     
     def __rshift__(self, other):
         invalpha = 1.0 - other.alpha
         alpha = other.alpha + (self.alpha * invalpha)
-        result = [int((o + (s * invalpha))) for s, o in zip(self.rgb, other.rgb)] + [alpha]
+        result = [int((o + (s * invalpha))) for s, o in zip(self.color, other.color)] + [alpha]
         return Pixel(result[0], result[1], result[2], result[3])
 
     def __and__(self, other: int):
