@@ -58,10 +58,10 @@ class ATOM(PyxelWidgets.Controllers.MIDI.MIDI):
     
     def sendPixel(self, x: int, y: int, pixel: PyxelWidgets.Helpers.Pixel):
         index = 36 + x + (y * 4)
-        pixel = pixel * 0.5
-        self.sendNoteOn(index, pixel.r, 1)
-        self.sendNoteOn(index, pixel.g, 2)
-        self.sendNoteOn(index, pixel.b, 3)
+        rgb = pixel.grgb
+        self.sendNoteOn(index, rgb[0] >> 1, 1)
+        self.sendNoteOn(index, rgb[1] >> 1, 2)
+        self.sendNoteOn(index, rgb[2] >> 1, 3)
     
     def processMIDI(self, message, _):
         midi, delta = message

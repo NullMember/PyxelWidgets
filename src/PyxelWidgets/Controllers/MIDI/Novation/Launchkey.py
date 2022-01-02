@@ -69,7 +69,7 @@ class MK1(PyxelWidgets.Controllers.MIDI.MIDI):
         self.sendNoteOn(control.value, 0x00, 0xF)
 
     def sendPixel(self, x: int, y: int, pixel: PyxelWidgets.Helpers.Pixel):
-        colorIndex = pixel.mono // 32
+        colorIndex = pixel.gmono // 32
         index = 0
         if y == 0:
             index = 0x70 + x

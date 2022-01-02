@@ -25,7 +25,7 @@ class MK1(PyxelWidgets.Controllers.MIDI.MIDI):
         self.sendControlChange(0, layout.value)
 
     def sendPixel(self, x: int, y: int, pixel: PyxelWidgets.Helpers.Pixel):
-        colorIndex = pixel.mono // 32
+        colorIndex = pixel.gmono // 32
         if y < 8:
             index = (x + (0x70 - (y * 0x10))) & 0x7F
             self.sendNoteOn(index, MK1.colors[colorIndex])
@@ -79,8 +79,8 @@ class MK2(PyxelWidgets.Controllers.MIDI.MIDI):
 
     def sendPixel(self, x: int, y: int, pixel: PyxelWidgets.Helpers.Pixel):
         index = (x + (y * 10)) & 0x7F
-        pixel = pixel * 0.25
-        self._sysexBuffer.extend([3, index, pixel.r, pixel.g, pixel.b])
+        rgb = pixel.grgb
+        self._sysexBuffer.extend([3, index, rgb[0] >> 2, rgb[1] >> 2, rgb[2] >> 2])
 
     def connect(self, inPort: str = None, outPort: str = None):
         super().connect(inPort=inPort, outPort=outPort)
@@ -209,7 +209,8 @@ class MK3(PyxelWidgets.Controllers.MIDI.MIDI):
 
     def sendPixel(self, x: int, y: int, pixel: PyxelWidgets.Helpers.Pixel):
         index = (x + (y * 10)) & 0x7F
-        self._sysexBuffer.extend([3, index, pixel.r >> 1, pixel.g >> 1, pixel.b >> 1])
+        rgb = pixel.grgb
+        self._sysexBuffer.extend([3, index, rgb[0] >> 1, rgb[1] >> 1, rgb[2] >> 1])
 
     def connect(self, inPort: str = None, outPort: str = None):
         super().connect(inPort=inPort, outPort=outPort)
@@ -280,8 +281,8 @@ class Pro(PyxelWidgets.Controllers.MIDI.MIDI):
     
     def sendPixel(self, x: int, y: int, pixel: PyxelWidgets.Helpers.Pixel):
         index = (x + (y * 10)) & 0x7F
-        pixel = pixel * 0.25
-        self._sysexBuffer.extend([3, index, pixel.r, pixel.g, pixel.b])
+        rgb = pixel.grgb
+        self._sysexBuffer.extend([3, index, rgb[0] >> 2, rgb[1] >> 2, rgb[2] >> 2])
 
     def connect(self, inPort: str = None, outPort: str = None):
         super().connect(inPort=inPort, outPort=outPort)
