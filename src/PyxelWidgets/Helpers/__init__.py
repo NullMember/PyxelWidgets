@@ -150,37 +150,37 @@ class Pixel():
 
     @property
     def rgb(self):
-        # Raw (red, green, blue) tuple
+        """ Raw (red, green, blue) tuple """
         return self.color[0], self.color[1], self.color[2]
 
     @property
     def frgb(self):
-        # Raw float (red, green, blue) tuple
+        """ Raw float (red, green, blue) tuple """
         return self.color[0] / 256.0, self.color[1] / 256.0, self.color[2] / 256.0
 
     @property
     def argb(self):
-        # Alpha blended (red, green, blue) tuple
+        """ Alpha blended (red, green, blue) tuple """
         return self.acolor[0], self.acolor[1], self.acolor[2]
     
     @property
     def fargb(self):
-        # Alpha blended float (red, green, blue) tuple
+        """ Alpha blended float (red, green, blue) tuple """
         return self.acolor[0] / 256.0, self.acolor[1] / 256.0, self.acolor[2] / 256.0
 
     @property
     def grgb(self):
-        # Alpha blended and gamma corrected (red, green, blue) tuple
+        """ Alpha blended and gamma corrected (red, green, blue) tuple """
         return self.gcolor[0], self.gcolor[1], self.gcolor[2]
     
     @property
     def fgrgb(self):
-        # Alpha blended and gamma corrected float (red, green, blue) tuple
+        """ Alpha blended and gamma corrected float (red, green, blue) tuple """
         return self.gcolor[0] / 256.0, self.gcolor[1] / 256.0, self.gcolor[2] / 256.0
 
     @property
     def r(self) -> int:
-        # Raw red color
+        """ Raw red color """
         return self.color[0]
     
     @r.setter
@@ -194,7 +194,7 @@ class Pixel():
 
     @property
     def g(self) -> int:
-        # Raw green color
+        """ Raw green color """
         return self.color[1]
     
     @g.setter
@@ -208,7 +208,7 @@ class Pixel():
 
     @property
     def b(self) -> int:
-        # Raw blue color
+        """ Raw blue color """
         return self.color[2]
     
     @b.setter
@@ -222,7 +222,7 @@ class Pixel():
 
     @property
     def h(self) -> int:
-        # Hue value calculated from alpha blended rgb
+        """ Hue value calculated from alpha blended rgb """
         h = 0.0
         rgb = self.fargb
         minV = min(rgb)
@@ -237,7 +237,7 @@ class Pixel():
 
     @property
     def s(self) -> float:
-        # Saturation value calculated from alpha blended rgb
+        """ Saturation value calculated from alpha blended rgb """
         rgb = self.fargb
         minV = min(rgb)
         maxV = max(rgb)
@@ -247,7 +247,7 @@ class Pixel():
 
     @property
     def l(self) -> float:
-        # Luminance value calculated from alpha blended rgb
+        """ Luminance value calculated from alpha blended rgb """
         rgb = self.fargb
         minV = min(rgb)
         maxV = max(rgb)
@@ -255,19 +255,19 @@ class Pixel():
     
     @property
     def mono(self) -> int:
-        # Linear monophonic color calculated from alpha blended rgb
+        """ Linear monophonic color calculated from alpha blended rgb """
         return int((self.acolor[0] * 0.2126) + (self.acolor[1] * 0.7152) + (self.acolor[2] * 0.0722))
     
     @property
     def gmono(self) -> int:
-        # Linear monophonic color calculated from alpha blended rgb then applied gamma correction
+        """ Linear monophonic color calculated from alpha blended rgb then applied gamma correction """
         return int((((self.acolor[0] * 0.2126) ** 2.2) * self.gammaCoefficient) + 
                    (((self.acolor[1] * 0.7152) ** 2.2) * self.gammaCoefficient) + 
                    (((self.acolor[2] * 0.0722) ** 2.2) * self.gammaCoefficient))
 
     @property
     def value(self) -> int:
-        # Raw 32-bit rgba value
+        """ Raw 32-bit rgba value """
         return self._value
     
     @value.setter
@@ -288,7 +288,7 @@ class Pixel():
                        int((self.acolor[2] ** 2.2) * self.gammaCoefficient)]
     
     def findInPalette(self, palette):
-        # Find in palette using alpha blended rgb value
+        """ Find in palette using alpha blended rgb value """
         palette = numpy.asarray(palette)
         deltas = palette - self.argb
         dist_2 = numpy.einsum('ij,ij->i', deltas, deltas)
