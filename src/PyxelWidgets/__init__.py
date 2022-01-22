@@ -3,7 +3,6 @@ __all__ = ['Controllers', 'Helpers', 'Utils', 'Widgets']
 import PyxelWidgets.Helpers
 import PyxelWidgets.Widgets
 import PyxelWidgets.Controllers
-import traceback
 import numpy
 
 class Window():
@@ -51,12 +50,8 @@ class Window():
                 if widget.updated:
                     area, buffer = widget.updateArea(intersect)
                     if buffer is not None:
-                        try:
-                            view = self.buffer[area.slice]
-                            view[:] = numpy.where(buffer == False, view, buffer)
-                        except BaseException as e:
-                            traceback.print_exc()
-                            print("Unexpected exception", e)
+                        view = self.buffer[area.slice]
+                        view[:] = numpy.where(buffer == False, view, buffer)
         return intersect, self.buffer[intersect.slice]
 
     def update(self):
@@ -64,12 +59,8 @@ class Window():
             if widget.updated:
                 area, buffer = widget.updateArea(self.rect)
                 if buffer is not None:
-                    try:
-                        view = self.buffer[area.slice]
-                        view[:] = numpy.where(buffer == False, view, buffer)
-                    except BaseException as e:
-                        traceback.print_exc()
-                        print("Unexpected exception", e)
+                    view = self.buffer[area.slice]
+                    view[:] = numpy.where(buffer == False, view, buffer)
         return self.rect, self.buffer[self.rect.slice]
 
 class Manager():
