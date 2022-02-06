@@ -1,4 +1,4 @@
-__all__ = ['Button', 'ButtonGroup', 'Fader', 'Keyboard', 'Knob', 'Sequencer', 'Sprite', 'XY']
+__all__ = ['Button', 'ButtonGroup', 'Fader', 'Keyboard', 'Knob', 'Sequencer', 'Sprite', 'Tracker', 'XY']
 
 import PyxelWidgets.Helpers
 import uuid
