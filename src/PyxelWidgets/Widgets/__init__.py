@@ -1,6 +1,7 @@
 __all__ = ['Button', 'ButtonGroup', 'Fader', 'Keyboard', 'Knob', 'Sequencer', 'Sprite', 'Tracker', 'XY']
 
 import PyxelWidgets.Helpers
+import PyxelWidgets.Utils.Effect
 import uuid
 import numpy
 
@@ -51,7 +52,8 @@ class Widget:
         self.activeColor = kwargs.get('activeColor', PyxelWidgets.Helpers.Colors.White)
         self.deactiveColor = kwargs.get('deactiveColor', PyxelWidgets.Helpers.Colors.Black)
         self.delta = 0.0
-        self.updated = True
+        self.effect = None
+        self.bufferUpdated = True
         self.buffer = numpy.ndarray((self.rect.w, self.rect.h), PyxelWidgets.Helpers.Pixel)
         self.buffer.fill(self.deactiveColor)
         self.lock = False
@@ -59,6 +61,20 @@ class Widget:
         self._oldValue = self._value
         self._callback = kwargs.get('callback', lambda *_, **__: None)
         self._resize(self.rect.w, self.rect.h)
+
+    @property
+    def updated(self) -> bool:
+        return self.bufferUpdated or (self.effect is not None)
+    
+    @updated.setter
+    def updated(self, state: bool) -> None:
+        self.bufferUpdated = state
+
+    def addEffect(self, effect: PyxelWidgets.Utils.Effect.Effect):
+        self.effect = effect
+
+    def removeEffect(self):
+        self.effect = None
 
     @property
     def width(self) -> int:
