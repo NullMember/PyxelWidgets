@@ -65,17 +65,17 @@ class Controller():
     def setPressed(self, x: int, y: int) -> None:
         self._held[x, y] = threading.Timer(interval = self.heldTime, function = self.setHeld, args = (x, y))
         self._held[x, y].start()
-        self._callback(self.name, 'pressed', (x, y, self.buttons[x, y]))
+        self._callback(self.name, PyxelWidgets.Helpers.Event.Pressed, (x, y, self.buttons[x, y]))
     
     def setReleased(self, x: int, y: int) -> None:
         self._held[x, y].cancel()
-        self._callback(self.name, 'released', (x, y, self.buttons[x, y]))
+        self._callback(self.name, PyxelWidgets.Helpers.Event.Released, (x, y, self.buttons[x, y]))
     
     def setHeld(self, x: int, y: int) -> None:
-        self._callback(self.name, 'held', (x, y, self.buttons[x, y]))
+        self._callback(self.name, PyxelWidgets.Helpers.Event.Held, (x, y, self.buttons[x, y]))
     
     def setCustom(self, event, name, value):
-        self._callback(self.name, 'custom', (name, event, value))
+        self._callback(self.name, PyxelWidgets.Helpers.Event.Custom, (name, event, value))
 
     def sendPixel(self, x: int, y: int, pixel: PyxelWidgets.Helpers.Pixel):
         raise NotImplementedError("sendPixel method must be implemented")

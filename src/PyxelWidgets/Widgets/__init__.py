@@ -72,7 +72,7 @@ class Widget:
                 self.buffer.resize((self.rect.w, self.rect.h), refcheck = False)
                 self.buffer = numpy.where(self.buffer == 0, self.deactiveColor, self.buffer)
                 self.updated = True
-                self._callback(self.name, 'resized', (self.rect.w, self.rect.h))
+                self._callback(self.name, PyxelWidgets.Helpers.Event.Resized, (self.rect.w, self.rect.h))
 
     @property
     def height(self) -> int:
@@ -86,7 +86,7 @@ class Widget:
                 self.buffer.resize((self.rect.w, self.rect.h), refcheck = False)
                 self.buffer = numpy.where(self.buffer == 0, self.deactiveColor, self.buffer)
                 self.updated = True
-                self._callback(self.name, 'resized', (self.rect.w, self.rect.h))
+                self._callback(self.name, PyxelWidgets.Helpers.Event.Resized, (self.rect.w, self.rect.h))
 
     @property
     def value(self) -> float:
@@ -105,22 +105,22 @@ class Widget:
         if not self.lock:
             self.value = value
             if self.updated:
-                self._callback(self.name, 'changed', self._value)
+                self._callback(self.name, PyxelWidgets.Helpers.Event.Changed, self._value)
 
     def setCallback(self, callback) -> None:
         self._callback = callback
 
     def process(self, name, event, data):
-        if event != 'custom':
+        if event != PyxelWidgets.Helpers.Event.Custom:
             x, y, value = data
             btn = PyxelWidgets.Helpers.Rectangle2D(x, y)
             if btn.collide(self.rect):
                 btn = btn - self.rect
-                if event == 'pressed':
+                if event == PyxelWidgets.Helpers.Event.Pressed:
                     self.pressed(btn.x, btn.y, value)
-                elif event == 'released':
+                elif event == PyxelWidgets.Helpers.Event.Released:
                     self.released(btn.x, btn.y, value)
-                elif event == 'held':
+                elif event == PyxelWidgets.Helpers.Event.Held:
                     self.held(btn.x, btn.y, value)
 
     def pressed(self, x: int, y: int, value: float):
@@ -140,7 +140,7 @@ class Widget:
             Value of the pressed button, useful for velocity sensitive pads
              Could be 1 for non velocity sensitive pads
         """
-        self._callback(self.name, 'pressed', (x, y))
+        self._callback(self.name, PyxelWidgets.Helpers.Event.Pressed, (x, y))
     
     def released(self, x: int, y: int, value: float):
         """
@@ -159,7 +159,7 @@ class Widget:
             Value of the released button, useful for velocity sensitive pads
              Could be 0 for non velocity sensitive pads
         """
-        self._callback(self.name, 'released', (x, y))
+        self._callback(self.name, PyxelWidgets.Helpers.Event.Released, (x, y))
     
     def held(self, x: int, y: int, value: float):
         """
@@ -175,7 +175,7 @@ class Widget:
         y: int
             y axis of button location on Widget
         """
-        self._callback(self.name, 'held', (x, y))
+        self._callback(self.name, PyxelWidgets.Helpers.Event.Held, (x, y))
     
     def updateArea(self, rect: PyxelWidgets.Helpers.Rectangle2D) -> tuple:
         return rect, self.buffer[rect.slice]

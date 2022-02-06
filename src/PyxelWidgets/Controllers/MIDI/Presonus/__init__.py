@@ -77,11 +77,11 @@ class ATOM(PyxelWidgets.Controllers.MIDI.MIDI):
             value = midi[2]
             if control > 17:
                 if value > 0.0:
-                    self.setCustom('pressed', ATOM.Controls(control).name, 1.0)
+                    self.setCustom(PyxelWidgets.Helpers.Event.Pressed, ATOM.Controls(control).name, 1.0)
                 else:
-                    self.setCustom('released', ATOM.Controls(control).name, 0.0)
+                    self.setCustom(PyxelWidgets.Helpers.Event.Released, ATOM.Controls(control).name, 0.0)
             else:
                 if value == 1:
-                    self.setCustom('incremented', ATOM.Controls(control).name, 1.0)
+                    self.setCustom(PyxelWidgets.Helpers.Event.Increased, ATOM.Controls(control).name, 1.0)
                 elif value == 65:
-                    self.setCustom('decremented', ATOM.Controls(control).name, -1.0)
+                    self.setCustom(PyxelWidgets.Helpers.Event.Decreased, ATOM.Controls(control).name, -1.0)

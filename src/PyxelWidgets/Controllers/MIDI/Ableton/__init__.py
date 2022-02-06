@@ -202,20 +202,20 @@ class Push2(PyxelWidgets.Controllers.MIDI.MIDI):
                     self.setButton(x, y, midi[2] / 127.0)
             else:
                 if midi[2] > 0:
-                    self.setCustom('touched', Push2.Notes(midi[1]).name, midi[2] / 127.0)
+                    self.setCustom(PyxelWidgets.Helpers.Event.Touched, Push2.Notes(midi[1]).name, midi[2] / 127.0)
                 else:
-                    self.setCustom('released', Push2.Notes(midi[1]).name, 0.0)
+                    self.setCustom(PyxelWidgets.Helpers.Event.Released, Push2.Notes(midi[1]).name, 0.0)
         if cmd == 0xB0:
             name = Push2.Controls(midi[1]).name
             if 'Encoder' in name:
                 if midi[2] & 0x30:
                     value = -((midi[2] ^ 0x7F) + 1)
-                    self.setCustom('decreased', name, value)
+                    self.setCustom(PyxelWidgets.Helpers.Event.Decreased, name, value)
                 else:
                     value = midi[2]
-                    self.setCustom('increased', name, value)
+                    self.setCustom(PyxelWidgets.Helpers.Event.Increased, name, value)
             else:
                 if midi[2] > 0:
-                    self.setCustom('pressed', name, midi[2] / 127.0)
+                    self.setCustom(PyxelWidgets.Helpers.Event.Pressed, name, midi[2] / 127.0)
                 else:
-                    self.setCustom('released', name, 0.0)
+                    self.setCustom(PyxelWidgets.Helpers.Event.Released, name, 0.0)

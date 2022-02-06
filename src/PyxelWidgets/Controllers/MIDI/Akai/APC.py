@@ -75,13 +75,13 @@ class Mini(PyxelWidgets.Controllers.MIDI.MIDI):
                 y = midi[1] // 8
                 self.setButton(x, y, 0.0)
             else:
-                self.setCustom('released', Mini.Notes(midi[1]).name, 0.0)
+                self.setCustom(PyxelWidgets.Helpers.Event.Released, Mini.Notes(midi[1]).name, 0.0)
         elif cmd == 0x90:
             if midi[1] < 64:
                 x = midi[1] % 8
                 y = midi[1] // 8
                 self.setButton(x, y, 1.0)
             else:
-                self.setCustom('pressed', Mini.Notes(midi[1]).name, 1.0)
+                self.setCustom(PyxelWidgets.Helpers.Event.Pressed, Mini.Notes(midi[1]).name, 1.0)
         elif cmd == 0xB0:
-            self.setCustom('changed', Mini.Controls(midi[1]).name, midi[2] / 127.0)
+            self.setCustom(PyxelWidgets.Helpers.Event.Changed, Mini.Controls(midi[1]).name, midi[2] / 127.0)

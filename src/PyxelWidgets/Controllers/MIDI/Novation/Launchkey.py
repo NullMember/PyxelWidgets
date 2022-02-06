@@ -100,11 +100,11 @@ class MK1(PyxelWidgets.Controllers.MIDI.MIDI):
         if cmd == 0xB0:
             if midi[1] > 50:
                 if midi[2] > 0:
-                    self.setCustom('pressed', MK1.Controls(midi[1]).name, 1.0)
+                    self.setCustom(PyxelWidgets.Helpers.Event.Pressed, MK1.Controls(midi[1]).name, 1.0)
                 else:
-                    self.setCustom('released', MK1.Controls(midi[1]).name, 0.0)
+                    self.setCustom(PyxelWidgets.Helpers.Event.Released, MK1.Controls(midi[1]).name, 0.0)
             else:
-                self.setCustom('changed', MK1.Controls(midi[1]).name, midi[2] / 127)
+                self.setCustom(PyxelWidgets.Helpers.Event.Changed, MK1.Controls(midi[1]).name, midi[2] / 127)
 
 class MK2(PyxelWidgets.Controllers.MIDI.MIDI):
 
