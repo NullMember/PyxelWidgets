@@ -53,32 +53,16 @@ class XY(PyxelWidgets.Widgets.Widget):
             area = intersect - self.rect
             if self.bufferUpdated:
                 self.bufferUpdated = False
-                xColor = self.xColor * self._value[0]
-                yColor = self.yColor * self._value[1]
                 xPoint = self._findXPoint()
                 yPoint = self._findYPoint()
-                for x in area.columns:
-                    for y in area.rows:
-                        minV = self._minV[x][y]
-                        maxV = self._maxV[x][y]
-                        # junction point
-                        # if current padx is last pressed pad and current pady is last pressed pad
-                        if x == xPoint and y == yPoint:
-                            coefficientX = ((self.value[0] - minV[0]) * self.rect.w) / 2
-                            coefficientY = ((self.value[1] - minV[1]) * self.rect.h) / 2
-                            color = (self.xColor * coefficientX) + (self.yColor * coefficientY)
-                            self.buffer[x, y] = color
-                        # x axis
-                        # if current padx is in same column of last pressed pad
-                        elif x == xPoint:
-                            self.buffer[x, y] = xColor
-                        # y axis
-                        # if current pady is in same row of last pressed pad
-                        elif y == yPoint:
-                            self.buffer[x, y] = yColor
-                        # unlit every other pad
-                        else:
-                            self.buffer[x, y] = self.deactiveColor
+                self.buffer[area.slice] = self.deactiveColor
+                self.buffer[xPoint, area.slice[1]] = self.xColor * self._value[0]
+                self.buffer[area.slice[0], yPoint] = self.yColor * self._value[1]
+                minV = self._minV[xPoint][yPoint]
+                coefficientX = ((self.value[0] - minV[0]) * self.rect.w) / 2
+                coefficientY = ((self.value[1] - minV[1]) * self.rect.h) / 2
+                color = (self.xColor * coefficientX) + (self.yColor * coefficientY)
+                self.buffer[xPoint, yPoint] = color
                 if self.effect is None:
                     return intersect, self.buffer[area.slice]
             if self.effect is not None:
