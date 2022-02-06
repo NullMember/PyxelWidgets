@@ -183,21 +183,25 @@ class Keyboard(PyxelWidgets.Widgets.Widget):
         self.updated = True
     
     def updateArea(self, rect: PyxelWidgets.Helpers.Rectangle2D) -> tuple:
-        self.updated = False
         intersect = self.rect.intersect(rect)
         if intersect is not None:
             area = intersect - self.rect
-            for x in area.columns:
-                for y in area.rows:
-                    note = self.notes[x, y]
-                    if note >= 0:
-                        if self.states[x, y]:
-                            self.buffer[x, y] = self.activeColor
+            if self.bufferUpdated:
+                self.bufferUpdated = False
+                for x in area.columns:
+                    for y in area.rows:
+                        note = self.notes[x, y]
+                        if note >= 0:
+                            if self.states[x, y]:
+                                self.buffer[x, y] = self.activeColor
+                            else:
+                                self.buffer[x, y] = self.colors[note]
                         else:
-                            self.buffer[x, y] = self.colors[note]
-                    else:
-                        self.buffer[x, y] = self.deactiveColor
-            return intersect, self.buffer[area.slice]
+                            self.buffer[x, y] = self.deactiveColor
+                if self.effect is None:
+                    return intersect, self.buffer[area.slice]
+            if self.effect is not None:
+                return intersect, self.effect.apply(self.buffer[area.slice])
         return None, None
 
     def _resize(self, width, height) -> bool:

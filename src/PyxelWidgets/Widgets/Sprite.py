@@ -22,15 +22,20 @@ class Sprite(PyxelWidgets.Widgets.Widget):
         intersect = self.rect.intersect(rect)
         if intersect is not None:
             area = intersect - self.rect
-            self.buffer = self.frames[self.nextFrame]
-            if self.animate:
-                self.tick += 1
-                if self.tick == self.target:
-                    self.tick = 0
-                    self.currentFrame = self.nextFrame
-                    self.nextFrame += 1
-                    if self.nextFrame == len(self.frames):
-                        self.nextFrame = 0
-                self.updated = True
-            return intersect, self.buffer[area.slice]
+            if self.bufferUpdated:
+                self.bufferUpdated = False
+                self.buffer = self.frames[self.nextFrame]
+                if self.animate:
+                    self.tick += 1
+                    if self.tick == self.target:
+                        self.tick = 0
+                        self.currentFrame = self.nextFrame
+                        self.nextFrame += 1
+                        if self.nextFrame == len(self.frames):
+                            self.nextFrame = 0
+                    self.updated = True
+                if self.effect is None:
+                    return intersect, self.buffer[area.slice]
+            if self.effect is not None:
+                return intersect, self.effect.apply(self.buffer[area.slice])
         return None, None

@@ -48,37 +48,41 @@ class XY(PyxelWidgets.Widgets.Widget):
             self._heldButton = [-1, -1]
 
     def updateArea(self, rect: PyxelWidgets.Helpers.Rectangle2D):
-        self.updated = False
         intersect = self.rect.intersect(rect)
         if intersect is not None:
             area = intersect - self.rect
-            xColor = self.xColor * self._value[0]
-            yColor = self.yColor * self._value[1]
-            xPoint = self._findXPoint()
-            yPoint = self._findYPoint()
-            for x in area.columns:
-                for y in area.rows:
-                    minV = self._minV[x][y]
-                    maxV = self._maxV[x][y]
-                    # junction point
-                    # if current padx is last pressed pad and current pady is last pressed pad
-                    if x == xPoint and y == yPoint:
-                        coefficientX = ((self.value[0] - minV[0]) * self.rect.w) / 2
-                        coefficientY = ((self.value[1] - minV[1]) * self.rect.h) / 2
-                        color = (self.xColor * coefficientX) + (self.yColor * coefficientY)
-                        self.buffer[x, y] = color
-                    # x axis
-                    # if current padx is in same column of last pressed pad
-                    elif x == xPoint:
-                        self.buffer[x, y] = xColor
-                    # y axis
-                    # if current pady is in same row of last pressed pad
-                    elif y == yPoint:
-                        self.buffer[x, y] = yColor
-                    # unlit every other pad
-                    else:
-                        self.buffer[x, y] = self.deactiveColor
-            return intersect, self.buffer[area.l:area.r, area.b:area.t]
+            if self.bufferUpdated:
+                self.bufferUpdated = False
+                xColor = self.xColor * self._value[0]
+                yColor = self.yColor * self._value[1]
+                xPoint = self._findXPoint()
+                yPoint = self._findYPoint()
+                for x in area.columns:
+                    for y in area.rows:
+                        minV = self._minV[x][y]
+                        maxV = self._maxV[x][y]
+                        # junction point
+                        # if current padx is last pressed pad and current pady is last pressed pad
+                        if x == xPoint and y == yPoint:
+                            coefficientX = ((self.value[0] - minV[0]) * self.rect.w) / 2
+                            coefficientY = ((self.value[1] - minV[1]) * self.rect.h) / 2
+                            color = (self.xColor * coefficientX) + (self.yColor * coefficientY)
+                            self.buffer[x, y] = color
+                        # x axis
+                        # if current padx is in same column of last pressed pad
+                        elif x == xPoint:
+                            self.buffer[x, y] = xColor
+                        # y axis
+                        # if current pady is in same row of last pressed pad
+                        elif y == yPoint:
+                            self.buffer[x, y] = yColor
+                        # unlit every other pad
+                        else:
+                            self.buffer[x, y] = self.deactiveColor
+                if self.effect is None:
+                    return intersect, self.buffer[area.slice]
+            if self.effect is not None:
+                return intersect, self.effect.apply(self.buffer[area.slice])
         return None, None
 
     def _resize(self, width, height) -> bool:
