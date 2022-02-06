@@ -1,4 +1,5 @@
 from concurrent.futures import ThreadPoolExecutor
+import enum
 from typing import Callable
 from threading import Thread
 import time
@@ -9,9 +10,9 @@ class Target:
 
     def __init__(self, target: Callable, wrap = 1, delay = 0, **kwargs) -> None:
         self.name = kwargs.get('name', f'Target_{Target._count}')
+        self.wrap = kwargs.get('wrap', 1)
+        self.delay = kwargs.get('delay', 0)
         self.target = target
-        self.wrap = wrap
-        self.delay = delay
         self.active = True
         self.lock = False
         self._tick = 0
@@ -44,6 +45,12 @@ class Target:
 class Clock(Thread):
 
     _count = 0
+
+    class State(enum.Enum):
+        Running = enum.auto()
+        Paused = enum.auto()
+        Stopped = enum.auto()
+        Terminated = enum.auto()
 
     def __init__(self, bpm: float = 60, ppq: float = 24) -> None:
         super().__init__(name = f'Clock_{Clock._count}')
@@ -81,13 +88,13 @@ class Clock(Thread):
     @property
     def state(self) -> str:
         if self._terminate:
-            return "terminated"
+            return Clock.State.Terminated
         elif not self.running:
-            return "stopped"
+            return Clock.State.Stopped
         elif self._pause:
-            return "paused"
+            return Clock.State.Paused
         else:
-            return "running"
+            return Clock.State.Running
 
     def addTarget(self, target: Target) -> None:
         self.targets[target.name] = target
@@ -138,4 +145,4 @@ class Clock(Thread):
     
     def terminate(self):
         self._terminate = True
-        self._pool.shutdown(wait = True)
+        self._pool.shutdown(wait = True, cancel_futures = True)
