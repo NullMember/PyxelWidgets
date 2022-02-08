@@ -3,6 +3,7 @@ __all__ = ['Controllers', 'Helpers', 'Utils', 'Widgets']
 import PyxelWidgets.Helpers
 import PyxelWidgets.Widgets
 import PyxelWidgets.Controllers
+import PyxelWidgets.Utils.Effect
 import numpy
 
 class Window():
@@ -13,10 +14,21 @@ class Window():
         self.name = kwargs.get('name', f'Window_{Window._count}')
         self.rect = PyxelWidgets.Helpers.Rectangle2D(0, 0, width, height)
         self.widgets = {}
+        self.effects = {}
         self.buffer = numpy.ndarray((self.rect.w, self.rect.h), PyxelWidgets.Helpers.Pixel)
         self.buffer.fill(PyxelWidgets.Helpers.Colors.Invisible)
         self._callback = lambda *_, **__: None
         Window._count += 1
+
+    def addEffect(self, x: int, y: int, width: int, height: int, effect: PyxelWidgets.Utils.Effect.Effect):
+        self.effects[effect.name] = {
+            'rect': PyxelWidgets.Helpers.Rectangle2D(x, y, width, height), 
+            'effect': effect
+        }
+    
+    def removeEffect(self, name: str):
+        if name in self.effects:
+            self.effects.pop(name)
 
     def addWidget(self, widget: PyxelWidgets.Widgets.Widget):
         self.widgets[widget.name] = widget
@@ -52,16 +64,17 @@ class Window():
                     if buffer is not None:
                         view = self.buffer[area.slice]
                         view[:] = numpy.where(buffer == False, view, buffer)
+            if len(self.effects):
+                ebuffer = self.buffer[intersect.slice].copy()
+                for effect in self.effects.values():
+                    eintersect = intersect.intersect(effect['rect'])
+                    if eintersect is not None:
+                        ebuffer[eintersect.slice] = effect['effect'].apply(ebuffer[eintersect.slice])
+                return intersect, ebuffer
         return intersect, self.buffer[intersect.slice]
 
     def update(self):
-        for widget in self.widgets.values():
-            if widget.updated:
-                area, buffer = widget.updateArea(self.rect)
-                if buffer is not None:
-                    view = self.buffer[area.slice]
-                    view[:] = numpy.where(buffer == False, view, buffer)
-        return self.rect, self.buffer[self.rect.slice]
+        return self.updateArea(self.rect)
 
 class Manager():
 
