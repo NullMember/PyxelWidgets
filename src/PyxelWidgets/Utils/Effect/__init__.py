@@ -13,11 +13,9 @@ class Effect():
 
     def __init__(self, **kwargs) -> None:
         self.name = kwargs.get('name', f'Effect_{Effect._count}')
-        self.wait = kwargs.get('wait', 0)
         self.length = kwargs.get('length', 30)
         self.direction = kwargs.get('direction', Effect.Direction.Cycle)
         self.value = 0
-        self.tick = 0
         self._directionCurrent = 0
         self._cycleCurrent = 0
         self.reset()
@@ -31,22 +29,19 @@ class Effect():
             self._cycleCurrent = self.length - 1
 
     def step(self):
-        self.tick += 1
-        self.tick %= (self.wait + 1)
-        if self.tick == 0:
-            if self.direction == Effect.Direction.Up:
-                self._cycleCurrent = (self._cycleCurrent + 1) % self.length
-            elif self.direction == Effect.Direction.Down:
-                self._cycleCurrent = (self._cycleCurrent - 1) % self.length
-            elif self.direction == Effect.Direction.Cycle:
-                if self._directionCurrent == 0:
-                    self._cycleCurrent += 1
-                    if self._cycleCurrent == self.length:
-                        self._directionCurrent = 1
-                elif self._directionCurrent == 1:
-                    self._cycleCurrent -= 1
-                    if self._cycleCurrent == 0:
-                        self._directionCurrent = 0
+        if self.direction == Effect.Direction.Up:
+            self._cycleCurrent = (self._cycleCurrent + 1) % self.length
+        elif self.direction == Effect.Direction.Down:
+            self._cycleCurrent = (self._cycleCurrent - 1) % self.length
+        elif self.direction == Effect.Direction.Cycle:
+            if self._directionCurrent == 0:
+                self._cycleCurrent += 1
+                if self._cycleCurrent == self.length:
+                    self._directionCurrent = 1
+            elif self._directionCurrent == 1:
+                self._cycleCurrent -= 1
+                if self._cycleCurrent == 0:
+                    self._directionCurrent = 0
     
     def apply(self, buffer: numpy.ndarray) -> numpy.ndarray:
         self.step()
