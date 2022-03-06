@@ -7,10 +7,10 @@ import enum
 class ATOM(PyxelWidgets.Controllers.MIDI.MIDI):
 
     class Controls(enum.Enum):
-        Encoder1 = 14
-        Encoder2 = 15
-        Encoder3 = 16
-        Encoder4 = 17
+        Encoder_0 = 14
+        Encoder_1 = 15
+        Encoder_2 = 16
+        Encoder_3 = 17
         NoteRepeat = 24
         FullLevel = 25
         Bank = 26
