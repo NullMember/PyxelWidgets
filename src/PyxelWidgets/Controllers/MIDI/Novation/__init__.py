@@ -1,1 +1,1 @@
-__all__ = ['Launchkey', 'Launchpad']
+__all__ = ['LaunchControl', 'Launchkey', 'Launchpad']
