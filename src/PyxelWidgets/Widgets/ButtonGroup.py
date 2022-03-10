@@ -23,8 +23,8 @@ class ButtonGroup(PyxelWidgets.Widgets.Widget):
             self.state[0, 0] = True
             self._oldButton = [0, 0]
         ButtonGroup._count += 1
-    
-    def pressed(self, x: int, y: int, value: float):
+
+    def press(self, x: int, y: int, value: float):
         if self.type == ButtonGroup.Type.Button:
             self.state[x, y] = True
         if self.type == ButtonGroup.Type.Switch:
@@ -34,13 +34,11 @@ class ButtonGroup(PyxelWidgets.Widgets.Widget):
         if self.type == ButtonGroup.Type.Multi:
             self.state[x, y] = not self.state[x, y]
         self.updated = True
-        super().pressed(x, y, value)
     
-    def released(self, x: int, y: int, value: float):
+    def release(self, x: int, y: int, value: float):
         if self.type == ButtonGroup.Type.Button:
             self.state[x, y] = False
             self.updated = True
-        super().released(x, y, value)
 
     def updateArea(self, rect: PyxelWidgets.Helpers.Rectangle2D) -> tuple:
         intersect = self.rect.intersect(rect)

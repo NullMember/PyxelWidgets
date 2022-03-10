@@ -37,10 +37,9 @@ class Tracker(PyxelWidgets.Widgets.Widget):
         self.ppq = clock.ppq
         clock.addTarget(self.target)
 
-    def pressed(self, x: int, y: int, value: float):
+    def press(self, x: int, y: int, value: float):
         self.states[self.currentPage, x, self.rect.h - 1 - y + self.currentTop] = not self.states[self.currentPage, x, self.rect.h - 1 - y + self.currentTop]
         self.updated = True
-        super().pressed(x, y, value)
 
     def scroll(self, bar):
         self.tick(bar * (self.ppq * (self.numerator / self.denominator)))

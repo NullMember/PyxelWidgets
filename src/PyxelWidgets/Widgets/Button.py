@@ -17,8 +17,7 @@ class Button(PyxelWidgets.Widgets.Widget):
         self.state = False
         Button._count += 1
 
-    def pressed(self, x: int, y: int, value: float):
-        super().pressed(x, y, value)
+    def press(self, x: int, y: int, value: float):
         if self.mode == Button.Type.Button:
             self.setValue(value)
         elif self.mode == Button.Type.Switch:
@@ -35,8 +34,7 @@ class Button(PyxelWidgets.Widgets.Widget):
                 self.setValue(value)
         
     
-    def released(self, x: int, y: int, value: float):
-        super().released(x, y, value)
+    def release(self, x: int, y: int, value: float):
         if self.mode == Button.Type.Button:
             self.setValue(0.0)
         elif self.mode == Button.Type.Switch:
@@ -47,8 +45,7 @@ class Button(PyxelWidgets.Widgets.Widget):
             else:
                 self.setValue(0.0)
     
-    def held(self, x: int, y: int, value: float):
-        super().held(x, y, value)
+    def hold(self, x: int, y: int, value: float):
         if self.mode == Button.Type.Mixed:
             self.hold = not self.hold
 

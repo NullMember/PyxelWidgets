@@ -139,6 +139,9 @@ class Widget:
                 elif event == PyxelWidgets.Helpers.Event.Held:
                     self.held(btn.x, btn.y, value)
 
+    def press(self, x: int, y: int, value: float):
+        return
+    
     def pressed(self, x: int, y: int, value: float):
         """
         Description
@@ -156,7 +159,11 @@ class Widget:
             Value of the pressed button, useful for velocity sensitive pads
              Could be 1 for non velocity sensitive pads
         """
+        self.press(x, y, value)
         self._callback(self.name, PyxelWidgets.Helpers.Event.Pressed, (x, y))
+    
+    def release(self, x: int, y: int, value: float):
+        return
     
     def released(self, x: int, y: int, value: float):
         """
@@ -175,7 +182,11 @@ class Widget:
             Value of the released button, useful for velocity sensitive pads
              Could be 0 for non velocity sensitive pads
         """
+        self.release(x, y, value)
         self._callback(self.name, PyxelWidgets.Helpers.Event.Released, (x, y))
+    
+    def hold(self, x: int, y: int, value: float):
+        return
     
     def held(self, x: int, y: int, value: float):
         """
@@ -193,6 +204,10 @@ class Widget:
         """
         self._callback(self.name, PyxelWidgets.Helpers.Event.Held, (x, y))
     
+    def tap(self, x: int, y: int, pressValue: float, releaseValue: float):
+        self.press(x, y, pressValue)
+        self.release(x, y, releaseValue)
+
     def updateArea(self, rect: PyxelWidgets.Helpers.Rectangle2D) -> tuple:
         return rect, self.buffer[rect.slice]
 

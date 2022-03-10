@@ -35,10 +35,9 @@ class Sequencer(PyxelWidgets.Widgets.Widget):
             if self._isTickActive():
                 self._callback(self.name, PyxelWidgets.Helpers.Event.Active, int(self._tick))
 
-    def pressed(self, x: int, y: int, value: float):
+    def press(self, x: int, y: int, value: float):
         self.state[x, y] = not self.state[x, y]
         self.updated = True
-        super().pressed(x, y, value)
 
     def reset(self):
         self.state.fill(False)

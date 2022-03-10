@@ -29,21 +29,18 @@ class XY(PyxelWidgets.Widgets.Widget):
             if self._value != oldValue:
                 self.updated = True
 
-    def pressed(self, x: int, y: int, value: float):
-        super().pressed(x, y, value)
+    def press(self, x: int, y: int, value: float):
         if self._heldButton[0] >= 0 and self._heldButton[1] >= 0:
             self.setValue(self._calcXYValueWithMagnitude(self._heldButton[0], self._heldButton[1], x, y))
         else:
             self.setValue(self._calcXYValue(x, y, value))
     
-    def held(self, x: int, y: int, value: float):
-        super().held(x, y, value)
+    def hold(self, x: int, y: int, value: float):
         if self._heldButton[0] == -1 and self._heldButton[1] == -1:
             self._heldButton = [x, y]
             self.setValue(self._calcXYValueWithMagnitude(x, y, x, y))
     
-    def released(self, x: int, y: int, value: float):
-        super().released(x, y, value)
+    def release(self, x: int, y: int, value: float):
         if self._heldButton[0] == x and self._heldButton[1] == y:
             self._heldButton = [-1, -1]
 

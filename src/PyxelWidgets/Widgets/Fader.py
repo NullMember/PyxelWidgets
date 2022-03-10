@@ -106,8 +106,7 @@ class Fader(PyxelWidgets.Widgets.Widget):
         self._heldButton = [-1, -1]
         Fader._count += 1
 
-    def pressed(self, x: int, y: int, value: float):
-        super().pressed(x, y, value)
+    def press(self, x: int, y: int, value: float):
         if self.mode == Fader.Mode.Simple:
             self.setValue(self._pressedSimple(x, y, value))
         elif self.mode == Fader.Mode.Multi:
@@ -181,8 +180,7 @@ class Fader(PyxelWidgets.Widgets.Widget):
             self._heldButton = [x, y]
             return self._calcFaderValue(x, y, self._calcFaderMagnitude(x, y))
 
-    def held(self, x: int, y: int, value: float):
-        super().held(x, y, value)
+    def hold(self, x: int, y: int, value: float):
         if self.mode != Fader.Mode.Relative:
             if x == 0 and y == 0:
                 self.setValue(0.0)
@@ -192,8 +190,7 @@ class Fader(PyxelWidgets.Widgets.Widget):
                 self.setValue(0.5)
         self.updated = True
     
-    def released(self, x: int, y: int, value: float):
-        super().released(x, y, value)
+    def release(self, x: int, y: int, value: float):
         if self._heldButton[0] == x and self._heldButton[1] == y:
             self._heldButton = [-1, -1]
 

@@ -165,8 +165,7 @@ class Keyboard(PyxelWidgets.Widgets.Widget):
         self._resize(self.width, self.height)
         self.updated = True
 
-    def pressed(self, x: int, y: int, value: float):
-        super().pressed(x, y, value)
+    def press(self, x: int, y: int, value: float):
         if self.notes[x, y] >= 0:
             for button in self.buttons[self.notes[x, y]]:
                 self.states[button[0], button[1]] = True
@@ -175,7 +174,6 @@ class Keyboard(PyxelWidgets.Widgets.Widget):
         
     
     def released(self, x: int, y: int, value: float):
-        super().released(x, y, value)
         if self.notes[x, y] >= 0:
             for button in self.buttons[self.notes[x, y]]:
                 self.states[button[0], button[1]] = False

@@ -20,8 +20,7 @@ class Knob(PyxelWidgets.Widgets.Widget):
         self._held = [-1, -1]
         Knob._count += 1
 
-    def pressed(self, x: int, y: int, value: float):
-        super().pressed(x, y, value)
+    def press(self, x: int, y: int, value: float):
         if self._held == [-1, -1]:
             if self._calcKnobIndex(x, y) != -1:
                 self._held = [x, y]
@@ -36,8 +35,7 @@ class Knob(PyxelWidgets.Widgets.Widget):
                     self.state = False
                     self.setValue(0.5)
     
-    def released(self, x: int, y: int, value: float):
-        super().released(x, y, value)
+    def release(self, x: int, y: int, value: float):
         self._held = [-1, -1]
         self.state = False
     
