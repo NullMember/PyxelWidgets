@@ -84,4 +84,4 @@ class Mini(PyxelWidgets.Controllers.MIDI.MIDI):
             else:
                 self.setCustom(PyxelWidgets.Helpers.Event.Pressed, Mini.Notes(midi[1]).name, 1.0)
         elif cmd == 0xB0:
-            self.setCustom(PyxelWidgets.Helpers.Event.Changed, Mini.Controls(midi[1]).name, midi[2] / 127.0)
+            self.setCustom(PyxelWidgets.Helpers.Event.Changed, Mini.Controls(midi[1]).name, midi[2] / 128.0)
