@@ -47,7 +47,7 @@ class Window():
             widget.updated = True
 
     def process(self, name, event, data):
-        if event != 'custom':
+        if event != PyxelWidgets.Helpers.Event.Custom:
             x, y, value = data
             b = PyxelWidgets.Helpers.Rectangle2D(x, y)
             if self.rect.collide(b):
