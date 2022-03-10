@@ -1,1 +1,1 @@
-__all__ = ['Clock', 'Effect', 'Parser']
+__all__ = ['Clock', 'Effect', 'Parser', 'teVirtualMIDI']
