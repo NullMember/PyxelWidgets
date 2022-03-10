@@ -11,8 +11,8 @@ class Sequencer(PyxelWidgets.Widgets.Widget):
         self._tick = 0
         super().__init__(x, y, width, height, **kwargs)
         self.state.fill(False)
-        self.numerator = kwargs.get('numerator', 1.0)
-        self.denominator = kwargs.get('denominator', 4.0)
+        self.note = kwargs.get('note', 4.0)
+        self.beat = kwargs.get('beat', 4.0)
         self.ppq = kwargs.get('ppq', 24)
         self.currentColor = kwargs.get('currentColor', PyxelWidgets.Helpers.Colors.Lime)
         self.currentActiveColor = kwargs.get('currentActiveColor', PyxelWidgets.Helpers.Colors.Red)
@@ -27,7 +27,7 @@ class Sequencer(PyxelWidgets.Widgets.Widget):
 
     def tick(self, tick):
         oldTick = self._tick
-        self._tick = tick / (self.ppq * (self.numerator / self.denominator))
+        self._tick = tick / (self.ppq * ((4.0 / self.note) / self.beat))
         self._tick %= self._tickTarget
         if int(oldTick) != int(self._tick):
             self.updated = True
