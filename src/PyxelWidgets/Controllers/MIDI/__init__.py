@@ -102,3 +102,6 @@ class MIDI(PyxelWidgets.Controllers.Controller):
     
     def sendPitchBend(self, bend, channel = 0):
         self._midiOutput.send_message([0xE0 | channel, bend & 0x7F, (bend >> 7) & 0x7F])
+    
+    def sendMessage(self, message: list):
+        self._midiOutput.send_message(message)
