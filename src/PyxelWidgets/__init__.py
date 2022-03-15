@@ -87,6 +87,7 @@ class Manager():
         self.rect = PyxelWidgets.Helpers.Rectangle2D(0, 0, width, height)
         self.buffer = numpy.ndarray((self.rect.w, self.rect.h), PyxelWidgets.Helpers.Pixel)
         self.buffer.fill(PyxelWidgets.Helpers.Colors.Invisible)
+        self.callback = lambda *_, **__ : None
         Manager._count += 1
     
     def destroy(self):
@@ -118,12 +119,18 @@ class Manager():
             window.forceUpdate()
 
     def process(self, name, event, data):
-        for window in list(self.windows.values()):
-            cr = self.controllers[name]['rect']
-            wr = window['rect']
-            if cr.collide(wr):
-                cwr = cr - wr
-                window['window'].process(name, event, (data[0] + cwr.x, data[1] + cwr.y, data[2]))
+        if event != PyxelWidgets.Helpers.Event.Custom:
+            for window in list(self.windows.values()):
+                cr = self.controllers[name]['rect']
+                wr = window['rect']
+                if cr.collide(wr):
+                    cwr = cr - wr
+                    window['window'].process(name, event, (data[0] + cwr.x, data[1] + cwr.y, data[2]))
+        else:
+            self.callback(name, event, data)
+
+    def setCallback(self, callback) -> None:
+        self.callback = callback
 
     def update(self):
         for window in list(self.windows.values()):
