@@ -210,3 +210,28 @@ class Triangle(Effect):
                 self.values[i] = i / halflength
             else:
                 self.values[i] = (self.length - i) / halflength
+
+class Custom(Effect):
+    def __init__(self, **kwargs) -> None:
+        kwargs['name'] = kwargs.get('name', f'Custom_{Custom._count}')
+        self._waveform = kwargs.get('waveform', [0.0, 1.0])
+        super().__init__(**kwargs)
+        Custom._count += 1
+    
+    @property
+    def waveform(self) -> list:
+        return self._waveform
+    
+    @waveform.setter
+    def waveform(self, waveform: list) -> None:
+        self._waveform = waveform
+        self.calcValues()
+
+    def calcValues(self):
+        self.values = [0] * self._length
+        ratio = (len(self._waveform) - 1) / self._length
+        self.values[0] = self._waveform[0]
+        for i in range(1, self._length):
+            coeff = (i * ratio) % 1.0
+            inputIndex = int(i * ratio)
+            self.values[i] = (self._waveform[inputIndex] * (1.0 - coeff)) + (self._waveform[inputIndex + 1] * coeff)
