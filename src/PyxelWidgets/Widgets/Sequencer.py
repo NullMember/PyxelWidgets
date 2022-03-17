@@ -48,8 +48,10 @@ class Sequencer(PyxelWidgets.Widgets.Widget):
                 self._callback(self.name, PyxelWidgets.Helpers.Event.Active, int(self._tick))
 
     def press(self, x: int, y: int, value: float):
-        self.state[x, y + (self.rect.h * self._tickPage())] = not self.state[x, y + (self.rect.h * self._tickPage())]
-        self.updated = True
+        if self._calcTickPosition(x, y) < self._step:
+            pageY = y + (self.rect.h * self._tickPage())
+            self.state[x, pageY] = not self.state[x, pageY]
+            self.updated = True
 
     def reset(self):
         self.state.fill(False)
@@ -82,7 +84,7 @@ class Sequencer(PyxelWidgets.Widgets.Widget):
         return True
     
     def _calcTickPosition(self, x, y):
-        return x + ((self.rect.h - y - 1) * self.rect.w)
+        return (x + (y * self.rect.w)) + ((self.rect.w * self.rect.h) * self._tickPage())
     
     def _tickPage(self):
         return int((self._tick / self.rect.w) / self.rect.h)
@@ -91,7 +93,7 @@ class Sequencer(PyxelWidgets.Widgets.Widget):
         return int(self._tick) % self.rect.w
     
     def _tickY(self):
-        return (self.rect.h * self._page) - (int(self._tick) // self.rect.w) - 1
+        return int(self._tick // self.rect.w)
     
     def _isTickActive(self):
         return self.state[self._tickX()][self._tickY()]
