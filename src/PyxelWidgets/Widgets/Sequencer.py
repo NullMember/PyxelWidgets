@@ -34,7 +34,7 @@ class Sequencer(PyxelWidgets.Widgets.Widget):
     def step(self, value: int) -> None:
         self._step = value
         self._page = int(self._step / (self.rect.w * self.rect.h)) + 1
-        self.state.resize((self.rect.w, self.rect.h * self._page), refcheck = False)
+        self.state = numpy.zeros((self.rect.w, self.rect.h * self._page), dtype = numpy.bool8)
         self._tick %= self._step
 
     def tick(self, tick):
