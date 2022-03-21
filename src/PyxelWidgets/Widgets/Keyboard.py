@@ -171,9 +171,8 @@ class Keyboard(PyxelWidgets.Widgets.Widget):
                 self.states[button[0], button[1]] = True
         self._callback(self.name, PyxelWidgets.Helpers.Event.Changed, (self.notes[x, y], 1.0))
         self.updated = True
-        
     
-    def released(self, x: int, y: int, value: float):
+    def release(self, x: int, y: int, value: float):
         if self.notes[x, y] >= 0:
             for button in self.buttons[self.notes[x, y]]:
                 self.states[button[0], button[1]] = False
