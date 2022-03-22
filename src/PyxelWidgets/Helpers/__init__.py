@@ -34,10 +34,12 @@ class Dimension2D():
     def __init__(self, w: int = 1, h: int = 1) -> None:
         self.w = w
         self.h = h
+        self.area = self.w * self.h
     
     def set(self, w: int, h: int) -> None:
         self.w = w
         self.h = h
+        self.area = self.w * self.h
     
     def get(self) -> tuple:
         return self.w, self.h
