@@ -13,8 +13,8 @@ class Button(PyxelWidgets.Widgets.Widget):
         kwargs['name'] = kwargs.get('name', f'Button_{Button._count}')
         super().__init__(x, y, width, height, **kwargs)
         self.mode = kwargs.get('mode', Button.Type.Button)
-        self.hold = False
         self.state = False
+        self.isHold = False
         Button._count += 1
 
     def press(self, x: int, y: int, value: float):
@@ -28,11 +28,10 @@ class Button(PyxelWidgets.Widgets.Widget):
                 self.setValue(value)
                 self.state = True
         elif self.mode == Button.Type.Mixed:
-            if self.hold:
+            if self.isHold:
                 return
             else:
                 self.setValue(value)
-        
     
     def release(self, x: int, y: int, value: float):
         if self.mode == Button.Type.Button:
@@ -40,14 +39,14 @@ class Button(PyxelWidgets.Widgets.Widget):
         elif self.mode == Button.Type.Switch:
             pass
         elif self.mode == Button.Type.Mixed:
-            if self.hold:
+            if self.isHold:
                 return
             else:
                 self.setValue(0.0)
     
     def hold(self, x: int, y: int, value: float):
         if self.mode == Button.Type.Mixed:
-            self.hold = not self.hold
+            self.isHold = not self.isHold
 
     def updateArea(self, rect: PyxelWidgets.Helpers.Rectangle2D):
         intersect = self.rect.intersect(rect)
