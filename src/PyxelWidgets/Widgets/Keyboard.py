@@ -213,7 +213,7 @@ class Keyboard(PyxelWidgets.Widgets.Widget):
         scale = Keyboard.Scales[self._scale.name]
         precalc = []
         #precalculate scale values
-        for i in range(self.rect.h * self.rect.w):
+        for i in range(self.rect.area):
             precalc.append(scale[i % len(scale)] + base + ((i // len(scale)) * 12))
         for x in range(self.rect.w):
             for y in range(self.rect.h):
