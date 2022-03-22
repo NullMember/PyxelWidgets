@@ -9,9 +9,12 @@ class Sequencer(PyxelWidgets.Widgets.Widget):
         self.state = numpy.ndarray((1, 1), dtype = numpy.bool8)
         self._step = kwargs.get('step', width * height)
         self._tick = 0
-        self._page = 1
+        self._pageCount = 1
         super().__init__(x, y, width, height, **kwargs)
         self.state.fill(False)
+        self.currentPage = 0
+        self._page = 0
+        self.follow = True
         self.note = kwargs.get('note', 4.0)
         self.beat = kwargs.get('beat', 4.0)
         self.ppq = kwargs.get('ppq', 24)
@@ -25,16 +28,29 @@ class Sequencer(PyxelWidgets.Widgets.Widget):
     def addToClock(self, clock: PyxelWidgets.Utils.Clock.Clock):
         self.ppq = clock.ppq
         clock.addTarget(self.target)
+    
+    @property
+    def pages(self) -> int:
+        return self._pageCount
+
+    @property
+    def page(self) -> int:
+        return self._page
+
+    @page.setter
+    def page(self, value: int) -> None:
+        self._page = value % self._pageCount
+        self.updated = True
 
     @property
     def step(self) -> int:
         return self._step
-    
+
     @step.setter
     def step(self, value: int) -> None:
         self._step = value
-        self._page = int(self._step / (self.rect.w * self.rect.h)) + 1
-        self.state = numpy.zeros((self.rect.w, self.rect.h * self._page), dtype = numpy.bool8)
+        self._pageCount = int((self._step - 1) / self.rect.area) + 1
+        self.state = numpy.zeros((self.rect.w, self.rect.h * self._pageCount), dtype = numpy.bool8)
         self._tick %= self._step
 
     def tick(self, tick):
@@ -42,10 +58,14 @@ class Sequencer(PyxelWidgets.Widgets.Widget):
         self._tick = tick / (self.ppq * ((4.0 / self.note) / self.beat))
         self._tick %= self._step
         if int(oldTick) != int(self._tick):
-            self.updated = True
+            page = int(self._tick / self.rect.area)
+            if page != self.currentPage:
+                self.currentPage = page
+                self._callback(self.name, PyxelWidgets.Helpers.Event.Page, self.currentPage)
             self._callback(self.name, PyxelWidgets.Helpers.Event.Tick, int(self._tick))
             if self._isTickActive():
                 self._callback(self.name, PyxelWidgets.Helpers.Event.Active, int(self._tick))
+            self.updated = True
 
     def press(self, x: int, y: int, value: float):
         if self._calcTickPosition(x, y) < self._step:
@@ -67,10 +87,11 @@ class Sequencer(PyxelWidgets.Widgets.Widget):
                 tickY = self._tickY() % self.rect.h
                 stateArea = area + PyxelWidgets.Helpers.Rectangle2D(0, self.rect.h * tickP)
                 self.buffer[area.slice] = numpy.where(self.state[stateArea.slice] == True, self.activeColor, self.deactiveColor)
-                if self.buffer[tickX, tickY] == self.activeColor:
-                    self.buffer[tickX, tickY] = self.currentActiveColor
-                else:
-                    self.buffer[tickX, tickY] = self.currentColor
+                if tickP == self.currentPage:
+                    if self.buffer[tickX, tickY] == self.activeColor:
+                        self.buffer[tickX, tickY] = self.currentActiveColor
+                    else:
+                        self.buffer[tickX, tickY] = self.currentColor
                 if self.effect is None:
                     return intersect, self.buffer[area.slice]
             if self.effect is not None:
@@ -78,16 +99,16 @@ class Sequencer(PyxelWidgets.Widgets.Widget):
         return None, None
     
     def _resize(self, width, height):
-        self._page = int(self._step / (width * height)) + 1
-        self.state.resize((width, height * self._page), refcheck = False)
+        self._pageCount = int((self._step - 1) / (width * height)) + 1
+        self.state.resize((width, height * self._pageCount), refcheck = False)
         self._tick %= self._step
         return True
     
     def _calcTickPosition(self, x, y):
-        return (x + (y * self.rect.w)) + ((self.rect.w * self.rect.h) * self._tickPage())
+        return (x + (y * self.rect.w)) + (self.rect.area * self._tickPage())
     
     def _tickPage(self):
-        return int((self._tick / self.rect.w) / self.rect.h)
+        return self.currentPage if self.follow else self._page
 
     def _tickX(self):
         return int(self._tick) % self.rect.w
