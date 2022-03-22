@@ -56,7 +56,7 @@ class Widget:
         self.bufferUpdated = True
         self.buffer = numpy.ndarray((self.rect.w, self.rect.h), PyxelWidgets.Helpers.Pixel)
         self.buffer.fill(self.deactiveColor)
-        self.lock = False
+        self.lock = kwargs.get('lock', False)
         self._value = kwargs.get('value', 0.0)
         self._oldValue = self._value
         self._callback = kwargs.get('callback', lambda *_, **__: None)
