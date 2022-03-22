@@ -351,10 +351,10 @@ class Fader(PyxelWidgets.Widgets.Widget):
                 return round(((x / self.rect.w) + (value / self.rect.w)), 6)
         elif self.grid == Fader.Grid.Matrix:
             if self.direction == Fader.Direction.Vertical:
-                base = (x / (self.rect.h * self.rect.w)) + (y / self.rect.h)
+                base = (x / self.rect.area) + (y / self.rect.h)
             elif self.direction == Fader.Direction.Horizontal:
-                base = (y / (self.rect.h * self.rect.w)) + (x / self.rect.w)
-            return round(base + (value / (self.rect.w * self.rect.h)), 6)
+                base = (y / self.rect.area) + (x / self.rect.w)
+            return round(base + (value / self.rect.area), 6)
     
     def _calcFaderMagnitude(self, x: int, y: int) -> float:
         """Calculate pad magnitude from pad location"""
@@ -365,9 +365,9 @@ class Fader(PyxelWidgets.Widgets.Widget):
                 return self._calcFaderValue(x, y, x / (self.rect.w - 1))
         elif self.grid == Fader.Grid.Matrix:
             if self.direction == Fader.Direction.Vertical:
-                base = (x / ((self.rect.h * self.rect.w) - 1)) + (y / (self.rect.h - 1))
+                base = (x / (self.rect.area - 1)) + (y / (self.rect.h - 1))
             elif self.direction == Fader.Direction.Horizontal:
-                base = (y / ((self.rect.h * self.rect.w) - 1)) + (x / (self.rect.w - 1))
+                base = (y / (self.rect.area - 1)) + (x / (self.rect.w - 1))
             return self._calcFaderValue(x, y, base)
     
     def _calcPixelCoefficient(self, value: float) -> float:
@@ -378,7 +378,7 @@ class Fader(PyxelWidgets.Widgets.Widget):
             elif self.direction == Fader.Direction.Horizontal:
                 return (value * self.rect.w)
         elif self.grid == Fader.Grid.Matrix:
-            return (value * (self.rect.h * self.rect.w))
+            return (value * self.rect.area)
     
     def _calcPixelStep(self):
         if self.mode == Fader.Mode.Simple:
@@ -396,4 +396,4 @@ class Fader(PyxelWidgets.Widgets.Widget):
                 elif self.direction == Fader.Direction.Horizontal:
                     return 1.0 / self.rect.w
             elif self.grid == Fader.Grid.Matrix:
-                return 1.0 / (self.rect.w * self.rect.h)
+                return 1.0 / self.rect.area
