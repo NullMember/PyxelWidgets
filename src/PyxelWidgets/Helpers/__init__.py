@@ -11,6 +11,7 @@ class Event(enum.Enum):
     Decreased = enum.auto()
     Tick = enum.auto()
     Active = enum.auto()
+    Page = enum.auto()
     Resized = enum.auto()
     Custom = enum.auto()
 
