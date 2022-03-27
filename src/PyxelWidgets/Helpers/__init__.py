@@ -2,6 +2,7 @@ import numpy
 import enum
 
 class Event(enum.Enum):
+    Frame = enum.auto()
     Pressed = enum.auto()
     Released = enum.auto()
     Held = enum.auto()
