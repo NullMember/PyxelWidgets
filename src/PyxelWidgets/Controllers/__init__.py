@@ -74,8 +74,8 @@ class Controller():
     def setHeld(self, x: int, y: int) -> None:
         self._callback(self.name, PyxelWidgets.Helpers.Event.Held, (x, y, self.buttons[x, y]))
     
-    def setCustom(self, event, name, value):
-        self._callback(self.name, PyxelWidgets.Helpers.Event.Custom, (name, event, value))
+    def setCustom(self, event, name, data):
+        self._callback(self.name, PyxelWidgets.Helpers.Event.Custom, (name, event, data))
 
     def sendPixel(self, x: int, y: int, pixel: PyxelWidgets.Helpers.Pixel):
         raise NotImplementedError("sendPixel method must be implemented")
