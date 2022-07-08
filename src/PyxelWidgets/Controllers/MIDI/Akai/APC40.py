@@ -1,5 +1,7 @@
 import PyxelWidgets.Controllers.MIDI
-import PyxelWidgets.Helpers
+import PyxelWidgets.Utils.Enums
+import PyxelWidgets.Utils.Pixel
+import PyxelWidgets.Utils.Rectangle
 import numpy
 import enum
 
@@ -173,7 +175,7 @@ class MK2(PyxelWidgets.Controllers.MIDI.MIDI):
         self.changeMode(MK2.Modes.Generic)
         super().disconnect()
 
-    def sendPixel(self, x: int, y: int, pixel: PyxelWidgets.Helpers.Pixel):
+    def sendPixel(self, x: int, y: int, pixel: PyxelWidgets.Utils.Pixel.Pixel):
         index = x + (y * 8)
         self.sendNoteOn(index, pixel.findInPalette(MK2.palette))
     

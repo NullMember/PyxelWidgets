@@ -1,5 +1,7 @@
 import PyxelWidgets.Controllers.MIDI
-import PyxelWidgets.Helpers
+import PyxelWidgets.Utils.Enums
+import PyxelWidgets.Utils.Pixel
+import PyxelWidgets.Utils.Rectangle
 import enum
 
 class Mini(PyxelWidgets.Controllers.MIDI.MIDI):
@@ -60,7 +62,7 @@ class Mini(PyxelWidgets.Controllers.MIDI.MIDI):
         index = (x + (y * 8)) & 0x7F
         self.sendNoteOn(index, color.value)
 
-    def sendPixel(self, x: int, y: int, pixel: PyxelWidgets.Helpers.Pixel):
+    def sendPixel(self, x: int, y: int, pixel: PyxelWidgets.Utils.Pixel.Pixel):
         colorIndex = pixel.gmono // 64
         index = (x + (y * 8)) & 0x7F
         self.sendNoteOn(index, self.colorList[colorIndex])
@@ -75,13 +77,13 @@ class Mini(PyxelWidgets.Controllers.MIDI.MIDI):
                 y = midi[1] // 8
                 self.setButton(x, y, 0.0)
             else:
-                self.setCustom(PyxelWidgets.Helpers.Event.Released, Mini.Notes(midi[1]).name, 0.0)
+                self.setCustom(PyxelWidgets.Utils.Enums.Event.Released, Mini.Notes(midi[1]).name, 0.0)
         elif cmd == 0x90:
             if midi[1] < 64:
                 x = midi[1] % 8
                 y = midi[1] // 8
                 self.setButton(x, y, 1.0)
             else:
-                self.setCustom(PyxelWidgets.Helpers.Event.Pressed, Mini.Notes(midi[1]).name, 1.0)
+                self.setCustom(PyxelWidgets.Utils.Enums.Event.Pressed, Mini.Notes(midi[1]).name, 1.0)
         elif cmd == 0xB0:
-            self.setCustom(PyxelWidgets.Helpers.Event.Changed, Mini.Controls(midi[1]).name, midi[2] / 128.0)
+            self.setCustom(PyxelWidgets.Utils.Enums.Event.Changed, Mini.Controls(midi[1]).name, midi[2] / 128.0)

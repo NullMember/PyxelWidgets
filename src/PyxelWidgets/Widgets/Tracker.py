@@ -1,5 +1,7 @@
 import PyxelWidgets.Widgets
-import PyxelWidgets.Helpers
+import PyxelWidgets.Utils.Enums
+import PyxelWidgets.Utils.Pixel
+import PyxelWidgets.Utils.Rectangle
 import PyxelWidgets.Utils.Clock
 import numpy
 import enum
@@ -26,8 +28,8 @@ class Tracker(PyxelWidgets.Widgets.Widget):
         self.currentTop = 0
         self.currentBottom = self.currentTop + self.height - 1
         self.currentPage = 0
-        self.currentColor = kwargs.get('currentColor', PyxelWidgets.Helpers.Colors.Cyan)
-        self.currentActiveColor = kwargs.get('currentActiveColor', PyxelWidgets.Helpers.Colors.Magenta)
+        self.currentColor = kwargs.get('currentColor', PyxelWidgets.Utils.Pixel.Colors.Cyan)
+        self.currentActiveColor = kwargs.get('currentActiveColor', PyxelWidgets.Utils.Pixel.Colors.Magenta)
         self.target = PyxelWidgets.Utils.Clock.Target(self.tick, name = self.name)
         if clock != None:
             self.addToClock(clock)
@@ -67,12 +69,12 @@ class Tracker(PyxelWidgets.Widgets.Widget):
                 self.currentBottom = int(self.currentBar + halfHeight)
             # elif self.scroll == Tracker.Scroll.Page:
             #     pass
-            self._callback(self.name, PyxelWidgets.Helpers.Event.Tick, int(self.currentBar))
+            self._callback(self.name, PyxelWidgets.Utils.Enums.Event.Tick, int(self.currentBar))
             for i, state in enumerate(self.states[self.currentPage, :, int(self.currentBar)]):
                 if state:
-                    self._callback(self.name, PyxelWidgets.Helpers.Event.Active, (i))
+                    self._callback(self.name, PyxelWidgets.Utils.Enums.Event.Active, (i))
 
-    def updateArea(self, rect: PyxelWidgets.Helpers.Rectangle2D) -> tuple:
+    def updateArea(self, rect: PyxelWidgets.Utils.Rectangle.Rectangle2D) -> tuple:
         intersect = self.rect.intersect(rect)
         if intersect is not None:
             area = intersect - self.rect

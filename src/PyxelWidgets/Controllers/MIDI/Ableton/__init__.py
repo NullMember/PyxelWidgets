@@ -1,7 +1,9 @@
 __all__ = []
 
 import PyxelWidgets.Controllers.MIDI
-import PyxelWidgets.Helpers
+import PyxelWidgets.Utils.Enums
+import PyxelWidgets.Utils.Pixel
+import PyxelWidgets.Utils.Rectangle
 import enum
 import numpy
 
@@ -185,7 +187,7 @@ class Push2(PyxelWidgets.Controllers.MIDI.MIDI):
         self.setMIDIMode(Push2.Mode.Live)
         super().disconnect()
     
-    def sendPixel(self, x: int, y: int, pixel: PyxelWidgets.Helpers.Pixel):
+    def sendPixel(self, x: int, y: int, pixel: PyxelWidgets.Utils.Pixel.Pixel):
         index = x + (y * 8) + 36
         self.sendNoteOn(index, pixel.findInPalette(Push2.palette))
     
@@ -202,20 +204,20 @@ class Push2(PyxelWidgets.Controllers.MIDI.MIDI):
                     self.setButton(x, y, midi[2] / 127.0)
             else:
                 if midi[2] > 0:
-                    self.setCustom(PyxelWidgets.Helpers.Event.Touched, Push2.Notes(midi[1]).name, midi[2] / 127.0)
+                    self.setCustom(PyxelWidgets.Utils.Enums.Event.Touched, Push2.Notes(midi[1]).name, midi[2] / 127.0)
                 else:
-                    self.setCustom(PyxelWidgets.Helpers.Event.Released, Push2.Notes(midi[1]).name, 0.0)
+                    self.setCustom(PyxelWidgets.Utils.Enums.Event.Released, Push2.Notes(midi[1]).name, 0.0)
         if cmd == 0xB0:
             name = Push2.Controls(midi[1]).name
             if 'Encoder' in name:
                 if midi[2] & 0x30:
                     value = -((midi[2] ^ 0x7F) + 1)
-                    self.setCustom(PyxelWidgets.Helpers.Event.Decreased, name, value)
+                    self.setCustom(PyxelWidgets.Utils.Enums.Event.Decreased, name, value)
                 else:
                     value = midi[2]
-                    self.setCustom(PyxelWidgets.Helpers.Event.Increased, name, value)
+                    self.setCustom(PyxelWidgets.Utils.Enums.Event.Increased, name, value)
             else:
                 if midi[2] > 0:
-                    self.setCustom(PyxelWidgets.Helpers.Event.Pressed, name, midi[2] / 127.0)
+                    self.setCustom(PyxelWidgets.Utils.Enums.Event.Pressed, name, midi[2] / 127.0)
                 else:
-                    self.setCustom(PyxelWidgets.Helpers.Event.Released, name, 0.0)
+                    self.setCustom(PyxelWidgets.Utils.Enums.Event.Released, name, 0.0)

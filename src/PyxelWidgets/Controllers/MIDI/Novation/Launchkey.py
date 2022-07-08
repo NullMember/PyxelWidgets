@@ -1,5 +1,7 @@
 import PyxelWidgets.Controllers.MIDI
-import PyxelWidgets.Helpers
+import PyxelWidgets.Utils.Enums
+import PyxelWidgets.Utils.Pixel
+import PyxelWidgets.Utils.Rectangle
 import enum
 import numpy
 
@@ -68,7 +70,7 @@ class MK1(PyxelWidgets.Controllers.MIDI.MIDI):
     def disableInControl(self, control: InControl):
         self.sendNoteOn(control.value, 0x00, 0xF)
 
-    def sendPixel(self, x: int, y: int, pixel: PyxelWidgets.Helpers.Pixel):
+    def sendPixel(self, x: int, y: int, pixel: PyxelWidgets.Utils.Pixel.Pixel):
         colorIndex = pixel.gmono // 32
         index = 0
         if y == 0:
@@ -100,11 +102,11 @@ class MK1(PyxelWidgets.Controllers.MIDI.MIDI):
         if cmd == 0xB0:
             if midi[1] > 50:
                 if midi[2] > 0:
-                    self.setCustom(PyxelWidgets.Helpers.Event.Pressed, MK1.Controls(midi[1]).name, 1.0)
+                    self.setCustom(PyxelWidgets.Utils.Enums.Event.Pressed, MK1.Controls(midi[1]).name, 1.0)
                 else:
-                    self.setCustom(PyxelWidgets.Helpers.Event.Released, MK1.Controls(midi[1]).name, 0.0)
+                    self.setCustom(PyxelWidgets.Utils.Enums.Event.Released, MK1.Controls(midi[1]).name, 0.0)
             else:
-                self.setCustom(PyxelWidgets.Helpers.Event.Changed, MK1.Controls(midi[1]).name, midi[2] / 127)
+                self.setCustom(PyxelWidgets.Utils.Enums.Event.Changed, MK1.Controls(midi[1]).name, midi[2] / 127)
 
 class MK2(PyxelWidgets.Controllers.MIDI.MIDI):
 
@@ -164,7 +166,7 @@ class MK2(PyxelWidgets.Controllers.MIDI.MIDI):
     def disableInControl(self, control: InControl):
         self.sendNoteOn(control.value, 0x00, 0xF)
 
-    def sendPixel(self, x: int, y: int, pixel: PyxelWidgets.Helpers.Pixel):
+    def sendPixel(self, x: int, y: int, pixel: PyxelWidgets.Utils.Pixel.Pixel):
         index = 0
         if y == 0:
             index = 0x70 + x
@@ -252,7 +254,7 @@ class MK3(PyxelWidgets.Controllers.MIDI.MIDI):
     def setLayout(self, layout: Layout):
         self.sendControlChange(3, layout.value, 15)
 
-    def sendPixel(self, x: int, y: int, pixel: PyxelWidgets.Helpers.Pixel):
+    def sendPixel(self, x: int, y: int, pixel: PyxelWidgets.Utils.Pixel.Pixel):
         index = 0
         if y == 0:
             index = 0x70 + x

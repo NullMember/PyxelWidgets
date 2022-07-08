@@ -1,5 +1,7 @@
 import PyxelWidgets.Widgets
-import PyxelWidgets.Helpers
+import PyxelWidgets.Utils.Enums
+import PyxelWidgets.Utils.Pixel
+import PyxelWidgets.Utils.Rectangle
 import enum
 
 class XY(PyxelWidgets.Widgets.Widget):
@@ -11,8 +13,8 @@ class XY(PyxelWidgets.Widgets.Widget):
     def __init__(self, x: int, y: int, width: int, height: int, **kwargs):
         kwargs['name'] = kwargs.get('name', f'XY_{XY._count}')
         super().__init__(x, y, width, height, **kwargs)
-        self.xColor = kwargs.get('xColor', PyxelWidgets.Helpers.Colors.Cyan)
-        self.yColor = kwargs.get('yColor', PyxelWidgets.Helpers.Colors.Magenta)
+        self.xColor = kwargs.get('xColor', PyxelWidgets.Utils.Pixel.Colors.Cyan)
+        self.yColor = kwargs.get('yColor', PyxelWidgets.Utils.Pixel.Colors.Magenta)
         self.delta = [0.0, 0.0]
         self._value = [0.0, 0.0]
         self._heldButton = [-1, -1]
@@ -44,7 +46,7 @@ class XY(PyxelWidgets.Widgets.Widget):
         if self._heldButton[0] == x and self._heldButton[1] == y:
             self._heldButton = [-1, -1]
 
-    def updateArea(self, rect: PyxelWidgets.Helpers.Rectangle2D):
+    def updateArea(self, rect: PyxelWidgets.Utils.Rectangle.Rectangle2D):
         intersect = self.rect.intersect(rect)
         if intersect is not None:
             area = intersect - self.rect

@@ -1,6 +1,8 @@
 __all__ = ['Button', 'ButtonGroup', 'Fader', 'Keyboard', 'Knob', 'Sequencer', 'Sprite', 'Tracker', 'XY']
 
-import PyxelWidgets.Helpers
+import PyxelWidgets.Utils.Enums
+import PyxelWidgets.Utils.Pixel
+import PyxelWidgets.Utils.Rectangle
 import PyxelWidgets.Utils.Effect
 import uuid
 import numpy
@@ -48,13 +50,13 @@ class Widget:
         """    
         self.id = uuid.uuid1()
         self.name = kwargs.get('name', f'Widget_{Widget._count}')
-        self.rect = PyxelWidgets.Helpers.Rectangle2D(x, y, width, height)
-        self.activeColor = kwargs.get('activeColor', PyxelWidgets.Helpers.Colors.White)
-        self.deactiveColor = kwargs.get('deactiveColor', PyxelWidgets.Helpers.Colors.Black)
+        self.rect = PyxelWidgets.Utils.Rectangle.Rectangle2D(x, y, width, height)
+        self.activeColor = kwargs.get('activeColor', PyxelWidgets.Utils.Pixel.Colors.White)
+        self.deactiveColor = kwargs.get('deactiveColor', PyxelWidgets.Utils.Pixel.Colors.Black)
         self.delta = 0.0
         self.effect = None
         self.bufferUpdated = True
-        self.buffer = numpy.ndarray((self.rect.w, self.rect.h), PyxelWidgets.Helpers.Pixel)
+        self.buffer = numpy.ndarray((self.rect.w, self.rect.h), PyxelWidgets.Utils.Pixel.Pixel)
         self.buffer.fill(self.deactiveColor)
         self.lock = kwargs.get('lock', False)
         self._value = kwargs.get('value', 0.0)
@@ -88,7 +90,7 @@ class Widget:
                 self.buffer.resize((self.rect.w, self.rect.h), refcheck = False)
                 self.buffer = numpy.where(self.buffer == 0, self.deactiveColor, self.buffer)
                 self.updated = True
-                self._callback(self.name, PyxelWidgets.Helpers.Event.Resized, (self.rect.w, self.rect.h))
+                self._callback(self.name, PyxelWidgets.Utils.Enums.Event.Resized, (self.rect.w, self.rect.h))
 
     @property
     def height(self) -> int:
@@ -102,7 +104,7 @@ class Widget:
                 self.buffer.resize((self.rect.w, self.rect.h), refcheck = False)
                 self.buffer = numpy.where(self.buffer == 0, self.deactiveColor, self.buffer)
                 self.updated = True
-                self._callback(self.name, PyxelWidgets.Helpers.Event.Resized, (self.rect.w, self.rect.h))
+                self._callback(self.name, PyxelWidgets.Utils.Enums.Event.Resized, (self.rect.w, self.rect.h))
 
     @property
     def value(self) -> float:
@@ -121,22 +123,22 @@ class Widget:
         if not self.lock:
             self.value = value
             if self.updated:
-                self._callback(self.name, PyxelWidgets.Helpers.Event.Changed, self._value)
+                self._callback(self.name, PyxelWidgets.Utils.Enums.Event.Changed, self._value)
 
     def setCallback(self, callback) -> None:
         self._callback = callback
 
     def process(self, name, event, data):
-        if event != PyxelWidgets.Helpers.Event.Custom:
+        if event != PyxelWidgets.Utils.Enums.Event.Custom:
             x, y, value = data
-            btn = PyxelWidgets.Helpers.Rectangle2D(x, y)
+            btn = PyxelWidgets.Utils.Rectangle.Rectangle2D(x, y)
             if btn.collide(self.rect):
                 btn = btn - self.rect
-                if event == PyxelWidgets.Helpers.Event.Pressed:
+                if event == PyxelWidgets.Utils.Enums.Event.Pressed:
                     self.pressed(btn.x, btn.y, value)
-                elif event == PyxelWidgets.Helpers.Event.Released:
+                elif event == PyxelWidgets.Utils.Enums.Event.Released:
                     self.released(btn.x, btn.y, value)
-                elif event == PyxelWidgets.Helpers.Event.Held:
+                elif event == PyxelWidgets.Utils.Enums.Event.Held:
                     self.held(btn.x, btn.y, value)
 
     def press(self, x: int, y: int, value: float):
@@ -160,7 +162,7 @@ class Widget:
              Could be 1 for non velocity sensitive pads
         """
         self.press(x, y, value)
-        self._callback(self.name, PyxelWidgets.Helpers.Event.Pressed, (x, y))
+        self._callback(self.name, PyxelWidgets.Utils.Enums.Event.Pressed, (x, y))
     
     def release(self, x: int, y: int, value: float):
         return
@@ -183,7 +185,7 @@ class Widget:
              Could be 0 for non velocity sensitive pads
         """
         self.release(x, y, value)
-        self._callback(self.name, PyxelWidgets.Helpers.Event.Released, (x, y))
+        self._callback(self.name, PyxelWidgets.Utils.Enums.Event.Released, (x, y))
     
     def hold(self, x: int, y: int, value: float):
         return
@@ -202,13 +204,13 @@ class Widget:
         y: int
             y axis of button location on Widget
         """
-        self._callback(self.name, PyxelWidgets.Helpers.Event.Held, (x, y))
+        self._callback(self.name, PyxelWidgets.Utils.Enums.Event.Held, (x, y))
     
     def tap(self, x: int, y: int, pressValue: float, releaseValue: float):
         self.press(x, y, pressValue)
         self.release(x, y, releaseValue)
 
-    def updateArea(self, rect: PyxelWidgets.Helpers.Rectangle2D) -> tuple:
+    def updateArea(self, rect: PyxelWidgets.Utils.Rectangle.Rectangle2D) -> tuple:
         return rect, self.buffer[rect.slice]
 
     def update(self) -> tuple:

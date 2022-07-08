@@ -1,6 +1,8 @@
 __all__ = ['Controllers', 'Helpers', 'Utils', 'Widgets']
 
-import PyxelWidgets.Helpers
+import PyxelWidgets.Utils.Enums
+import PyxelWidgets.Utils.Pixel
+import PyxelWidgets.Utils.Rectangle
 import PyxelWidgets.Widgets
 import PyxelWidgets.Controllers
 import PyxelWidgets.Utils.Effect
@@ -12,17 +14,17 @@ class Window():
 
     def __init__(self, width: int, height: int, **kwargs):
         self.name = kwargs.get('name', f'Window_{Window._count}')
-        self.rect = PyxelWidgets.Helpers.Rectangle2D(0, 0, width, height)
+        self.rect = PyxelWidgets.Utils.Rectangle.Rectangle2D(0, 0, width, height)
         self.widgets = {}
         self.effects = {}
-        self.buffer = numpy.ndarray((self.rect.w, self.rect.h), PyxelWidgets.Helpers.Pixel)
-        self.buffer.fill(PyxelWidgets.Helpers.Colors.Invisible)
+        self.buffer = numpy.ndarray((self.rect.w, self.rect.h), PyxelWidgets.Utils.Pixel.Pixel)
+        self.buffer.fill(PyxelWidgets.Utils.Pixel.Colors.Invisible)
         self._callback = lambda *_, **__: None
         Window._count += 1
 
     def addEffect(self, x: int, y: int, width: int, height: int, effect: PyxelWidgets.Utils.Effect.Effect):
         self.effects[effect.name] = {
-            'rect': PyxelWidgets.Helpers.Rectangle2D(x, y, width, height), 
+            'rect': PyxelWidgets.Utils.Rectangle.Rectangle2D(x, y, width, height), 
             'effect': effect
         }
     
@@ -42,20 +44,20 @@ class Window():
             self.widgets.pop(name)
     
     def forceUpdate(self):
-        self.buffer.fill(PyxelWidgets.Helpers.Colors.Invisible)
+        self.buffer.fill(PyxelWidgets.Utils.Pixel.Colors.Invisible)
         for widget in self.widgets.values():
             widget.updated = True
 
     def process(self, name, event, data):
-        if event != PyxelWidgets.Helpers.Event.Custom:
+        if event != PyxelWidgets.Utils.Enums.Event.Custom:
             x, y, value = data
-            b = PyxelWidgets.Helpers.Rectangle2D(x, y)
+            b = PyxelWidgets.Utils.Rectangle.Rectangle2D(x, y)
             if self.rect.collide(b):
                 for widget in self.widgets.values():
                     if widget.rect.collide(b):
                         widget.process(name, event, data)
 
-    def updateArea(self, rect: PyxelWidgets.Helpers.Rectangle2D):
+    def updateArea(self, rect: PyxelWidgets.Utils.Rectangle.Rectangle2D):
         intersect = self.rect.intersect(rect)
         if intersect:
             for widget in self.widgets.values():
@@ -84,9 +86,9 @@ class Manager():
         self.name = kwargs.get('name', f'Manager_{Window._count}')
         self.windows = {}
         self.controllers = {}
-        self.rect = PyxelWidgets.Helpers.Rectangle2D(0, 0, width, height)
-        self.buffer = numpy.ndarray((self.rect.w, self.rect.h), PyxelWidgets.Helpers.Pixel)
-        self.buffer.fill(PyxelWidgets.Helpers.Colors.Invisible)
+        self.rect = PyxelWidgets.Utils.Rectangle.Rectangle2D(0, 0, width, height)
+        self.buffer = numpy.ndarray((self.rect.w, self.rect.h), PyxelWidgets.Utils.Pixel.Pixel)
+        self.buffer.fill(PyxelWidgets.Utils.Pixel.Colors.Invisible)
         self.callback = lambda *_, **__ : None
         Manager._count += 1
     
@@ -98,7 +100,7 @@ class Manager():
     def addWindow(self, window: Window, x: int, y: int, width: int, height: int) -> None:
         self.windows[window.name] = {}
         self.windows[window.name]['window'] = window
-        self.windows[window.name]['rect'] = PyxelWidgets.Helpers.Rectangle2D(x, y, width, height)
+        self.windows[window.name]['rect'] = PyxelWidgets.Utils.Rectangle.Rectangle2D(x, y, width, height)
     
     def removeWindow(self, name: str):
         if name in self.windows:
@@ -107,7 +109,7 @@ class Manager():
     def addController(self, controller: PyxelWidgets.Controllers.Controller, x: int, y: int):
         self.controllers[controller.name] = {}
         self.controllers[controller.name]['controller'] = controller
-        self.controllers[controller.name]['rect'] = PyxelWidgets.Helpers.Rectangle2D(x, y, controller.rect.w, controller.rect.h)
+        self.controllers[controller.name]['rect'] = PyxelWidgets.Utils.Rectangle.Rectangle2D(x, y, controller.rect.w, controller.rect.h)
         controller.setCallback(self.process)
     
     def removeController(self, name):
@@ -119,7 +121,7 @@ class Manager():
             window.forceUpdate()
 
     def process(self, name, event, data):
-        if event != PyxelWidgets.Helpers.Event.Custom:
+        if event != PyxelWidgets.Utils.Enums.Event.Custom:
             for window in list(self.windows.values()):
                 cr = self.controllers[name]['rect']
                 wr = window['rect']
@@ -140,7 +142,7 @@ class Manager():
                 if rect is not None:
                     update = rect + intersect
                     self.buffer[update.slice] = buffer[rect.slice]
-        self.buffer = numpy.where(self.buffer == PyxelWidgets.Helpers.Colors.Invisible, PyxelWidgets.Helpers.Colors.Black, self.buffer)
+        self.buffer = numpy.where(self.buffer == PyxelWidgets.Utils.Pixel.Colors.Invisible, PyxelWidgets.Utils.Pixel.Colors.Black, self.buffer)
         for controller in list(self.controllers.values()):
             intersect = self.rect.intersect(controller['rect'])
             if intersect:

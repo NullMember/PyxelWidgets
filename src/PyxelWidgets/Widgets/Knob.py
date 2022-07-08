@@ -1,5 +1,7 @@
 import PyxelWidgets.Widgets
-import PyxelWidgets.Helpers
+import PyxelWidgets.Utils.Enums
+import PyxelWidgets.Utils.Pixel
+import PyxelWidgets.Utils.Rectangle
 import enum
 
 class Knob(PyxelWidgets.Widgets.Widget):
@@ -45,7 +47,7 @@ class Knob(PyxelWidgets.Widgets.Widget):
             if index != -1:
                 self.setValue(self._value + (self._calcKnobWeight(index) * self.coefficient))
 
-    def updateArea(self, rect: PyxelWidgets.Helpers.Rectangle2D):
+    def updateArea(self, rect: PyxelWidgets.Utils.Rectangle.Rectangle2D):
         if self.state:
             self.tick()
         halfval = self._value / 2.0
@@ -61,7 +63,7 @@ class Knob(PyxelWidgets.Widgets.Widget):
                         minV = self._minV[index]
                         maxV = self._maxV[index]
                         if index == -1:
-                            self.buffer[x, y] = PyxelWidgets.Helpers.Colors.Invisible
+                            self.buffer[x, y] = PyxelWidgets.Utils.Pixel.Colors.Invisible
                         else:
                             if self.type == Knob.Type.Single:
                                 if maxV < self._value:

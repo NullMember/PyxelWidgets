@@ -1,5 +1,7 @@
 import PyxelWidgets.Widgets
-import PyxelWidgets.Helpers
+import PyxelWidgets.Utils.Enums
+import PyxelWidgets.Utils.Pixel
+import PyxelWidgets.Utils.Rectangle
 import PyxelWidgets.Utils.Clock
 import numpy
 
@@ -18,8 +20,8 @@ class Sequencer(PyxelWidgets.Widgets.Widget):
         self.note = kwargs.get('note', 4.0)
         self.beat = kwargs.get('beat', 4.0)
         self.ppq = kwargs.get('ppq', 24)
-        self.currentColor = kwargs.get('currentColor', PyxelWidgets.Helpers.Colors.Lime)
-        self.currentActiveColor = kwargs.get('currentActiveColor', PyxelWidgets.Helpers.Colors.Red)
+        self.currentColor = kwargs.get('currentColor', PyxelWidgets.Utils.Pixel.Colors.Lime)
+        self.currentActiveColor = kwargs.get('currentActiveColor', PyxelWidgets.Utils.Pixel.Colors.Red)
         self.target = PyxelWidgets.Utils.Clock.Target(self.tick)
         if clock != None:
             self.addToClock(clock)
@@ -62,10 +64,10 @@ class Sequencer(PyxelWidgets.Widgets.Widget):
             page = int(self._tick / self.rect.area)
             if page != self.currentPage:
                 self.currentPage = page
-                self._callback(self.name, PyxelWidgets.Helpers.Event.Page, self.currentPage)
-            self._callback(self.name, PyxelWidgets.Helpers.Event.Tick, int(self._tick))
+                self._callback(self.name, PyxelWidgets.Utils.Enums.Event.Page, self.currentPage)
+            self._callback(self.name, PyxelWidgets.Utils.Enums.Event.Tick, int(self._tick))
             if self._isTickActive():
-                self._callback(self.name, PyxelWidgets.Helpers.Event.Active, int(self._tick))
+                self._callback(self.name, PyxelWidgets.Utils.Enums.Event.Active, int(self._tick))
             self.updated = True
 
     def press(self, x: int, y: int, value: float):
@@ -77,7 +79,7 @@ class Sequencer(PyxelWidgets.Widgets.Widget):
     def reset(self):
         self.state.fill(False)
 
-    def updateArea(self, rect: PyxelWidgets.Helpers.Rectangle2D):
+    def updateArea(self, rect: PyxelWidgets.Utils.Rectangle.Rectangle2D):
         intersect = self.rect.intersect(rect)
         if intersect is not None:
             area = intersect - self.rect
@@ -86,7 +88,7 @@ class Sequencer(PyxelWidgets.Widgets.Widget):
                 tickP = self._tickPage()
                 tickX = self._tickX()
                 tickY = self._tickY() % self.rect.h
-                stateArea = area + PyxelWidgets.Helpers.Rectangle2D(0, self.rect.h * tickP)
+                stateArea = area + PyxelWidgets.Utils.Rectangle.Rectangle2D(0, self.rect.h * tickP)
                 self.buffer[area.slice] = numpy.where(self.state[stateArea.slice] == True, self.activeColor, self.deactiveColor)
                 if tickP == self.currentPage:
                     if self.buffer[tickX, tickY] == self.activeColor:

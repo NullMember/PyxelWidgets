@@ -1,5 +1,7 @@
 import PyxelWidgets.Widgets
-import PyxelWidgets.Helpers
+import PyxelWidgets.Utils.Enums
+import PyxelWidgets.Utils.Pixel
+import PyxelWidgets.Utils.Rectangle
 import numpy
 
 class Sprite(PyxelWidgets.Widgets.Widget):
@@ -14,10 +16,10 @@ class Sprite(PyxelWidgets.Widgets.Widget):
         self.nextFrame = 0
         if not isinstance(self.frames, numpy.ndarray):
             self.frames = [numpy.ndarray((self.rect.w, self.rect.h))]
-            self.frames[0].fill(PyxelWidgets.Helpers.Colors.Invisible)
+            self.frames[0].fill(PyxelWidgets.Utils.Pixel.Colors.Invisible)
         self.buffer = self.frames[0]
 
-    def updateArea(self, rect: PyxelWidgets.Helpers.Rectangle2D):
+    def updateArea(self, rect: PyxelWidgets.Utils.Rectangle.Rectangle2D):
         self.updated = False
         intersect = self.rect.intersect(rect)
         if intersect is not None:

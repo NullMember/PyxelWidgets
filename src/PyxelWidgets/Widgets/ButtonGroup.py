@@ -1,5 +1,7 @@
 import PyxelWidgets.Widgets
-import PyxelWidgets.Helpers
+import PyxelWidgets.Utils.Enums
+import PyxelWidgets.Utils.Pixel
+import PyxelWidgets.Utils.Rectangle
 import numpy
 import enum
 
@@ -38,7 +40,7 @@ class ButtonGroup(PyxelWidgets.Widgets.Widget):
             self.state[x, y] = False
             self.updated = True
 
-    def updateArea(self, rect: PyxelWidgets.Helpers.Rectangle2D) -> tuple:
+    def updateArea(self, rect: PyxelWidgets.Utils.Rectangle.Rectangle2D) -> tuple:
         intersect = self.rect.intersect(rect)
         if intersect is not None:
             area = intersect - self.rect
