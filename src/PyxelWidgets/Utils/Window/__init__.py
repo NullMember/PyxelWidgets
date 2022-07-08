@@ -17,7 +17,8 @@ class Window():
         self.effects = {}
         self.buffer = numpy.ndarray((self.rect.w, self.rect.h), PyxelWidgets.Utils.Pixel.Pixel)
         self.buffer.fill(PyxelWidgets.Utils.Pixel.Colors.Invisible)
-        self._callback = lambda *_, **__: None
+        self.frameCounter = 0
+        self.callback = kwargs.get('callback', lambda *_, **__: None)
         Window._count += 1
 
     def addEffect(self, x: int, y: int, width: int, height: int, effect: PyxelWidgets.Utils.Effect.Effect):
@@ -43,7 +44,7 @@ class Window():
     
     def forceUpdate(self):
         self.buffer.fill(PyxelWidgets.Utils.Pixel.Colors.Invisible)
-        for widget in self.widgets.values():
+        for widget in list(self.widgets.values()):
             widget.updated = True
 
     def process(self, name, event, data):
@@ -51,14 +52,21 @@ class Window():
             x, y, value = data
             b = PyxelWidgets.Utils.Rectangle.Rectangle2D(x, y)
             if self.rect.collide(b):
-                for widget in self.widgets.values():
+                for widget in list(self.widgets.values()):
                     if widget.rect.collide(b):
                         widget.process(name, event, data)
+        else:
+            self.callback(name, event, data)
+    
+    def setCallback(self, callback) -> None:
+        self.callback = callback
 
     def updateArea(self, rect: PyxelWidgets.Utils.Rectangle.Rectangle2D):
+        self.callback(self.name, PyxelWidgets.Utils.Enums.Event.Frame, self.frameCounter)
+        self.frameCounter += 1
         intersect = self.rect.intersect(rect)
         if intersect:
-            for widget in self.widgets.values():
+            for widget in list(self.widgets.values()):
                 if widget.updated:
                     area, buffer = widget.updateArea(intersect)
                     if buffer is not None:
@@ -87,7 +95,7 @@ class Manager():
         self.rect = PyxelWidgets.Utils.Rectangle.Rectangle2D(0, 0, width, height)
         self.buffer = numpy.ndarray((self.rect.w, self.rect.h), PyxelWidgets.Utils.Pixel.Pixel)
         self.buffer.fill(PyxelWidgets.Utils.Pixel.Colors.Invisible)
-        self.callback = lambda *_, **__ : None
+        self.callback = kwargs.get('callback', lambda *_, **__: None)
         Manager._count += 1
     
     def destroy(self):
