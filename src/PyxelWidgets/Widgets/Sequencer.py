@@ -52,6 +52,7 @@ class Sequencer(PyxelWidgets.Widgets.Widget):
         self._pageCount = int((self._step - 1) / self.rect.area) + 1
         self.state = numpy.zeros((self.rect.w, self.rect.h * self._pageCount), dtype = numpy.bool8)
         self._tick %= self._step
+        self.currentPage = int(self._tick / self.rect.area)
 
     def tick(self, tick):
         oldTick = self._tick
