@@ -1,7 +1,9 @@
 __all__ = []
 
 import PyxelWidgets.Controllers.MIDI
-import PyxelWidgets.Helpers
+import PyxelWidgets.Utils.Enums
+import PyxelWidgets.Utils.Pixel
+import PyxelWidgets.Utils.Rectangle
 import enum
 
 class ATOM(PyxelWidgets.Controllers.MIDI.MIDI):
@@ -56,7 +58,7 @@ class ATOM(PyxelWidgets.Controllers.MIDI.MIDI):
         self.setNativeControl(ATOM.NativeControl.Disable)
         super().disconnect()
     
-    def sendPixel(self, x: int, y: int, pixel: PyxelWidgets.Helpers.Pixel):
+    def sendPixel(self, x: int, y: int, pixel: PyxelWidgets.Utils.Pixel.Pixel):
         index = 36 + x + (y * 4)
         rgb = pixel.grgb
         self.sendNoteOn(index, rgb[0] >> 1, 1)
@@ -77,11 +79,11 @@ class ATOM(PyxelWidgets.Controllers.MIDI.MIDI):
             value = midi[2]
             if control > 17:
                 if value > 0.0:
-                    self.setCustom(PyxelWidgets.Helpers.Event.Pressed, ATOM.Controls(control).name, 1.0)
+                    self.setCustom(PyxelWidgets.Utils.Enums.Event.Pressed, ATOM.Controls(control).name, 1.0)
                 else:
-                    self.setCustom(PyxelWidgets.Helpers.Event.Released, ATOM.Controls(control).name, 0.0)
+                    self.setCustom(PyxelWidgets.Utils.Enums.Event.Released, ATOM.Controls(control).name, 0.0)
             else:
                 if value == 1:
-                    self.setCustom(PyxelWidgets.Helpers.Event.Increased, ATOM.Controls(control).name, 1.0)
+                    self.setCustom(PyxelWidgets.Utils.Enums.Event.Increased, ATOM.Controls(control).name, 1.0)
                 elif value == 65:
-                    self.setCustom(PyxelWidgets.Helpers.Event.Decreased, ATOM.Controls(control).name, -1.0)
+                    self.setCustom(PyxelWidgets.Utils.Enums.Event.Decreased, ATOM.Controls(control).name, -1.0)

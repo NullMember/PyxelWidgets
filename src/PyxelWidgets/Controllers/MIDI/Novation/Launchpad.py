@@ -1,5 +1,7 @@
 import PyxelWidgets.Controllers.MIDI
-import PyxelWidgets.Helpers
+import PyxelWidgets.Utils.Enums
+import PyxelWidgets.Utils.Pixel
+import PyxelWidgets.Utils.Rectangle
 import collections
 import enum
 import numpy
@@ -24,7 +26,7 @@ class MK1(PyxelWidgets.Controllers.MIDI.MIDI):
     def setLayout(self, layout: Layout):
         self.sendControlChange(0, layout.value)
 
-    def sendPixel(self, x: int, y: int, pixel: PyxelWidgets.Helpers.Pixel):
+    def sendPixel(self, x: int, y: int, pixel: PyxelWidgets.Utils.Pixel.Pixel):
         colorIndex = pixel.gmono // 32
         if y < 8:
             index = (x + (0x70 - (y * 0x10))) & 0x7F
@@ -77,7 +79,7 @@ class MK2(PyxelWidgets.Controllers.MIDI.MIDI):
     def setLayout(self, layout: Layout):
         self.sendSysex(self._header + [0x22, layout.value])
 
-    def sendPixel(self, x: int, y: int, pixel: PyxelWidgets.Helpers.Pixel):
+    def sendPixel(self, x: int, y: int, pixel: PyxelWidgets.Utils.Pixel.Pixel):
         index = (x + (y * 10)) & 0x7F
         rgb = pixel.grgb
         self._sysexBuffer.extend([3, index, rgb[0] >> 2, rgb[1] >> 2, rgb[2] >> 2])
@@ -101,25 +103,25 @@ class MK2(PyxelWidgets.Controllers.MIDI.MIDI):
             y = midi[1] // 10
             self.setButton(x, y, midi[2] / 127.0)
 
-    def updateOne(self, x: int, y: int, pixel: PyxelWidgets.Helpers.Pixel):
+    def updateOne(self, x: int, y: int, pixel: PyxelWidgets.Utils.Pixel.Pixel):
         super().updateOne(x, y, pixel)
         if len(self._sysexBuffer):
             self.sendSysex(self._header + [3] + list(self._sysexBuffer))
             self._sysexBuffer.clear()
     
-    def updateRow(self, y: int, pixel: PyxelWidgets.Helpers.Pixel):
+    def updateRow(self, y: int, pixel: PyxelWidgets.Utils.Pixel.Pixel):
         super().updateRow(y, pixel)
         if len(self._sysexBuffer):
             self.sendSysex(self._header + [3] + list(self._sysexBuffer))
             self._sysexBuffer.clear()
     
-    def updateColumn(self, x: int, pixel: PyxelWidgets.Helpers.Pixel):
+    def updateColumn(self, x: int, pixel: PyxelWidgets.Utils.Pixel.Pixel):
         super().updateColumn(x, pixel)
         if len(self._sysexBuffer):
             self.sendSysex(self._header + [3] + list(self._sysexBuffer))
             self._sysexBuffer.clear()
 
-    def updateArea(self, x: int, y: int, width: int, height: int, pixel: PyxelWidgets.Helpers.Pixel):
+    def updateArea(self, x: int, y: int, width: int, height: int, pixel: PyxelWidgets.Utils.Pixel.Pixel):
         super().updateArea(x, y, width, height, pixel)
         if len(self._sysexBuffer):
             self.sendSysex(self._header + [3] + list(self._sysexBuffer))
@@ -207,7 +209,7 @@ class MK3(PyxelWidgets.Controllers.MIDI.MIDI):
             elif mode == MK3.Mode.Programmer:
                 self.setLayout(MK3.ProLayout.Programmer)
 
-    def sendPixel(self, x: int, y: int, pixel: PyxelWidgets.Helpers.Pixel):
+    def sendPixel(self, x: int, y: int, pixel: PyxelWidgets.Utils.Pixel.Pixel):
         index = (x + (y * 10)) & 0x7F
         rgb = pixel.grgb
         self._sysexBuffer.extend([3, index, rgb[0] >> 1, rgb[1] >> 1, rgb[2] >> 1])
@@ -229,25 +231,25 @@ class MK3(PyxelWidgets.Controllers.MIDI.MIDI):
             y = midi[1] // 10
             self.setButton(x, y, midi[2] / 127.0)
 
-    def updateOne(self, x: int, y: int, pixel: PyxelWidgets.Helpers.Pixel):
+    def updateOne(self, x: int, y: int, pixel: PyxelWidgets.Utils.Pixel.Pixel):
         super().updateOne(x, y, pixel)
         if len(self._sysexBuffer):
             self.sendSysex(self._header + [3] + list(self._sysexBuffer))
             self._sysexBuffer.clear()
     
-    def updateRow(self, y: int, pixel: PyxelWidgets.Helpers.Pixel):
+    def updateRow(self, y: int, pixel: PyxelWidgets.Utils.Pixel.Pixel):
         super().updateRow(y, pixel)
         if len(self._sysexBuffer):
             self.sendSysex(self._header + [3] + list(self._sysexBuffer))
             self._sysexBuffer.clear()
     
-    def updateColumn(self, x: int, pixel: PyxelWidgets.Helpers.Pixel):
+    def updateColumn(self, x: int, pixel: PyxelWidgets.Utils.Pixel.Pixel):
         super().updateColumn(x, pixel)
         if len(self._sysexBuffer):
             self.sendSysex(self._header + [3] + list(self._sysexBuffer))
             self._sysexBuffer.clear()
 
-    def updateArea(self, x: int, y: int, width: int, height: int, pixel: PyxelWidgets.Helpers.Pixel):
+    def updateArea(self, x: int, y: int, width: int, height: int, pixel: PyxelWidgets.Utils.Pixel.Pixel):
         super().updateArea(x, y, width, height, pixel)
         if len(self._sysexBuffer):
             self.sendSysex(self._header + [3] + list(self._sysexBuffer))
@@ -279,7 +281,7 @@ class Pro(PyxelWidgets.Controllers.MIDI.MIDI):
     def setLayout(self, layout: Layout):
         self.sendSysex(self._header + [0x2C, layout.value])
     
-    def sendPixel(self, x: int, y: int, pixel: PyxelWidgets.Helpers.Pixel):
+    def sendPixel(self, x: int, y: int, pixel: PyxelWidgets.Utils.Pixel.Pixel):
         index = (x + (y * 10)) & 0x7F
         rgb = pixel.grgb
         self._sysexBuffer.extend([3, index, rgb[0] >> 2, rgb[1] >> 2, rgb[2] >> 2])
@@ -301,25 +303,25 @@ class Pro(PyxelWidgets.Controllers.MIDI.MIDI):
             y = midi[1] // 10
             self.setButton(x, y, midi[2] / 127.0)
 
-    def updateOne(self, x: int, y: int, pixel: PyxelWidgets.Helpers.Pixel):
+    def updateOne(self, x: int, y: int, pixel: PyxelWidgets.Utils.Pixel.Pixel):
         super().updateOne(x, y, pixel)
         if len(self._sysexBuffer):
             self.sendSysex(self._header + [3] + list(self._sysexBuffer))
             self._sysexBuffer.clear()
     
-    def updateRow(self, y: int, pixel: PyxelWidgets.Helpers.Pixel):
+    def updateRow(self, y: int, pixel: PyxelWidgets.Utils.Pixel.Pixel):
         super().updateRow(y, pixel)
         if len(self._sysexBuffer):
             self.sendSysex(self._header + [3] + list(self._sysexBuffer))
             self._sysexBuffer.clear()
     
-    def updateColumn(self, x: int, pixel: PyxelWidgets.Helpers.Pixel):
+    def updateColumn(self, x: int, pixel: PyxelWidgets.Utils.Pixel.Pixel):
         super().updateColumn(x, pixel)
         if len(self._sysexBuffer):
             self.sendSysex(self._header + [3] + list(self._sysexBuffer))
             self._sysexBuffer.clear()
 
-    def updateArea(self, x: int, y: int, width: int, height: int, pixel: PyxelWidgets.Helpers.Pixel):
+    def updateArea(self, x: int, y: int, width: int, height: int, pixel: PyxelWidgets.Utils.Pixel.Pixel):
         super().updateArea(x, y, width, height, pixel)
         if len(self._sysexBuffer):
             self.sendSysex(self._header + [3] + list(self._sysexBuffer))

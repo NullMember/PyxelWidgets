@@ -1,5 +1,7 @@
 import PyxelWidgets.Widgets
-import PyxelWidgets.Helpers
+import PyxelWidgets.Utils.Enums
+import PyxelWidgets.Utils.Pixel
+import PyxelWidgets.Utils.Rectangle
 import enum
 import numpy
 
@@ -74,10 +76,10 @@ class Keyboard(PyxelWidgets.Widgets.Widget):
         self._mode: Keyboard.Mode = kwargs.get('mode', Keyboard.Mode.Diatonic)
         self._scale: Keyboard.Scale = kwargs.get('scale', Keyboard.Scale.Major)
         self._tone: Keyboard.Tone = kwargs.get('tone', Keyboard.Tone.C)
-        self._toneColor: PyxelWidgets.Helpers.Pixel = kwargs.get('toneColor', PyxelWidgets.Helpers.Colors.Magenta)
-        self._keyboardColor: PyxelWidgets.Helpers.Pixel = kwargs.get('keyboardColor', PyxelWidgets.Helpers.Colors.Cyan)
-        self._nonScaleColor: PyxelWidgets.Helpers.Pixel = kwargs.get('nonScaleColor', PyxelWidgets.Helpers.Colors.Yellow)
-        kwargs['activeColor'] = kwargs.get('activeColor', PyxelWidgets.Helpers.Colors.Green)
+        self._toneColor: PyxelWidgets.Utils.Pixel.Pixel = kwargs.get('toneColor', PyxelWidgets.Utils.Pixel.Colors.Magenta)
+        self._keyboardColor: PyxelWidgets.Utils.Pixel.Pixel = kwargs.get('keyboardColor', PyxelWidgets.Utils.Pixel.Colors.Cyan)
+        self._nonScaleColor: PyxelWidgets.Utils.Pixel.Pixel = kwargs.get('nonScaleColor', PyxelWidgets.Utils.Pixel.Colors.Yellow)
+        kwargs['activeColor'] = kwargs.get('activeColor', PyxelWidgets.Utils.Pixel.Colors.Green)
         self.buttons = None
         self.notes = None
         self.colors = None
@@ -140,7 +142,7 @@ class Keyboard(PyxelWidgets.Widgets.Widget):
         return self._toneColor
     
     @toneColor.setter
-    def toneColor(self, toneColor: PyxelWidgets.Helpers.Pixel):
+    def toneColor(self, toneColor: PyxelWidgets.Utils.Pixel.Pixel):
         self._toneColor = toneColor
         self._resize(self.width, self.height)
         self.updated = True
@@ -150,7 +152,7 @@ class Keyboard(PyxelWidgets.Widgets.Widget):
         return self._keyboardColor
     
     @keyboardColor.setter
-    def keyboardColor(self, keyboardColor: PyxelWidgets.Helpers.Pixel):
+    def keyboardColor(self, keyboardColor: PyxelWidgets.Utils.Pixel.Pixel):
         self._keyboardColor = keyboardColor
         self._resize(self.width, self.height)
         self.updated = True
@@ -160,7 +162,7 @@ class Keyboard(PyxelWidgets.Widgets.Widget):
         return self._nonScaleColor
     
     @nonScaleColor.setter
-    def nonScaleColor(self, nonScaleColor: PyxelWidgets.Helpers.Pixel):
+    def nonScaleColor(self, nonScaleColor: PyxelWidgets.Utils.Pixel.Pixel):
         self._nonScaleColor = nonScaleColor
         self._resize(self.width, self.height)
         self.updated = True
@@ -169,17 +171,17 @@ class Keyboard(PyxelWidgets.Widgets.Widget):
         if self.notes[x, y] >= 0:
             for button in self.buttons[self.notes[x, y]]:
                 self.states[button[0], button[1]] = True
-        self._callback(self.name, PyxelWidgets.Helpers.Event.Changed, (self.notes[x, y], 1.0))
+        self._callback(self.name, PyxelWidgets.Utils.Enums.Event.Changed, (self.notes[x, y], 1.0))
         self.updated = True
     
     def release(self, x: int, y: int, value: float):
         if self.notes[x, y] >= 0:
             for button in self.buttons[self.notes[x, y]]:
                 self.states[button[0], button[1]] = False
-        self._callback(self.name, PyxelWidgets.Helpers.Event.Changed, (self.notes[x, y], 0.0))
+        self._callback(self.name, PyxelWidgets.Utils.Enums.Event.Changed, (self.notes[x, y], 0.0))
         self.updated = True
     
-    def updateArea(self, rect: PyxelWidgets.Helpers.Rectangle2D) -> tuple:
+    def updateArea(self, rect: PyxelWidgets.Utils.Rectangle.Rectangle2D) -> tuple:
         intersect = self.rect.intersect(rect)
         if intersect is not None:
             area = intersect - self.rect
@@ -204,7 +206,7 @@ class Keyboard(PyxelWidgets.Widgets.Widget):
     def _resize(self, width, height) -> bool:
         self.notes = numpy.array([[0 for y in range(height)] for x in range(width)])
         self.states = numpy.array([[0 for y in range(height)] for x in range(width)])
-        self.colors = [PyxelWidgets.Helpers.Colors.Invisible for i in range(128)]
+        self.colors = [PyxelWidgets.Utils.Pixel.Colors.Invisible for i in range(128)]
         self.buttons = [[] for i in range(128)]
         self._calcNotes()
 

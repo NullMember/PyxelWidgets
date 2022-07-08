@@ -1,5 +1,7 @@
 import PyxelWidgets.Widgets
-import PyxelWidgets.Helpers
+import PyxelWidgets.Utils.Enums
+import PyxelWidgets.Utils.Pixel
+import PyxelWidgets.Utils.Rectangle
 import enum
 
 class Button(PyxelWidgets.Widgets.Widget):
@@ -48,7 +50,7 @@ class Button(PyxelWidgets.Widgets.Widget):
         if self.mode == Button.Type.Mixed:
             self.isHold = not self.isHold
 
-    def updateArea(self, rect: PyxelWidgets.Helpers.Rectangle2D):
+    def updateArea(self, rect: PyxelWidgets.Utils.Rectangle.Rectangle2D):
         intersect = self.rect.intersect(rect)
         if intersect is not None:
             area = intersect - self.rect

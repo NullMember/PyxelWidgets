@@ -1,6 +1,8 @@
 __all__ = ['OSC', 'MIDI']
 
-import PyxelWidgets.Helpers
+import PyxelWidgets.Utils.Enums
+import PyxelWidgets.Utils.Pixel
+import PyxelWidgets.Utils.Rectangle
 import PyxelWidgets.Utils.Clock
 import numpy
 import threading
@@ -11,13 +13,13 @@ class Controller():
 
     def __init__(self, **kwargs):
         self.name = kwargs.get('name', f'Controller_{Controller._count}')
-        self.rect = PyxelWidgets.Helpers.Rectangle2D(kwargs.get('x', 0), kwargs.get('y', 0), kwargs.get('width', 1), kwargs.get('height', 1))
+        self.rect = PyxelWidgets.Utils.Rectangle.Rectangle2D(kwargs.get('x', 0), kwargs.get('y', 0), kwargs.get('width', 1), kwargs.get('height', 1))
         self.heldTime = kwargs.get('heldTime', 1.0)
         self.initialized = False
         self.connected = False
         self.terminated = False
-        self.buffer = numpy.ndarray((self.rect.w, self.rect.h), PyxelWidgets.Helpers.Pixel)
-        self.buffer.fill(PyxelWidgets.Helpers.Colors.Invisible)
+        self.buffer = numpy.ndarray((self.rect.w, self.rect.h), PyxelWidgets.Utils.Pixel.Pixel)
+        self.buffer.fill(PyxelWidgets.Utils.Pixel.Colors.Invisible)
         self.buttons = numpy.ndarray((self.rect.w, self.rect.h))
         self.buttons.fill(0.0)
         self.clock = PyxelWidgets.Utils.Clock.Clock()
@@ -65,48 +67,48 @@ class Controller():
     def setPressed(self, x: int, y: int) -> None:
         self._held[x, y] = threading.Timer(interval = self.heldTime, function = self.setHeld, args = (x, y))
         self._held[x, y].start()
-        self._callback(self.name, PyxelWidgets.Helpers.Event.Pressed, (x, y, self.buttons[x, y]))
+        self._callback(self.name, PyxelWidgets.Utils.Enums.Event.Pressed, (x, y, self.buttons[x, y]))
     
     def setReleased(self, x: int, y: int) -> None:
         self._held[x, y].cancel()
-        self._callback(self.name, PyxelWidgets.Helpers.Event.Released, (x, y, self.buttons[x, y]))
+        self._callback(self.name, PyxelWidgets.Utils.Enums.Event.Released, (x, y, self.buttons[x, y]))
     
     def setHeld(self, x: int, y: int) -> None:
-        self._callback(self.name, PyxelWidgets.Helpers.Event.Held, (x, y, self.buttons[x, y]))
+        self._callback(self.name, PyxelWidgets.Utils.Enums.Event.Held, (x, y, self.buttons[x, y]))
     
-    def setCustom(self, event, name, data):
-        self._callback(self.name, PyxelWidgets.Helpers.Event.Custom, (name, event, data))
+    def setCustom(self, event, name, value):
+        self._callback(self.name, PyxelWidgets.Utils.Enums.Event.Custom, (name, event, value))
 
-    def sendPixel(self, x: int, y: int, pixel: PyxelWidgets.Helpers.Pixel):
+    def sendPixel(self, x: int, y: int, pixel: PyxelWidgets.Utils.Pixel.Pixel):
         raise NotImplementedError("sendPixel method must be implemented")
 
-    def updateOne(self, x: int, y: int, pixel: PyxelWidgets.Helpers.Pixel):
+    def updateOne(self, x: int, y: int, pixel: PyxelWidgets.Utils.Pixel.Pixel):
         if self.connected:
-            intersect = self.rect.intersect(PyxelWidgets.Helpers.Rectangle2D(x, y, 1, 1))
+            intersect = self.rect.intersect(PyxelWidgets.Utils.Rectangle.Rectangle2D(x, y, 1, 1))
             if intersect is not None:
                 if pixel != self.buffer[x, y]:
                     self.buffer[x, y] = pixel
                     self.sendPixel(x, y, pixel)
 
-    def updateRow(self, y: int, pixel: PyxelWidgets.Helpers.Pixel):
+    def updateRow(self, y: int, pixel: PyxelWidgets.Utils.Pixel.Pixel):
         if self.connected:
-            intersect = self.rect.intersect(PyxelWidgets.Helpers.Rectangle2D(0, y, self.rect.w, 1))
+            intersect = self.rect.intersect(PyxelWidgets.Utils.Rectangle.Rectangle2D(0, y, self.rect.w, 1))
             if intersect is not None:
                 for x in intersect.columns:
                     if pixel != self.buffer[x, y]:
                         self.buffer[x, y] = pixel
                         self.sendPixel(x, y, pixel)
 
-    def updateColumn(self, x: int, pixel: PyxelWidgets.Helpers.Pixel):
+    def updateColumn(self, x: int, pixel: PyxelWidgets.Utils.Pixel.Pixel):
         if self.connected:
-            intersect = self.rect.intersect(PyxelWidgets.Helpers.Rectangle2D(x, 0, 1, self.rect.h))
+            intersect = self.rect.intersect(PyxelWidgets.Utils.Rectangle.Rectangle2D(x, 0, 1, self.rect.h))
             if intersect is not None:
                 for y in intersect.rows:
                     if pixel != self.buffer[x, y]:
                         self.buffer[x, y] = pixel
                         self.sendPixel(x, y, pixel)
     
-    def updateArea(self, rect: PyxelWidgets.Helpers.Rectangle2D, pixel: PyxelWidgets.Helpers.Pixel):
+    def updateArea(self, rect: PyxelWidgets.Utils.Rectangle.Rectangle2D, pixel: PyxelWidgets.Utils.Pixel.Pixel):
         if self.connected:
             intersect = self.rect.intersect(rect)
             if intersect is not None:

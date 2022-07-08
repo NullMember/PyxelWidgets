@@ -133,3 +133,6 @@ dmypy.json
 
 # Internal test scripts
 internaltest
+
+# MAC OS:
+.DS_Store
