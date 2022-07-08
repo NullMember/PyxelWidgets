@@ -71,6 +71,10 @@ class Counter():
         self.step = self._step
 
     @property
+    def current(self) -> int:
+        return self._step
+
+    @property
     def step(self) -> int:
         if self.direction == Counter.Direction.Up:
             self._step = (self._step + 1) % self._length
@@ -230,8 +234,7 @@ class Custom(Effect):
     def calcValues(self):
         self.values = [0] * self._length
         ratio = (len(self._waveform) - 1) / self._length
-        self.values[0] = self._waveform[0]
-        for i in range(1, self._length):
+        for i in range(self._length):
             coeff = (i * ratio) % 1.0
             inputIndex = int(i * ratio)
             self.values[i] = (self._waveform[inputIndex] * (1.0 - coeff)) + (self._waveform[inputIndex + 1] * coeff)
