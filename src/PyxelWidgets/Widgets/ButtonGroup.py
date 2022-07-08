@@ -5,8 +5,6 @@ import enum
 
 class ButtonGroup(PyxelWidgets.Widgets.Widget):
 
-    _count = 0
-
     class Type(enum.Enum):
         Button = enum.auto()
         Switch = enum.auto()
