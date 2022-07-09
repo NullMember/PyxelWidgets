@@ -198,11 +198,14 @@ class MK2(PyxelWidgets.Controllers.MIDI.MIDI):
                     self.setButton(x, y, 1.0)
             else:
                 control = MK2.Buttons(chn, midi[1])
-                self.setCustom(PyxelWidgets.Utils.Enums.Event.Pressed, control.name, 1.0)
+                if midi[2] == 0.0:
+                    self.setCustom(PyxelWidgets.Utils.Enums.Event.Pressed, control.name, 0.0)
+                else:
+                    self.setCustom(PyxelWidgets.Utils.Enums.Event.Pressed, control.name, 1.0)
         elif cmd == 0xB0:
             control = MK2.Controls(chn, midi[1])
             if control != MK2.Controls.Cue and control != MK2.Controls.Tempo:
-                self.setCustom(PyxelWidgets.Utils.Enums.Event.Changed, control.name, midi[2] / 127)
+                self.setCustom(PyxelWidgets.Utils.Enums.Event.Changed, control.name, midi[2] / 127.0)
             else:
                 if midi[2] >= 64:
                     self.setCustom(PyxelWidgets.Utils.Enums.Event.Increased, control.name, midi[2] - 64)
