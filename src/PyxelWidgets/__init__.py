@@ -1,1 +1,1 @@
-__all__ = ['Controllers', 'Utils', 'Widgets']
+__all__ = ['Controllers', 'Utils', 'Widgets', 'Window']
