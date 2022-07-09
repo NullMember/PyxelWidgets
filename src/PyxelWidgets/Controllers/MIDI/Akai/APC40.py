@@ -8,11 +8,6 @@ import enum
 class MK2(PyxelWidgets.Controllers.MIDI.MIDI):
     """
     Akai APC40 MK2 Controller class
-    ------------------------------
-
-    Thanks to TomasHubelbauer for his amazing documentation:
-        https://github.com/TomasHubelbauer/akai-apc-mini
-        
     """
 
     class Modes(enum.Enum):
@@ -188,6 +183,9 @@ class MK2(PyxelWidgets.Controllers.MIDI.MIDI):
                 x = midi[1] % 8
                 y = midi[1] // 8
                 self.setButton(x, y, 0.0)
+            else:
+                control = MK2.Buttons(chn, midi[1])
+                self.setCustom(PyxelWidgets.Utils.Enums.Event.Released, control.name, 0.0)
         elif cmd == 0x90:
             if midi[1] < 40:
                 if midi[2] == 0:
@@ -198,5 +196,15 @@ class MK2(PyxelWidgets.Controllers.MIDI.MIDI):
                     x = midi[1] % 8
                     y = midi[1] // 8
                     self.setButton(x, y, 1.0)
+            else:
+                control = MK2.Buttons(chn, midi[1])
+                self.setCustom(PyxelWidgets.Utils.Enums.Event.Pressed, control.name, 1.0)
         elif cmd == 0xB0:
-            pass
+            control = MK2.Controls(chn, midi[1])
+            if control != MK2.Controls.Cue and control != MK2.Controls.Tempo:
+                self.setCustom(PyxelWidgets.Utils.Enums.Event.Changed, control.name, midi[2] / 127)
+            else:
+                if midi[2] >= 64:
+                    self.setCustom(PyxelWidgets.Utils.Enums.Event.Increased, control.name, midi[2] - 64)
+                else:
+                    self.setCustom(PyxelWidgets.Utils.Enums.Event.Decreased, control.name, 64 - midi[2])
