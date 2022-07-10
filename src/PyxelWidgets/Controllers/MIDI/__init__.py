@@ -30,12 +30,6 @@ class MIDI(PyxelWidgets.Controllers.Controller):
         MIDI.listInputDevices()
         MIDI.listOutputDevices()
 
-    def init(self):
-        super().init()
-    
-    def close(self):
-        super().close()
-
     def connect(self, inPort: str = None, outPort: str = None):
         super().connect()
         if inPort is not None:
