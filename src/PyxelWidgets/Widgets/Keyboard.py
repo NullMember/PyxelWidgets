@@ -34,7 +34,7 @@ class Keyboard(PyxelWidgets.Widgets.Widget):
         MinorHarmonic   = 13
         MinorMelodic    = 14
 
-    class Tone(enum.Enum):
+    class Root(enum.Enum):
         C   = 0
         CS  = 1
         D   = 2
@@ -75,8 +75,8 @@ class Keyboard(PyxelWidgets.Widgets.Widget):
         self._fold = kwargs.get('fold', 4)
         self._type: Keyboard.Type = kwargs.get('type', Keyboard.Type.Diatonic)
         self._scale: Keyboard.Scale = kwargs.get('scale', Keyboard.Scale.Major)
-        self._tone: Keyboard.Tone = kwargs.get('tone', Keyboard.Tone.C)
-        self._toneColor: PyxelWidgets.Utils.Pixel.Pixel = kwargs.get('toneColor', PyxelWidgets.Utils.Pixel.Colors.Magenta)
+        self._root: Keyboard.Root = kwargs.get('root', Keyboard.Root.C)
+        self._rootColor: PyxelWidgets.Utils.Pixel.Pixel = kwargs.get('rootColor', PyxelWidgets.Utils.Pixel.Colors.Magenta)
         self._keyboardColor: PyxelWidgets.Utils.Pixel.Pixel = kwargs.get('keyboardColor', PyxelWidgets.Utils.Pixel.Colors.Cyan)
         self._nonScaleColor: PyxelWidgets.Utils.Pixel.Pixel = kwargs.get('nonScaleColor', PyxelWidgets.Utils.Pixel.Colors.Yellow)
         kwargs['activeColor'] = kwargs.get('activeColor', PyxelWidgets.Utils.Pixel.Colors.Green)
@@ -128,22 +128,22 @@ class Keyboard(PyxelWidgets.Widgets.Widget):
         self.updated = True
     
     @property
-    def tone(self):
-        return self._tone
+    def root(self):
+        return self._root
     
-    @tone.setter
-    def tone(self, tone: Tone):
-        self._tone = tone
+    @root.setter
+    def root(self, root: Root):
+        self._root = root
         self._resize(self.width, self.height)
         self.updated = True
 
     @property
-    def toneColor(self):
-        return self._toneColor
+    def rootColor(self):
+        return self._rootColor
     
-    @toneColor.setter
-    def toneColor(self, toneColor: PyxelWidgets.Utils.Pixel.Pixel):
-        self._toneColor = toneColor
+    @rootColor.setter
+    def rootColor(self, rootColor: PyxelWidgets.Utils.Pixel.Pixel):
+        self._rootColor = rootColor
         self._resize(self.width, self.height)
         self.updated = True
 
@@ -211,7 +211,7 @@ class Keyboard(PyxelWidgets.Widgets.Widget):
         self._calcNotes()
 
     def _calcNotes(self):
-        base = self._tone.value + (self._octave * 12)
+        base = self._root.value + (self._octave * 12)
         scale = Keyboard.Scales[self._scale.name]
         precalc = []
         #precalculate scale values
@@ -221,7 +221,7 @@ class Keyboard(PyxelWidgets.Widgets.Widget):
             for y in range(self.rect.h):
                 #calculate notes
                 if self._type == Keyboard.Type.Keyboard:
-                    base = Keyboard.Tone.C.value + (self._octave * 12)
+                    base = Keyboard.Root.C.value + (self._octave * 12)
                     length = 7 if 7 < self.rect.w else self.rect.w
                     if y % 2 == 0:
                         scale = Keyboard.Scales['Keyboard']
@@ -251,9 +251,9 @@ class Keyboard(PyxelWidgets.Widgets.Widget):
                     self.buttons[self.notes[x, y]].append([x, y])
                 #change colors
                 if self.notes[x, y] != -1:
-                    if (self.notes[x, y] - self._tone.value) % 12 == 0:
-                        self.colors[self.notes[x, y]] = self._toneColor
-                    elif (self.notes[x, y] - self._tone.value) % 12 in Keyboard.Scales[self._scale.name]:
+                    if (self.notes[x, y] - self._root.value) % 12 == 0:
+                        self.colors[self.notes[x, y]] = self._rootColor
+                    elif (self.notes[x, y] - self._root.value) % 12 in Keyboard.Scales[self._scale.name]:
                         self.colors[self.notes[x, y]] = self._keyboardColor
                     else:
                         self.colors[self.notes[x, y]] = self._nonScaleColor
