@@ -9,7 +9,7 @@ class Keyboard(PyxelWidgets.Widgets.Widget):
 
     _count = 0
 
-    class Mode(enum.Enum):
+    class Type(enum.Enum):
         Keyboard            = 0
         ChromaticVertical   = 1
         ChromaticHorizontal = 2
@@ -73,7 +73,7 @@ class Keyboard(PyxelWidgets.Widgets.Widget):
         kwargs['name'] = kwargs.get('name', f'Keyboard_{Keyboard._count}')
         self._octave = kwargs.get('octave', 0)
         self._fold = kwargs.get('fold', 4)
-        self._mode: Keyboard.Mode = kwargs.get('mode', Keyboard.Mode.Diatonic)
+        self._type: Keyboard.Type = kwargs.get('type', Keyboard.Type.Diatonic)
         self._scale: Keyboard.Scale = kwargs.get('scale', Keyboard.Scale.Major)
         self._tone: Keyboard.Tone = kwargs.get('tone', Keyboard.Tone.C)
         self._toneColor: PyxelWidgets.Utils.Pixel.Pixel = kwargs.get('toneColor', PyxelWidgets.Utils.Pixel.Colors.Magenta)
@@ -108,12 +108,12 @@ class Keyboard(PyxelWidgets.Widgets.Widget):
         self.updated = True
 
     @property
-    def mode(self):
-        return self._mode
+    def type(self):
+        return self._type
     
-    @mode.setter
-    def mode(self, mode: Mode):
-        self._mode = mode
+    @type.setter
+    def type(self, mode: Type):
+        self._type = mode
         self._resize(self.width, self.height)
         self.updated = True
     
@@ -220,7 +220,7 @@ class Keyboard(PyxelWidgets.Widgets.Widget):
         for x in range(self.rect.w):
             for y in range(self.rect.h):
                 #calculate notes
-                if self._mode == Keyboard.Mode.Keyboard:
+                if self._type == Keyboard.Type.Keyboard:
                     base = Keyboard.Tone.C.value + (self._octave * 12)
                     length = 7 if 7 < self.rect.w else self.rect.w
                     if y % 2 == 0:
@@ -231,17 +231,17 @@ class Keyboard(PyxelWidgets.Widgets.Widget):
                         self.notes[x, y] = -1
                     else:
                         self.notes[x, y] = scale[x % length] + base + ((y // 2) * 12) + ((x // length) * 12)
-                elif self._mode == Keyboard.Mode.ChromaticVertical:
+                elif self._type == Keyboard.Type.ChromaticVertical:
                     index = x + (y * (self._fold - 1))
                     self.notes[x, y] = index + base
-                elif self._mode == Keyboard.Mode.ChromaticHorizontal:
+                elif self._type == Keyboard.Type.ChromaticHorizontal:
                     index = y + (x * (self._fold - 1))
                     self.notes[x, y] = index + base
-                elif self._mode == Keyboard.Mode.Diatonic:
+                elif self._type == Keyboard.Type.Diatonic:
                     self.notes[x, y] = precalc[x + (y * len(scale))]
-                elif self._mode == Keyboard.Mode.DiatonicVertical:
+                elif self._type == Keyboard.Type.DiatonicVertical:
                     self.notes[x, y] = precalc[x + (y * len(scale)) - (y * (len(scale) - self._fold + 1))]
-                elif self._mode == Keyboard.Mode.DiatonicHorizontal:
+                elif self._type == Keyboard.Type.DiatonicHorizontal:
                     self.notes[x, y] = precalc[y + (x * len(scale)) - (x * (len(scale) - self._fold + 1))]
                 #clear notes 128 or higher
                 if self.notes[x, y] > 127:
