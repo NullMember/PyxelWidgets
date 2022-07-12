@@ -56,7 +56,8 @@ class Knob(PyxelWidgets.Widgets.Widget):
         if intersect is not None:
             area = intersect - self.rect
             if self.bufferUpdated:
-                self.bufferUpdated = False
+                if not self.state:
+                    self.bufferUpdated = False
                 for x in area.columns:
                     for y in area.rows:
                         index = self.indexes[x][y]

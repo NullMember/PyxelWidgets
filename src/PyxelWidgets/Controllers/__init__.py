@@ -30,10 +30,11 @@ class Controller():
     def setCallback(self, callback):
         self._callback = callback
 
-    def init(self):
+    def init(self, clock = False):
         if self.initialized:
             raise Exception(f'{self.name} already initialized')
-        self.clock.start()
+        if clock:
+            self.clock.start()
         self.initialized = True
     
     def close(self):
