@@ -71,7 +71,7 @@ class MIDI(PyxelWidgets.Controllers.Controller):
             self._midiOutput = None
     
     def processMIDI(self, message, _):
-        raise NotImplementedError("processMIDI must be implemented")
+        pass
 
     def sendSysex(self, message):
         self._midiOutput.send_message([240] + message + [247])
