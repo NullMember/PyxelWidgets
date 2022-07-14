@@ -1,4 +1,4 @@
-__all__ = ['OSC', 'MIDI']
+__all__ = ['MIDI', 'OSC', 'Virtual']
 
 import PyxelWidgets.Utils.Enums
 import PyxelWidgets.Utils.Pixel
