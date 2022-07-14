@@ -72,7 +72,7 @@ class Tracker(PyxelWidgets.Widgets.Widget):
             self._callback(self.name, PyxelWidgets.Utils.Enums.Event.Tick, int(self.currentBar))
             for i, state in enumerate(self.states[self.currentPage, :, int(self.currentBar)]):
                 if state:
-                    self._callback(self.name, PyxelWidgets.Utils.Enums.Event.Active, (i))
+                    self._callback(self.name, PyxelWidgets.Utils.Enums.Event.Active, (int(self.currentBar), i))
 
     def updateArea(self, rect: PyxelWidgets.Utils.Rectangle.Rectangle2D) -> tuple:
         intersect = self.rect.intersect(rect)
