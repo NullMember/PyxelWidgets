@@ -206,9 +206,13 @@ class Widget:
         """
         self._callback(self.name, PyxelWidgets.Utils.Enums.Event.Held, (x, y))
     
-    def tap(self, x: int, y: int, pressValue: float, releaseValue: float):
+    def tap(self, x: int, y: int, pressValue: float = 1.0, releaseValue: float = 0.0):
         self.press(x, y, pressValue)
         self.release(x, y, releaseValue)
+    
+    def tapped(self, x: int, y: int, pressValue: float = 1.0, releaseValue: float = 0.0):
+        self.pressed(x, y, pressValue)
+        self.released(x, y, releaseValue)
 
     def updateArea(self, rect: PyxelWidgets.Utils.Rectangle.Rectangle2D) -> tuple:
         return rect, self.buffer[rect.slice]
