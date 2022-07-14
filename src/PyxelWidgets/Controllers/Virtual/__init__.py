@@ -1,5 +1,4 @@
 import tkinter
-from tkinter import ttk
 import PyxelWidgets.Controllers
 import PyxelWidgets.Utils.Pixel
 import PyxelWidgets.Utils.Rectangle
@@ -14,6 +13,11 @@ class Virtual(PyxelWidgets.Controllers.Controller):
     
     def process(self, x, y, value):
         self.setButton(x, y, value)
+    
+    def close(self):
+        if not self.gui.destroyed:
+            self.gui.destroy_everything()
+        super().close()
     
     def updateOne(self, x: int, y: int, pixel: PyxelWidgets.Utils.Pixel.Pixel):
         super().updateOne(x, y, pixel)
@@ -60,6 +64,7 @@ class GUI(tkinter.Tk):
                 self.draw_button(x, y, "#000000")
         
         self.callback = callback
+        self.destroyed = False
 
     def button_callback(self, event: tkinter.Event):
         column = int(event.x // (self.button_width + self.button_gap))
@@ -84,3 +89,4 @@ class GUI(tkinter.Tk):
 
     def destroy_everything(self):
         self.destroy()
+        self.destroyed = True
