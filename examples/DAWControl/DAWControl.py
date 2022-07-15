@@ -54,32 +54,24 @@ class DAW(MIDI):
 def fader_callback(name, event, data):
     name, index = name.split("_")
     index = int(index)
-    print(name, event, data)
     if event == Event.Changed:
         daw_controller.sendPitchBend(int(data * 16383.0), index)
 
 def button_callback(name, event, data):
-    if "Mute" in name:
-        name, index = name.split("_")
-        index = int(index)
-        if event == Event.Pressed:
+    if event == Event.Changed:
+        if "Mute" in name:
+            name, index = name.split("_")
+            index = int(index)
             daw_controller.sendNoteOn(DAW.Buttons.MUTE_0.value + index, 127)
-        elif event == Event.Released:
             daw_controller.sendNoteOff(DAW.Buttons.MUTE_0.value + index, 0)
-    if name == "Stop":
-        if event == Event.Pressed:
+        if name == "Stop":
             daw_controller.sendNoteOn(DAW.Buttons.STOP.value, 127)
-        elif event == Event.Released:
             daw_controller.sendNoteOff(DAW.Buttons.STOP.value, 0)
-    if name == "Play":
-        if event == Event.Pressed:
-            daw_controller.sendNoteOn(DAW.Buttons.PLAY.value, 127)
-        elif event == Event.Released:
+        if name == "Play":
+            daw_controller.sendNoteOn(DAW.Buttons.PLAY.value, 127 if data else 0)
             daw_controller.sendNoteOff(DAW.Buttons.PLAY.value, 0)
-    if name == "Record":
-        if event == Event.Pressed:
-            daw_controller.sendNoteOn(DAW.Buttons.RECORD.value, 127)
-        elif event == Event.Released:
+        if name == "Record":
+            daw_controller.sendNoteOn(DAW.Buttons.RECORD.value, 127 if data else 0)
             daw_controller.sendNoteOff(DAW.Buttons.RECORD.value, 0)
 
 window = Window(9, 9)
