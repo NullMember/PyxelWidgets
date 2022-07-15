@@ -78,36 +78,42 @@ window = Window(9, 9)
 for i in range(8):
     window.addWidget(
         Fader.Fader(
-            x = i, 
-            y = 0, 
-            width = 1, 
-            height = 8, 
+            x = i, y = 0, width = 1, height = 8, 
             name = f"Fader_{i}", 
-            activeColor = Pixel(random.randint(0, 255), random.randint(0, 255), random.randint(0, 255)),
-            lock = True,
-            callback = fader_callback
+            activeColor = Pixel(
+                r = random.randint(0, 255), 
+                g = random.randint(0, 255), 
+                b = random.randint(0, 255)
+            ),
+            lock = True, callback = fader_callback
         )
     )
 
 for i in range(8):
     window.addWidget(
         Button.Button(
-            x = i, 
-            y = 8, 
-            width = 1, 
-            height = 1, 
-            name = f"Mute_{i}", 
-            mode = Button.Button.Mode.Switch,
+            x = i, y = 8, width = 1, height = 1, 
+            name = f"Mute_{i}", mode = Button.Button.Mode.Switch,
             activeColor = Colors.Red,
             deactiveColor = Colors.DarkRed,
-            lock = True,
-            callback = button_callback
-        )
+            lock = True, callback = button_callback)
     )
 
-window.addWidget(Button.Button(8, 0, 1, 1, name = "Record", callback = button_callback, lock = True, activeColor = Colors.Red, deactiveColor = Colors.Red * 0.5))
-window.addWidget(Button.Button(8, 1, 1, 1, name = "Play", callback = button_callback, lock = True, activeColor = Colors.Green, deactiveColor = Colors.Green * 0.5))
-window.addWidget(Button.Button(8, 2, 1, 1, name = "Stop", callback = button_callback, lock = True, activeColor = Colors.Yellow, deactiveColor = Colors.Yellow * 0.5))
+window.addWidget(Button.Button(
+    x = 8, y = 0, width = 1, height = 1, 
+    name = "Record", callback = button_callback, lock = True, 
+    activeColor = Colors.Red, deactiveColor = Colors.Red * 0.5)
+)
+window.addWidget(Button.Button(
+    x = 8, y = 1, width = 1, height = 1, 
+    name = "Play", callback = button_callback, lock = True, 
+    activeColor = Colors.Green, deactiveColor = Colors.Green * 0.5)
+)
+window.addWidget(Button.Button(
+    x = 8, y = 2, width = 1, height = 1, 
+    name = "Stop", callback = button_callback, lock = True, 
+    activeColor = Colors.Yellow, deactiveColor = Colors.Yellow * 0.5)
+)
 
 grid_controller = Virtual(9, 9)
 grid_controller.init()

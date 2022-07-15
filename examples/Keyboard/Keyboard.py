@@ -18,10 +18,8 @@ def button_callback(name, event, data):
         x, y = data
         keyboard_widget.octave = x
 
-# 9 hucre genislige ve 9 hucre yukseklige sahip bir pencere olusturuluyor 
 window = Window(9, 9)
 
-# Kullanilacak araclar olusturuluyor
 keyboard_widget = Keyboard.Keyboard(
     x = 0, 
     y = 0, 
@@ -36,20 +34,15 @@ octave_buttons.tapped(5, 0)
 volume_fader = Fader.Fader(8, 0, 1, 8)
 volume_fader.tapped(0, 5)
 
-# Olusturulan araclar pencere icerisine ekleniyor
 window.addWidget(keyboard_widget)
 window.addWidget(octave_buttons)
 window.addWidget(volume_fader)
 
-# 9 hucre genislige ve 9 hucre yukseklige sahip
-# sanal bir grid kontrolcu olusturuluyor
 grid_controller = Virtual(9, 9)
 grid_controller.init()
 grid_controller.connect()
-# Grid kontrolcuden gelen kullanici girisleri Window'a aktariliyor
 grid_controller.setCallback(window.process)
 
-# Sanal bir MIDI baglanti noktasi olusturuluyor
 keyboard_controller = MIDI()
 keyboard_controller.init()
 keyboard_controller.connectVirtual("Keyboard")
