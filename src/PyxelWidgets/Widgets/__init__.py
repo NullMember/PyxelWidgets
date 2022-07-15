@@ -122,8 +122,7 @@ class Widget:
     def setValue(self, value: float):
         if not self.lock:
             self.value = value
-            if self.updated:
-                self._callback(self.name, PyxelWidgets.Utils.Enums.Event.Changed, self._value)
+        self._callback(self.name, PyxelWidgets.Utils.Enums.Event.Changed, round(min(1.0, max(0.0, value)), 6))
 
     def setCallback(self, callback) -> None:
         self._callback = callback
