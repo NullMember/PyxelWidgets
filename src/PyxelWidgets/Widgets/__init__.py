@@ -160,8 +160,8 @@ class Widget:
             Value of the pressed button, useful for velocity sensitive pads
              Could be 1 for non velocity sensitive pads
         """
-        self.press(x, y, value)
         self._callback(self.name, PyxelWidgets.Utils.Enums.Event.Pressed, (x, y))
+        self.press(x, y, value)
     
     def release(self, x: int, y: int, value: float):
         return
@@ -183,8 +183,8 @@ class Widget:
             Value of the released button, useful for velocity sensitive pads
              Could be 0 for non velocity sensitive pads
         """
-        self.release(x, y, value)
         self._callback(self.name, PyxelWidgets.Utils.Enums.Event.Released, (x, y))
+        self.release(x, y, value)
     
     def hold(self, x: int, y: int, value: float):
         return
@@ -204,6 +204,7 @@ class Widget:
             y axis of button location on Widget
         """
         self._callback(self.name, PyxelWidgets.Utils.Enums.Event.Held, (x, y))
+        self.hold(x, y, value)
     
     def tap(self, x: int, y: int, pressValue: float = 1.0, releaseValue: float = 0.0):
         self.press(x, y, pressValue)
