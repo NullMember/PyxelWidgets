@@ -1,6 +1,6 @@
 from PyxelWidgets.Controllers.Virtual import Virtual
 from PyxelWidgets.Controllers.MIDI import MIDI
-from PyxelWidgets.Utils.Window import Window, Manager
+from PyxelWidgets.Window import Window, Manager
 from PyxelWidgets.Utils.Enums import *
 from PyxelWidgets.Utils.Rectangle import *
 from PyxelWidgets.Utils.Pixel import *
