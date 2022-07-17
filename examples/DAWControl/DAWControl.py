@@ -25,11 +25,6 @@ class DAW(MIDI):
 
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
-        self.faders = [0] * 9
-        self.mutes = [0] * 8
-        self.record = False
-        self.play = False
-        self.stop = False
     
     def processMIDI(self, message, _):
         data, delta = message
