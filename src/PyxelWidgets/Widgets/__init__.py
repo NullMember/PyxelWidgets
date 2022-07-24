@@ -61,7 +61,7 @@ class Widget:
         self.lock = kwargs.get('lock', False)
         self._value = kwargs.get('value', 0.0)
         self._oldValue = self._value
-        self._callback = kwargs.get('callback', lambda *_, **__: None)
+        self.callback = kwargs.get('callback', lambda *_, **__: None)
         self._resize(self.rect.w, self.rect.h)
 
     @property
@@ -90,7 +90,7 @@ class Widget:
                 self.buffer.resize((self.rect.w, self.rect.h), refcheck = False)
                 self.buffer = numpy.where(self.buffer == 0, self.deactiveColor, self.buffer)
                 self.updated = True
-                self._callback(self.name, PyxelWidgets.Utils.Enums.Event.Resized, (self.rect.w, self.rect.h))
+                self.callback(self.name, PyxelWidgets.Utils.Enums.Event.Resized, (self.rect.w, self.rect.h))
 
     @property
     def height(self) -> int:
@@ -104,7 +104,7 @@ class Widget:
                 self.buffer.resize((self.rect.w, self.rect.h), refcheck = False)
                 self.buffer = numpy.where(self.buffer == 0, self.deactiveColor, self.buffer)
                 self.updated = True
-                self._callback(self.name, PyxelWidgets.Utils.Enums.Event.Resized, (self.rect.w, self.rect.h))
+                self.callback(self.name, PyxelWidgets.Utils.Enums.Event.Resized, (self.rect.w, self.rect.h))
 
     @property
     def value(self) -> float:
@@ -122,10 +122,10 @@ class Widget:
     def setValue(self, value: float):
         if not self.lock:
             self.value = value
-        self._callback(self.name, PyxelWidgets.Utils.Enums.Event.Changed, round(min(1.0, max(0.0, value)), 6))
+        self.callback(self.name, PyxelWidgets.Utils.Enums.Event.Changed, round(min(1.0, max(0.0, value)), 6))
 
     def setCallback(self, callback) -> None:
-        self._callback = callback
+        self.callback = callback
 
     def process(self, name, event, data):
         if event != PyxelWidgets.Utils.Enums.Event.Custom:
@@ -160,7 +160,7 @@ class Widget:
             Value of the pressed button, useful for velocity sensitive pads
              Could be 1 for non velocity sensitive pads
         """
-        self._callback(self.name, PyxelWidgets.Utils.Enums.Event.Pressed, (x, y))
+        self.callback(self.name, PyxelWidgets.Utils.Enums.Event.Pressed, (x, y))
         self.press(x, y, value)
     
     def release(self, x: int, y: int, value: float):
@@ -183,7 +183,7 @@ class Widget:
             Value of the released button, useful for velocity sensitive pads
              Could be 0 for non velocity sensitive pads
         """
-        self._callback(self.name, PyxelWidgets.Utils.Enums.Event.Released, (x, y))
+        self.callback(self.name, PyxelWidgets.Utils.Enums.Event.Released, (x, y))
         self.release(x, y, value)
     
     def hold(self, x: int, y: int, value: float):
@@ -203,7 +203,7 @@ class Widget:
         y: int
             y axis of button location on Widget
         """
-        self._callback(self.name, PyxelWidgets.Utils.Enums.Event.Held, (x, y))
+        self.callback(self.name, PyxelWidgets.Utils.Enums.Event.Held, (x, y))
         self.hold(x, y, value)
     
     def tap(self, x: int, y: int, pressValue: float = 1.0, releaseValue: float = 0.0):
