@@ -64,10 +64,10 @@ class Sequencer(PyxelWidgets.Widgets.Widget):
             page = int(self._tick / self.rect.area)
             if page != self.currentPage:
                 self.currentPage = page
-                self._callback(self.name, PyxelWidgets.Utils.Enums.Event.Page, self.currentPage)
-            self._callback(self.name, PyxelWidgets.Utils.Enums.Event.Tick, int(self._tick))
+                self.callback(self.name, PyxelWidgets.Utils.Enums.Event.Page, self.currentPage)
+            self.callback(self.name, PyxelWidgets.Utils.Enums.Event.Tick, int(self._tick))
             if self._isTickActive():
-                self._callback(self.name, PyxelWidgets.Utils.Enums.Event.Active, int(self._tick))
+                self.callback(self.name, PyxelWidgets.Utils.Enums.Event.Active, int(self._tick))
             self.updated = True
 
     def press(self, x: int, y: int, value: float):

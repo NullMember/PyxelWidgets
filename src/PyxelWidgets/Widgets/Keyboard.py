@@ -171,14 +171,14 @@ class Keyboard(PyxelWidgets.Widgets.Widget):
         if self.notes[x, y] >= 0:
             for button in self.buttons[self.notes[x, y]]:
                 self.states[button[0], button[1]] = True
-        self._callback(self.name, PyxelWidgets.Utils.Enums.Event.Changed, (self.notes[x, y], 1.0))
+        self.callback(self.name, PyxelWidgets.Utils.Enums.Event.Changed, (self.notes[x, y], 1.0))
         self.updated = True
     
     def release(self, x: int, y: int, value: float):
         if self.notes[x, y] >= 0:
             for button in self.buttons[self.notes[x, y]]:
                 self.states[button[0], button[1]] = False
-        self._callback(self.name, PyxelWidgets.Utils.Enums.Event.Changed, (self.notes[x, y], 0.0))
+        self.callback(self.name, PyxelWidgets.Utils.Enums.Event.Changed, (self.notes[x, y], 0.0))
         self.updated = True
     
     def updateArea(self, rect: PyxelWidgets.Utils.Rectangle.Rectangle2D) -> tuple:
