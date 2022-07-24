@@ -24,11 +24,11 @@ class Controller():
         self.buttons.fill(0.0)
         self.clock = PyxelWidgets.Utils.Clock.Clock()
         self._held = numpy.ndarray((self.rect.w, self.rect.h), threading.Timer)
-        self._callback = lambda *_, **__ : None
+        self.callback = lambda *_, **__ : None
         Controller._count += 1
 
     def setCallback(self, callback):
-        self._callback = callback
+        self.callback = callback
 
     def init(self, clock = False):
         if self.initialized:
@@ -68,17 +68,17 @@ class Controller():
     def setPressed(self, x: int, y: int) -> None:
         self._held[x, y] = threading.Timer(interval = self.heldTime, function = self.setHeld, args = (x, y))
         self._held[x, y].start()
-        self._callback(self.name, PyxelWidgets.Utils.Enums.Event.Pressed, (x, y, self.buttons[x, y]))
+        self.callback(self.name, PyxelWidgets.Utils.Enums.Event.Pressed, (x, y, self.buttons[x, y]))
     
     def setReleased(self, x: int, y: int) -> None:
         self._held[x, y].cancel()
-        self._callback(self.name, PyxelWidgets.Utils.Enums.Event.Released, (x, y, self.buttons[x, y]))
+        self.callback(self.name, PyxelWidgets.Utils.Enums.Event.Released, (x, y, self.buttons[x, y]))
     
     def setHeld(self, x: int, y: int) -> None:
-        self._callback(self.name, PyxelWidgets.Utils.Enums.Event.Held, (x, y, self.buttons[x, y]))
+        self.callback(self.name, PyxelWidgets.Utils.Enums.Event.Held, (x, y, self.buttons[x, y]))
     
     def setCustom(self, event, name, data):
-        self._callback(self.name, PyxelWidgets.Utils.Enums.Event.Custom, (name, event, data))
+        self.callback(self.name, PyxelWidgets.Utils.Enums.Event.Custom, (name, event, data))
 
     def sendPixel(self, x: int, y: int, pixel: PyxelWidgets.Utils.Pixel.Pixel):
         raise NotImplementedError("sendPixel method must be implemented")
