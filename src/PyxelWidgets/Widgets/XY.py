@@ -47,11 +47,11 @@ class XY(PyxelWidgets.Widgets.Widget):
             self._heldButton = [-1, -1]
 
     def updateArea(self, rect: PyxelWidgets.Utils.Rectangle.Rectangle2D):
-        intersect = self.rect.intersect(rect)
-        if intersect is not None:
-            area = intersect - self.rect
-            if self.bufferUpdated:
-                self.bufferUpdated = False
+        if self.updated:
+            self.updated = False
+            intersect = self.rect.intersect(rect)
+            if intersect is not None:
+                area = intersect - self.rect
                 xPoint = self._findXPoint()
                 yPoint = self._findYPoint()
                 self.buffer[area.slice] = self.deactiveColor
@@ -62,10 +62,7 @@ class XY(PyxelWidgets.Widgets.Widget):
                 coefficientY = ((self.value[1] - minV[1]) * self.rect.h) / 2
                 color = (self.xColor * coefficientX) + (self.yColor * coefficientY)
                 self.buffer[xPoint, yPoint] = color
-                if self.effect is None:
-                    return intersect, self.buffer[area.slice]
-            if self.effect is not None:
-                return intersect, self.effect.apply(self.buffer[area.slice])
+            return intersect, self.buffer[area.slice]
         return None, None
 
     def _resize(self, width, height) -> bool:

@@ -51,14 +51,11 @@ class Button(PyxelWidgets.Widgets.Widget):
             self.isHold = not self.isHold
 
     def updateArea(self, rect: PyxelWidgets.Utils.Rectangle.Rectangle2D):
-        intersect = self.rect.intersect(rect)
-        if intersect is not None:
-            area = intersect - self.rect
-            if self.bufferUpdated:
-                self.bufferUpdated = False
+        if self.updated:
+            self.updated = False
+            intersect = self.rect.intersect(rect)
+            if intersect is not None:
+                area = intersect - self.rect
                 self.buffer[area.slice].fill(self.activeColor * self._value if self._value else self.deactiveColor)
-                if self.effect is None:
-                    return intersect, self.buffer[area.slice]
-            if self.effect is not None:
-                return intersect, self.effect.apply(self.buffer[area.slice])
+                return intersect, self.buffer[area.slice]
         return None, None

@@ -48,16 +48,16 @@ class Knob(PyxelWidgets.Widgets.Widget):
                 self.setValue(self._value + (self._calcKnobWeight(index) * self.coefficient))
 
     def updateArea(self, rect: PyxelWidgets.Utils.Rectangle.Rectangle2D):
-        if self.state:
-            self.tick()
-        halfval = self._value / 2.0
-        halfvalpluspointfive = halfval + 0.5
-        intersect = self.rect.intersect(rect)
-        if intersect is not None:
-            area = intersect - self.rect
-            if self.bufferUpdated:
-                if not self.state:
-                    self.bufferUpdated = False
+        if self.updated:
+            if not self.state:
+                self.updated = False
+            else:
+                self.tick()
+            halfval = self._value / 2.0
+            halfvalpluspointfive = halfval + 0.5
+            intersect = self.rect.intersect(rect)
+            if intersect is not None:
+                area = intersect - self.rect
                 for x in area.columns:
                     for y in area.rows:
                         index = self.indexes[x][y]
@@ -147,10 +147,7 @@ class Knob(PyxelWidgets.Widgets.Widget):
                                             self.buffer[x, y] = self.activeColor * coefficient
                                 else:
                                     self.buffer[x, y] = self.deactiveColor
-                if self.effect is None:
-                    return intersect, self.buffer[area.slice]
-            if self.effect is not None:
-                return intersect, self.effect.apply(self.buffer[area.slice])
+            return intersect, self.buffer[area.slice]
         return None, None
     
     def _resize(self, width, height):
