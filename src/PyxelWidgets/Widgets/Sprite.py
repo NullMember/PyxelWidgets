@@ -20,12 +20,11 @@ class Sprite(PyxelWidgets.Widgets.Widget):
         self.buffer = self.frames[0]
 
     def updateArea(self, rect: PyxelWidgets.Utils.Rectangle.Rectangle2D):
-        self.updated = False
-        intersect = self.rect.intersect(rect)
-        if intersect is not None:
-            area = intersect - self.rect
-            if self.bufferUpdated:
-                self.bufferUpdated = False
+        if self.updated:
+            self.updated = False
+            intersect = self.rect.intersect(rect)
+            if intersect is not None:
+                area = intersect - self.rect
                 self.buffer = self.frames[self.nextFrame]
                 if self.animate:
                     self.tick += 1
@@ -36,8 +35,5 @@ class Sprite(PyxelWidgets.Widgets.Widget):
                         if self.nextFrame == len(self.frames):
                             self.nextFrame = 0
                     self.updated = True
-                if self.effect is None:
-                    return intersect, self.buffer[area.slice]
-            if self.effect is not None:
-                return intersect, self.effect.apply(self.buffer[area.slice])
+            return intersect, self.buffer[area.slice]
         return None, None

@@ -197,13 +197,13 @@ class Fader(PyxelWidgets.Widgets.Widget):
             self._heldButton = [-1, -1]
 
     def updateArea(self, rect: PyxelWidgets.Utils.Rectangle.Rectangle2D):
-        halfval = self._value / 2.0
-        halfvalpluspointfive = halfval + 0.5
-        intersect = self.rect.intersect(rect)
-        if intersect is not None:
-            area = intersect - self.rect
-            if self.bufferUpdated:
-                self.bufferUpdated = False
+        if self.updated:
+            self.updated = False
+            halfval = self._value / 2.0
+            halfvalpluspointfive = halfval + 0.5
+            intersect = self.rect.intersect(rect)
+            if intersect is not None:
+                area = intersect - self.rect
                 for x in area.columns:
                     for y in area.rows:
                         minV = self._minV[x][y]
@@ -324,10 +324,7 @@ class Fader(PyxelWidgets.Widgets.Widget):
                                 else:
                                     coefficient = 1.0 - self._calcPixelCoefficient(halfval - minV)
                                     self.buffer[x, y] = self.activeColor * coefficient
-                if self.effect is None:
-                    return intersect, self.buffer[area.slice]
-            if self.effect is not None:
-                return intersect, self.effect.apply(self.buffer[area.slice])
+                return intersect, self.buffer[area.slice]
         return None, None
 
     def _resize(self, width, height):

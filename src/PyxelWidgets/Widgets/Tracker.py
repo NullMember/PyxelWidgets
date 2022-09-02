@@ -75,17 +75,14 @@ class Tracker(PyxelWidgets.Widgets.Widget):
                     self.callback(self.name, PyxelWidgets.Utils.Enums.Event.Active, (int(self.currentBar), i))
 
     def updateArea(self, rect: PyxelWidgets.Utils.Rectangle.Rectangle2D) -> tuple:
-        intersect = self.rect.intersect(rect)
-        if intersect is not None:
-            area = intersect - self.rect
-            if self.bufferUpdated:
-                self.bufferUpdated = False
+        if self.updated:
+            self.updated = False
+            intersect = self.rect.intersect(rect)
+            if intersect is not None:
+                area = intersect - self.rect
                 self.buffer[area.slice] = numpy.fliplr(numpy.where(self.states[self.currentPage, :, self.currentTop:(self.currentBottom + 1)] == True, self.activeColor, self.deactiveColor))
                 self.buffer[:, int(self.currentBottom - self.currentBar)] = numpy.where(self.states[self.currentPage, :, int(self.currentBar)] == True, self.currentActiveColor, self.currentColor)
-                if self.effect is None:
-                    return intersect, self.buffer[area.slice]
-            if self.effect is not None:
-                return intersect, self.effect.apply(self.buffer[area.slice])
+            return intersect, self.buffer[area.slice]
         return None, None
 
     def _resize(self, width, height) -> bool:

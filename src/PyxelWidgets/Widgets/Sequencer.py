@@ -80,11 +80,11 @@ class Sequencer(PyxelWidgets.Widgets.Widget):
         self.state.fill(False)
 
     def updateArea(self, rect: PyxelWidgets.Utils.Rectangle.Rectangle2D):
-        intersect = self.rect.intersect(rect)
-        if intersect is not None:
-            area = intersect - self.rect
-            if self.bufferUpdated:
-                self.bufferUpdated = False
+        if self.updated:
+            self.updated = False
+            intersect = self.rect.intersect(rect)
+            if intersect is not None:
+                area = intersect - self.rect
                 tickP = self._tickPage()
                 tickX = self._tickX()
                 tickY = self._tickY() % self.rect.h
@@ -95,10 +95,7 @@ class Sequencer(PyxelWidgets.Widgets.Widget):
                         self.buffer[tickX, tickY] = self.currentActiveColor
                     else:
                         self.buffer[tickX, tickY] = self.currentColor
-                if self.effect is None:
-                    return intersect, self.buffer[area.slice]
-            if self.effect is not None:
-                return intersect, self.effect.apply(self.buffer[area.slice])
+            return intersect, self.buffer[area.slice]
         return None, None
     
     def _resize(self, width, height):

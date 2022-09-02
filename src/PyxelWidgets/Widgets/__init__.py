@@ -54,8 +54,7 @@ class Widget:
         self.activeColor = kwargs.get('activeColor', PyxelWidgets.Utils.Pixel.Colors.White)
         self.deactiveColor = kwargs.get('deactiveColor', PyxelWidgets.Utils.Pixel.Colors.Black)
         self.delta = 0.0
-        self.effect = None
-        self.bufferUpdated = True
+        self.updated = True
         self.buffer = numpy.ndarray((self.rect.w, self.rect.h), PyxelWidgets.Utils.Pixel.Pixel)
         self.buffer.fill(self.deactiveColor)
         self.lock = kwargs.get('lock', False)
@@ -63,20 +62,6 @@ class Widget:
         self._oldValue = self._value
         self.callback = kwargs.get('callback', lambda *_, **__: None)
         self._resize(self.rect.w, self.rect.h)
-
-    @property
-    def updated(self) -> bool:
-        return self.bufferUpdated or (self.effect is not None)
-    
-    @updated.setter
-    def updated(self, state: bool) -> None:
-        self.bufferUpdated = state
-
-    def addEffect(self, effect: PyxelWidgets.Utils.Effect.Effect):
-        self.effect = effect
-
-    def removeEffect(self):
-        self.effect = None
 
     @property
     def width(self) -> int:
