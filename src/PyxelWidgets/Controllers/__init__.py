@@ -121,12 +121,13 @@ class Controller():
 
     def update(self, data: tuple):
         rect, buffer = data
-        if self.connected:
-            intersect = self.rect.intersect(rect)
-            if intersect is not None:
-                updated = numpy.where(buffer[(intersect - rect).slice] != self.buffer[intersect.slice], True, False)
-                self.buffer[intersect.slice] = numpy.where(updated, buffer[(intersect - rect).slice], self.buffer[intersect.slice])
-                for x in intersect.columns:
-                    for y in intersect.rows:
-                        if updated[x, y]:
-                            self.sendPixel(x, y, self.buffer[x, y])
+        if rect is not None:
+            if self.connected:
+                intersect = self.rect.intersect(rect)
+                if intersect is not None:
+                    updated = numpy.where(buffer[(intersect - rect).slice] != self.buffer[intersect.slice], True, False)
+                    for x in intersect.columns:
+                        for y in intersect.rows:
+                            if updated[x - intersect.x, y - intersect.y]:
+                                self.buffer[x, y] = buffer[x - intersect.x, y - intersect.y]
+                                self.sendPixel(x, y, self.buffer[x, y])
