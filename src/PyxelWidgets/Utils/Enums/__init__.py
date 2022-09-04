@@ -5,6 +5,7 @@ class Event(enum.Enum):
     Pressed = enum.auto()
     Released = enum.auto()
     Held = enum.auto()
+    DoublePressed = enum.auto()
     Touched = enum.auto()
     Changed = enum.auto()
     Increased = enum.auto()

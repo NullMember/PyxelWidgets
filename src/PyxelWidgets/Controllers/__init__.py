@@ -6,6 +6,7 @@ import PyxelWidgets.Utils.Rectangle
 import PyxelWidgets.Utils.Clock
 import numpy
 import threading
+import time
 
 class Controller():
 
@@ -15,6 +16,7 @@ class Controller():
         self.name = kwargs.get('name', f'Controller_{Controller._count}')
         self.rect = PyxelWidgets.Utils.Rectangle.Rectangle2D(kwargs.get('x', 0), kwargs.get('y', 0), kwargs.get('width', 1), kwargs.get('height', 1))
         self.heldTime = kwargs.get('heldTime', 1.0)
+        self.doublePressTime = kwargs.get('doublePressTime', 0.15)
         self.initialized = False
         self.connected = False
         self.terminated = False
@@ -23,6 +25,8 @@ class Controller():
         self.buttons = numpy.ndarray((self.rect.w, self.rect.h))
         self.buttons.fill(0.0)
         self.clock = PyxelWidgets.Utils.Clock.Clock()
+        self._pressTime = numpy.ndarray((self.rect.w, self.rect.h))
+        self._pressTime.fill(0.0)
         self._held = numpy.ndarray((self.rect.w, self.rect.h), threading.Timer)
         self.callback = lambda *_, **__ : None
         Controller._count += 1
@@ -66,10 +70,14 @@ class Controller():
         return
     
     def setPressed(self, x: int, y: int) -> None:
+        currentTime = time.time()
         self._held[x, y] = threading.Timer(interval = self.heldTime, function = self.setHeld, args = (x, y))
         self._held[x, y].start()
         self.callback(self.name, PyxelWidgets.Utils.Enums.Event.Pressed, (x, y, self.buttons[x, y]))
-    
+        if self._pressTime[x, y] + self.doublePressTime > currentTime:
+            self.callback(self.name, PyxelWidgets.Utils.Enums.Event.DoublePressed, (x, y, self.buttons[x, y]))
+        self._pressTime[x, y] = currentTime
+
     def setReleased(self, x: int, y: int) -> None:
         self._held[x, y].cancel()
         self.callback(self.name, PyxelWidgets.Utils.Enums.Event.Released, (x, y, self.buttons[x, y]))
