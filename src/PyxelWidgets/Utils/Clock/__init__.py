@@ -86,7 +86,7 @@ class Clock(Thread):
         self.delay = 60.0 / (self._bpm * self._ppq)
     
     @property
-    def state(self) -> str:
+    def state(self) -> State:
         if self._terminate:
             return Clock.State.Terminated
         elif not self.running:
