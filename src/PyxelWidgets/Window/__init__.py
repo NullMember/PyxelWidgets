@@ -22,10 +22,12 @@ class Window():
 
     def addWidget(self, widget: PyxelWidgets.Widgets.Widget):
         self.widgets[widget.name] = widget
+        widget.updated = True
     
     def addWidgets(self, widgets):
         for widget in widgets:
             self.widgets[widget.name] = widget
+            widget.updated = True
     
     def removeWidget(self, name: str):
         if name in self.widgets:
