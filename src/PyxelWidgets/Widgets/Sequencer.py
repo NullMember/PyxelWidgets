@@ -56,6 +56,15 @@ class Sequencer(PyxelWidgets.Widgets.Widget):
         self._tick %= self._step
         self.currentPage = int(self._tick / self.rect.area)
 
+    @property
+    def current(self) -> bool:
+        self._tick
+    
+    @current.setter
+    def current(self, state: bool) -> None:
+        self.state[self._tickX(), self._tickY()] = state
+        self.updated = True
+
     def tick(self, tick):
         oldTick = self._tick
         self._tick = tick / (self.ppq * ((4.0 / self.note) / self.beat))
@@ -78,6 +87,7 @@ class Sequencer(PyxelWidgets.Widgets.Widget):
 
     def reset(self):
         self.state.fill(False)
+        self.updated = True
 
     def updateArea(self, rect: PyxelWidgets.Utils.Rectangle.Rectangle2D):
         if self.updated:
