@@ -124,6 +124,8 @@ class Widget:
                     self.released(btn.x, btn.y, value)
                 elif event == PyxelWidgets.Utils.Enums.Event.Held:
                     self.held(btn.x, btn.y, value)
+                elif event == PyxelWidgets.Utils.Enums.Event.DoublePressed:
+                    self.doublePressed(btn.x, btn.y, value)
 
     def press(self, x: int, y: int, value: float):
         return
@@ -190,6 +192,29 @@ class Widget:
         """
         self.callback(self.name, PyxelWidgets.Utils.Enums.Event.Held, (x, y))
         self.hold(x, y, value)
+    
+    def doublePress(self, x: int, y: int, value: float):
+        return
+    
+    def doublePressed(self, x: int, y: int, value: float):
+        """
+        Description
+        ----
+        If last double pressed button was on this Widget
+         Window will call this function
+        
+        Parameters
+        ----
+        x: int
+            x axis of button location on Widget
+        y: int
+            y axis of button location on Widget
+        value: float
+            Value of the double pressed button, useful for velocity sensitive pads
+            Could be 1 for non velocity sensitive pads
+        """
+        self.callback(self.name, PyxelWidgets.Utils.Enums.Event.DoublePressed, (x, y))
+        self.doublePress(x, y, value)
     
     def tap(self, x: int, y: int, pressValue: float = 1.0, releaseValue: float = 0.0):
         self.press(x, y, pressValue)
