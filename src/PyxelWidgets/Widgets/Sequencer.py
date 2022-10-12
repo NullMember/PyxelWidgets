@@ -9,7 +9,7 @@ class Sequencer(PyxelWidgets.Widgets.Widget):
     def __init__(self, x: int, y: int, width: int, height: int, clock: PyxelWidgets.Utils.Clock.Clock = None, **kwargs):
         kwargs['name'] = kwargs.get('name', f'Sequencer_{Sequencer._count}')
         self.state = numpy.ndarray((1, 1), dtype = numpy.bool8)
-        self._step = kwargs.get('step', width * height)
+        self._steps = kwargs.get('steps', width * height)
         self._tick = 0
         self._pageCount = 1
         super().__init__(x, y, width, height, **kwargs)
@@ -17,6 +17,7 @@ class Sequencer(PyxelWidgets.Widgets.Widget):
         self.currentPage = 0
         self._page = 0
         self.follow = True
+        self.active = True
         self.note = kwargs.get('note', 4.0)
         self.beat = kwargs.get('beat', 4.0)
         self.ppq = kwargs.get('ppq', 24)
@@ -46,14 +47,23 @@ class Sequencer(PyxelWidgets.Widgets.Widget):
 
     @property
     def step(self) -> int:
-        return self._step
-
+        return self._tick
+    
     @step.setter
     def step(self, value: int) -> None:
-        self._step = value
-        self._pageCount = int((self._step - 1) / self.rect.area) + 1
+        self._tick = value % self._steps
+        self.updated = True
+
+    @property
+    def steps(self) -> int:
+        return self._steps
+
+    @steps.setter
+    def steps(self, value: int) -> None:
+        self._steps = value
+        self._pageCount = int((self._steps - 1) / self.rect.area) + 1
         self.state = numpy.zeros((self.rect.w, self.rect.h * self._pageCount), dtype = numpy.bool8)
-        self._tick %= self._step
+        self._tick %= self._steps
         self.currentPage = int(self._tick / self.rect.area)
 
     @property
@@ -66,21 +76,22 @@ class Sequencer(PyxelWidgets.Widgets.Widget):
         self.updated = True
 
     def tick(self, tick):
-        oldTick = self._tick
-        self._tick = tick / (self.ppq * ((4.0 / self.note) / self.beat))
-        self._tick %= self._step
-        if int(oldTick) != int(self._tick):
-            page = int(self._tick / self.rect.area)
-            if page != self.currentPage:
-                self.currentPage = page
-                self.callback(self.name, PyxelWidgets.Utils.Enums.Event.Page, self.currentPage)
-            self.callback(self.name, PyxelWidgets.Utils.Enums.Event.Tick, int(self._tick))
-            if self._isTickActive():
-                self.callback(self.name, PyxelWidgets.Utils.Enums.Event.Active, int(self._tick))
-            self.updated = True
+        if self.active:
+            oldTick = self._tick
+            self._tick = tick / (self.ppq * ((4.0 / self.note) / self.beat))
+            self._tick %= self._steps
+            if int(oldTick) != int(self._tick):
+                page = int(self._tick / self.rect.area)
+                if page != self.currentPage:
+                    self.currentPage = page
+                    self.callback(self.name, PyxelWidgets.Utils.Enums.Event.Page, self.currentPage)
+                self.callback(self.name, PyxelWidgets.Utils.Enums.Event.Tick, int(self._tick))
+                if self._isTickActive():
+                    self.callback(self.name, PyxelWidgets.Utils.Enums.Event.Active, int(self._tick))
+                self.updated = True
 
     def press(self, x: int, y: int, value: float):
-        if self._calcTickPosition(x, y) < self._step:
+        if self._calcTickPosition(x, y) < self._steps:
             pageY = y + (self.rect.h * self._tickPage())
             self.state[x, pageY] = not self.state[x, pageY]
             self.updated = True
@@ -109,9 +120,9 @@ class Sequencer(PyxelWidgets.Widgets.Widget):
         return None, None
     
     def _resize(self, width, height):
-        self._pageCount = int((self._step - 1) / (width * height)) + 1
+        self._pageCount = int((self._steps - 1) / (width * height)) + 1
         self.state.resize((width, height * self._pageCount), refcheck = False)
-        self._tick %= self._step
+        self._tick %= self._steps
         return True
     
     def _calcTickPosition(self, x, y):
