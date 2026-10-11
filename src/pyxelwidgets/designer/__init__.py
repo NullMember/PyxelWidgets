@@ -54,6 +54,7 @@ def catalog() -> dict:
             if isinstance(cls, type) and issubclass(cls, pyxelwidgets.devices.Device):
                 info = cls.describe()
                 info['type'] = f'{module_name}.{name}'
+                info['options'] = pyxelwidgets.parser.option_schema(cls)
                 devices.append(info)
     colors = {name: pyxelwidgets.parser.color_to_text(value) for name, value in vars(pyxelwidgets.color.Colors).items()
               if isinstance(value, pyxelwidgets.color.Color)}
