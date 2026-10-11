@@ -131,8 +131,11 @@ class Widget(pyxelwidgets.events.Emitter):
         self.press(x, y, velocity)
         self.release(x, y, 0.0)
 
-    def input(self, action: pyxelwidgets.enums.Event, x: int, y: int, velocity: float) -> None:
-        """Deliver controller input (Pressed, Released, Held, DoublePressed) at widget coordinates."""
+    def input(self, action: pyxelwidgets.enums.Event, x: int, y: int, velocity: float) -> bool:
+        """
+        Deliver controller input (Pressed, Released, Held, DoublePressed) at widget
+        coordinates. Returns True if it should not reach widgets underneath.
+        """
         if action == pyxelwidgets.enums.Event.Pressed:
             self.press(x, y, velocity)
         elif action == pyxelwidgets.enums.Event.Released:
@@ -141,6 +144,7 @@ class Widget(pyxelwidgets.events.Emitter):
             self.hold(x, y, velocity)
         elif action == pyxelwidgets.enums.Event.DoublePressed:
             self.double_press(x, y, velocity)
+        return self.propagation == Propagation.Stop
 
     def handle_press(self, x: int, y: int, velocity: float) -> None:
         """Override to react to a press; ``velocity`` is 1.0 on pads without velocity."""
