@@ -10,9 +10,16 @@ class Widget:
     """
     Base class for all Widgets.
     """
-    _count = 0
+    # Per class counters for default names (Button_0, Fader_0, ...)
+    _counts = {}
 
-    def __init__(self, x: int = 0, y: int = 0, width: int = 1, height: int = 1, **kwargs):
+    def __init__(self, x: int = 0, y: int = 0, width: int = 1, height: int = 1, *,
+                 name: str | None = None,
+                 active_color: pyxelwidgets.color.Color = pyxelwidgets.color.Colors.White,
+                 inactive_color: pyxelwidgets.color.Color = pyxelwidgets.color.Colors.Black,
+                 value: float = 0.0,
+                 interactive: bool = True,
+                 callback = None):
         """
         Widget Constructor
         ------------------
@@ -31,35 +38,40 @@ class Widget:
             Widget height, should >= 1
         name: str, optional
             Unique widget name, used to find widgets registered on window and
-            callbacks returning widget value when changed.
-        callback: function, optional
-            If widget value is changed this function will be called.
-            Should get 3 parameters, (widget) name, event and value
-        active_color: Color = Color(255, 255, 255, 1.0), optional
+            callbacks returning widget value when changed. Defaults to
+            ``<ClassName>_<n>``.
+        active_color: Color = Colors.White, optional
             If widget value is non-zero, this color will be used.
-        inactive_color: Color = Color(0, 0, 0, 0.0), optional
+        inactive_color: Color = Colors.Black, optional
             If widget value is zero, this color will be used.
         value: float = 0.0, optional
             Default value of widget.
-        
-        Returns
-        -------
-        Widget
-            new Widget instance
+        interactive: bool = True, optional
+            If False, input doesn't change the value (callbacks still fire),
+            e.g. for widgets that only mirror state sent back from a DAW.
+        callback: function, optional
+            If widget value is changed this function will be called.
+            Should get 3 parameters, (widget) name, event and value
         """    
         self.id = uuid.uuid1()
-        self.name = kwargs.get('name', f'Widget_{Widget._count}')
+        self.name = name if name is not None else self._default_name()
         self.rect = pyxelwidgets.rectangle.Rectangle2D(x, y, width, height)
-        self.active_color = kwargs.get('active_color', pyxelwidgets.color.Colors.White)
-        self.inactive_color = kwargs.get('inactive_color', pyxelwidgets.color.Colors.Black)
+        self.active_color = active_color
+        self.inactive_color = inactive_color
         self.delta = 0.0
         self.updated = True
         self.buffer = pyxelwidgets.buffer.new(self.rect.w, self.rect.h, self.inactive_color)
-        self.lock = kwargs.get('lock', False)
-        self._value = kwargs.get('value', 0.0)
+        self.interactive = interactive
+        self._value = value
         self._old_value = self._value
-        self.callback = kwargs.get('callback', lambda *_, **__: None)
+        self.callback = callback if callback is not None else (lambda *_, **__: None)
         self._resize(self.rect.w, self.rect.h)
+
+    def _default_name(self) -> str:
+        cls = type(self).__name__
+        count = Widget._counts.get(cls, 0)
+        Widget._counts[cls] = count + 1
+        return f'{cls}_{count}'
 
     @property
     def width(self) -> int:
@@ -104,7 +116,7 @@ class Widget:
                 self.updated = True
     
     def set_value(self, value: float):
-        if not self.lock:
+        if self.interactive:
             self.value = value
         self.callback(self.name, pyxelwidgets.enums.Event.Changed, round(min(1.0, max(0.0, value)), 6))
 
@@ -248,13 +260,13 @@ class Button(Widget):
         Switch  = enum.auto()
         Mixed   = enum.auto()
 
-    def __init__(self, x: int, y: int, width: int, height: int, **kwargs):
-        kwargs['name'] = kwargs.get('name', f'Button_{Button._count}')
+    def __init__(self, x: int, y: int, width: int, height: int, *,
+                 mode: Mode = Mode.Button,
+                 **kwargs):
         super().__init__(x, y, width, height, **kwargs)
-        self.mode = kwargs.get('mode', Button.Mode.Button)
+        self.mode = mode
         self.state = False
         self.is_hold = False
-        Button._count += 1
 
     def press(self, x: int, y: int, value: float):
         if self.mode == Button.Mode.Button:
@@ -305,17 +317,17 @@ class ButtonGroup(Widget):
         Switch = enum.auto()
         Multi = enum.auto()
 
-    def __init__(self, x: int = 0, y: int = 0, width: int = 1, height: int = 1, **kwargs):
-        kwargs['name'] = kwargs.get('name', f'ButtonGroup_{ButtonGroup._count}')
+    def __init__(self, x: int = 0, y: int = 0, width: int = 1, height: int = 1, *,
+                 mode: Mode = Mode.Switch,
+                 **kwargs):
         self.state = numpy.ndarray((1, 1), dtype = numpy.bool_)
         super().__init__(x=x, y=y, width=width, height=height, **kwargs)
-        self.mode = kwargs.get('mode', ButtonGroup.Mode.Switch)
+        self.mode = mode
         self.state.fill(False)
         self._old_button = [-1, -1]
         if self.mode == ButtonGroup.Mode.Switch:
             self.state[0, 0] = True
             self._old_button = [0, 0]
-        ButtonGroup._count += 1
 
     def press(self, x: int, y: int, value: float):
         if self.mode == ButtonGroup.Mode.Button:
@@ -394,7 +406,13 @@ class Fader(Widget):
         Sensitive   = enum.auto()
         Relative    = enum.auto()
 
-    def __init__(self, x: int, y: int, width: int, height: int, **kwargs):
+    def __init__(self, x: int, y: int, width: int, height: int, *,
+                 direction: Direction = Direction.Vertical,
+                 grid: Grid = Grid.Simple,
+                 type: Type = Type.Wrap,
+                 mode: Mode = Mode.Multi,
+                 resolution: int = 4,
+                 **kwargs):
         """
         Description
         ----
@@ -440,17 +458,15 @@ class Fader(Widget):
             Wrap: Corresponding pads from bottom active.  
             Spread: Corresponding pads from middle active symmetrically.  
         """
-        kwargs['name'] = kwargs.get('name', f'Fader_{Fader._count}')
-        self.direction = kwargs.get('direction', Fader.Direction.Vertical)
-        self.grid = kwargs.get('grid', Fader.Grid.Simple)
-        self.type = kwargs.get('type', Fader.Type.Wrap)
-        self.mode = kwargs.get('mode', Fader.Mode.Multi)
-        self.resolution = kwargs.get('resolution', 4)
+        self.direction = direction
+        self.grid = grid
+        self.type = type
+        self.mode = mode
+        self.resolution = resolution
         super().__init__(x, y, width, height, **kwargs)
         self._multi_step = 0
         self._old_button = [-1, -1]
         self._held_button = [-1, -1]
-        Fader._count += 1
 
     def press(self, x: int, y: int, value: float):
         if self.mode == Fader.Mode.Simple:
@@ -804,23 +820,30 @@ class Keyboard(Widget):
         'KeyboardUpper': [-1, 1, 3, -1, 6, 8, 10]
     }
 
-    def __init__(self, x: int = 0, y: int = 0, width: int = 1, height: int = 1, **kwargs):
-        kwargs['name'] = kwargs.get('name', f'Keyboard_{Keyboard._count}')
-        self._octave = kwargs.get('octave', 0)
-        self._fold = kwargs.get('fold', 4)
-        self._type: Keyboard.Type = kwargs.get('type', Keyboard.Type.Diatonic)
-        self._scale: Keyboard.Scale = kwargs.get('scale', Keyboard.Scale.Major)
-        self._root: Keyboard.Root = kwargs.get('root', Keyboard.Root.C)
-        self._root_color: pyxelwidgets.color.Color = kwargs.get('root_color', pyxelwidgets.color.Colors.Magenta)
-        self._keyboard_color: pyxelwidgets.color.Color = kwargs.get('keyboard_color', pyxelwidgets.color.Colors.Cyan)
-        self._non_scale_color: pyxelwidgets.color.Color = kwargs.get('non_scale_color', pyxelwidgets.color.Colors.Yellow)
-        kwargs['active_color'] = kwargs.get('active_color', pyxelwidgets.color.Colors.Green)
+    def __init__(self, x: int = 0, y: int = 0, width: int = 1, height: int = 1, *,
+                 octave: int = 0,
+                 fold: int = 4,
+                 type: Type = Type.Diatonic,
+                 scale: Scale = Scale.Major,
+                 root: Root = Root.C,
+                 root_color: pyxelwidgets.color.Color = pyxelwidgets.color.Colors.Magenta,
+                 keyboard_color: pyxelwidgets.color.Color = pyxelwidgets.color.Colors.Cyan,
+                 non_scale_color: pyxelwidgets.color.Color = pyxelwidgets.color.Colors.Yellow,
+                 active_color: pyxelwidgets.color.Color = pyxelwidgets.color.Colors.Green,
+                 **kwargs):
+        self._octave = octave
+        self._fold = fold
+        self._type: Keyboard.Type = type
+        self._scale: Keyboard.Scale = scale
+        self._root: Keyboard.Root = root
+        self._root_color: pyxelwidgets.color.Color = root_color
+        self._keyboard_color: pyxelwidgets.color.Color = keyboard_color
+        self._non_scale_color: pyxelwidgets.color.Color = non_scale_color
         self.buttons = None
         self.notes = None
         self.colors = None
         self.states = None
-        super().__init__(x=x, y=y, width=width, height=height, **kwargs)
-        Keyboard._count += 1
+        super().__init__(x=x, y=y, width=width, height=height, active_color = active_color, **kwargs)
 
     @property
     def octave(self):
@@ -1001,14 +1024,15 @@ class Knob(Widget):
         Spread      = enum.auto()
         Collapse    = enum.auto()
 
-    def __init__(self, x: int, y: int, width: int, height: int, **kwargs):
-        kwargs['name'] = kwargs.get('name', f'Knob_{Knob._count}')
+    def __init__(self, x: int, y: int, width: int, height: int, *,
+                 coefficient: float = 0.05,
+                 type: Type = Type.Wrap,
+                 **kwargs):
         super().__init__(x, y, width, height, **kwargs)
-        self.coefficient = kwargs.get('coefficient', 0.05)
-        self.type = kwargs.get('type', Knob.Type.Wrap)
+        self.coefficient = coefficient
+        self.type = type
         self.state = False
         self._held = [-1, -1]
-        Knob._count += 1
 
     def press(self, x: int, y: int, value: float):
         if self._held == [-1, -1]:
@@ -1195,10 +1219,16 @@ class Sequencer(Widget):
     Step sequencer. Drive it by calling ``tick(tick)`` with a clock tick count
     at ``ppq`` ticks per quarter note, e.g. ``clock.add_target(sequencer.tick)``.
     """
-    def __init__(self, x: int, y: int, width: int, height: int, **kwargs):
-        kwargs['name'] = kwargs.get('name', f'Sequencer_{Sequencer._count}')
+    def __init__(self, x: int, y: int, width: int, height: int, *,
+                 steps: int | None = None,
+                 note: float = 4.0,
+                 beat: float = 4.0,
+                 ppq: int = 24,
+                 current_color: pyxelwidgets.color.Color = pyxelwidgets.color.Colors.Lime,
+                 current_active_color: pyxelwidgets.color.Color = pyxelwidgets.color.Colors.Red,
+                 **kwargs):
         self.state = numpy.ndarray((1, 1), dtype = numpy.bool_)
-        self._steps = kwargs.get('steps', width * height)
+        self._steps = steps if steps is not None else width * height
         self._tick = 0
         self._page_count = 1
         super().__init__(x, y, width, height, **kwargs)
@@ -1207,12 +1237,11 @@ class Sequencer(Widget):
         self._page = 0
         self.follow = True
         self.active = True
-        self.note = kwargs.get('note', 4.0)
-        self.beat = kwargs.get('beat', 4.0)
-        self.ppq = kwargs.get('ppq', 24)
-        self.current_color = kwargs.get('current_color', pyxelwidgets.color.Colors.Lime)
-        self.current_active_color = kwargs.get('current_active_color', pyxelwidgets.color.Colors.Red)
-        Sequencer._count += 1
+        self.note = note
+        self.beat = beat
+        self.ppq = ppq
+        self.current_color = current_color
+        self.current_active_color = current_active_color
     
     @property
     def pages(self) -> int:
@@ -1324,14 +1353,17 @@ class Sequencer(Widget):
     
 # Sprite class
 class Sprite(Widget):
-    def __init__(self, x: int, y: int, width: int, height: int, **kwargs):
-        kwargs['name'] = kwargs.get('name', f'Sprite_{Sprite._count}')
+    def __init__(self, x: int, y: int, width: int, height: int, *,
+                 animate: bool = False,
+                 frames = None,
+                 target: int = 30,
+                 tick: int = 0,
+                 **kwargs):
         super().__init__(x=x, y=y, width=width, height=height, **kwargs)
-        self.animate = kwargs.get('animate', False)
+        self.animate = animate
         # Sequence of frames, each an RGBA buffer or a 2-d array/list of Colors
-        frames = kwargs.get('frames', None)
-        self.target = kwargs.get('target', 30)
-        self.tick = kwargs.get('tick', 0)
+        self.target = target
+        self.tick = tick
         self.current_frame = 0
         self.next_frame = 0
         if frames is None:
@@ -1366,26 +1398,32 @@ class Tracker(Widget):
     #     Continuous = enum.auto()
     #     Page = enum.auto()
 
-    def __init__(self, x: int = 0, y: int = 0, width: int = 1, height: int = 1, **kwargs):
+    def __init__(self, x: int = 0, y: int = 0, width: int = 1, height: int = 1, *,
+                 bars: int = 64,
+                 pages: int = 1,
+                 numerator: float = 1.0,
+                 denominator: float = 4.0,
+                 ppq: int = 24,
+                 current_color: pyxelwidgets.color.Color = pyxelwidgets.color.Colors.Cyan,
+                 current_active_color: pyxelwidgets.color.Color = pyxelwidgets.color.Colors.Magenta,
+                 **kwargs):
         """Drive it like a Sequencer: ``clock.add_target(tracker.tick)``."""
-        kwargs['name'] = kwargs.get('name', f'Tracker_{Tracker._count}')
-        self.bars = kwargs.get('bars', 64)
+        self.bars = bars
         self.bars = self.bars if self.bars >= height else height
-        self.pages = kwargs.get('pages', 1)
+        self.pages = pages
         self.pages = self.pages if self.pages > 0 else 1
         self.states = numpy.ndarray((1, 1, 1), dtype = numpy.bool_)
         self.current_bar = 0
-        self.numerator = kwargs.get('numerator', 1.0)
-        self.denominator = kwargs.get('denominator', 4.0)
-        self.ppq = kwargs.get('ppq', 24)
+        self.numerator = numerator
+        self.denominator = denominator
+        self.ppq = ppq
         super().__init__(x, y, width, height, **kwargs)
         self.states.fill(False)
         self.current_top = 0
         self.current_bottom = self.current_top + self.height - 1
         self.current_page = 0
-        self.current_color = kwargs.get('current_color', pyxelwidgets.color.Colors.Cyan)
-        self.current_active_color = kwargs.get('current_active_color', pyxelwidgets.color.Colors.Magenta)
-        Tracker._count += 1
+        self.current_color = current_color
+        self.current_active_color = current_active_color
 
     def press(self, x: int, y: int, value: float):
         self.states[self.current_page, x, self.rect.h - 1 - y + self.current_top] = not self.states[self.current_page, x, self.rect.h - 1 - y + self.current_top]
@@ -1445,15 +1483,16 @@ class XY(Widget):
         Vertical    = enum.auto()
         Horizontal  = enum.auto()
 
-    def __init__(self, x: int, y: int, width: int, height: int, **kwargs):
-        kwargs['name'] = kwargs.get('name', f'XY_{XY._count}')
+    def __init__(self, x: int, y: int, width: int, height: int, *,
+                 x_color: pyxelwidgets.color.Color = pyxelwidgets.color.Colors.Cyan,
+                 y_color: pyxelwidgets.color.Color = pyxelwidgets.color.Colors.Magenta,
+                 **kwargs):
         super().__init__(x, y, width, height, **kwargs)
-        self.x_color = kwargs.get('x_color', pyxelwidgets.color.Colors.Cyan)
-        self.y_color = kwargs.get('y_color', pyxelwidgets.color.Colors.Magenta)
+        self.x_color = x_color
+        self.y_color = y_color
         self.delta = [0.0, 0.0]
         self._value = [0.0, 0.0]
         self._held_button = [-1, -1]
-        XY._count += 1
     
     @Widget.value.setter
     def value(self, value: list) -> None:
