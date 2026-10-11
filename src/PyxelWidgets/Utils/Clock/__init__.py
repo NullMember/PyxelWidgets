@@ -1,7 +1,7 @@
 from concurrent.futures import ThreadPoolExecutor
 import enum
 from typing import Callable
-from threading import Thread
+from threading import Lock, Thread
 import time
 
 class Target:
@@ -10,11 +10,11 @@ class Target:
 
     def __init__(self, target: Callable, wrap = 1, delay = 0, **kwargs) -> None:
         self.name = kwargs.get('name', f'Target_{Target._count}')
-        self.wrap = kwargs.get('wrap', 1)
-        self.delay = kwargs.get('delay', 0)
+        self.wrap = wrap
+        self.delay = delay
         self.target = target
         self.active = True
-        self.lock = False
+        self.lock = Lock()
         self._tick = 0
         Target._count += 1
     
@@ -24,20 +24,17 @@ class Target:
 
     @tick.setter
     def tick(self, value: int) -> None:
-        if not self.lock:
-            self.lock = True
-            self._tick = value
-            if (self._tick + self.delay) % self.wrap == 0:
-                self.target(self._tick)
-            self.lock = False
+        # Skip this tick if the previous call is still running
+        if self.lock.acquire(blocking = False):
+            try:
+                self._tick = value
+                if (self._tick + self.delay) % self.wrap == 0:
+                    self.target(self._tick)
+            finally:
+                self.lock.release()
 
     def step(self) -> None:
-        if not self.lock:
-            self.lock = True
-            self._tick += 1
-            if (self._tick + self.delay) % self.wrap == 0:
-                self.target(self._tick)
-            self.lock = False
+        self.tick = self._tick + 1
     
     def set(self, tick: int):
         self.tick = tick
