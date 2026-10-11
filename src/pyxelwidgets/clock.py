@@ -95,12 +95,16 @@ class Clock(Thread):
         else:
             return Clock.State.Running
 
-    def add_target(self, target: Target) -> None:
+    def add_target(self, target) -> Target:
+        """Add a Target, or any callable taking the tick number (wrapped in a Target)."""
+        if not isinstance(target, Target):
+            target = Target(target)
         self.targets[target.name] = target
+        return target
     
-    def add_targets(self, targets: dict) -> None:
+    def add_targets(self, targets) -> None:
         for target in targets:
-            self.targets[target.name] = target
+            self.add_target(target)
     
     def remove_target(self, name: str) -> Target:
         if name in self.targets:
