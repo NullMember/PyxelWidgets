@@ -4,7 +4,6 @@ import pyxelwidgets.buffer
 import pyxelwidgets.enums
 import pyxelwidgets.color
 import pyxelwidgets.rectangle
-import pyxelwidgets.clock
 import numpy
 import threading
 import time
@@ -25,7 +24,6 @@ class Controller():
         self.buffer = pyxelwidgets.buffer.new(self.rect.w, self.rect.h)
         self.buttons = numpy.ndarray((self.rect.w, self.rect.h))
         self.buttons.fill(0.0)
-        self.clock = pyxelwidgets.clock.Clock()
         self._press_time = numpy.ndarray((self.rect.w, self.rect.h))
         self._press_time.fill(0.0)
         self._held = numpy.ndarray((self.rect.w, self.rect.h), threading.Timer)
@@ -35,11 +33,9 @@ class Controller():
     def set_callback(self, callback):
         self.callback = callback
 
-    def init(self, clock = False):
+    def init(self):
         if self.initialized:
             raise Exception(f'{self.name} already initialized')
-        if clock:
-            self.clock.start()
         self.initialized = True
     
     def close(self):
@@ -48,7 +44,6 @@ class Controller():
         for timer in self._held.flat:
             if timer is not None:
                 timer.cancel()
-        self.clock.terminate()
         self.terminated = True
 
     def connect(self):
