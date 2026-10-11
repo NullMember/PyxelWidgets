@@ -1,6 +1,6 @@
 from pyxelwidgets.controllers.virtual import Virtual
 from pyxelwidgets.controllers.midi import MIDI
-from pyxelwidgets import App, Button, Colors, Event, Fader, Manager, Color, Window
+from pyxelwidgets import App, Button, Changed, Color, Colors, Fader, Surface
 import random
 import enum
 
@@ -19,9 +19,6 @@ class DAW(MIDI):
         PLAY = 94
         RECORD = 95
 
-    def __init__(self, **kwargs):
-        super().__init__(**kwargs)
-    
     def process_midi(self, message, _):
         # Called on rtmidi's thread: hold the app lock while changing widgets
         with app.lock:
@@ -32,92 +29,60 @@ class DAW(MIDI):
         chn = data[0] & 0x0F
         if cmd == 0x90: # MCU Leds
             button = data[1]
-            value = data[2]
+            value = 1.0 if data[2] else 0.0
             if button >= DAW.Buttons.MUTE_0.value and button <= DAW.Buttons.MUTE_7.value: # MUTE1-8
-                window.widgets[f"Mute_{button - 16}"].value = 1.0 if value else 0.0
-            elif button == DAW.Buttons.STOP.value: # STOP
-                window.widgets["Stop"].value = 1.0 if value else 0.0
-            elif button == DAW.Buttons.PLAY.value: # PLAY
-                window.widgets["Play"].value = 1.0 if value else 0.0
-            elif button == DAW.Buttons.RECORD.value: # RECORD
-                window.widgets["Record"].value = 1.0 if value else 0.0
+                mutes[button - DAW.Buttons.MUTE_0.value].value = value
+            elif button in transport:
+                transport[button].value = value
         if cmd == 0xE0: # MCU Faders
             if chn >= 0 and chn < 8: # Channel Faders
-                value = ((data[2] << 7) | data[1]) / (1 << 14)
-                window.widgets[f"Fader_{chn}"].value = value
+                faders[chn].value = ((data[2] << 7) | data[1]) / (1 << 14)
 
-def fader_callback(name, event, data):
-    name, index = name.split("_")
-    index = int(index)
-    if event == Event.Changed:
-        daw_controller.send_pitch_bend(int(data * 16383.0), index)
+def send_button(note, pressed):
+    daw_controller.send_note_on(note, 127 if pressed else 0)
+    daw_controller.send_note_off(note, 0)
 
-def button_callback(name, event, data):
-    if event == Event.Changed:
-        if "Mute" in name:
-            name, index = name.split("_")
-            index = int(index)
-            daw_controller.send_note_on(DAW.Buttons.MUTE_0.value + index, 127)
-            daw_controller.send_note_off(DAW.Buttons.MUTE_0.value + index, 0)
-        if name == "Stop":
-            daw_controller.send_note_on(DAW.Buttons.STOP.value, 127)
-            daw_controller.send_note_off(DAW.Buttons.STOP.value, 0)
-        if name == "Play":
-            daw_controller.send_note_on(DAW.Buttons.PLAY.value, 127 if data else 0)
-            daw_controller.send_note_off(DAW.Buttons.PLAY.value, 0)
-        if name == "Record":
-            daw_controller.send_note_on(DAW.Buttons.RECORD.value, 127 if data else 0)
-            daw_controller.send_note_off(DAW.Buttons.RECORD.value, 0)
+surface = Surface(9, 9)
 
-window = Window(9, 9)
+# Widgets only show what the DAW sends back (interactive = False); input is forwarded to the DAW
+faders = []
+mutes = []
 for i in range(8):
-    window.add_widget(
-        Fader(
-            x = i, y = 0, width = 1, height = 8, 
-            name = f"Fader_{i}", 
-            active_color = Color(
-                r = random.randint(0, 255), 
-                g = random.randint(0, 255), 
-                b = random.randint(0, 255)
-            ),
-            interactive = False, callback = fader_callback
-        )
-    )
+    fader = surface.add(Fader(
+        x = i, y = 0, width = 1, height = 8,
+        active_color = Color(
+            r = random.randint(0, 255),
+            g = random.randint(0, 255),
+            b = random.randint(0, 255)
+        ),
+        interactive = False))
+    fader.on(Changed, lambda e, channel = i: daw_controller.send_pitch_bend(int(e.value * 16383.0), channel))
+    faders.append(fader)
 
-for i in range(8):
-    window.add_widget(
-        Button(
-            x = i, y = 8, width = 1, height = 1, 
-            name = f"Mute_{i}", mode = Button.Mode.Switch,
-            active_color = Colors.Red,
-            inactive_color = Colors.DarkRed,
-            interactive = False, callback = button_callback)
-    )
+    mute = surface.add(Button(
+        x = i, y = 8, width = 1, height = 1,
+        mode = Button.Mode.Switch,
+        active_color = Colors.Red,
+        inactive_color = Colors.DarkRed,
+        interactive = False))
+    # Mutes toggle in the DAW, so every press sends a full note
+    mute.on(Changed, lambda e, note = DAW.Buttons.MUTE_0.value + i: send_button(note, True))
+    mutes.append(mute)
 
-window.add_widget(Button(
-    x = 8, y = 0, width = 1, height = 1, 
-    name = "Record", callback = button_callback, interactive = False, 
-    active_color = Colors.Red, inactive_color = Colors.Red * 0.5)
-)
-window.add_widget(Button(
-    x = 8, y = 1, width = 1, height = 1, 
-    name = "Play", callback = button_callback, interactive = False, 
-    active_color = Colors.Green, inactive_color = Colors.Green * 0.5)
-)
-window.add_widget(Button(
-    x = 8, y = 2, width = 1, height = 1, 
-    name = "Stop", callback = button_callback, interactive = False, 
-    active_color = Colors.Yellow, inactive_color = Colors.Yellow * 0.5)
-)
+transport = {}
+for y, (button, color) in enumerate([(DAW.Buttons.RECORD, Colors.Red), (DAW.Buttons.PLAY, Colors.Green), (DAW.Buttons.STOP, Colors.Yellow)]):
+    widget = surface.add(Button(
+        x = 8, y = y, width = 1, height = 1,
+        interactive = False,
+        active_color = color, inactive_color = color * 0.5))
+    widget.on(Changed, lambda e, note = button.value: send_button(note, e.value))
+    transport[button.value] = widget
 
 grid_controller = Virtual(9, 9)
 grid_controller.init()
 grid_controller.connect()
-
-manager = Manager(9, 9)
-manager.add_window(window, 0, 0, 9, 9)
-manager.add_controller(grid_controller, 0, 0)
-app = App(manager)
+surface.add_controller(grid_controller)
+app = App(surface)
 
 daw_controller = DAW()
 daw_controller.init()

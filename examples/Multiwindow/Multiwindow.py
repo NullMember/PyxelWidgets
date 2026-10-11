@@ -1,99 +1,11 @@
 from pyxelwidgets.controllers.virtual import Virtual
 from pyxelwidgets.controllers.midi import MIDI
-from pyxelwidgets import (App, Button, ButtonGroup, Colors, Event, Fader, Keyboard, Knob,
-                          Manager, Color, Sequencer, Window)
+from pyxelwidgets import (App, Button, ButtonGroup, Changed, Color, Colors, Fader, Group, Held, Keyboard, Knob,
+                          NoteOff, NoteOn, Pressed, Released, Sequencer, StepPlayed, Surface)
 import random
 
-def button_callback(name: str, event: str, data):
-    global current_window
-    x, y = data
-    if event == Event.Pressed:
-        if windows[current_window] == sequencer_window:
-            sequencer_window.remove_widget(sequencer_widgets[current_sequencer].name)
-        if windows[current_window] == keyboard_window:
-            manager.remove_window(keyboard_config_window.name)
-        manager.remove_window(windows[current_window].name)
-        current_window = x
-        manager.add_window(windows[current_window], 0, 0, 9, 8)
-        if windows[current_window] == sequencer_window:
-            sequencer_window.add_widget(sequencer_widgets[current_sequencer])
-
-def fader_callback(name: str, event: str, data):
-    if event == Event.Changed:
-        index = name.split("_")[1]
-        index = int(index)
-        keyboard.send_control_change(index + 8, int(data * 127.0))
-
-def knob_callback(name: str, event: str, data):
-    if event == Event.Changed:
-        index = name.split("_")[1]
-        index = int(index)
-        keyboard.send_control_change(index + 16, int(data * 127.0))
-
-def keyboard_callback(name: str, event: str, data):
-    if name == "Keyboard":
-        if event == Event.Changed:
-            note, velocity = data
-            keyboard.send_note_on(note, int(velocity * 127.0))
-    if name == "switch":
-        if event == Event.Released:
-            manager.remove_window(keyboard_window.name)
-            manager.add_window(keyboard_config_window, 0, 0, 9, 8)
-
-def keyboard_config_callback(name: str, event: str, data):
-    keyboard = keyboard_window.widgets['Keyboard']
-    if name == "Type":
-        if event == Event.Pressed:
-            x, y = data
-            keyboard.type = Keyboard.Type(x)
-    if name == "Root":
-        if event == Event.Changed:
-            note, velocity = data
-            note %= 12
-            if note < len(Keyboard.Root):
-                keyboard.root = Keyboard.Root(note)
-    elif name == "Octave":
-        if event == Event.Pressed:
-            x, y = data
-            keyboard.octave = x
-    elif name == "Scale":
-        if event == Event.Pressed:
-            scale = keyboard_config_window.widgets['Scale']
-            x, y = data
-            scale = x + (y * scale.width)
-            if scale < len(Keyboard.Scale):
-                keyboard.scale = Keyboard.Scale(scale)
-    elif name == "switch":
-        if event == Event.Released:
-            manager.remove_window(keyboard_config_window.name)
-            manager.add_window(keyboard_window, 0, 0, 9, 8)
-
-def sequencer_callback(name: str, event: str, data):
-    global current_sequencer
-    if "Sequencer" in name:
-        prefix, index = name.split("_")
-        index = int(index)
-        if event == Event.Tick:
-            keyboard.send_note_on(36 + index, 0, 1)
-        if event == Event.Active:
-            keyboard.send_note_on(36 + index, 100 + random.randint(-10, 10), 1)
-    elif "sample" in name:
-        if event == Event.Pressed:
-            x, y = data
-            sequencer_window.remove_widget(sequencer_widgets[current_sequencer].name)
-            current_sequencer = x + (y * 4)
-            keyboard.send_note_on(36 + current_sequencer, 100, 1)
-            keyboard.send_note_on(36 + current_sequencer, 0, 1)
-            sequencer_window.add_widget(sequencer_widgets[current_sequencer])
-        if event == Event.Held:
-            x, y = data
-            sequencer_widgets[x + (y * 4)].reset()
-    elif "height" in name:
-        if event == Event.Pressed:
-            x, y = data
-            for sequencer in sequencer_widgets:
-                sequencer.steps = (y + 1) * 8
-            sequencer_window.force_update()
+def random_color():
+    return Color(random.randint(0, 255), random.randint(0, 255), random.randint(0, 255))
 
 controller = Virtual(9, 9)
 controller.init()
@@ -103,125 +15,100 @@ keyboard = MIDI()
 keyboard.init()
 keyboard.connect_virtual('Keyboard')
 
-fader_window = Window(9, 8)
-knob_window = Window(9, 8)
-keyboard_window = Window(9, 8)
-keyboard_config_window = Window(9, 8)
-sequencer_window = Window(9, 8)
+surface = Surface(9, 9)
+surface.add_controller(controller)
+app = App(surface, bpm = 60)
 
-top_button_window = Window(8, 1)
+# Pages share the 9x8 area under the top row; only one is visible at a time
+fader_page = surface.add(Group(0, 0, 9, 8))
+knob_page = surface.add(Group(0, 0, 9, 8, visible = False))
+keyboard_page = surface.add(Group(0, 0, 9, 8, visible = False))
+keyboard_config_page = surface.add(Group(0, 0, 9, 8, visible = False))
+sequencer_page = surface.add(Group(0, 0, 9, 8, visible = False))
+pages = [fader_page, knob_page, keyboard_page, sequencer_page]
 
-windows = [fader_window, knob_window, keyboard_window, sequencer_window]
-current_window = 0
+def show(page):
+    for group in pages + [keyboard_config_page]:
+        group.visible = group is page
 
-manager = Manager(9, 9)
-manager.add_window(top_button_window, 0, 8, 8, 1)
-manager.add_window(windows[current_window], 0, 0, 9, 8)
-manager.add_controller(controller, 0, 0)
-app = App(manager, bpm = 60)
+page_selector = surface.add(ButtonGroup(0, 8, len(pages), 1, inactive_color = Colors.Blue))
+page_selector.on(Pressed, lambda e: show(pages[e.x]))
 
-top_button_window.add_widget(
-    ButtonGroup(
-        x = 0, y = 0, width = len(windows), height = 1, 
-        inactive_color = Colors.Blue, 
-        callback = button_callback)
-)
-
+# Faders and knobs send control changes
 for i in range(8):
-    fader_window.add_widget(
-        Fader(
-            x = i, y = 0, width = 1, height = 8, 
-            name = f"DAWFader_{i}", 
-            callback = fader_callback, 
-            active_color = Color(random.randint(0, 255), random.randint(0, 255), random.randint(0, 255)))
-    )
+    fader = fader_page.add(Fader(i, 0, 1, 8, active_color = random_color()))
+    fader.on(Changed, lambda e, cc = 8 + i: keyboard.send_control_change(cc, int(e.value * 127.0)))
+    knob = knob_page.add(Knob(0, 7 - i, 8, 1, type = Knob.Type.BoostCut, active_color = random_color()))
+    knob.on(Changed, lambda e, cc = 16 + i: keyboard.send_control_change(cc, int(e.value * 127.0)))
 
-for i in range(8):
-    knob_window.add_widget(
-        Knob(
-            x = 0, y = 7 - i, width = 8, height = 1, 
-            name = f"DAWKnob_{i}", 
-            callback = knob_callback, 
-            type = Knob.Type.BoostCut,
-            active_color = Color(random.randint(0, 255), random.randint(0, 255), random.randint(0, 255)))
-    )
+# Keyboard, and a settings page opened with the red button
+notes = keyboard_page.add(Keyboard(
+    x = 0, y = 0, width = 8, height = 8,
+    type = Keyboard.Type.DiatonicVertical,
+    scale = Keyboard.Scale.Major,
+    root = Keyboard.Root.C,
+    fold = 4, octave = 4))
+notes.on(NoteOn, lambda e: keyboard.send_note_on(e.note, int(e.velocity * 127.0)))
+notes.on(NoteOff, lambda e: keyboard.send_note_off(e.note))
+keyboard_page.add(Button(8, 0, 1, 1, inactive_color = Colors.Red)).on(Released, lambda e: show(keyboard_config_page))
 
-keyboard_window.add_widget(
-    Keyboard(
-        x = 0, y = 0, width = 8, height = 8,
-        name = "Keyboard",
-        type = Keyboard.Type.DiatonicVertical, 
-        scale = Keyboard.Scale.Major, 
-        root = Keyboard.Root.C, 
-        fold = 4, octave = 4,
-        callback = keyboard_callback)
-)
-keyboard_window.add_widget(
-    Button(
-        8, 0, 1, 1, 
-        name = "switch", 
-        callback = keyboard_callback, 
-        inactive_color = Colors.Red)
-)
-keyboard_config_window.add_widget(
-    ButtonGroup(
-        x = 0, y = 7, width = len(Keyboard.Type), height = 1,
-        name = "Type",
-        callback = keyboard_config_callback)
-)
-keyboard_config_window.add_widget(
-    Keyboard(
-        x = 0, y = 5, width = 8, height = 2,
-        name = "Root",
-        type = Keyboard.Type.Keyboard,
-        callback = keyboard_config_callback)
-)
-keyboard_config_window.add_widget(
-    ButtonGroup(
-        x = 0, y = 4, width = 8, height = 1,
-        name = "Octave",
-        inactive_color = Colors.PaleVioletRed,
-        callback = keyboard_config_callback)
-)
-keyboard_config_window.add_widget(
-    ButtonGroup(
-        x = 0, y = 0, width = 8, height = 2,
-        name = "Scale",
-        inactive_color = Colors.SkyBlue,
-        callback = keyboard_config_callback)
-)
-keyboard_config_window.add_widget(
-    Button(
-        8, 0, 1, 1, 
-        name = "switch", 
-        callback = keyboard_config_callback, 
-        inactive_color = Colors.Red)
-)
+type_selector = keyboard_config_page.add(ButtonGroup(0, 7, len(Keyboard.Type), 1))
+root_selector = keyboard_config_page.add(Keyboard(0, 5, 8, 2, type = Keyboard.Type.Keyboard))
+octave_selector = keyboard_config_page.add(ButtonGroup(0, 4, 8, 1, inactive_color = Colors.PaleVioletRed))
+scale_selector = keyboard_config_page.add(ButtonGroup(0, 0, 8, 2, inactive_color = Colors.SkyBlue))
+keyboard_config_page.add(Button(8, 0, 1, 1, inactive_color = Colors.Red)).on(Released, lambda e: show(keyboard_page))
 
-sequencer_widgets = []
+@type_selector.on(Pressed)
+def select_type(e):
+    notes.type = Keyboard.Type(e.x)
+
+@root_selector.on(NoteOn)
+def select_root(e):
+    notes.root = Keyboard.Root(e.note % 12)
+
+@octave_selector.on(Pressed)
+def select_octave(e):
+    notes.octave = e.x
+
+@scale_selector.on(Pressed)
+def select_scale(e):
+    index = e.x + (e.y * scale_selector.width)
+    if index < len(Keyboard.Scale):
+        notes.scale = Keyboard.Scale(index)
+
+# 16 step sequencers playing drums on channel 2; the selected one is shown
+sequencers = []
 for i in range(16):
-    sequencer = Sequencer(
-        x = 0, y = 4, width = 8, height = 4, 
-        ppq = app.clock.ppq, 
-        callback = sequencer_callback)
+    sequencer = sequencer_page.add(Sequencer(0, 4, 8, 4, ppq = app.clock.ppq, visible = i == 0))
     app.clock.add_target(sequencer.tick)
-    sequencer_widgets.append(sequencer)
 
-sequencer_window.add_widget(
-    ButtonGroup(
-        x = 0, y = 0, width = 4, height = 4, 
-        inactive_color = Color(255, 255, 0), 
-        callback = sequencer_callback,
-        name = "sample")
-)
-sequencer_window.add_widget(
-    ButtonGroup(
-        x = 4, y = 0, width = 1, height = 4,
-        inactive_color = Color(255, 0, 255),
-        callback = sequencer_callback,
-        name = "height")
-)
-current_sequencer = 0
+    @sequencer.on(StepPlayed)
+    def play(e, note = 36 + i):
+        keyboard.send_note_on(note, 0, 1)
+        if e.active:
+            keyboard.send_note_on(note, 100 + random.randint(-10, 10), 1)
+
+    sequencers.append(sequencer)
+
+sample_selector = sequencer_page.add(ButtonGroup(0, 0, 4, 4, inactive_color = Color(255, 255, 0)))
+length_selector = sequencer_page.add(ButtonGroup(4, 0, 1, 4, inactive_color = Color(255, 0, 255)))
+
+@sample_selector.on(Pressed)
+def select_sample(e):
+    index = e.x + (e.y * 4)
+    for i, sequencer in enumerate(sequencers):
+        sequencer.visible = i == index
+    keyboard.send_note_on(36 + index, 100, 1)
+    keyboard.send_note_on(36 + index, 0, 1)
+
+@sample_selector.on(Held)
+def clear_sample(e):
+    sequencers[e.x + (e.y * 4)].reset()
+
+@length_selector.on(Pressed)
+def select_length(e):
+    for sequencer in sequencers:
+        sequencer.steps = (e.y + 1) * 8
 
 if __name__ == "__main__":
     # Runs until Ctrl+C or the grid window is closed

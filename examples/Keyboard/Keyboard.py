@@ -1,52 +1,45 @@
 from pyxelwidgets.controllers.virtual import Virtual
 from pyxelwidgets.controllers.midi import MIDI
-from pyxelwidgets import App, ButtonGroup, Event, Fader, Keyboard, Manager, Window
+from pyxelwidgets import App, ButtonGroup, Fader, Keyboard, NoteOff, NoteOn, Surface, Toggled
 
-def keyboard_callback(name, event, data):
-    if event == Event.Changed:
-        note, velocity = data
-        if velocity > 0.0:
-            keyboard_controller.send_note_on(note, int(velocity * volume_fader.value * 127.0))
-        else:
-            keyboard_controller.send_note_off(note)
+surface = Surface(9, 9)
 
-def button_callback(name, event, data):
-    if event == Event.Pressed:
-        x, y = data
-        keyboard_widget.octave = x
-
-window = Window(9, 9)
-
-keyboard_widget = Keyboard(
-    x = 0, 
-    y = 0, 
-    width = 8, 
-    height = 8, 
+keyboard_widget = surface.add(Keyboard(
+    x = 0,
+    y = 0,
+    width = 8,
+    height = 8,
     type = Keyboard.Type.DiatonicVertical,
     scale = Keyboard.Scale.Major,
-    root = Keyboard.Root.C,
-    callback = keyboard_callback)
-octave_buttons = ButtonGroup(0, 8, 8, 1, callback = button_callback)
-octave_buttons.tapped(5, 0)
-volume_fader = Fader(8, 0, 1, 8)
-volume_fader.tapped(0, 5)
+    root = Keyboard.Root.C))
+octave_buttons = surface.add(ButtonGroup(0, 8, 8, 1))
+volume_fader = surface.add(Fader(8, 0, 1, 8))
 
-window.add_widget(keyboard_widget)
-window.add_widget(octave_buttons)
-window.add_widget(volume_fader)
+@keyboard_widget.on(NoteOn)
+def note_on(e):
+    keyboard_controller.send_note_on(e.note, int(e.velocity * volume_fader.value * 127.0))
+
+@keyboard_widget.on(NoteOff)
+def note_off(e):
+    keyboard_controller.send_note_off(e.note)
+
+@octave_buttons.on(Toggled)
+def select_octave(e):
+    if e.state:
+        keyboard_widget.octave = e.x
+
+octave_buttons.tap(5, 0)
+volume_fader.tap(0, 5)
 
 grid_controller = Virtual(9, 9)
 grid_controller.init()
 grid_controller.connect()
-
-manager = Manager(9, 9)
-manager.add_window(window, 0, 0, 9, 9)
-manager.add_controller(grid_controller, 0, 0)
+surface.add_controller(grid_controller)
 
 keyboard_controller = MIDI()
 keyboard_controller.init()
 keyboard_controller.connect_virtual("Keyboard")
 
 # Runs until Ctrl+C or the grid window is closed
-App(manager).run()
+App(surface).run()
 keyboard_controller.close()
