@@ -7,9 +7,10 @@ class Engine():
 
     def __init__(self, **kwargs) -> None:
         self.name = kwargs.get('name', f'Engine_{Engine._count}')
-        self.length = kwargs.get('length', 30)
-        self.counter = Counter(length = self.length)
+        self._length = kwargs.get('length', 30)
+        self.counter = Counter(length = self._length)
         self.effects = {}
+        Engine._count += 1
     
     @property
     def length(self) -> int:
@@ -17,7 +18,7 @@ class Engine():
 
     @length.setter
     def length(self, value: int) -> None:
-        self.length = value
+        self._length = value
         for effect in self.effects.values():
             effect.length = self.length
         self.counter.length = self.length
@@ -96,7 +97,7 @@ class Counter():
         self._step = value % self._length
 
     def reset(self) -> None:
-        if self.direction == Counter.Direction.Up or Counter.Direction.Cycle:
+        if self.direction in (Counter.Direction.Up, Counter.Direction.Cycle):
             self._direction = 0
             self._step = 0
         elif self.direction == Counter.Direction.Down:
@@ -202,7 +203,7 @@ class Saw(Effect):
 
 class Triangle(Effect):
     def __init__(self, **kwargs) -> None:
-        kwargs['name'] = kwargs.get('name', f'Triangle_{Saw._count}')
+        kwargs['name'] = kwargs.get('name', f'Triangle_{Triangle._count}')
         super().__init__(**kwargs)
         Triangle._count += 1
     
