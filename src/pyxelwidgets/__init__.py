@@ -1,8 +1,8 @@
 """
 GUI framework for low resolution devices (e.g. Novation Launchpad, LED keyboards).
 
-Hardware controllers are not exported here so that the core works without
-optional dependencies; import them from ``pyxelwidgets.controllers.*``.
+Hardware devices are not exported here so that the core works without
+optional dependencies; import them from ``pyxelwidgets.devices.*``.
 
 Names are imported lazily on first access, so importing one module (e.g.
 ``pyxelwidgets.widgets``) does not load the rest of the framework.
@@ -18,7 +18,7 @@ _exports = {
     'Target': 'clock',
     'Color': 'color',
     'Colors': 'color',
-    'Controller': 'controllers',
+    'Device': 'devices',
     'Group': 'group',
     'Parser': 'parser',
     'Rectangle2D': 'rectangle',
@@ -50,7 +50,16 @@ _exports = {
     'PageChanged': 'events',
     'RowPlayed': 'events',
     'Frame': 'events',
-    'Control': 'events',
+    'PadEvent': 'events',
+    'PadPressed': 'events',
+    'PadReleased': 'events',
+    'PadHeld': 'events',
+    'PadDoublePressed': 'events',
+    'ControlEvent': 'events',
+    'ControlPressed': 'events',
+    'ControlReleased': 'events',
+    'ControlChanged': 'events',
+    'ControlTurned': 'events',
 }
 
 __all__ = sorted(_exports)
