@@ -8,8 +8,8 @@ class Target:
 
     _count = 0
 
-    def __init__(self, target: Callable, wrap = 1, delay = 0, **kwargs) -> None:
-        self.name = kwargs.get('name', f'Target_{Target._count}')
+    def __init__(self, target: Callable, wrap: int = 1, delay: int = 0, *, name: str | None = None) -> None:
+        self.name = name if name is not None else f'Target_{Target._count}'
         self.wrap = wrap
         self.delay = delay
         self.target = target
