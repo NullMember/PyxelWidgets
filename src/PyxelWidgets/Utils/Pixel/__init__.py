@@ -1,6 +1,9 @@
 import numpy
 
 class Pixel():
+
+    gammaCoefficient = ((1.0 / 255.0) ** 2.2) * 255
+
     def __init__(self, r: int = 0, g: int = 0, b: int = 0, a: float = 1.0) -> None:
         self.alpha = 0.0 if a < 0.0 else (1.0 if a > 1.0 else a)
         
@@ -12,7 +15,6 @@ class Pixel():
                        int(self.color[1] * self.alpha),
                        int(self.color[2] * self.alpha)]
 
-        self.gammaCoefficient = ((1.0 / 255.0) ** 2.2) * 255
         self.gcolor = [int((self.acolor[0] ** 2.2) * self.gammaCoefficient),
                        int((self.acolor[1] ** 2.2) * self.gammaCoefficient),
                        int((self.acolor[2] ** 2.2) * self.gammaCoefficient)]
@@ -31,7 +33,6 @@ class Pixel():
                        int(self.color[1] * self.alpha),
                        int(self.color[2] * self.alpha)]
 
-        self.gammaCoefficient = ((1.0 / 256.0) ** 2.2) * 256.0
         self.gcolor = [int((self.acolor[0] ** 2.2) * self.gammaCoefficient),
                        int((self.acolor[1] ** 2.2) * self.gammaCoefficient),
                        int((self.acolor[2] ** 2.2) * self.gammaCoefficient)]
@@ -47,7 +48,7 @@ class Pixel():
     @property
     def frgb(self):
         """ Raw float (red, green, blue) tuple """
-        return self.color[0] / 256.0, self.color[1] / 256.0, self.color[2] / 256.0
+        return self.color[0] / 255.0, self.color[1] / 255.0, self.color[2] / 255.0
 
     @property
     def argb(self):
@@ -57,7 +58,7 @@ class Pixel():
     @property
     def fargb(self):
         """ Alpha blended float (red, green, blue) tuple """
-        return self.acolor[0] / 256.0, self.acolor[1] / 256.0, self.acolor[2] / 256.0
+        return self.acolor[0] / 255.0, self.acolor[1] / 255.0, self.acolor[2] / 255.0
 
     @property
     def grgb(self):
@@ -67,7 +68,7 @@ class Pixel():
     @property
     def fgrgb(self):
         """ Alpha blended and gamma corrected float (red, green, blue) tuple """
-        return self.gcolor[0] / 256.0, self.gcolor[1] / 256.0, self.gcolor[2] / 256.0
+        return self.gcolor[0] / 255.0, self.gcolor[1] / 255.0, self.gcolor[2] / 255.0
 
     @property
     def r(self) -> int:
@@ -109,7 +110,7 @@ class Pixel():
         self.acolor[2] = int(self.color[2] * self.alpha)
         self.gcolor[2] = int((self.acolor[2] ** 2.2) * self.gammaCoefficient)
         self._value &= 0xFFFFFF00
-        self._value |= self.color[0]
+        self._value |= self.color[2]
 
     @property
     def h(self) -> int:
@@ -118,6 +119,9 @@ class Pixel():
         rgb = self.fargb
         minV = min(rgb)
         maxV = max(rgb)
+        if maxV == minV:
+            # Achromatic (gray, black or white), hue is undefined
+            return 0
         if maxV == rgb[0]:
             h = (rgb[1] - rgb[2]) / (maxV - minV)
         elif maxV == rgb[1]:
@@ -132,6 +136,8 @@ class Pixel():
         rgb = self.fargb
         minV = min(rgb)
         maxV = max(rgb)
+        if maxV == minV:
+            return 0.0
         if self.l <= 0.5:
             return (maxV - minV) / (maxV + minV)
         return (maxV - minV) / (2.0 - maxV - minV)
@@ -152,9 +158,7 @@ class Pixel():
     @property
     def gmono(self) -> int:
         """ Linear monophonic color calculated from alpha blended rgb then applied gamma correction """
-        return int((((self.acolor[0] * 0.2126) ** 2.2) * self.gammaCoefficient) + 
-                   (((self.acolor[1] * 0.7152) ** 2.2) * self.gammaCoefficient) + 
-                   (((self.acolor[2] * 0.0722) ** 2.2) * self.gammaCoefficient))
+        return int((self.mono ** 2.2) * self.gammaCoefficient)
 
     @property
     def value(self) -> int:
@@ -202,10 +206,18 @@ class Pixel():
         return self.l > other.l
     
     def __le__(self, other) -> bool:
+        return self.l <= other.l
+
+    def __ge__(self, other) -> bool:
+        return self.l >= other.l
+
+    def minimum(self, other):
+        """ Channel-wise minimum of two pixels (darken blend) """
         result = [min(s, o) for s, o in zip(self.color, other.color)] + [min(self.alpha, other.alpha)]
         return Pixel(result[0], result[1], result[2], result[3])
 
-    def __ge__(self, other) -> bool:
+    def maximum(self, other):
+        """ Channel-wise maximum of two pixels (lighten blend) """
         result = [max(s, o) for s, o in zip(self.color, other.color)] + [max(self.alpha, other.alpha)]
         return Pixel(result[0], result[1], result[2], result[3])
 
