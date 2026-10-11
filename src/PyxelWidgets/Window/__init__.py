@@ -74,7 +74,7 @@ class Manager():
     _count = 0
 
     def __init__(self, width: int, height: int, **kwargs):
-        self.name = kwargs.get('name', f'Manager_{Window._count}')
+        self.name = kwargs.get('name', f'Manager_{Manager._count}')
         self.windows = {}
         self.controllers = {}
         self.rect = PyxelWidgets.Utils.Rectangle.Rectangle2D(0, 0, width, height)
