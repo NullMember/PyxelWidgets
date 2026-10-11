@@ -1,3 +1,4 @@
+import pyxelwidgets.buffer
 import pyxelwidgets.enums
 import pyxelwidgets.pixel
 import pyxelwidgets.rectangle
@@ -54,8 +55,7 @@ class Widget:
         self.inactive_color = kwargs.get('inactive_color', pyxelwidgets.pixel.Colors.Black)
         self.delta = 0.0
         self.updated = True
-        self.buffer = numpy.ndarray((self.rect.w, self.rect.h), pyxelwidgets.pixel.Pixel)
-        self.buffer.fill(self.inactive_color)
+        self.buffer = pyxelwidgets.buffer.new(self.rect.w, self.rect.h, self.inactive_color)
         self.lock = kwargs.get('lock', False)
         self._value = kwargs.get('value', 0.0)
         self._old_value = self._value
@@ -69,26 +69,27 @@ class Widget:
     @width.setter
     def width(self, value: int) -> None:
         if value > 0:
-            if self._resize(value, self.rect.h):
-                self.rect.w = value
-                self.buffer.resize((self.rect.w, self.rect.h), refcheck = False)
-                self.buffer = numpy.where(self.buffer == 0, self.inactive_color, self.buffer)
-                self.updated = True
-                self.callback(self.name, pyxelwidgets.enums.Event.Resized, (self.rect.w, self.rect.h))
+            self._set_size(value, self.rect.h)
 
     @property
     def height(self) -> int:
         return self.rect.h
-    
+
     @height.setter
     def height(self, value: int) -> None:
         if value > 0:
-            if self._resize(self.rect.w, value):
-                self.rect.h = value
-                self.buffer.resize((self.rect.w, self.rect.h), refcheck = False)
-                self.buffer = numpy.where(self.buffer == 0, self.inactive_color, self.buffer)
-                self.updated = True
-                self.callback(self.name, pyxelwidgets.enums.Event.Resized, (self.rect.w, self.rect.h))
+            self._set_size(self.rect.w, value)
+
+    def _set_size(self, width: int, height: int) -> None:
+        # _resize implementations read self.rect, so update it first
+        old = self.rect.w, self.rect.h
+        self.rect.w, self.rect.h = width, height
+        if not self._resize(width, height):
+            self.rect.w, self.rect.h = old
+            return
+        self.buffer = pyxelwidgets.buffer.new(self.rect.w, self.rect.h, self.inactive_color)
+        self.updated = True
+        self.callback(self.name, pyxelwidgets.enums.Event.Resized, (self.rect.w, self.rect.h))
 
     @property
     def value(self) -> float:
@@ -293,7 +294,7 @@ class Button(Widget):
             intersect = self.rect.intersect(rect)
             if intersect is not None:
                 area = intersect - self.rect
-                self.buffer[area.slice].fill(self.active_color * self._value if self._value else self.inactive_color)
+                self.buffer[area.slice] = self.active_color * self._value if self._value else self.inactive_color
                 return intersect, self.buffer[area.slice]
         return None, None
 
@@ -339,7 +340,7 @@ class ButtonGroup(Widget):
             intersect = self.rect.intersect(rect)
             if intersect is not None:
                 area = intersect - self.rect
-                self.buffer[area.slice] = numpy.where(self.state[area.slice] == True, self.active_color, self.inactive_color)
+                self.buffer[area.slice] = numpy.where(self.state[(*area.slice, None)], self.active_color, self.inactive_color)
                 return intersect, self.buffer[area.slice]
         return None, None
 
@@ -941,13 +942,14 @@ class Keyboard(Widget):
         self.colors = [pyxelwidgets.pixel.Colors.Invisible for i in range(128)]
         self.buttons = [[] for i in range(128)]
         self._calc_notes()
+        return True
 
     def _calc_notes(self):
         base = self._root.value + (self._octave * 12)
         scale = Keyboard.Scales[self._scale.name]
         precalc = []
-        #precalculate scale values
-        for i in range(self.rect.area):
+        #precalculate scale values, enough for the largest index any layout below reads
+        for i in range((self.rect.w + self.rect.h) * max(len(scale), self._fold)):
             precalc.append(scale[i % len(scale)] + base + ((i // len(scale)) * 12))
         for x in range(self.rect.w):
             for y in range(self.rect.h):
@@ -1294,9 +1296,9 @@ class Sequencer(Widget):
                 tick_x = self._tick_x()
                 tick_y = self._tick_y() % self.rect.h
                 state_area = area + pyxelwidgets.rectangle.Rectangle2D(0, self.rect.h * tick_p)
-                self.buffer[area.slice] = numpy.where(self.state[state_area.slice] == True, self.active_color, self.inactive_color)
+                self.buffer[area.slice] = numpy.where(self.state[(*state_area.slice, None)], self.active_color, self.inactive_color)
                 if tick_p == self.current_page:
-                    if self.buffer[tick_x, tick_y] == self.active_color:
+                    if numpy.array_equal(self.buffer[tick_x, tick_y], self.active_color):
                         self.buffer[tick_x, tick_y] = self.current_active_color
                     else:
                         self.buffer[tick_x, tick_y] = self.current_color
@@ -1330,14 +1332,16 @@ class Sprite(Widget):
         kwargs['name'] = kwargs.get('name', f'Sprite_{Sprite._count}')
         super().__init__(x=x, y=y, width=width, height=height, **kwargs)
         self.animate = kwargs.get('animate', False)
-        self.frames = kwargs.get('frames', None)
+        # Sequence of frames, each an RGBA buffer or a 2-d array/list of Pixels
+        frames = kwargs.get('frames', None)
         self.target = kwargs.get('target', 30)
         self.tick = kwargs.get('tick', 0)
         self.current_frame = 0
         self.next_frame = 0
-        if not isinstance(self.frames, numpy.ndarray):
-            self.frames = [numpy.ndarray((self.rect.w, self.rect.h), pyxelwidgets.pixel.Pixel)]
-            self.frames[0].fill(pyxelwidgets.pixel.Colors.Invisible)
+        if frames is None:
+            self.frames = [pyxelwidgets.buffer.new(self.rect.w, self.rect.h)]
+        else:
+            self.frames = [pyxelwidgets.buffer.to_buffer(frame) for frame in frames]
         self.buffer = self.frames[0]
 
     def update_area(self, rect: pyxelwidgets.rectangle.Rectangle2D):
@@ -1434,8 +1438,8 @@ class Tracker(Widget):
             intersect = self.rect.intersect(rect)
             if intersect is not None:
                 area = intersect - self.rect
-                self.buffer[area.slice] = numpy.fliplr(numpy.where(self.states[self.current_page, :, self.current_top:(self.current_bottom + 1)] == True, self.active_color, self.inactive_color))
-                self.buffer[:, int(self.current_bottom - self.current_bar)] = numpy.where(self.states[self.current_page, :, int(self.current_bar)] == True, self.current_active_color, self.current_color)
+                self.buffer[area.slice] = numpy.fliplr(numpy.where(self.states[self.current_page, :, self.current_top:(self.current_bottom + 1), None], self.active_color, self.inactive_color))
+                self.buffer[:, int(self.current_bottom - self.current_bar)] = numpy.where(self.states[self.current_page, :, int(self.current_bar), None], self.current_active_color, self.current_color)
             return intersect, self.buffer[area.slice]
         return None, None
 
