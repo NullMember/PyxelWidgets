@@ -1,14 +1,28 @@
 import pyxelwidgets.buffer
 import pyxelwidgets.enums
+import pyxelwidgets.events
 import pyxelwidgets.color
 import pyxelwidgets.rectangle
-import uuid
 import numpy
 import enum
 
-class Widget:
+class Propagation(enum.Enum):
     """
-    Base class for all Widgets.
+    What happens to a press after a widget handles it, when widgets overlap.
+
+    Stop: widgets underneath don't receive it (default).
+    Pass: it continues to the widget underneath (default for display-only widgets).
+    """
+    Stop = enum.auto()
+    Pass = enum.auto()
+
+class Widget(pyxelwidgets.events.Emitter):
+    """
+    Base class for all widgets: a rectangle of pads with its own frame buffer.
+
+    A widget works on its own: feed it input with ``press``/``release``/...,
+    call ``render()`` and read ``buffer``. Subscribe to its events with ``on``.
+    Subclasses override ``draw`` and the ``handle_*`` input hooks.
     """
     # Per class counters for default names (Button_0, Fader_0, ...)
     _counts = {}
@@ -17,54 +31,34 @@ class Widget:
                  name: str | None = None,
                  active_color: pyxelwidgets.color.Color = pyxelwidgets.color.Colors.White,
                  inactive_color: pyxelwidgets.color.Color = pyxelwidgets.color.Colors.Black,
-                 value: float = 0.0,
-                 interactive: bool = True,
-                 callback = None):
+                 visible: bool = True,
+                 propagation: Propagation = Propagation.Stop):
         """
-        Widget Constructor
-        ------------------
-        
         Parameters
         ----------
-        x: int
-            x axis where widget will be placed on window, from left to right.
-            x value should be positive.
-        y: int
-            y axis where widget will be placed on window, from bottom to top.
-            y value should be positive.
-        width: int
-            Widget width, should >= 1
-        height: int
-            Widget height, should >= 1
+        x, y: int
+            Position in the parent Group, from left to right and bottom to top.
+        width, height: int
+            Size in pads, should be >= 1.
         name: str, optional
-            Unique widget name, used to find widgets registered on window and
-            callbacks returning widget value when changed. Defaults to
-            ``<ClassName>_<n>``.
+            Label used to find the widget in a Group. Defaults to ``<ClassName>_<n>``.
         active_color: Color = Colors.White, optional
-            If widget value is non-zero, this color will be used.
+            Color of active pads.
         inactive_color: Color = Colors.Black, optional
-            If widget value is zero, this color will be used.
-        value: float = 0.0, optional
-            Default value of widget.
-        interactive: bool = True, optional
-            If False, input doesn't change the value (callbacks still fire),
-            e.g. for widgets that only mirror state sent back from a DAW.
-        callback: function, optional
-            If widget value is changed this function will be called.
-            Should get 3 parameters, (widget) name, event and value
-        """    
-        self.id = uuid.uuid1()
+            Color of inactive pads.
+        visible: bool = True, optional
+            Hidden widgets are neither drawn nor receive input in a Group.
+        propagation: Propagation = Propagation.Stop, optional
+            Whether a press continues to overlapped widgets underneath.
+        """
         self.name = name if name is not None else self._default_name()
         self.rect = pyxelwidgets.rectangle.Rectangle2D(x, y, width, height)
         self.active_color = active_color
         self.inactive_color = inactive_color
-        self.delta = 0.0
+        self.propagation = propagation
+        self._visible = visible
         self.updated = True
         self.buffer = pyxelwidgets.buffer.new(self.rect.w, self.rect.h, self.inactive_color)
-        self.interactive = interactive
-        self._value = value
-        self._old_value = self._value
-        self.callback = callback if callback is not None else (lambda *_, **__: None)
         self._resize(self.rect.w, self.rect.h)
 
     def _default_name(self) -> str:
@@ -72,6 +66,17 @@ class Widget:
         count = Widget._counts.get(cls, 0)
         Widget._counts[cls] = count + 1
         return f'{cls}_{count}'
+
+    @property
+    def visible(self) -> bool:
+        return self._visible
+
+    @visible.setter
+    def visible(self, value: bool) -> None:
+        if value != self._visible:
+            self._visible = value
+            # Lets a parent Group notice the change and recompose
+            self.updated = True
 
     @property
     def width(self) -> int:
@@ -85,7 +90,7 @@ class Widget:
     @property
     def height(self) -> int:
         return self.rect.h
-
+    
     @height.setter
     def height(self, value: int) -> None:
         if value > 0:
@@ -100,161 +105,120 @@ class Widget:
             return
         self.buffer = pyxelwidgets.buffer.new(self.rect.w, self.rect.h, self.inactive_color)
         self.updated = True
-        self.callback(self.name, pyxelwidgets.enums.Event.Resized, (self.rect.w, self.rect.h))
+        self.emit(pyxelwidgets.events.Resized(self, self.rect.w, self.rect.h))
 
-    @property
-    def value(self) -> float:
-        return self._value
-    
-    @value.setter
-    def value(self, value: float) -> None:
-        if value != self._value:
-            self._old_value = self._value
-            self._value = round(min(1.0, max(0.0, value)), 6)
-            self.delta = self._value - self._old_value
-            if self._value != self._old_value:
-                self.updated = True
-    
-    def set_value(self, value: float):
-        if self.interactive:
-            self.value = value
-        self.callback(self.name, pyxelwidgets.enums.Event.Changed, round(min(1.0, max(0.0, value)), 6))
+    # Input: public methods emit the event, then call the matching handle_* hook
 
-    def set_callback(self, callback) -> None:
-        self.callback = callback
+    def press(self, x: int, y: int, velocity: float = 1.0) -> None:
+        """Press the pad at widget coordinates ``x``, ``y``."""
+        self.emit(pyxelwidgets.events.Pressed(self, x, y, velocity))
+        self.handle_press(x, y, velocity)
 
-    def process(self, name, event, data):
-        if event != pyxelwidgets.enums.Event.Custom:
-            x, y, value = data
-            btn = pyxelwidgets.rectangle.Rectangle2D(x, y)
-            if btn.collide(self.rect):
-                btn = btn - self.rect
-                if event == pyxelwidgets.enums.Event.Pressed:
-                    self.pressed(btn.x, btn.y, value)
-                elif event == pyxelwidgets.enums.Event.Released:
-                    self.released(btn.x, btn.y, value)
-                elif event == pyxelwidgets.enums.Event.Held:
-                    self.held(btn.x, btn.y, value)
-                elif event == pyxelwidgets.enums.Event.DoublePressed:
-                    self.double_pressed(btn.x, btn.y, value)
+    def release(self, x: int, y: int, velocity: float = 0.0) -> None:
+        self.emit(pyxelwidgets.events.Released(self, x, y, velocity))
+        self.handle_release(x, y, velocity)
 
-    def press(self, x: int, y: int, value: float):
-        return
-    
-    def pressed(self, x: int, y: int, value: float):
-        """
-        Description
-        ----
-        If last pressed button was on this Widget
-         Window will call this function
-        
-        Parameters
-        ----
-        x: int
-            x axis of button location on Widget
-        y: int
-            y axis of button location on Widget
-        value: float
-            Value of the pressed button, useful for velocity sensitive pads
-             Could be 1 for non velocity sensitive pads
-        """
-        self.callback(self.name, pyxelwidgets.enums.Event.Pressed, (x, y))
-        self.press(x, y, value)
-    
-    def release(self, x: int, y: int, value: float):
-        return
-    
-    def released(self, x: int, y: int, value: float):
-        """
-        Description
-        ----
-        If last released button was on this Widget
-         Window will call this function
-        
-        Parameters
-        ----
-        x: int
-            x axis of button location on Widget
-        y: int
-            y axis of button location on Widget
-        value: float
-            Value of the released button, useful for velocity sensitive pads
-             Could be 0 for non velocity sensitive pads
-        """
-        self.callback(self.name, pyxelwidgets.enums.Event.Released, (x, y))
-        self.release(x, y, value)
-    
-    def hold(self, x: int, y: int, value: float):
-        return
-    
-    def held(self, x: int, y: int, value: float):
-        """
-        Description
-        ----
-        If last held button was on this Widget
-         Window will call this function
-        
-        Parameters
-        ----
-        x: int
-            x axis of button location on Widget
-        y: int
-            y axis of button location on Widget
-        """
-        self.callback(self.name, pyxelwidgets.enums.Event.Held, (x, y))
-        self.hold(x, y, value)
-    
-    def double_press(self, x: int, y: int, value: float):
-        return
-    
-    def double_pressed(self, x: int, y: int, value: float):
-        """
-        Description
-        ----
-        If last double pressed button was on this Widget
-         Window will call this function
-        
-        Parameters
-        ----
-        x: int
-            x axis of button location on Widget
-        y: int
-            y axis of button location on Widget
-        value: float
-            Value of the double pressed button, useful for velocity sensitive pads
-            Could be 1 for non velocity sensitive pads
-        """
-        self.callback(self.name, pyxelwidgets.enums.Event.DoublePressed, (x, y))
-        self.double_press(x, y, value)
-    
-    def tap(self, x: int, y: int, press_value: float = 1.0, release_value: float = 0.0):
-        self.press(x, y, press_value)
-        self.release(x, y, release_value)
-    
-    def tapped(self, x: int, y: int, press_value: float = 1.0, release_value: float = 0.0):
-        self.pressed(x, y, press_value)
-        self.released(x, y, release_value)
+    def hold(self, x: int, y: int, velocity: float = 1.0) -> None:
+        self.emit(pyxelwidgets.events.Held(self, x, y, velocity))
+        self.handle_hold(x, y, velocity)
 
-    def update_area(self, rect: pyxelwidgets.rectangle.Rectangle2D) -> tuple:
-        return rect, self.buffer[rect.slice]
+    def double_press(self, x: int, y: int, velocity: float = 1.0) -> None:
+        self.emit(pyxelwidgets.events.DoublePressed(self, x, y, velocity))
+        self.handle_double_press(x, y, velocity)
 
-    def update(self) -> tuple:
-        """
-        Description
-        ----
-        At every Window update
-         Window will call this function
-          This function must return updated pixel values
-           Color list should [x][y][r, g, b]
-            If nothing is updated return empty list
-        """
-        return self.update_area(self.rect)
-    
+    def tap(self, x: int, y: int, velocity: float = 1.0) -> None:
+        """Press and release the pad at ``x``, ``y``."""
+        self.press(x, y, velocity)
+        self.release(x, y, 0.0)
+
+    def input(self, action: pyxelwidgets.enums.Event, x: int, y: int, velocity: float) -> None:
+        """Deliver controller input (Pressed, Released, Held, DoublePressed) at widget coordinates."""
+        if action == pyxelwidgets.enums.Event.Pressed:
+            self.press(x, y, velocity)
+        elif action == pyxelwidgets.enums.Event.Released:
+            self.release(x, y, velocity)
+        elif action == pyxelwidgets.enums.Event.Held:
+            self.hold(x, y, velocity)
+        elif action == pyxelwidgets.enums.Event.DoublePressed:
+            self.double_press(x, y, velocity)
+
+    def handle_press(self, x: int, y: int, velocity: float) -> None:
+        """Override to react to a press; ``velocity`` is 1.0 on pads without velocity."""
+
+    def handle_release(self, x: int, y: int, velocity: float) -> None:
+        """Override to react to a release."""
+
+    def handle_hold(self, x: int, y: int, velocity: float) -> None:
+        """Override to react to a pad held longer than the controller's ``held_time``."""
+
+    def handle_double_press(self, x: int, y: int, velocity: float) -> None:
+        """Override to react to a double press."""
+
+    # Drawing
+
+    def render(self) -> bool:
+        """Redraw ``buffer`` if needed; returns True if it changed."""
+        if not self.updated:
+            return False
+        self.updated = False
+        self.draw()
+        return True
+
+    def draw(self) -> None:
+        """Override to draw the whole widget into ``self.buffer``. Set ``self.updated`` to keep animating."""
+
     def _resize(self, width, height) -> bool:
         return True
 
+class ValueWidget(Widget):
+    """
+    A widget with a single value set by input: a float from 0.0 to 1.0 by default.
+    Input emits ``Changed``; setting ``value`` from code doesn't.
+    """
+
+    def __init__(self, x: int = 0, y: int = 0, width: int = 1, height: int = 1, *,
+                 value = 0.0,
+                 interactive: bool = True,
+                 **kwargs):
+        """
+        value: optional
+            Initial value.
+        interactive: bool = True, optional
+            If False, input doesn't change the value (``Changed`` is still emitted),
+            e.g. for widgets that only mirror state sent back from a DAW.
+        """
+        self._value = self._clamp(value)
+        self.delta = 0.0
+        self.interactive = interactive
+        super().__init__(x, y, width, height, **kwargs)
+
+    def _clamp(self, value):
+        return round(min(1.0, max(0.0, value)), 6)
+
+    @property
+    def value(self):
+        return self._value
+    
+    @value.setter
+    def value(self, value) -> None:
+        value = self._clamp(value)
+        if value != self._value:
+            self.delta = self._delta(self._value, value)
+            self._value = value
+            self.updated = True
+
+    def _delta(self, old, new):
+        return new - old
+    
+    def set_value(self, value) -> None:
+        """Set the value as input would: respects ``interactive`` and emits ``Changed``."""
+        value = self._clamp(value)
+        if self.interactive:
+            self.value = value
+        self.emit(pyxelwidgets.events.Changed(self, value))
+
 # Button class
-class Button(Widget):
+class Button(ValueWidget):
     class Mode(enum.Enum):
         Button  = enum.auto()
         Switch  = enum.auto()
@@ -268,7 +232,7 @@ class Button(Widget):
         self.state = False
         self.is_hold = False
 
-    def press(self, x: int, y: int, value: float):
+    def handle_press(self, x: int, y: int, value: float):
         if self.mode == Button.Mode.Button:
             self.set_value(value)
         elif self.mode == Button.Mode.Switch:
@@ -284,7 +248,7 @@ class Button(Widget):
             else:
                 self.set_value(value)
     
-    def release(self, x: int, y: int, value: float):
+    def handle_release(self, x: int, y: int, value: float):
         if self.mode == Button.Mode.Button:
             self.set_value(0.0)
         elif self.mode == Button.Mode.Switch:
@@ -295,19 +259,13 @@ class Button(Widget):
             else:
                 self.set_value(0.0)
     
-    def hold(self, x: int, y: int, value: float):
+    def handle_hold(self, x: int, y: int, value: float):
         if self.mode == Button.Mode.Mixed:
             self.is_hold = not self.is_hold
 
-    def update_area(self, rect: pyxelwidgets.rectangle.Rectangle2D):
-        if self.updated:
-            self.updated = False
-            intersect = self.rect.intersect(rect)
-            if intersect is not None:
-                area = intersect - self.rect
-                self.buffer[area.slice] = self.active_color * self._value if self._value else self.inactive_color
-                return intersect, self.buffer[area.slice]
-        return None, None
+    def draw(self) -> None:
+        area = self.rect.origin
+        self.buffer[area.slice] = self.active_color * self._value if self._value else self.inactive_color
 
 # ButtonGroup class
 class ButtonGroup(Widget):
@@ -329,7 +287,8 @@ class ButtonGroup(Widget):
             self.state[0, 0] = True
             self._old_button = [0, 0]
 
-    def press(self, x: int, y: int, value: float):
+    def handle_press(self, x: int, y: int, value: float):
+        before = self.state.copy()
         if self.mode == ButtonGroup.Mode.Button:
             self.state[x, y] = True
         if self.mode == ButtonGroup.Mode.Switch:
@@ -338,29 +297,29 @@ class ButtonGroup(Widget):
             self.state[self._old_button[0], self._old_button[1]] = True
         if self.mode == ButtonGroup.Mode.Multi:
             self.state[x, y] = not self.state[x, y]
-        self.updated = True
+        self._emit_toggled(before)
     
-    def release(self, x: int, y: int, value: float):
+    def handle_release(self, x: int, y: int, value: float):
         if self.mode == ButtonGroup.Mode.Button:
+            before = self.state.copy()
             self.state[x, y] = False
-            self.updated = True
+            self._emit_toggled(before)
 
-    def update_area(self, rect: pyxelwidgets.rectangle.Rectangle2D) -> tuple:
-        if self.updated:
-            self.updated = False
-            intersect = self.rect.intersect(rect)
-            if intersect is not None:
-                area = intersect - self.rect
-                self.buffer[area.slice] = numpy.where(self.state[(*area.slice, None)], self.active_color, self.inactive_color)
-                return intersect, self.buffer[area.slice]
-        return None, None
+    def _emit_toggled(self, before) -> None:
+        for x, y in numpy.argwhere(before != self.state):
+            self.updated = True
+            self.emit(pyxelwidgets.events.Toggled(self, int(x), int(y), bool(self.state[x, y])))
+
+    def draw(self) -> None:
+        area = self.rect.origin
+        self.buffer[area.slice] = numpy.where(self.state[(*area.slice, None)], self.active_color, self.inactive_color)
 
     def _resize(self, width, height):
         self.state.resize((width, height), refcheck = False)
         return True
 
 # Fader class
-class Fader(Widget):
+class Fader(ValueWidget):
 
     class Direction(enum.Enum):
         """
@@ -468,7 +427,7 @@ class Fader(Widget):
         self._old_button = [-1, -1]
         self._held_button = [-1, -1]
 
-    def press(self, x: int, y: int, value: float):
+    def handle_press(self, x: int, y: int, value: float):
         if self.mode == Fader.Mode.Simple:
             self.set_value(self._pressed_simple(x, y, value))
         elif self.mode == Fader.Mode.Multi:
@@ -542,7 +501,7 @@ class Fader(Widget):
             self._held_button = [x, y]
             return self._calc_fader_value(x, y, self._calc_fader_magnitude(x, y))
 
-    def hold(self, x: int, y: int, value: float):
+    def handle_hold(self, x: int, y: int, value: float):
         if self.mode != Fader.Mode.Relative:
             if x == 0 and y == 0:
                 self.set_value(0.0)
@@ -552,140 +511,134 @@ class Fader(Widget):
                 self.set_value(0.5)
         self.updated = True
     
-    def release(self, x: int, y: int, value: float):
+    def handle_release(self, x: int, y: int, value: float):
         if self._held_button[0] == x and self._held_button[1] == y:
             self._held_button = [-1, -1]
 
-    def update_area(self, rect: pyxelwidgets.rectangle.Rectangle2D):
-        if self.updated:
-            self.updated = False
-            halfval = self._value / 2.0
-            halfvalpluspointfive = halfval + 0.5
-            intersect = self.rect.intersect(rect)
-            if intersect is not None:
-                area = intersect - self.rect
-                for x in area.columns:
-                    for y in area.rows:
-                        min_v = self._min_v[x][y]
-                        max_v = self._max_v[x][y]
-                        if self.type == Fader.Type.Single:
-                            # if current pad lower than last pressed pad
-                            if max_v <= self._value:
-                                self.buffer[x, y] = self.inactive_color
-                            # if current pad higher than last pressed pad
-                            elif min_v > self._value:
-                                self.buffer[x, y] = self.inactive_color
-                            # if current pad is last pressed pad
-                            else:
-                                coefficient = min(self._calc_pixel_coefficient(self._value - min_v) + self._calc_pixel_step(), 1.0)
-                                self.buffer[x, y] = self.active_color * coefficient
-                        elif self.type == Fader.Type.BoostCut:
-                            # if last pressed pad in upper half
-                            if self._value > 0.5:
-                                # if current pad in lower half
-                                if min_v < 0.5:
-                                    self.buffer[x, y] = self.inactive_color
-                                # if current pad in upper half
-                                else:
-                                    # if current pad is lower than last pressed pad
-                                    if max_v <= self._value:
-                                        self.buffer[x, y] = self.active_color
-                                    # if current pad is higher than last pressed pad
-                                    elif min_v > self._value:
-                                        self.buffer[x, y] = self.inactive_color
-                                    # if current pad is last pressed pad
-                                    else:
-                                        coefficient = min(self._calc_pixel_coefficient(self._value - min_v) + self._calc_pixel_step(), 1.0)
-                                        self.buffer[x, y] = self.active_color * coefficient
-                            # if last pressed pad in lower half
-                            elif self._value < 0.5:
-                                # if current pad in upper half
-                                if max_v > 0.5:
-                                    self.buffer[x, y] = self.inactive_color
-                                # if current pad in lower half
-                                else:
-                                    # if current pad is higher than last pressed pad
-                                    if min_v >= self._value:
-                                        self.buffer[x, y] = self.active_color
-                                    # if current pad is lower than last pressed pad
-                                    elif max_v < self._value:
-                                        self.buffer[x, y] = self.inactive_color
-                                    # if current pad is last pressed pad
-                                    else:
-                                        # reverse brightness to match type
-                                        coefficient = 1.0 - self._calc_pixel_coefficient(self._value - min_v)
-                                        self.buffer[x, y] = self.active_color * coefficient
-                            # if current value is 0.5
-                            else:
-                                # lit middle pad(s)
-                                if min_v == 0.5 or max_v == 0.5:
-                                    self.buffer[x, y] = self.active_color
-                                # unlit every other pad
-                                else:
-                                    self.buffer[x, y] = self.inactive_color
-                        elif self.type == Fader.Type.Wrap:
-                            # if current pad lower than last pressed pad
+    def draw(self) -> None:
+        halfval = self._value / 2.0
+        halfvalpluspointfive = halfval + 0.5
+        area = self.rect.origin
+        for x in area.columns:
+            for y in area.rows:
+                min_v = self._min_v[x][y]
+                max_v = self._max_v[x][y]
+                if self.type == Fader.Type.Single:
+                    # if current pad lower than last pressed pad
+                    if max_v <= self._value:
+                        self.buffer[x, y] = self.inactive_color
+                    # if current pad higher than last pressed pad
+                    elif min_v > self._value:
+                        self.buffer[x, y] = self.inactive_color
+                    # if current pad is last pressed pad
+                    else:
+                        coefficient = min(self._calc_pixel_coefficient(self._value - min_v) + self._calc_pixel_step(), 1.0)
+                        self.buffer[x, y] = self.active_color * coefficient
+                elif self.type == Fader.Type.BoostCut:
+                    # if last pressed pad in upper half
+                    if self._value > 0.5:
+                        # if current pad in lower half
+                        if min_v < 0.5:
+                            self.buffer[x, y] = self.inactive_color
+                        # if current pad in upper half
+                        else:
+                            # if current pad is lower than last pressed pad
                             if max_v <= self._value:
                                 self.buffer[x, y] = self.active_color
-                            # if current pad higher than last pressed pad
+                            # if current pad is higher than last pressed pad
                             elif min_v > self._value:
                                 self.buffer[x, y] = self.inactive_color
                             # if current pad is last pressed pad
                             else:
                                 coefficient = min(self._calc_pixel_coefficient(self._value - min_v) + self._calc_pixel_step(), 1.0)
                                 self.buffer[x, y] = self.active_color * coefficient
-                        elif self.type == Fader.Type.Spread:
-                            # if current pad in upper half
-                            if min_v >= 0.5:
-                                # if current pad higher than current value
-                                if min_v > halfvalpluspointfive:
-                                    self.buffer[x, y] = self.inactive_color
-                                # if current pad lower than current value
-                                elif max_v <= halfvalpluspointfive:
-                                    self.buffer[x, y] = self.active_color
-                                # if current value is in current pad's boundary
-                                else:
-                                    coefficient = self._calc_pixel_coefficient(halfvalpluspointfive - min_v)
-                                    self.buffer[x, y] = self.active_color * coefficient
-                            # if current pad in lower half
-                            elif max_v <= 0.5:
-                                # if current pad higher than current value
-                                if min_v >= (1.0 - halfvalpluspointfive):
-                                    self.buffer[x, y] = self.active_color
-                                # if current pad lower than current value
-                                elif max_v < (1.0 - halfvalpluspointfive):
-                                    self.buffer[x, y] = self.inactive_color
-                                # if current value is in current pad's boundary
-                                else:
-                                    coefficient = 1.0 - self._calc_pixel_coefficient((1.0 - halfvalpluspointfive) - min_v)
-                                    self.buffer[x, y] = self.active_color * coefficient
-                        elif self.type == Fader.Type.Collapse:
-                            # if current pad in upper half
-                            if min_v >= 0.5:
-                                # if current pad lower than current value
-                                if min_v >= (1.0 - halfval):
-                                    self.buffer[x, y] = self.inactive_color
-                                # if current pad higher than current value
-                                elif max_v < (1.0 - halfval):
-                                    self.buffer[x, y] = self.active_color
-                                # if current value is in current pad's boundary
-                                else:
-                                    coefficient = self._calc_pixel_coefficient((1.0 - halfval) - min_v)
-                                    self.buffer[x, y] = self.active_color * coefficient
-                            # if current pad in lower half
-                            elif max_v <= 0.5:
-                                # if current pad lower than current value
-                                if min_v > halfval:
-                                    self.buffer[x, y] = self.active_color
-                                # if current pad higher than current value
-                                elif max_v <= halfval:
-                                    self.buffer[x, y] = self.inactive_color
-                                # if current value is in current pad's boundary
-                                else:
-                                    coefficient = 1.0 - self._calc_pixel_coefficient(halfval - min_v)
-                                    self.buffer[x, y] = self.active_color * coefficient
-                return intersect, self.buffer[area.slice]
-        return None, None
+                    # if last pressed pad in lower half
+                    elif self._value < 0.5:
+                        # if current pad in upper half
+                        if max_v > 0.5:
+                            self.buffer[x, y] = self.inactive_color
+                        # if current pad in lower half
+                        else:
+                            # if current pad is higher than last pressed pad
+                            if min_v >= self._value:
+                                self.buffer[x, y] = self.active_color
+                            # if current pad is lower than last pressed pad
+                            elif max_v < self._value:
+                                self.buffer[x, y] = self.inactive_color
+                            # if current pad is last pressed pad
+                            else:
+                                # reverse brightness to match type
+                                coefficient = 1.0 - self._calc_pixel_coefficient(self._value - min_v)
+                                self.buffer[x, y] = self.active_color * coefficient
+                    # if current value is 0.5
+                    else:
+                        # lit middle pad(s)
+                        if min_v == 0.5 or max_v == 0.5:
+                            self.buffer[x, y] = self.active_color
+                        # unlit every other pad
+                        else:
+                            self.buffer[x, y] = self.inactive_color
+                elif self.type == Fader.Type.Wrap:
+                    # if current pad lower than last pressed pad
+                    if max_v <= self._value:
+                        self.buffer[x, y] = self.active_color
+                    # if current pad higher than last pressed pad
+                    elif min_v > self._value:
+                        self.buffer[x, y] = self.inactive_color
+                    # if current pad is last pressed pad
+                    else:
+                        coefficient = min(self._calc_pixel_coefficient(self._value - min_v) + self._calc_pixel_step(), 1.0)
+                        self.buffer[x, y] = self.active_color * coefficient
+                elif self.type == Fader.Type.Spread:
+                    # if current pad in upper half
+                    if min_v >= 0.5:
+                        # if current pad higher than current value
+                        if min_v > halfvalpluspointfive:
+                            self.buffer[x, y] = self.inactive_color
+                        # if current pad lower than current value
+                        elif max_v <= halfvalpluspointfive:
+                            self.buffer[x, y] = self.active_color
+                        # if current value is in current pad's boundary
+                        else:
+                            coefficient = self._calc_pixel_coefficient(halfvalpluspointfive - min_v)
+                            self.buffer[x, y] = self.active_color * coefficient
+                    # if current pad in lower half
+                    elif max_v <= 0.5:
+                        # if current pad higher than current value
+                        if min_v >= (1.0 - halfvalpluspointfive):
+                            self.buffer[x, y] = self.active_color
+                        # if current pad lower than current value
+                        elif max_v < (1.0 - halfvalpluspointfive):
+                            self.buffer[x, y] = self.inactive_color
+                        # if current value is in current pad's boundary
+                        else:
+                            coefficient = 1.0 - self._calc_pixel_coefficient((1.0 - halfvalpluspointfive) - min_v)
+                            self.buffer[x, y] = self.active_color * coefficient
+                elif self.type == Fader.Type.Collapse:
+                    # if current pad in upper half
+                    if min_v >= 0.5:
+                        # if current pad lower than current value
+                        if min_v >= (1.0 - halfval):
+                            self.buffer[x, y] = self.inactive_color
+                        # if current pad higher than current value
+                        elif max_v < (1.0 - halfval):
+                            self.buffer[x, y] = self.active_color
+                        # if current value is in current pad's boundary
+                        else:
+                            coefficient = self._calc_pixel_coefficient((1.0 - halfval) - min_v)
+                            self.buffer[x, y] = self.active_color * coefficient
+                    # if current pad in lower half
+                    elif max_v <= 0.5:
+                        # if current pad lower than current value
+                        if min_v > halfval:
+                            self.buffer[x, y] = self.active_color
+                        # if current pad higher than current value
+                        elif max_v <= halfval:
+                            self.buffer[x, y] = self.inactive_color
+                        # if current value is in current pad's boundary
+                        else:
+                            coefficient = 1.0 - self._calc_pixel_coefficient(halfval - min_v)
+                            self.buffer[x, y] = self.active_color * coefficient
 
     def _resize(self, width, height):
         self._min_v = [[self._calc_fader_value(x, y, 0.0) for y in range(height)] for x in range(width)]
@@ -925,38 +878,34 @@ class Keyboard(Widget):
         self._resize(self.width, self.height)
         self.updated = True
 
-    def press(self, x: int, y: int, value: float):
-        if self.notes[x, y] >= 0:
-            for button in self.buttons[self.notes[x, y]]:
+    def handle_press(self, x: int, y: int, value: float):
+        note = int(self.notes[x, y])
+        if note >= 0:
+            for button in self.buttons[note]:
                 self.states[button[0], button[1]] = True
-        self.callback(self.name, pyxelwidgets.enums.Event.Changed, (self.notes[x, y], 1.0))
-        self.updated = True
+            self.updated = True
+            self.emit(pyxelwidgets.events.NoteOn(self, note, value))
     
-    def release(self, x: int, y: int, value: float):
-        if self.notes[x, y] >= 0:
-            for button in self.buttons[self.notes[x, y]]:
+    def handle_release(self, x: int, y: int, value: float):
+        note = int(self.notes[x, y])
+        if note >= 0:
+            for button in self.buttons[note]:
                 self.states[button[0], button[1]] = False
-        self.callback(self.name, pyxelwidgets.enums.Event.Changed, (self.notes[x, y], 0.0))
-        self.updated = True
+            self.updated = True
+            self.emit(pyxelwidgets.events.NoteOff(self, note, value))
     
-    def update_area(self, rect: pyxelwidgets.rectangle.Rectangle2D) -> tuple:
-        if self.updated:
-            self.updated = False
-            intersect = self.rect.intersect(rect)
-            if intersect is not None:
-                area = intersect - self.rect
-                for x in area.columns:
-                    for y in area.rows:
-                        note = self.notes[x, y]
-                        if note >= 0:
-                            if self.states[x, y]:
-                                self.buffer[x, y] = self.active_color
-                            else:
-                                self.buffer[x, y] = self.colors[note]
-                        else:
-                            self.buffer[x, y] = self.inactive_color
-                return intersect, self.buffer[area.slice]
-        return None, None
+    def draw(self) -> None:
+        area = self.rect.origin
+        for x in area.columns:
+            for y in area.rows:
+                note = self.notes[x, y]
+                if note >= 0:
+                    if self.states[x, y]:
+                        self.buffer[x, y] = self.active_color
+                    else:
+                        self.buffer[x, y] = self.colors[note]
+                else:
+                    self.buffer[x, y] = self.inactive_color
 
     def _resize(self, width, height) -> bool:
         self.notes = numpy.array([[0 for y in range(height)] for x in range(width)])
@@ -1015,7 +964,7 @@ class Keyboard(Widget):
                         self.colors[self.notes[x, y]] = self._non_scale_color
 
 # Knob class
-class Knob(Widget):
+class Knob(ValueWidget):
 
     class Type(enum.Enum):
         Single      = enum.auto()
@@ -1034,7 +983,7 @@ class Knob(Widget):
         self.state = False
         self._held = [-1, -1]
 
-    def press(self, x: int, y: int, value: float):
+    def handle_press(self, x: int, y: int, value: float):
         if self._held == [-1, -1]:
             if self._calc_knob_index(x, y) != -1:
                 self._held = [x, y]
@@ -1049,7 +998,7 @@ class Knob(Widget):
                     self.state = False
                     self.set_value(0.5)
     
-    def release(self, x: int, y: int, value: float):
+    def handle_release(self, x: int, y: int, value: float):
         self._held = [-1, -1]
         self.state = False
     
@@ -1059,62 +1008,35 @@ class Knob(Widget):
             if index != -1:
                 self.set_value(self._value + (self._calc_knob_weight(index) * self.coefficient))
 
-    def update_area(self, rect: pyxelwidgets.rectangle.Rectangle2D):
-        if self.updated:
-            if not self.state:
-                self.updated = False
-            else:
-                self.tick()
-            halfval = self._value / 2.0
-            halfvalpluspointfive = halfval + 0.5
-            intersect = self.rect.intersect(rect)
-            if intersect is not None:
-                area = intersect - self.rect
-                for x in area.columns:
-                    for y in area.rows:
-                        index = self.indexes[x][y]
-                        min_v = self._min_v[index]
-                        max_v = self._max_v[index]
-                        if index == -1:
-                            self.buffer[x, y] = pyxelwidgets.color.Colors.Invisible
+    def draw(self) -> None:
+        if self.state:
+            # A held knob keeps turning every frame
+            self.tick()
+            self.updated = True
+        halfval = self._value / 2.0
+        halfvalpluspointfive = halfval + 0.5
+        area = self.rect.origin
+        for x in area.columns:
+            for y in area.rows:
+                index = self.indexes[x][y]
+                min_v = self._min_v[index]
+                max_v = self._max_v[index]
+                if index == -1:
+                    self.buffer[x, y] = pyxelwidgets.color.Colors.Invisible
+                else:
+                    if self.type == Knob.Type.Single:
+                        if max_v < self._value:
+                            self.buffer[x, y] = self.inactive_color
+                        elif min_v > self._value:
+                            self.buffer[x, y] = self.inactive_color
                         else:
-                            if self.type == Knob.Type.Single:
-                                if max_v < self._value:
-                                    self.buffer[x, y] = self.inactive_color
-                                elif min_v > self._value:
-                                    self.buffer[x, y] = self.inactive_color
-                                else:
-                                    coefficient = self._calc_pixel_coefficient(self._value - min_v)
-                                    self.buffer[x, y] = self.active_color * coefficient
-                            elif self.type == Knob.Type.BoostCut:
-                                if self._value > 0.5:
-                                    if min_v < 0.5:
-                                        self.buffer[x, y] = self.inactive_color
-                                    else:
-                                        if max_v <= self._value:
-                                            self.buffer[x, y] = self.active_color
-                                        elif min_v > self._value:
-                                            self.buffer[x, y] = self.inactive_color
-                                        else:
-                                            coefficient = self._calc_pixel_coefficient(self._value - min_v)
-                                            self.buffer[x, y] = self.active_color * coefficient
-                                elif self._value < 0.5:
-                                    if max_v > 0.5:
-                                        self.buffer[x, y] = self.inactive_color
-                                    else:
-                                        if min_v >= self._value:
-                                            self.buffer[x, y] = self.active_color
-                                        elif max_v < self._value:
-                                            self.buffer[x, y] = self.inactive_color
-                                        else:
-                                            coefficient = 1.0 - self._calc_pixel_coefficient(self._value - min_v)
-                                            self.buffer[x, y] = self.active_color * coefficient
-                                else:
-                                    if min_v == 0.5 or max_v == 0.5:
-                                        self.buffer[x, y] = self.active_color
-                                    else:
-                                        self.buffer[x, y] = self.inactive_color
-                            elif self.type == Knob.Type.Wrap:
+                            coefficient = self._calc_pixel_coefficient(self._value - min_v)
+                            self.buffer[x, y] = self.active_color * coefficient
+                    elif self.type == Knob.Type.BoostCut:
+                        if self._value > 0.5:
+                            if min_v < 0.5:
+                                self.buffer[x, y] = self.inactive_color
+                            else:
                                 if max_v <= self._value:
                                     self.buffer[x, y] = self.active_color
                                 elif min_v > self._value:
@@ -1122,45 +1044,67 @@ class Knob(Widget):
                                 else:
                                     coefficient = self._calc_pixel_coefficient(self._value - min_v)
                                     self.buffer[x, y] = self.active_color * coefficient
-                            elif self.type == Knob.Type.Spread:
-                                if min_v >= 0.5:
-                                    if min_v > halfvalpluspointfive:
-                                        self.buffer[x, y] = self.inactive_color
-                                    elif max_v <= halfvalpluspointfive:
-                                        self.buffer[x, y] = self.active_color
-                                    else:
-                                        coefficient = self._calc_pixel_coefficient(halfvalpluspointfive - min_v)
-                                        self.buffer[x, y] = self.active_color * coefficient
-                                elif max_v <= 0.5:
-                                    if min_v >= (1.0 - halfvalpluspointfive):
-                                        self.buffer[x, y] = self.active_color
-                                    elif max_v < (1.0 - halfvalpluspointfive):
-                                        self.buffer[x, y] = self.inactive_color
-                                    else:
-                                        coefficient = 1.0 - self._calc_pixel_coefficient((1.0 - halfvalpluspointfive) - min_v)
-                                        self.buffer[x, y] = self.active_color * coefficient
-                            elif self.type == Knob.Type.Collapse:
-                                if halfval < 0.5:
-                                    if max_v <= 0.5:
-                                        if min_v > halfval:
-                                            self.buffer[x, y] = self.active_color
-                                        elif max_v <= halfval:
-                                            self.buffer[x, y] = self.inactive_color
-                                        else:
-                                            coefficient = 1.0 - self._calc_pixel_coefficient(halfval - min_v)
-                                            self.buffer[x, y] = self.active_color * coefficient
-                                    elif min_v >= 0.5:
-                                        if min_v >= (1.0 - halfval):
-                                            self.buffer[x, y] = self.inactive_color
-                                        elif max_v < (1.0 - halfval):
-                                            self.buffer[x, y] = self.active_color
-                                        else:
-                                            coefficient = self._calc_pixel_coefficient((1.0 - halfval) - min_v)
-                                            self.buffer[x, y] = self.active_color * coefficient
-                                else:
+                        elif self._value < 0.5:
+                            if max_v > 0.5:
+                                self.buffer[x, y] = self.inactive_color
+                            else:
+                                if min_v >= self._value:
+                                    self.buffer[x, y] = self.active_color
+                                elif max_v < self._value:
                                     self.buffer[x, y] = self.inactive_color
-            return intersect, self.buffer[area.slice]
-        return None, None
+                                else:
+                                    coefficient = 1.0 - self._calc_pixel_coefficient(self._value - min_v)
+                                    self.buffer[x, y] = self.active_color * coefficient
+                        else:
+                            if min_v == 0.5 or max_v == 0.5:
+                                self.buffer[x, y] = self.active_color
+                            else:
+                                self.buffer[x, y] = self.inactive_color
+                    elif self.type == Knob.Type.Wrap:
+                        if max_v <= self._value:
+                            self.buffer[x, y] = self.active_color
+                        elif min_v > self._value:
+                            self.buffer[x, y] = self.inactive_color
+                        else:
+                            coefficient = self._calc_pixel_coefficient(self._value - min_v)
+                            self.buffer[x, y] = self.active_color * coefficient
+                    elif self.type == Knob.Type.Spread:
+                        if min_v >= 0.5:
+                            if min_v > halfvalpluspointfive:
+                                self.buffer[x, y] = self.inactive_color
+                            elif max_v <= halfvalpluspointfive:
+                                self.buffer[x, y] = self.active_color
+                            else:
+                                coefficient = self._calc_pixel_coefficient(halfvalpluspointfive - min_v)
+                                self.buffer[x, y] = self.active_color * coefficient
+                        elif max_v <= 0.5:
+                            if min_v >= (1.0 - halfvalpluspointfive):
+                                self.buffer[x, y] = self.active_color
+                            elif max_v < (1.0 - halfvalpluspointfive):
+                                self.buffer[x, y] = self.inactive_color
+                            else:
+                                coefficient = 1.0 - self._calc_pixel_coefficient((1.0 - halfvalpluspointfive) - min_v)
+                                self.buffer[x, y] = self.active_color * coefficient
+                    elif self.type == Knob.Type.Collapse:
+                        if halfval < 0.5:
+                            if max_v <= 0.5:
+                                if min_v > halfval:
+                                    self.buffer[x, y] = self.active_color
+                                elif max_v <= halfval:
+                                    self.buffer[x, y] = self.inactive_color
+                                else:
+                                    coefficient = 1.0 - self._calc_pixel_coefficient(halfval - min_v)
+                                    self.buffer[x, y] = self.active_color * coefficient
+                            elif min_v >= 0.5:
+                                if min_v >= (1.0 - halfval):
+                                    self.buffer[x, y] = self.inactive_color
+                                elif max_v < (1.0 - halfval):
+                                    self.buffer[x, y] = self.active_color
+                                else:
+                                    coefficient = self._calc_pixel_coefficient((1.0 - halfval) - min_v)
+                                    self.buffer[x, y] = self.active_color * coefficient
+                        else:
+                            self.buffer[x, y] = self.inactive_color
     
     def _resize(self, width, height):
         self.perimeter = self._calc_perimeter(width, height)
@@ -1258,7 +1202,7 @@ class Sequencer(Widget):
 
     @property
     def step(self) -> int:
-        return self._tick
+        return int(self._tick)
     
     @step.setter
     def step(self, value: int) -> None:
@@ -1295,13 +1239,11 @@ class Sequencer(Widget):
                 page = int(self._tick / self.rect.area)
                 if page != self.current_page:
                     self.current_page = page
-                    self.callback(self.name, pyxelwidgets.enums.Event.Page, self.current_page)
-                self.callback(self.name, pyxelwidgets.enums.Event.Tick, int(self._tick))
-                if self._is_tick_active():
-                    self.callback(self.name, pyxelwidgets.enums.Event.Active, int(self._tick))
+                    self.emit(pyxelwidgets.events.PageChanged(self, self.current_page))
+                self.emit(pyxelwidgets.events.StepPlayed(self, int(self._tick), bool(self._is_tick_active())))
                 self.updated = True
 
-    def press(self, x: int, y: int, value: float):
+    def handle_press(self, x: int, y: int, value: float):
         if self._calc_tick_position(x, y) < self._steps:
             page_y = y + (self.rect.h * self._tick_page())
             self.state[x, page_y] = not self.state[x, page_y]
@@ -1311,24 +1253,18 @@ class Sequencer(Widget):
         self.state.fill(False)
         self.updated = True
 
-    def update_area(self, rect: pyxelwidgets.rectangle.Rectangle2D):
-        if self.updated:
-            self.updated = False
-            intersect = self.rect.intersect(rect)
-            if intersect is not None:
-                area = intersect - self.rect
-                tick_p = self._tick_page()
-                tick_x = self._tick_x()
-                tick_y = self._tick_y() % self.rect.h
-                state_area = area + pyxelwidgets.rectangle.Rectangle2D(0, self.rect.h * tick_p)
-                self.buffer[area.slice] = numpy.where(self.state[(*state_area.slice, None)], self.active_color, self.inactive_color)
-                if tick_p == self.current_page:
-                    if numpy.array_equal(self.buffer[tick_x, tick_y], self.active_color):
-                        self.buffer[tick_x, tick_y] = self.current_active_color
-                    else:
-                        self.buffer[tick_x, tick_y] = self.current_color
-            return intersect, self.buffer[area.slice]
-        return None, None
+    def draw(self) -> None:
+        area = self.rect.origin
+        tick_p = self._tick_page()
+        tick_x = self._tick_x()
+        tick_y = self._tick_y() % self.rect.h
+        state_area = area + pyxelwidgets.rectangle.Rectangle2D(0, self.rect.h * tick_p)
+        self.buffer[area.slice] = numpy.where(self.state[(*state_area.slice, None)], self.active_color, self.inactive_color)
+        if tick_p == self.current_page:
+            if numpy.array_equal(self.buffer[tick_x, tick_y], self.active_color):
+                self.buffer[tick_x, tick_y] = self.current_active_color
+            else:
+                self.buffer[tick_x, tick_y] = self.current_color
     
     def _resize(self, width, height):
         self._page_count = int((self._steps - 1) / (width * height)) + 1
@@ -1353,13 +1289,15 @@ class Sequencer(Widget):
     
 # Sprite class
 class Sprite(Widget):
+    """Displays frames (optionally animated). Display-only: presses pass through by default."""
     def __init__(self, x: int, y: int, width: int, height: int, *,
                  animate: bool = False,
                  frames = None,
                  target: int = 30,
                  tick: int = 0,
+                 propagation: Propagation = Propagation.Pass,
                  **kwargs):
-        super().__init__(x=x, y=y, width=width, height=height, **kwargs)
+        super().__init__(x=x, y=y, width=width, height=height, propagation = propagation, **kwargs)
         self.animate = animate
         # Sequence of frames, each an RGBA buffer or a 2-d array/list of Colors
         self.target = target
@@ -1372,24 +1310,17 @@ class Sprite(Widget):
             self.frames = [pyxelwidgets.buffer.to_buffer(frame) for frame in frames]
         self.buffer = self.frames[0]
 
-    def update_area(self, rect: pyxelwidgets.rectangle.Rectangle2D):
-        if self.updated:
-            self.updated = False
-            intersect = self.rect.intersect(rect)
-            if intersect is not None:
-                area = intersect - self.rect
-                self.buffer = self.frames[self.next_frame]
-                if self.animate:
-                    self.tick += 1
-                    if self.tick == self.target:
-                        self.tick = 0
-                        self.current_frame = self.next_frame
-                        self.next_frame += 1
-                        if self.next_frame == len(self.frames):
-                            self.next_frame = 0
-                    self.updated = True
-            return intersect, self.buffer[area.slice]
-        return None, None
+    def draw(self) -> None:
+        self.buffer = self.frames[self.next_frame]
+        if self.animate:
+            self.tick += 1
+            if self.tick == self.target:
+                self.tick = 0
+                self.current_frame = self.next_frame
+                self.next_frame += 1
+                if self.next_frame == len(self.frames):
+                    self.next_frame = 0
+            self.updated = True
 
 # Tracker class
 class Tracker(Widget):
@@ -1425,7 +1356,7 @@ class Tracker(Widget):
         self.current_color = current_color
         self.current_active_color = current_active_color
 
-    def press(self, x: int, y: int, value: float):
+    def handle_press(self, x: int, y: int, value: float):
         self.states[self.current_page, x, self.rect.h - 1 - y + self.current_top] = not self.states[self.current_page, x, self.rect.h - 1 - y + self.current_top]
         self.updated = True
 
@@ -1455,21 +1386,13 @@ class Tracker(Widget):
                 self.current_bottom = int(self.current_bar + half_height)
             # elif self.scroll == Tracker.Scroll.Page:
             #     pass
-            self.callback(self.name, pyxelwidgets.enums.Event.Tick, int(self.current_bar))
-            for i, state in enumerate(self.states[self.current_page, :, int(self.current_bar)]):
-                if state:
-                    self.callback(self.name, pyxelwidgets.enums.Event.Active, (int(self.current_bar), i))
+            row = self.states[self.current_page, :, int(self.current_bar)]
+            self.emit(pyxelwidgets.events.RowPlayed(self, int(self.current_bar), tuple(int(i) for i in numpy.flatnonzero(row))))
 
-    def update_area(self, rect: pyxelwidgets.rectangle.Rectangle2D) -> tuple:
-        if self.updated:
-            self.updated = False
-            intersect = self.rect.intersect(rect)
-            if intersect is not None:
-                area = intersect - self.rect
-                self.buffer[area.slice] = numpy.fliplr(numpy.where(self.states[self.current_page, :, self.current_top:(self.current_bottom + 1), None], self.active_color, self.inactive_color))
-                self.buffer[:, int(self.current_bottom - self.current_bar)] = numpy.where(self.states[self.current_page, :, int(self.current_bar), None], self.current_active_color, self.current_color)
-            return intersect, self.buffer[area.slice]
-        return None, None
+    def draw(self) -> None:
+        area = self.rect.origin
+        self.buffer[area.slice] = numpy.fliplr(numpy.where(self.states[self.current_page, :, self.current_top:(self.current_bottom + 1), None], self.active_color, self.inactive_color))
+        self.buffer[:, int(self.current_bottom - self.current_bar)] = numpy.where(self.states[self.current_page, :, int(self.current_bar), None], self.current_active_color, self.current_color)
 
     def _resize(self, width, height) -> bool:
         self.states.resize((self.pages, width, self.bars), refcheck = False)
@@ -1477,7 +1400,7 @@ class Tracker(Widget):
         return True
 
 # XY class
-class XY(Widget):
+class XY(ValueWidget):
 
     class Direction(enum.Enum):
         Vertical    = enum.auto()
@@ -1486,58 +1409,46 @@ class XY(Widget):
     def __init__(self, x: int, y: int, width: int, height: int, *,
                  x_color: pyxelwidgets.color.Color = pyxelwidgets.color.Colors.Cyan,
                  y_color: pyxelwidgets.color.Color = pyxelwidgets.color.Colors.Magenta,
+                 value: tuple = (0.0, 0.0),
                  **kwargs):
-        super().__init__(x, y, width, height, **kwargs)
+        super().__init__(x, y, width, height, value = value, **kwargs)
         self.x_color = x_color
         self.y_color = y_color
-        self.delta = [0.0, 0.0]
-        self._value = [0.0, 0.0]
         self._held_button = [-1, -1]
-    
-    @Widget.value.setter
-    def value(self, value: list) -> None:
-        if value != self._value:
-            old_value = [self._value[0], self._value[1]]
-            self._value[0] = round(min(1.0, max(0.0, value[0])), 6)
-            self._value[1] = round(min(1.0, max(0.0, value[1])), 6)
-            self.delta[0] = self._value[0] - old_value[0]
-            self.delta[1] = self._value[1] - old_value[1]
-            if self._value != old_value:
-                self.updated = True
 
-    def press(self, x: int, y: int, value: float):
+    def _clamp(self, value) -> tuple:
+        return tuple(round(min(1.0, max(0.0, v)), 6) for v in value)
+
+    def _delta(self, old, new) -> tuple:
+        return tuple(n - o for o, n in zip(old, new))
+
+    def handle_press(self, x: int, y: int, value: float):
         if self._held_button[0] >= 0 and self._held_button[1] >= 0:
             self.set_value(self._calc_xy_value_with_magnitude(self._held_button[0], self._held_button[1], x, y))
         else:
             self.set_value(self._calc_xy_value(x, y, value))
     
-    def hold(self, x: int, y: int, value: float):
+    def handle_hold(self, x: int, y: int, value: float):
         if self._held_button[0] == -1 and self._held_button[1] == -1:
             self._held_button = [x, y]
             self.set_value(self._calc_xy_value_with_magnitude(x, y, x, y))
     
-    def release(self, x: int, y: int, value: float):
+    def handle_release(self, x: int, y: int, value: float):
         if self._held_button[0] == x and self._held_button[1] == y:
             self._held_button = [-1, -1]
 
-    def update_area(self, rect: pyxelwidgets.rectangle.Rectangle2D):
-        if self.updated:
-            self.updated = False
-            intersect = self.rect.intersect(rect)
-            if intersect is not None:
-                area = intersect - self.rect
-                x_point = self._find_x_point()
-                y_point = self._find_y_point()
-                self.buffer[area.slice] = self.inactive_color
-                self.buffer[x_point, area.slice[1]] = self.x_color * self._value[0]
-                self.buffer[area.slice[0], y_point] = self.y_color * self._value[1]
-                min_v = self._min_v[x_point][y_point]
-                coefficient_x = ((self.value[0] - min_v[0]) * self.rect.w) / 2
-                coefficient_y = ((self.value[1] - min_v[1]) * self.rect.h) / 2
-                color = (self.x_color * coefficient_x) + (self.y_color * coefficient_y)
-                self.buffer[x_point, y_point] = color
-            return intersect, self.buffer[area.slice]
-        return None, None
+    def draw(self) -> None:
+        area = self.rect.origin
+        x_point = self._find_x_point()
+        y_point = self._find_y_point()
+        self.buffer[area.slice] = self.inactive_color
+        self.buffer[x_point, area.slice[1]] = self.x_color * self._value[0]
+        self.buffer[area.slice[0], y_point] = self.y_color * self._value[1]
+        min_v = self._min_v[x_point][y_point]
+        coefficient_x = ((self.value[0] - min_v[0]) * self.rect.w) / 2
+        coefficient_y = ((self.value[1] - min_v[1]) * self.rect.h) / 2
+        color = (self.x_color * coefficient_x) + (self.y_color * coefficient_y)
+        self.buffer[x_point, y_point] = color
 
     def _resize(self, width, height) -> bool:
         self._min_v = [[self._calc_xy_value(x, y, 0.0) for y in range(height)] for x in range(width)]
