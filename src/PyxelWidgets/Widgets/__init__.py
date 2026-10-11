@@ -1252,7 +1252,7 @@ class Sequencer(Widget):
 
     @property
     def current(self) -> bool:
-        self._tick
+        return bool(self.state[self._tickX(), self._tickY()])
     
     @current.setter
     def current(self, state: bool) -> None:
