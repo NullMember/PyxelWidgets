@@ -139,7 +139,8 @@ def schema() -> dict:
     widgets = {}
     for name, cls in widget_types().items():
         widgets[name] = {
-            'doc': inspect.getdoc(cls).split('\n')[0] if inspect.getdoc(cls) else '',
+            # Only the class's own docstring: an inherited one describes the base class
+            'doc': inspect.cleandoc(cls.__dict__['__doc__']).split('\n\n')[0].replace('\n', ' ') if cls.__dict__.get('__doc__') else '',
             'container': issubclass(cls, pyxelwidgets.group.Group),
             'options': option_schema(cls),
         }
