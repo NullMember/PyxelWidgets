@@ -135,9 +135,9 @@ body.try .outline .tag, body.try .handle { display: none; }
 .fields .changed + .control .reset { visibility: visible; }
 .quad { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; margin-bottom: 12px; }
 .quad label { display: flex; flex-direction: column; gap: 2px; color: var(--muted); font-size: 11px; }
-.color { display: flex; gap: 6px; align-items: center; flex: 1; }
-.color input[type=color] { width: 32px; height: 24px; border: 1px solid var(--line); border-radius: 4px; padding: 0; background: none; }
-.color input[type=range] { flex: 1; min-width: 40px; }
+.color { display: flex; gap: 6px; align-items: center; flex: 1; min-width: 0; }
+.color input[type=color] { width: 32px; height: 24px; border: 1px solid var(--line); border-radius: 4px; padding: 0; background: none; flex: none; }
+.color input[type=range] { flex: 1; min-width: 0; width: 100%; }
 .actions { display: flex; gap: 6px; margin-top: 12px; flex-wrap: wrap; }
 .actions .danger { color: var(--danger); }
 
@@ -152,7 +152,10 @@ pre#code {
 }
 
 @media (max-width: 1000px) {
-  main { grid-template-columns: 1fr; grid-auto-rows: auto; }
+  /* Stacked: the page scrolls instead of each panel */
+  html, body { height: auto; }
+  main { display: flex; flex-direction: column; }
   #stage { order: -1; min-height: 60vh; }
-  .panel { border: none; border-top: 1px solid var(--line); }
+  .panel { border: none; border-top: 1px solid var(--line); overflow: visible; }
+  .panel section.grow { flex: none; min-height: 0; max-height: 320px; }
 }
