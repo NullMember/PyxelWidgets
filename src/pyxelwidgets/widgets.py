@@ -1224,6 +1224,7 @@ class Sequencer(Widget):
         self.state = numpy.zeros((self.rect.w, self.rect.h * self._page_count), dtype = numpy.bool_)
         self._tick %= self._steps
         self.current_page = int(self._tick / self.rect.area)
+        self.updated = True
 
     @property
     def current(self) -> bool:
