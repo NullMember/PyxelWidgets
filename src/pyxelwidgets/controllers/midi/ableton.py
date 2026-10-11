@@ -2,7 +2,7 @@ __all__ = ['Push2']
 
 import pyxelwidgets.controllers.midi
 import pyxelwidgets.enums
-import pyxelwidgets.pixel
+import pyxelwidgets.color
 import pyxelwidgets.rectangle
 import enum
 import numpy
@@ -187,7 +187,7 @@ class Push2(pyxelwidgets.controllers.midi.MIDI):
         self.set_midi_mode(Push2.Mode.Live)
         super().disconnect()
     
-    def send_pixel(self, x: int, y: int, pixel: pyxelwidgets.pixel.Pixel):
+    def send_pixel(self, x: int, y: int, pixel: pyxelwidgets.color.Color):
         index = x + (y * 8) + 36
         self.send_note_on(index, pixel.find_in_palette(Push2.palette))
     

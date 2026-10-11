@@ -1,6 +1,6 @@
 import pyxelwidgets.controllers.midi
 import pyxelwidgets.enums
-import pyxelwidgets.pixel
+import pyxelwidgets.color
 import pyxelwidgets.rectangle
 import collections
 import enum
@@ -68,7 +68,7 @@ class MK1(pyxelwidgets.controllers.midi.MIDI):
         self.send_sysex([0x00, 0x20, 0x29, 0x02, 0x0A, 0x77, template.value])
         self.current_template = template
 
-    def send_pixel(self, x: int, y: int, pixel: pyxelwidgets.pixel.Pixel):
+    def send_pixel(self, x: int, y: int, pixel: pyxelwidgets.color.Color):
         color_index = pixel.gmono // 32
         self.send_sysex([0x00, 0x20, 0x29, 0x02, 0x0A, 0x78, y, x, MK1.colors[color_index]])
 
@@ -196,7 +196,7 @@ class XL(pyxelwidgets.controllers.midi.MIDI):
         self.send_sysex([0x00, 0x20, 0x29, 0x02, 0x11, 0x77, template.value])
         self.current_template = template
 
-    def send_pixel(self, x: int, y: int, pixel: pyxelwidgets.pixel.Pixel):
+    def send_pixel(self, x: int, y: int, pixel: pyxelwidgets.color.Color):
         color_index = pixel.mono // 16
         if self.current_template == XL.Templates.Factory_7:
             self.send_note_on(XL.leds[x][y], XL.colors[color_index], 0xF)

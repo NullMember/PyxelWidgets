@@ -1,6 +1,6 @@
 import pyxelwidgets.buffer
 import pyxelwidgets.enums
-import pyxelwidgets.pixel
+import pyxelwidgets.color
 import pyxelwidgets.rectangle
 import pyxelwidgets.clock
 import uuid
@@ -36,9 +36,9 @@ class Widget:
         callback: function, optional
             If widget value is changed this function will be called.
             Should get 3 parameters, (widget) name, event and value
-        active_color: Pixel = Pixel(255, 255, 255, 1.0), optional
+        active_color: Color = Color(255, 255, 255, 1.0), optional
             If widget value is non-zero, this color will be used.
-        inactive_color: Pixel = Pixel(0, 0, 0, 0.0), optional
+        inactive_color: Color = Color(0, 0, 0, 0.0), optional
             If widget value is zero, this color will be used.
         value: float = 0.0, optional
             Default value of widget.
@@ -51,8 +51,8 @@ class Widget:
         self.id = uuid.uuid1()
         self.name = kwargs.get('name', f'Widget_{Widget._count}')
         self.rect = pyxelwidgets.rectangle.Rectangle2D(x, y, width, height)
-        self.active_color = kwargs.get('active_color', pyxelwidgets.pixel.Colors.White)
-        self.inactive_color = kwargs.get('inactive_color', pyxelwidgets.pixel.Colors.Black)
+        self.active_color = kwargs.get('active_color', pyxelwidgets.color.Colors.White)
+        self.inactive_color = kwargs.get('inactive_color', pyxelwidgets.color.Colors.Black)
         self.delta = 0.0
         self.updated = True
         self.buffer = pyxelwidgets.buffer.new(self.rect.w, self.rect.h, self.inactive_color)
@@ -234,7 +234,7 @@ class Widget:
         At every Window update
          Window will call this function
           This function must return updated pixel values
-           Pixel list should [x][y][r, g, b]
+           Color list should [x][y][r, g, b]
             If nothing is updated return empty list
         """
         return self.update_area(self.rect)
@@ -812,10 +812,10 @@ class Keyboard(Widget):
         self._type: Keyboard.Type = kwargs.get('type', Keyboard.Type.Diatonic)
         self._scale: Keyboard.Scale = kwargs.get('scale', Keyboard.Scale.Major)
         self._root: Keyboard.Root = kwargs.get('root', Keyboard.Root.C)
-        self._root_color: pyxelwidgets.pixel.Pixel = kwargs.get('root_color', pyxelwidgets.pixel.Colors.Magenta)
-        self._keyboard_color: pyxelwidgets.pixel.Pixel = kwargs.get('keyboard_color', pyxelwidgets.pixel.Colors.Cyan)
-        self._non_scale_color: pyxelwidgets.pixel.Pixel = kwargs.get('non_scale_color', pyxelwidgets.pixel.Colors.Yellow)
-        kwargs['active_color'] = kwargs.get('active_color', pyxelwidgets.pixel.Colors.Green)
+        self._root_color: pyxelwidgets.color.Color = kwargs.get('root_color', pyxelwidgets.color.Colors.Magenta)
+        self._keyboard_color: pyxelwidgets.color.Color = kwargs.get('keyboard_color', pyxelwidgets.color.Colors.Cyan)
+        self._non_scale_color: pyxelwidgets.color.Color = kwargs.get('non_scale_color', pyxelwidgets.color.Colors.Yellow)
+        kwargs['active_color'] = kwargs.get('active_color', pyxelwidgets.color.Colors.Green)
         self.buttons = None
         self.notes = None
         self.colors = None
@@ -878,7 +878,7 @@ class Keyboard(Widget):
         return self._root_color
     
     @root_color.setter
-    def root_color(self, root_color: pyxelwidgets.pixel.Pixel):
+    def root_color(self, root_color: pyxelwidgets.color.Color):
         self._root_color = root_color
         self._resize(self.width, self.height)
         self.updated = True
@@ -888,7 +888,7 @@ class Keyboard(Widget):
         return self._keyboard_color
     
     @keyboard_color.setter
-    def keyboard_color(self, keyboard_color: pyxelwidgets.pixel.Pixel):
+    def keyboard_color(self, keyboard_color: pyxelwidgets.color.Color):
         self._keyboard_color = keyboard_color
         self._resize(self.width, self.height)
         self.updated = True
@@ -898,7 +898,7 @@ class Keyboard(Widget):
         return self._non_scale_color
     
     @non_scale_color.setter
-    def non_scale_color(self, non_scale_color: pyxelwidgets.pixel.Pixel):
+    def non_scale_color(self, non_scale_color: pyxelwidgets.color.Color):
         self._non_scale_color = non_scale_color
         self._resize(self.width, self.height)
         self.updated = True
@@ -939,7 +939,7 @@ class Keyboard(Widget):
     def _resize(self, width, height) -> bool:
         self.notes = numpy.array([[0 for y in range(height)] for x in range(width)])
         self.states = numpy.array([[0 for y in range(height)] for x in range(width)])
-        self.colors = [pyxelwidgets.pixel.Colors.Invisible for i in range(128)]
+        self.colors = [pyxelwidgets.color.Colors.Invisible for i in range(128)]
         self.buttons = [[] for i in range(128)]
         self._calc_notes()
         return True
@@ -1053,7 +1053,7 @@ class Knob(Widget):
                         min_v = self._min_v[index]
                         max_v = self._max_v[index]
                         if index == -1:
-                            self.buffer[x, y] = pyxelwidgets.pixel.Colors.Invisible
+                            self.buffer[x, y] = pyxelwidgets.color.Colors.Invisible
                         else:
                             if self.type == Knob.Type.Single:
                                 if max_v < self._value:
@@ -1207,8 +1207,8 @@ class Sequencer(Widget):
         self.note = kwargs.get('note', 4.0)
         self.beat = kwargs.get('beat', 4.0)
         self.ppq = kwargs.get('ppq', 24)
-        self.current_color = kwargs.get('current_color', pyxelwidgets.pixel.Colors.Lime)
-        self.current_active_color = kwargs.get('current_active_color', pyxelwidgets.pixel.Colors.Red)
+        self.current_color = kwargs.get('current_color', pyxelwidgets.color.Colors.Lime)
+        self.current_active_color = kwargs.get('current_active_color', pyxelwidgets.color.Colors.Red)
         self.target = pyxelwidgets.clock.Target(self.tick)
         if clock != None:
             self.add_to_clock(clock)
@@ -1332,7 +1332,7 @@ class Sprite(Widget):
         kwargs['name'] = kwargs.get('name', f'Sprite_{Sprite._count}')
         super().__init__(x=x, y=y, width=width, height=height, **kwargs)
         self.animate = kwargs.get('animate', False)
-        # Sequence of frames, each an RGBA buffer or a 2-d array/list of Pixels
+        # Sequence of frames, each an RGBA buffer or a 2-d array/list of Colors
         frames = kwargs.get('frames', None)
         self.target = kwargs.get('target', 30)
         self.tick = kwargs.get('tick', 0)
@@ -1386,8 +1386,8 @@ class Tracker(Widget):
         self.current_top = 0
         self.current_bottom = self.current_top + self.height - 1
         self.current_page = 0
-        self.current_color = kwargs.get('current_color', pyxelwidgets.pixel.Colors.Cyan)
-        self.current_active_color = kwargs.get('current_active_color', pyxelwidgets.pixel.Colors.Magenta)
+        self.current_color = kwargs.get('current_color', pyxelwidgets.color.Colors.Cyan)
+        self.current_active_color = kwargs.get('current_active_color', pyxelwidgets.color.Colors.Magenta)
         self.target = pyxelwidgets.clock.Target(self.tick, name = self.name)
         if clock != None:
             self.add_to_clock(clock)
@@ -1458,8 +1458,8 @@ class XY(Widget):
     def __init__(self, x: int, y: int, width: int, height: int, **kwargs):
         kwargs['name'] = kwargs.get('name', f'XY_{XY._count}')
         super().__init__(x, y, width, height, **kwargs)
-        self.x_color = kwargs.get('x_color', pyxelwidgets.pixel.Colors.Cyan)
-        self.y_color = kwargs.get('y_color', pyxelwidgets.pixel.Colors.Magenta)
+        self.x_color = kwargs.get('x_color', pyxelwidgets.color.Colors.Cyan)
+        self.y_color = kwargs.get('y_color', pyxelwidgets.color.Colors.Magenta)
         self.delta = [0.0, 0.0]
         self._value = [0.0, 0.0]
         self._held_button = [-1, -1]

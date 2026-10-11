@@ -1,6 +1,6 @@
 import pyxelwidgets.controllers.midi
 import pyxelwidgets.enums
-import pyxelwidgets.pixel
+import pyxelwidgets.color
 import pyxelwidgets.rectangle
 import numpy
 import enum
@@ -170,7 +170,7 @@ class MK2(pyxelwidgets.controllers.midi.MIDI):
         self.change_mode(MK2.Modes.Generic)
         super().disconnect()
 
-    def send_pixel(self, x: int, y: int, pixel: pyxelwidgets.pixel.Pixel):
+    def send_pixel(self, x: int, y: int, pixel: pyxelwidgets.color.Color):
         index = x + (y * 8)
         self.send_note_on(index, pixel.find_in_palette(MK2.palette))
     

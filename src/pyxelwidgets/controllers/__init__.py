@@ -2,7 +2,7 @@ __all__ = ['Controller']
 
 import pyxelwidgets.buffer
 import pyxelwidgets.enums
-import pyxelwidgets.pixel
+import pyxelwidgets.color
 import pyxelwidgets.rectangle
 import pyxelwidgets.clock
 import numpy
@@ -97,19 +97,19 @@ class Controller():
     def set_custom(self, event, name, data):
         self.callback(self.name, pyxelwidgets.enums.Event.Custom, (name, event, data))
 
-    def send_pixel(self, x: int, y: int, pixel: pyxelwidgets.pixel.Pixel):
+    def send_pixel(self, x: int, y: int, pixel: pyxelwidgets.color.Color):
         raise NotImplementedError("send_pixel method must be implemented")
 
-    def update_one(self, x: int, y: int, pixel: pyxelwidgets.pixel.Pixel):
+    def update_one(self, x: int, y: int, pixel: pyxelwidgets.color.Color):
         self.update_area(pyxelwidgets.rectangle.Rectangle2D(x, y, 1, 1), pixel)
 
-    def update_row(self, y: int, pixel: pyxelwidgets.pixel.Pixel):
+    def update_row(self, y: int, pixel: pyxelwidgets.color.Color):
         self.update_area(pyxelwidgets.rectangle.Rectangle2D(0, y, self.rect.w, 1), pixel)
 
-    def update_column(self, x: int, pixel: pyxelwidgets.pixel.Pixel):
+    def update_column(self, x: int, pixel: pyxelwidgets.color.Color):
         self.update_area(pyxelwidgets.rectangle.Rectangle2D(x, 0, 1, self.rect.h), pixel)
     
-    def update_area(self, rect: pyxelwidgets.rectangle.Rectangle2D, pixel: pyxelwidgets.pixel.Pixel):
+    def update_area(self, rect: pyxelwidgets.rectangle.Rectangle2D, pixel: pyxelwidgets.color.Color):
         if self.connected:
             intersect = self.rect.intersect(rect)
             if intersect is not None:
@@ -129,4 +129,4 @@ class Controller():
         for dx, dy in numpy.argwhere(changed):
             x, y = rect.x + int(dx), rect.y + int(dy)
             current[dx, dy] = source[dx, dy]
-            self.send_pixel(x, y, pyxelwidgets.pixel.Pixel.from_array(source[dx, dy]))
+            self.send_pixel(x, y, pyxelwidgets.color.Color.from_array(source[dx, dy]))

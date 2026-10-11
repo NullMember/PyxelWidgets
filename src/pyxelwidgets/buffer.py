@@ -1,14 +1,14 @@
 """
 Frame buffers are ``uint8`` arrays of shape ``(width, height, 4)`` holding
 straight (non-premultiplied) RGBA, indexed as ``buffer[x, y]``.
-Any :class:`~pyxelwidgets.pixel.Pixel` can be assigned to a buffer cell or slice.
+Any :class:`~pyxelwidgets.color.Color` can be assigned to a buffer cell or slice.
 """
 
 import numpy
 
-import pyxelwidgets.pixel
+import pyxelwidgets.color
 
-def new(width: int, height: int, color: pyxelwidgets.pixel.Pixel = None) -> numpy.ndarray:
+def new(width: int, height: int, color: pyxelwidgets.color.Color = None) -> numpy.ndarray:
     """Create a buffer filled with ``color`` (transparent by default)."""
     buffer = numpy.zeros((width, height, 4), dtype = numpy.uint8)
     if color is not None:
@@ -16,12 +16,12 @@ def new(width: int, height: int, color: pyxelwidgets.pixel.Pixel = None) -> nump
     return buffer
 
 def to_buffer(data) -> numpy.ndarray:
-    """Convert an RGBA array, or a 2-d array/list of Pixels, to a buffer."""
+    """Convert an RGBA array, or a 2-d array/list of Colors, to a buffer."""
     if isinstance(data, numpy.ndarray) and data.dtype != object:
         if data.ndim != 3 or data.shape[2] != 4:
             raise ValueError(f'buffer must have shape (width, height, 4), got {data.shape}')
         return data.astype(numpy.uint8, copy = True)
-    # Not numpy.asarray: it would expand each Pixel through __array__
+    # Not numpy.asarray: it would expand each Color through __array__
     columns = [list(column) for column in data]
     buffer = new(len(columns), len(columns[0]))
     for x, column in enumerate(columns):

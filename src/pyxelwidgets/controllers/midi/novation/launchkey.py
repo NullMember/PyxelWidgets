@@ -1,6 +1,6 @@
 import pyxelwidgets.controllers.midi
 import pyxelwidgets.enums
-import pyxelwidgets.pixel
+import pyxelwidgets.color
 import pyxelwidgets.rectangle
 import enum
 import numpy
@@ -70,7 +70,7 @@ class MK1(pyxelwidgets.controllers.midi.MIDI):
     def disable_in_control(self, control: InControl):
         self.send_note_on(control.value, 0x00, 0xF)
 
-    def send_pixel(self, x: int, y: int, pixel: pyxelwidgets.pixel.Pixel):
+    def send_pixel(self, x: int, y: int, pixel: pyxelwidgets.color.Color):
         color_index = pixel.gmono // 32
         index = 0
         if y == 0:
@@ -166,7 +166,7 @@ class MK2(pyxelwidgets.controllers.midi.MIDI):
     def disable_in_control(self, control: InControl):
         self.send_note_on(control.value, 0x00, 0xF)
 
-    def send_pixel(self, x: int, y: int, pixel: pyxelwidgets.pixel.Pixel):
+    def send_pixel(self, x: int, y: int, pixel: pyxelwidgets.color.Color):
         index = 0
         if y == 0:
             index = 0x70 + x
@@ -254,7 +254,7 @@ class MK3(pyxelwidgets.controllers.midi.MIDI):
     def set_layout(self, layout: Layout):
         self.send_control_change(3, layout.value, 15)
 
-    def send_pixel(self, x: int, y: int, pixel: pyxelwidgets.pixel.Pixel):
+    def send_pixel(self, x: int, y: int, pixel: pyxelwidgets.color.Color):
         index = 0
         if y == 0:
             index = 0x70 + x

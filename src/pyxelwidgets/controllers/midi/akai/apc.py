@@ -1,6 +1,6 @@
 import pyxelwidgets.controllers.midi
 import pyxelwidgets.enums
-import pyxelwidgets.pixel
+import pyxelwidgets.color
 import pyxelwidgets.rectangle
 import enum
 
@@ -62,7 +62,7 @@ class Mini(pyxelwidgets.controllers.midi.MIDI):
         index = (x + (y * 8)) & 0x7F
         self.send_note_on(index, color.value)
 
-    def send_pixel(self, x: int, y: int, pixel: pyxelwidgets.pixel.Pixel):
+    def send_pixel(self, x: int, y: int, pixel: pyxelwidgets.color.Color):
         color_index = pixel.gmono // 64
         index = (x + (y * 8)) & 0x7F
         self.send_note_on(index, self.color_list[color_index].value)

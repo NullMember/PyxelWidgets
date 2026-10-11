@@ -1,6 +1,6 @@
 import pyxelwidgets.buffer
 import pyxelwidgets.enums
-import pyxelwidgets.pixel
+import pyxelwidgets.color
 import pyxelwidgets.rectangle
 import pyxelwidgets.widgets
 import pyxelwidgets.controllers
@@ -112,7 +112,7 @@ class Manager():
         self.windows = {}
         self.controllers = {}
         self.rect = pyxelwidgets.rectangle.Rectangle2D(0, 0, width, height)
-        self.buffer = pyxelwidgets.buffer.new(self.rect.w, self.rect.h, pyxelwidgets.pixel.Colors.Black)
+        self.buffer = pyxelwidgets.buffer.new(self.rect.w, self.rect.h, pyxelwidgets.color.Colors.Black)
         self.callback = kwargs.get('callback', lambda *_, **__: None)
         self.lock = threading.RLock()
         self._dirty = True
@@ -181,7 +181,7 @@ class Manager():
                 # Render every window, even when an earlier one was already dirty
                 dirty = window['window'].render() or dirty
             if dirty:
-                self.buffer[:] = pyxelwidgets.pixel.Colors.Black
+                self.buffer[:] = pyxelwidgets.color.Colors.Black
                 for window in self.windows.values():
                     content = window['window'].rect + window['rect']
                     intersect = self.rect.intersect(window['rect'])

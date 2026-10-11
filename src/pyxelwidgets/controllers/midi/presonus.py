@@ -2,7 +2,7 @@ __all__ = ['ATOM']
 
 import pyxelwidgets.controllers.midi
 import pyxelwidgets.enums
-import pyxelwidgets.pixel
+import pyxelwidgets.color
 import pyxelwidgets.rectangle
 import enum
 
@@ -58,7 +58,7 @@ class ATOM(pyxelwidgets.controllers.midi.MIDI):
         self.set_native_control(ATOM.NativeControl.Disable)
         super().disconnect()
     
-    def send_pixel(self, x: int, y: int, pixel: pyxelwidgets.pixel.Pixel):
+    def send_pixel(self, x: int, y: int, pixel: pyxelwidgets.color.Color):
         index = 36 + x + (y * 4)
         rgb = pixel.grgb
         self.send_note_on(index, rgb[0] >> 1, 1)

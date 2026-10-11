@@ -2,7 +2,7 @@ import signal
 import threading
 import tkinter
 import pyxelwidgets.controllers
-import pyxelwidgets.pixel
+import pyxelwidgets.color
 import pyxelwidgets.rectangle
 
 class Virtual(pyxelwidgets.controllers.Controller):
@@ -10,7 +10,7 @@ class Virtual(pyxelwidgets.controllers.Controller):
         super().__init__(width = columns, height = rows, **kwargs)
         self.gui = GUI(columns, rows, self.process, on_close = self.close)
 
-    def send_pixel(self, x: int, y: int, pixel: pyxelwidgets.pixel.Pixel):
+    def send_pixel(self, x: int, y: int, pixel: pyxelwidgets.color.Color):
         r, g, b = pixel.argb
         self.gui.draw_button(x, y, f"#{r:02x}{g:02x}{b:02x}")
     
@@ -24,7 +24,7 @@ class Virtual(pyxelwidgets.controllers.Controller):
             self.gui.destroy_everything()
         super().close()
     
-    def update_area(self, rect: pyxelwidgets.rectangle.Rectangle2D, pixel: pyxelwidgets.pixel.Pixel):
+    def update_area(self, rect: pyxelwidgets.rectangle.Rectangle2D, pixel: pyxelwidgets.color.Color):
         super().update_area(rect, pixel)
         self._process_events()
     
