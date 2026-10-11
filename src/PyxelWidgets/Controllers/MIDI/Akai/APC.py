@@ -65,7 +65,7 @@ class Mini(PyxelWidgets.Controllers.MIDI.MIDI):
     def sendPixel(self, x: int, y: int, pixel: PyxelWidgets.Utils.Pixel.Pixel):
         colorIndex = pixel.gmono // 64
         index = (x + (y * 8)) & 0x7F
-        self.sendNoteOn(index, self.colorList[colorIndex])
+        self.sendNoteOn(index, self.colorList[colorIndex].value)
     
     def processMIDI(self, message, _):
         midi, delta = message
