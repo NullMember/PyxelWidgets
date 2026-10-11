@@ -1,7 +1,8 @@
 import pyxelwidgets.buffer
 import pyxelwidgets.color
-import pyxelwidgets.enums
+import pyxelwidgets.events
 import pyxelwidgets.widgets
+import dataclasses
 
 class Group(pyxelwidgets.widgets.Widget):
     """
@@ -74,10 +75,11 @@ class Group(pyxelwidgets.widgets.Widget):
     def __len__(self) -> int:
         return len(self._children)
 
-    def input(self, action: pyxelwidgets.enums.Event, x: int, y: int, velocity: float) -> bool:
+    def input(self, event: pyxelwidgets.events.PadEvent) -> bool:
+        x, y = event.x, event.y
         for child in reversed(self._children):
             if child.visible and child.rect.x <= x < child.rect.r and child.rect.y <= y < child.rect.t:
-                if child.input(action, x - child.rect.x, y - child.rect.y, velocity):
+                if child.input(dataclasses.replace(event, x = x - child.rect.x, y = y - child.rect.y)):
                     return True
         return self.propagation == pyxelwidgets.widgets.Propagation.Stop
 
