@@ -122,6 +122,57 @@ class RowPlayed(WidgetEvent):
     row: int
     columns: tuple
 
+# Device events
+
+@dataclasses.dataclass(frozen = True)
+class PadEvent(Event):
+    """Input from a grid pad of a device; ``x``, ``y`` are grid coordinates."""
+    device: typing.Any
+    x: int
+    y: int
+    velocity: float
+
+@dataclasses.dataclass(frozen = True)
+class PadPressed(PadEvent):
+    pass
+
+@dataclasses.dataclass(frozen = True)
+class PadReleased(PadEvent):
+    pass
+
+@dataclasses.dataclass(frozen = True)
+class PadHeld(PadEvent):
+    """The pad has been held longer than the device's ``held_time``."""
+
+@dataclasses.dataclass(frozen = True)
+class PadDoublePressed(PadEvent):
+    """Emitted right after PadPressed when the previous press was within ``double_press_time``."""
+
+@dataclasses.dataclass(frozen = True)
+class ControlEvent(Event):
+    """Input from a named non-grid control of a device (button, knob, fader, encoder, touch strip)."""
+    device: typing.Any
+    control: str
+
+@dataclasses.dataclass(frozen = True)
+class ControlPressed(ControlEvent):
+    """A button was pressed (or a touch-sensitive control touched)."""
+    velocity: float
+
+@dataclasses.dataclass(frozen = True)
+class ControlReleased(ControlEvent):
+    velocity: float
+
+@dataclasses.dataclass(frozen = True)
+class ControlChanged(ControlEvent):
+    """An absolute control (knob, fader) moved to ``value`` from 0.0 to 1.0."""
+    value: float
+
+@dataclasses.dataclass(frozen = True)
+class ControlTurned(ControlEvent):
+    """A relative control (endless encoder) turned by ``delta`` steps; negative is counter-clockwise."""
+    delta: int
+
 # Surface events
 
 @dataclasses.dataclass(frozen = True)
