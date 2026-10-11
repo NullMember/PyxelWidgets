@@ -5,9 +5,9 @@ import math
 class Engine():
     _count = 0
 
-    def __init__(self, **kwargs) -> None:
-        self.name = kwargs.get('name', f'Engine_{Engine._count}')
-        self._length = kwargs.get('length', 30)
+    def __init__(self, *, name: str | None = None, length: int = 30) -> None:
+        self.name = name if name is not None else f'Engine_{Engine._count}'
+        self._length = length
         self.counter = Counter(length = self._length)
         self.effects = {}
         Engine._count += 1
@@ -53,10 +53,10 @@ class Counter():
         Down    = enum.auto()
         Cycle   = enum.auto()
 
-    def __init__(self, **kwargs) -> None:
-        self.name = kwargs.get('name', f'Counter_{Counter._count}')
-        self.direction = kwargs.get('direction', Counter.Direction.Up)
-        self._length = kwargs.get('length', 30)
+    def __init__(self, *, name: str | None = None, direction: Direction = Direction.Up, length: int = 30) -> None:
+        self.name = name if name is not None else f'Counter_{Counter._count}'
+        self.direction = direction
+        self._length = length
         self._step = 0
         self._direction = 0
         self.reset()
@@ -106,14 +106,19 @@ class Counter():
 
 class Effect():
 
-    _count = 0
+    # Per class counters for default names (Sine_0, Pulse_0, ...)
+    _counts = {}
 
-    def __init__(self, **kwargs) -> None:
-        self.name = kwargs.get('name', f'Effect_{Effect._count}')
-        self.length = kwargs.get('length', 30)
+    def __init__(self, *, name: str | None = None, length: int = 30) -> None:
+        if name is None:
+            cls = type(self).__name__
+            count = Effect._counts.get(cls, 0)
+            Effect._counts[cls] = count + 1
+            name = f'{cls}_{count}'
+        self.name = name
+        self.length = length
         self.values = []
         self.calc_values()
-        Effect._count += 1
     
     @property
     def length(self) -> int:
@@ -137,11 +142,9 @@ class Effect():
         return result
 
 class Gaussian(Effect):
-    def __init__(self, gauss = 0.25, **kwargs) -> None:
-        kwargs['name'] = kwargs.get('name', f'Gaussian_{Gaussian._count}')
+    def __init__(self, gauss: float = 0.25, **kwargs) -> None:
         self._gauss = gauss
         super().__init__(**kwargs)
-        Gaussian._count += 1
 
     @property
     def gauss(self) -> float:
@@ -159,11 +162,9 @@ class Gaussian(Effect):
             self.values[i] = math.exp(-(math.pow((i - halflen) / halflen, 2) / (2 * math.pow(self._gauss, 2))))
 
 class Pulse(Effect):
-    def __init__(self, width = 0.5, **kwargs) -> None:
-        kwargs['name'] = kwargs.get('name', f'Pulse_{Pulse._count}')
+    def __init__(self, width: float = 0.5, **kwargs) -> None:
         self._width = width
         super().__init__(**kwargs)
-        Pulse._count += 1
     
     @property
     def width(self) -> float:
@@ -184,9 +185,7 @@ class Pulse(Effect):
 
 class Sine(Effect):
     def __init__(self, **kwargs) -> None:
-        kwargs['name'] = kwargs.get('name', f'Sine_{Sine._count}')
         super().__init__(**kwargs)
-        Sine._count += 1
     
     def calc_values(self):
         self.values = [0] * self._length
@@ -195,9 +194,7 @@ class Sine(Effect):
 
 class Saw(Effect):
     def __init__(self, **kwargs) -> None:
-        kwargs['name'] = kwargs.get('name', f'Saw_{Saw._count}')
         super().__init__(**kwargs)
-        Saw._count += 1
     
     def calc_values(self):
         self.values = [0] * self._length
@@ -206,9 +203,7 @@ class Saw(Effect):
 
 class Triangle(Effect):
     def __init__(self, **kwargs) -> None:
-        kwargs['name'] = kwargs.get('name', f'Triangle_{Triangle._count}')
         super().__init__(**kwargs)
-        Triangle._count += 1
     
     def calc_values(self):
         self.values = [0] * self._length
@@ -220,11 +215,9 @@ class Triangle(Effect):
                 self.values[i] = (self.length - i) / halflength
 
 class Custom(Effect):
-    def __init__(self, **kwargs) -> None:
-        kwargs['name'] = kwargs.get('name', f'Custom_{Custom._count}')
-        self._waveform = kwargs.get('waveform', [0.0, 1.0])
+    def __init__(self, waveform: list | None = None, **kwargs) -> None:
+        self._waveform = waveform if waveform is not None else [0.0, 1.0]
         super().__init__(**kwargs)
-        Custom._count += 1
     
     @property
     def waveform(self) -> list:
