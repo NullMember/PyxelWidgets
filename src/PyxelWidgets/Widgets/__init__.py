@@ -307,7 +307,7 @@ class ButtonGroup(Widget):
 
     def __init__(self, x: int = 0, y: int = 0, width: int = 1, height: int = 1, **kwargs):
         kwargs['name'] = kwargs.get('name', f'ButtonGroup_{ButtonGroup._count}')
-        self.state = numpy.ndarray((1, 1), dtype = numpy.bool8)
+        self.state = numpy.ndarray((1, 1), dtype = numpy.bool_)
         super().__init__(x=x, y=y, width=width, height=height, **kwargs)
         self.mode = kwargs.get('mode', ButtonGroup.Mode.Switch)
         self.state.fill(False)
@@ -1192,7 +1192,7 @@ class Knob(Widget):
 class Sequencer(Widget):
     def __init__(self, x: int, y: int, width: int, height: int, clock: PyxelWidgets.Utils.Clock.Clock = None, **kwargs):
         kwargs['name'] = kwargs.get('name', f'Sequencer_{Sequencer._count}')
-        self.state = numpy.ndarray((1, 1), dtype = numpy.bool8)
+        self.state = numpy.ndarray((1, 1), dtype = numpy.bool_)
         self._steps = kwargs.get('steps', width * height)
         self._tick = 0
         self._pageCount = 1
@@ -1246,7 +1246,7 @@ class Sequencer(Widget):
     def steps(self, value: int) -> None:
         self._steps = value
         self._pageCount = int((self._steps - 1) / self.rect.area) + 1
-        self.state = numpy.zeros((self.rect.w, self.rect.h * self._pageCount), dtype = numpy.bool8)
+        self.state = numpy.zeros((self.rect.w, self.rect.h * self._pageCount), dtype = numpy.bool_)
         self._tick %= self._steps
         self.currentPage = int(self._tick / self.rect.area)
 
@@ -1336,7 +1336,7 @@ class Sprite(Widget):
         self.currentFrame = 0
         self.nextFrame = 0
         if not isinstance(self.frames, numpy.ndarray):
-            self.frames = [numpy.ndarray((self.rect.w, self.rect.h))]
+            self.frames = [numpy.ndarray((self.rect.w, self.rect.h), PyxelWidgets.Utils.Pixel.Pixel)]
             self.frames[0].fill(PyxelWidgets.Utils.Pixel.Colors.Invisible)
         self.buffer = self.frames[0]
 
@@ -1372,7 +1372,7 @@ class Tracker(Widget):
         self.bars = self.bars if self.bars >= height else height
         self.pages = kwargs.get('pages', 1)
         self.pages = self.pages if self.pages > 0 else 1
-        self.states = numpy.ndarray((1, 1, 1), dtype = numpy.bool8)
+        self.states = numpy.ndarray((1, 1, 1), dtype = numpy.bool_)
         self.currentBar = 0
         self.numerator = kwargs.get('numerator', 1.0)
         self.denominator = kwargs.get('denominator', 4.0)
