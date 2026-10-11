@@ -59,9 +59,10 @@ class GUI(tkinter.Tk):
         self.canvas.bind("<ButtonPress>", self.button_callback)
         self.canvas.bind("<ButtonRelease>", self.button_callback)
 
+        self.buttons = {}
         for x in range(self.button_column):
             for y in range(self.button_row):
-                self.draw_button(x, y, "#000000")
+                self.buttons[x, y] = self.create_button(x, y)
         
         self.callback = callback
         self.destroyed = False
@@ -75,9 +76,10 @@ class GUI(tkinter.Tk):
             self.callback(column, row, 0.0)
 
     def draw_button(self, column, row, color):
-        if column < 0 or column > self.button_column or row < 0 or row > self.button_row:
-            return
-        
+        if (column, row) in self.buttons:
+            self.canvas.itemconfigure(self.buttons[column, row], fill = color)
+
+    def create_button(self, column, row):
         row = (self.button_row - 1) - row
         
         x_start = round((self.button_width * column) + (self.button_gap * column) + (self.button_gap / 2))
@@ -85,7 +87,7 @@ class GUI(tkinter.Tk):
         x_end = x_start + self.button_width
         y_end = y_start + self.button_height
 
-        self.canvas.create_rectangle(x_start, y_start, x_end, y_end, fill = color, outline = "")
+        return self.canvas.create_rectangle(x_start, y_start, x_end, y_end, fill = "#000000", outline = "")
 
     def destroy_everything(self):
         self.destroy()
