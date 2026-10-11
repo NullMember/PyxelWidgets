@@ -223,6 +223,7 @@ class ValueWidget(Widget):
 
 # Button class
 class Button(ValueWidget):
+    """A pad area acting as one button: momentary (Button), toggle (Switch) or toggle on hold (Mixed)."""
     class Mode(enum.Enum):
         Button  = enum.auto()
         Switch  = enum.auto()
@@ -273,6 +274,7 @@ class Button(ValueWidget):
 
 # ButtonGroup class
 class ButtonGroup(Widget):
+    """A grid of buttons: one selected at a time (Switch), toggles (Multi) or momentary (Button); emits Toggled."""
 
     class Mode(enum.Enum):
         Button = enum.auto()
@@ -324,6 +326,7 @@ class ButtonGroup(Widget):
 
 # Fader class
 class Fader(ValueWidget):
+    """A fader along a row or column (or across the whole area with Matrix grid), drawn in several styles."""
 
     class Direction(enum.Enum):
         """
@@ -716,6 +719,7 @@ class Fader(ValueWidget):
 
 # Keyboard class
 class Keyboard(Widget):
+    """A playable note layout (piano, chromatic or in-scale) emitting NoteOn and NoteOff."""
 
     class Type(enum.Enum):
         Keyboard            = 0
@@ -969,6 +973,7 @@ class Keyboard(Widget):
 
 # Knob class
 class Knob(ValueWidget):
+    """A value shown around the border of the area; holding a pad turns it continuously."""
 
     class Type(enum.Enum):
         Single      = enum.auto()
@@ -1329,6 +1334,7 @@ class Sprite(Widget):
 
 # Tracker class
 class Tracker(Widget):
+    """A scrolling step grid where rows are steps and columns are tracks; emits RowPlayed."""
 
     # class Scroll(enum.Enum):
     #     Continuous = enum.auto()
@@ -1406,6 +1412,7 @@ class Tracker(Widget):
 
 # XY class
 class XY(ValueWidget):
+    """A two dimensional value (x, y) set by pressing anywhere in the area."""
 
     class Direction(enum.Enum):
         Vertical    = enum.auto()
