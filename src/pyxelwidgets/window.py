@@ -23,13 +23,13 @@ class Window():
 
     _count = 0
 
-    def __init__(self, width: int, height: int, **kwargs):
-        self.name = kwargs.get('name', f'Window_{Window._count}')
+    def __init__(self, width: int, height: int, *, name: str | None = None, callback = None):
+        self.name = name if name is not None else f'Window_{Window._count}'
         self.rect = pyxelwidgets.rectangle.Rectangle2D(0, 0, width, height)
         self.widgets = {}
         self.buffer = pyxelwidgets.buffer.new(self.rect.w, self.rect.h)
         self.frame_counter = 0
-        self.callback = kwargs.get('callback', lambda *_, **__: None)
+        self.callback = callback if callback is not None else (lambda *_, **__: None)
         self.lock = threading.RLock()
         self._dirty = True
         Window._count += 1
@@ -113,13 +113,13 @@ class Manager():
 
     _count = 0
 
-    def __init__(self, width: int, height: int, **kwargs):
-        self.name = kwargs.get('name', f'Manager_{Manager._count}')
+    def __init__(self, width: int, height: int, *, name: str | None = None, callback = None):
+        self.name = name if name is not None else f'Manager_{Manager._count}'
         self.windows = {}
         self.controllers = {}
         self.rect = pyxelwidgets.rectangle.Rectangle2D(0, 0, width, height)
         self.buffer = pyxelwidgets.buffer.new(self.rect.w, self.rect.h, pyxelwidgets.color.Colors.Black)
-        self.callback = kwargs.get('callback', lambda *_, **__: None)
+        self.callback = callback if callback is not None else (lambda *_, **__: None)
         self.lock = threading.RLock()
         self._dirty = True
         Manager._count += 1
