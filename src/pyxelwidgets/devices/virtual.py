@@ -1,17 +1,32 @@
+"""An on-screen grid (tkinter window) for trying layouts without hardware."""
+
 import signal
 import threading
 import tkinter
-import pyxelwidgets.controllers
-import pyxelwidgets.color
-import pyxelwidgets.rectangle
 
-class Virtual(pyxelwidgets.controllers.Controller):
-    def __init__(self, columns = 8, rows = 8, **kwargs):
+import numpy
+
+import pyxelwidgets.devices
+
+__all__ = ['Virtual']
+
+class Virtual(pyxelwidgets.devices.Device):
+    """
+    A window showing a ``columns`` x ``rows`` grid; clicking a pad presses it.
+    Tk needs the thread that created the window: create it and call ``show``
+    (or run the App) from the main thread. Closing the window closes the device.
+    """
+
+    model = 'Virtual'
+    grid = (8, 8)
+    color_model = pyxelwidgets.devices.RGB(bits = 8, gamma = False)
+
+    def __init__(self, columns: int = 8, rows: int = 8, **kwargs):
         super().__init__(width = columns, height = rows, **kwargs)
         self.gui = GUI(columns, rows, self.process, on_close = self.close)
 
-    def send_pixel(self, x: int, y: int, pixel: pyxelwidgets.color.Color):
-        r, g, b = pixel.argb
+    def send_pixel(self, x: int, y: int, value) -> None:
+        r, g, b = value
         self.gui.draw_button(x, y, f"#{r:02x}{g:02x}{b:02x}")
     
     def process(self, x, y, value):
@@ -24,16 +39,12 @@ class Virtual(pyxelwidgets.controllers.Controller):
             self.gui.destroy_everything()
         super().close()
     
-    def update_area(self, rect: pyxelwidgets.rectangle.Rectangle2D, pixel: pyxelwidgets.color.Color):
-        super().update_area(rect, pixel)
-        self._process_events()
-    
-    def update(self, data: tuple):
-        super().update(data)
+    def show(self, frame: numpy.ndarray, x: int = 0, y: int = 0) -> None:
+        super().show(frame, x, y)
         self._process_events()
 
     def _process_events(self):
-        # Closing the window inside gui.update() closes this controller
+        # Closing the window inside gui.update() closes this device
         if not self.gui.destroyed:
             self.gui.update()
 
