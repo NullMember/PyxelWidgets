@@ -118,26 +118,30 @@ def _encode(value, kind):
         return list(value)
     return value
 
+def option_schema(cls) -> list:
+    """Layout options of a widget or device class: name, kind, default and enum choices."""
+    options = []
+    for parameter in _parameters(cls):
+        kind, enum_type = _kind(parameter)
+        if kind == 'json':
+            # Not representable in a layout (e.g. Sprite frames)
+            continue
+        option = {'name': parameter.name, 'kind': kind}
+        if parameter.default is not parameter.empty:
+            option['default'] = None if parameter.default is None else _encode(parameter.default, kind)
+        if enum_type is not None:
+            option['choices'] = [member.name for member in enum_type]
+        options.append(option)
+    return options
+
 def schema() -> dict:
     """Widget types with their options (kind, default, enum choices), for building editors."""
     widgets = {}
     for name, cls in widget_types().items():
-        options = []
-        for parameter in _parameters(cls):
-            kind, enum_type = _kind(parameter)
-            if kind == 'json':
-                # Not representable in a layout (e.g. Sprite frames)
-                continue
-            option = {'name': parameter.name, 'kind': kind}
-            if parameter.default is not parameter.empty:
-                option['default'] = None if parameter.default is None else _encode(parameter.default, kind)
-            if enum_type is not None:
-                option['choices'] = [member.name for member in enum_type]
-            options.append(option)
         widgets[name] = {
             'doc': inspect.getdoc(cls).split('\n')[0] if inspect.getdoc(cls) else '',
             'container': issubclass(cls, pyxelwidgets.group.Group),
-            'options': options,
+            'options': option_schema(cls),
         }
     return {'format': FORMAT, 'version': VERSION, 'widgets': widgets}
 
