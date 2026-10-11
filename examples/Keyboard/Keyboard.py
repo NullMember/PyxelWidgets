@@ -20,18 +20,18 @@ def button_callback(name, event, data):
 
 window = Window(9, 9)
 
-keyboard_widget = Keyboard.Keyboard(
+keyboard_widget = Keyboard(
     x = 0, 
     y = 0, 
     width = 8, 
     height = 8, 
-    type = Keyboard.Keyboard.Type.DiatonicVertical,
-    scale = Keyboard.Keyboard.Scale.Major,
-    root = Keyboard.Keyboard.Root.C,
+    type = Keyboard.Type.DiatonicVertical,
+    scale = Keyboard.Scale.Major,
+    root = Keyboard.Root.C,
     callback = keyboard_callback)
-octave_buttons = ButtonGroup.ButtonGroup(0, 8, 8, 1, callback = button_callback)
+octave_buttons = ButtonGroup(0, 8, 8, 1, callback = button_callback)
 octave_buttons.tapped(5, 0)
-volume_fader = Fader.Fader(8, 0, 1, 8)
+volume_fader = Fader(8, 0, 1, 8)
 volume_fader.tapped(0, 5)
 
 window.addWidget(keyboard_widget)

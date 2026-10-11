@@ -49,13 +49,13 @@ def keyboardConfigCallback(name: str, event: str, data):
     if name == "Type":
         if event == Event.Pressed:
             x, y = data
-            keyboard.type = Keyboard.Keyboard.Type(x)
+            keyboard.type = Keyboard.Type(x)
     if name == "Root":
         if event == Event.Changed:
             note, velocity = data
             note %= 12
-            if note < len(Keyboard.Keyboard.Root):
-                keyboard.root = Keyboard.Keyboard.Root(note)
+            if note < len(Keyboard.Root):
+                keyboard.root = Keyboard.Root(note)
     elif name == "Octave":
         if event == Event.Pressed:
             x, y = data
@@ -65,8 +65,8 @@ def keyboardConfigCallback(name: str, event: str, data):
             scale = keyboardConfigWindow.widgets['Scale']
             x, y = data
             scale = x + (y * scale.width)
-            if scale < len(Keyboard.Keyboard.Scale):
-                keyboard.scale = Keyboard.Keyboard.Scale(scale)
+            if scale < len(Keyboard.Scale):
+                keyboard.scale = Keyboard.Scale(scale)
     elif name == "switch":
         if event == Event.Released:
             manager.removeWindow(keyboardConfigWindow.name)
@@ -96,7 +96,7 @@ def sequencerCallback(name: str, event: str, data):
         if event == Event.Pressed:
             x, y = data
             for sequencer in sequencerWidgets:
-                sequencer.step = (y + 1) * 8
+                sequencer.steps = (y + 1) * 8
             sequencerWindow.forceUpdate()
 
 controller = Virtual(9, 9)
@@ -124,7 +124,7 @@ manager.addWindow(windows[currentWindow], 0, 0, 9, 8)
 manager.addController(controller, 0, 0)
 
 topButtonWindow.addWidget(
-    ButtonGroup.ButtonGroup(
+    ButtonGroup(
         x = 0, y = 0, width = len(windows), height = 1, 
         deactiveColor = Colors.Blue, 
         callback = buttonCallback)
@@ -132,7 +132,7 @@ topButtonWindow.addWidget(
 
 for i in range(8):
     faderWindow.addWidget(
-        Fader.Fader(
+        Fader(
             x = i, y = 0, width = 1, height = 8, 
             name = f"DAWFader_{i}", 
             callback = faderCallback, 
@@ -141,60 +141,60 @@ for i in range(8):
 
 for i in range(8):
     knobWindow.addWidget(
-        Knob.Knob(
+        Knob(
             x = 0, y = 7 - i, width = 8, height = 1, 
             name = f"DAWKnob_{i}", 
             callback = knobCallback, 
-            type = Knob.Knob.Type.BoostCut,
+            type = Knob.Type.BoostCut,
             activeColor = Pixel(random.randint(0, 255), random.randint(0, 255), random.randint(0, 255)))
     )
 
 keyboardWindow.addWidget(
-    Keyboard.Keyboard(
+    Keyboard(
         x = 0, y = 0, width = 8, height = 8,
         name = "Keyboard",
-        type = Keyboard.Keyboard.Type.DiatonicVertical, 
-        scale = Keyboard.Keyboard.Scale.Major, 
-        root = Keyboard.Keyboard.Root.C, 
+        type = Keyboard.Type.DiatonicVertical, 
+        scale = Keyboard.Scale.Major, 
+        root = Keyboard.Root.C, 
         fold = 4, octave = 4,
         callback = keyboardCallback)
 )
 keyboardWindow.addWidget(
-    Button.Button(
+    Button(
         8, 0, 1, 1, 
         name = "switch", 
         callback = keyboardCallback, 
         deactiveColor = Colors.Red)
 )
 keyboardConfigWindow.addWidget(
-    ButtonGroup.ButtonGroup(
-        x = 0, y = 7, width = len(Keyboard.Keyboard.Type), height = 1,
+    ButtonGroup(
+        x = 0, y = 7, width = len(Keyboard.Type), height = 1,
         name = "Type",
         callback = keyboardConfigCallback)
 )
 keyboardConfigWindow.addWidget(
-    Keyboard.Keyboard(
+    Keyboard(
         x = 0, y = 5, width = 8, height = 2,
         name = "Root",
-        type = Keyboard.Keyboard.Type.Keyboard,
+        type = Keyboard.Type.Keyboard,
         callback = keyboardConfigCallback)
 )
 keyboardConfigWindow.addWidget(
-    ButtonGroup.ButtonGroup(
+    ButtonGroup(
         x = 0, y = 4, width = 8, height = 1,
         name = "Octave",
         deactiveColor = Colors.PaleVioletRed,
         callback = keyboardConfigCallback)
 )
 keyboardConfigWindow.addWidget(
-    ButtonGroup.ButtonGroup(
+    ButtonGroup(
         x = 0, y = 0, width = 8, height = 2,
         name = "Scale",
         deactiveColor = Colors.SkyBlue,
         callback = keyboardConfigCallback)
 )
 keyboardConfigWindow.addWidget(
-    Button.Button(
+    Button(
         8, 0, 1, 1, 
         name = "switch", 
         callback = keyboardConfigCallback, 
@@ -204,21 +204,21 @@ keyboardConfigWindow.addWidget(
 sequencerWidgets = []
 for i in range(16):
     sequencerWidgets.append(
-        Sequencer.Sequencer(
+        Sequencer(
             x = 0, y = 4, width = 8, height = 4, 
             clock = controller.clock, 
             callback = sequencerCallback)
     )
 
 sequencerWindow.addWidget(
-    ButtonGroup.ButtonGroup(
+    ButtonGroup(
         x = 0, y = 0, width = 4, height = 4, 
         deactiveColor = Pixel(255, 255, 0), 
         callback = sequencerCallback,
         name = "sample")
 )
 sequencerWindow.addWidget(
-    ButtonGroup.ButtonGroup(
+    ButtonGroup(
         x = 4, y = 0, width = 1, height = 4,
         deactiveColor = Pixel(255, 0, 255),
         callback = sequencerCallback,

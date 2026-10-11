@@ -72,7 +72,7 @@ def button_callback(name, event, data):
 window = Window(9, 9)
 for i in range(8):
     window.addWidget(
-        Fader.Fader(
+        Fader(
             x = i, y = 0, width = 1, height = 8, 
             name = f"Fader_{i}", 
             activeColor = Pixel(
@@ -86,25 +86,25 @@ for i in range(8):
 
 for i in range(8):
     window.addWidget(
-        Button.Button(
+        Button(
             x = i, y = 8, width = 1, height = 1, 
-            name = f"Mute_{i}", mode = Button.Button.Mode.Switch,
+            name = f"Mute_{i}", mode = Button.Mode.Switch,
             activeColor = Colors.Red,
             deactiveColor = Colors.DarkRed,
             lock = True, callback = button_callback)
     )
 
-window.addWidget(Button.Button(
+window.addWidget(Button(
     x = 8, y = 0, width = 1, height = 1, 
     name = "Record", callback = button_callback, lock = True, 
     activeColor = Colors.Red, deactiveColor = Colors.Red * 0.5)
 )
-window.addWidget(Button.Button(
+window.addWidget(Button(
     x = 8, y = 1, width = 1, height = 1, 
     name = "Play", callback = button_callback, lock = True, 
     activeColor = Colors.Green, deactiveColor = Colors.Green * 0.5)
 )
-window.addWidget(Button.Button(
+window.addWidget(Button(
     x = 8, y = 2, width = 1, height = 1, 
     name = "Stop", callback = button_callback, lock = True, 
     activeColor = Colors.Yellow, deactiveColor = Colors.Yellow * 0.5)
