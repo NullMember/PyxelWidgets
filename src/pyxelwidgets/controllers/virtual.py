@@ -1,3 +1,5 @@
+import signal
+import threading
 import tkinter
 import pyxelwidgets.controllers
 import pyxelwidgets.pixel
@@ -6,44 +8,44 @@ import pyxelwidgets.rectangle
 class Virtual(pyxelwidgets.controllers.Controller):
     def __init__(self, columns = 8, rows = 8, **kwargs):
         super().__init__(width = columns, height = rows, **kwargs)
-        self.gui = GUI(columns, rows, self.process)
+        self.gui = GUI(columns, rows, self.process, on_close = self.close)
 
     def send_pixel(self, x: int, y: int, pixel: pyxelwidgets.pixel.Pixel):
-        self.gui.draw_button(x, y, f"#{pixel.r:02x}{pixel.g:02x}{pixel.b:02x}")
+        r, g, b = pixel.argb
+        self.gui.draw_button(x, y, f"#{r:02x}{g:02x}{b:02x}")
     
     def process(self, x, y, value):
-        self.set_button(x, y, value)
+        # Clicks in the canvas margin map outside the grid
+        if 0 <= x < self.rect.w and 0 <= y < self.rect.h:
+            self.set_button(x, y, value)
     
     def close(self):
         if not self.gui.destroyed:
             self.gui.destroy_everything()
         super().close()
     
-    def update_one(self, x: int, y: int, pixel: pyxelwidgets.pixel.Pixel):
-        super().update_one(x, y, pixel)
-        self.gui.update()
-    
-    def update_row(self, y: int, pixel: pyxelwidgets.pixel.Pixel):
-        super().update_row(y, pixel)
-        self.gui.update()
-    
-    def update_column(self, x: int, pixel: pyxelwidgets.pixel.Pixel):
-        super().update_column(x, pixel)
-        self.gui.update()
-    
     def update_area(self, rect: pyxelwidgets.rectangle.Rectangle2D, pixel: pyxelwidgets.pixel.Pixel):
         super().update_area(rect, pixel)
-        self.gui.update()
+        self._process_events()
     
     def update(self, data: tuple):
         super().update(data)
-        self.gui.update()
+        self._process_events()
+
+    def _process_events(self):
+        # Closing the window inside gui.update() closes this controller
+        if not self.gui.destroyed:
+            self.gui.update()
 
 class GUI(tkinter.Tk):
-    def __init__(self, columns, rows, callback) -> None:
+    def __init__(self, columns, rows, callback, on_close = None) -> None:
         super().__init__()
-        self.title("pyxelwidgets Virtual Grid Controller")
-        self.protocol("WM_DELETE_WINDOW", self.destroy_everything)
+        # Tk (seen with Tk 9 on macOS) replaces the SIGINT handler at C level,
+        # so Ctrl+C exits immediately without cleanup; reinstall Python's handler
+        if threading.current_thread() is threading.main_thread():
+            signal.signal(signal.SIGINT, signal.getsignal(signal.SIGINT))
+        self.title("PyxelWidgets Virtual Grid Controller")
+        self.protocol("WM_DELETE_WINDOW", on_close or self.destroy_everything)
 
         self.button_column = columns
         self.button_row = rows

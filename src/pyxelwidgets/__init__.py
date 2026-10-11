@@ -7,6 +7,7 @@ optional dependencies; import them from ``pyxelwidgets.controllers.*``.
 
 __version__ = '0.1.0'
 
+from pyxelwidgets.app import App
 from pyxelwidgets.clock import Clock, Target
 from pyxelwidgets.controllers import Controller
 from pyxelwidgets.enums import Event
@@ -18,7 +19,7 @@ from pyxelwidgets.widgets import (Button, ButtonGroup, Fader, Keyboard, Knob,
 from pyxelwidgets.window import Manager, Window
 
 __all__ = [
-    'Button', 'ButtonGroup', 'Clock', 'Colors', 'Controller', 'Event', 'Fader',
+    'App', 'Button', 'ButtonGroup', 'Clock', 'Colors', 'Controller', 'Event', 'Fader',
     'Keyboard', 'Knob', 'Manager', 'Parser', 'Pixel', 'Rectangle2D', 'Sequencer',
     'Sprite', 'Target', 'Tracker', 'Widget', 'Window', 'XY',
 ]

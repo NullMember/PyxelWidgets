@@ -1,7 +1,7 @@
 from concurrent.futures import ThreadPoolExecutor
 import enum
 from typing import Callable
-from threading import Lock, Thread
+from threading import Lock, Thread, current_thread
 import time
 
 class Target:
@@ -49,7 +49,7 @@ class Clock(Thread):
         Stopped = enum.auto()
         Terminated = enum.auto()
 
-    def __init__(self, bpm: float = 60, ppq: float = 24) -> None:
+    def __init__(self, bpm: float = 60, ppq: float = 24, lock = None) -> None:
         super().__init__(name = f'Clock_{Clock._count}')
         self._pool = ThreadPoolExecutor(thread_name_prefix = f'Clock_{self._count}_Target')
         self._bpm: float = bpm
@@ -62,6 +62,8 @@ class Clock(Thread):
         self.running = True
         self._pause = False
         self._terminate = False
+        # Held while calling each target, e.g. an App's lock shared with rendering
+        self.lock = lock
         Clock._count += 1
 
     @property
@@ -109,18 +111,32 @@ class Clock(Thread):
             return self.targets[name]
 
     def run(self):
+        # Schedule ticks against an absolute timeline so sleep overshoot doesn't drift the tempo
+        next_tick = time.perf_counter()
         while not self._terminate:
             self.current_time = time.time()
             self._step()
-            delay = self.delay - (time.time() - self.current_time)
-            time.sleep(0.0 if delay < 0.0 else delay)
+            next_tick += self.delay
+            delay = next_tick - time.perf_counter()
+            if delay > 0.0:
+                time.sleep(delay)
+            elif delay < -self.delay:
+                # Fell more than a tick behind (e.g. suspended); resync instead of bursting
+                next_tick = time.perf_counter()
     
     def step(self):
-        for target in self.targets.values():
+        for target in list(self.targets.values()):
             if target.active:
-                self._pool.submit(target.set, self.tick)
+                self._pool.submit(self._call, target, self.tick)
         if not self._pause:
             self.tick += 1
+
+    def _call(self, target: Target, tick: int) -> None:
+        if self.lock is None:
+            target.set(tick)
+        else:
+            with self.lock:
+                target.set(tick)
     
     def _step(self):
         if self.running:
@@ -142,4 +158,7 @@ class Clock(Thread):
     
     def terminate(self):
         self._terminate = True
+        # Let the tick loop exit before shutting the pool, or its next submit raises
+        if self.is_alive() and current_thread() is not self:
+            self.join()
         self._pool.shutdown(wait = True, cancel_futures = True)
