@@ -186,9 +186,13 @@ class Pixel():
         return numpy.argmin(dist_2)
 
     def __eq__(self, other) -> bool:
+        if not isinstance(other, Pixel):
+            return NotImplemented
         return self._value == other._value
-    
+
     def __ne__(self, other) -> bool:
+        if not isinstance(other, Pixel):
+            return NotImplemented
         return self._value != other._value
     
     def __lt__(self, other) -> bool:
