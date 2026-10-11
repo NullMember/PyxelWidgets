@@ -1,5 +1,5 @@
-from pyxelwidgets.controllers.virtual import Virtual
-from pyxelwidgets.controllers.midi import MIDI
+from pyxelwidgets.devices.virtual import Virtual
+from pyxelwidgets.devices.midi import MIDI
 from pyxelwidgets import App, Button, Changed, Color, Colors, Fader, Surface
 import random
 import enum
@@ -79,13 +79,11 @@ for y, (button, color) in enumerate([(DAW.Buttons.RECORD, Colors.Red), (DAW.Butt
     transport[button.value] = widget
 
 grid_controller = Virtual(9, 9)
-grid_controller.init()
 grid_controller.connect()
-surface.add_controller(grid_controller)
+surface.add_device(grid_controller)
 app = App(surface)
 
 daw_controller = DAW()
-daw_controller.init()
 daw_controller.connect_virtual("DAW")
 
 # Runs until Ctrl+C or the grid window is closed

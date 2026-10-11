@@ -1,5 +1,5 @@
-from pyxelwidgets.controllers.virtual import Virtual
-from pyxelwidgets.controllers.midi import MIDI
+from pyxelwidgets.devices.virtual import Virtual
+from pyxelwidgets.devices.midi import MIDI
 from pyxelwidgets import (App, Button, ButtonGroup, Changed, Color, Colors, Fader, Group, Held, Keyboard, Knob,
                           NoteOff, NoteOn, Pressed, Released, Sequencer, StepPlayed, Surface)
 import random
@@ -8,15 +8,13 @@ def random_color():
     return Color(random.randint(0, 255), random.randint(0, 255), random.randint(0, 255))
 
 controller = Virtual(9, 9)
-controller.init()
 controller.connect()
 
 keyboard = MIDI()
-keyboard.init()
 keyboard.connect_virtual('Keyboard')
 
 surface = Surface(9, 9)
-surface.add_controller(controller)
+surface.add_device(controller)
 app = App(surface, bpm = 60)
 
 # Pages share the 9x8 area under the top row; only one is visible at a time

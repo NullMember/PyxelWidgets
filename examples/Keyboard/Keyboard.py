@@ -1,5 +1,5 @@
-from pyxelwidgets.controllers.virtual import Virtual
-from pyxelwidgets.controllers.midi import MIDI
+from pyxelwidgets.devices.virtual import Virtual
+from pyxelwidgets.devices.midi import MIDI
 from pyxelwidgets import App, ButtonGroup, Fader, Keyboard, NoteOff, NoteOn, Surface, Toggled
 
 surface = Surface(9, 9)
@@ -32,12 +32,10 @@ octave_buttons.tap(5, 0)
 volume_fader.tap(0, 5)
 
 grid_controller = Virtual(9, 9)
-grid_controller.init()
 grid_controller.connect()
-surface.add_controller(grid_controller)
+surface.add_device(grid_controller)
 
 keyboard_controller = MIDI()
-keyboard_controller.init()
 keyboard_controller.connect_virtual("Keyboard")
 
 # Runs until Ctrl+C or the grid window is closed
