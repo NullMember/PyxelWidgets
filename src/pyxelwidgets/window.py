@@ -1,10 +1,16 @@
+from __future__ import annotations
+
 import pyxelwidgets.buffer
 import pyxelwidgets.enums
 import pyxelwidgets.color
 import pyxelwidgets.rectangle
-import pyxelwidgets.widgets
-import pyxelwidgets.controllers
 import threading
+import typing
+
+# Only for type hints: windows work with any widget or controller like object
+if typing.TYPE_CHECKING:
+    import pyxelwidgets.controllers
+    import pyxelwidgets.widgets
 
 class Window():
     """
