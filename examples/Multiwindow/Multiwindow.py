@@ -1,7 +1,7 @@
 from pyxelwidgets.controllers.virtual import Virtual
 from pyxelwidgets.controllers.midi import MIDI
 from pyxelwidgets import (App, Button, ButtonGroup, Colors, Event, Fader, Keyboard, Knob,
-                          Manager, Pixel, Sequencer, Window)
+                          Manager, Color, Sequencer, Window)
 import random
 
 def button_callback(name: str, event: str, data):
@@ -133,7 +133,7 @@ for i in range(8):
             x = i, y = 0, width = 1, height = 8, 
             name = f"DAWFader_{i}", 
             callback = fader_callback, 
-            active_color = Pixel(random.randint(0, 255), random.randint(0, 255), random.randint(0, 255)))
+            active_color = Color(random.randint(0, 255), random.randint(0, 255), random.randint(0, 255)))
     )
 
 for i in range(8):
@@ -143,7 +143,7 @@ for i in range(8):
             name = f"DAWKnob_{i}", 
             callback = knob_callback, 
             type = Knob.Type.BoostCut,
-            active_color = Pixel(random.randint(0, 255), random.randint(0, 255), random.randint(0, 255)))
+            active_color = Color(random.randint(0, 255), random.randint(0, 255), random.randint(0, 255)))
     )
 
 keyboard_window.add_widget(
@@ -200,24 +200,24 @@ keyboard_config_window.add_widget(
 
 sequencer_widgets = []
 for i in range(16):
-    sequencer_widgets.append(
-        Sequencer(
-            x = 0, y = 4, width = 8, height = 4, 
-            clock = app.clock, 
-            callback = sequencer_callback)
-    )
+    sequencer = Sequencer(
+        x = 0, y = 4, width = 8, height = 4, 
+        ppq = app.clock.ppq, 
+        callback = sequencer_callback)
+    app.clock.add_target(sequencer.tick)
+    sequencer_widgets.append(sequencer)
 
 sequencer_window.add_widget(
     ButtonGroup(
         x = 0, y = 0, width = 4, height = 4, 
-        inactive_color = Pixel(255, 255, 0), 
+        inactive_color = Color(255, 255, 0), 
         callback = sequencer_callback,
         name = "sample")
 )
 sequencer_window.add_widget(
     ButtonGroup(
         x = 4, y = 0, width = 1, height = 4,
-        inactive_color = Pixel(255, 0, 255),
+        inactive_color = Color(255, 0, 255),
         callback = sequencer_callback,
         name = "height")
 )

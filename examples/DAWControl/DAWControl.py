@@ -1,6 +1,6 @@
 from pyxelwidgets.controllers.virtual import Virtual
 from pyxelwidgets.controllers.midi import MIDI
-from pyxelwidgets import App, Button, Colors, Event, Fader, Manager, Pixel, Window
+from pyxelwidgets import App, Button, Colors, Event, Fader, Manager, Color, Window
 import random
 import enum
 
@@ -75,12 +75,12 @@ for i in range(8):
         Fader(
             x = i, y = 0, width = 1, height = 8, 
             name = f"Fader_{i}", 
-            active_color = Pixel(
+            active_color = Color(
                 r = random.randint(0, 255), 
                 g = random.randint(0, 255), 
                 b = random.randint(0, 255)
             ),
-            lock = True, callback = fader_callback
+            interactive = False, callback = fader_callback
         )
     )
 
@@ -91,22 +91,22 @@ for i in range(8):
             name = f"Mute_{i}", mode = Button.Mode.Switch,
             active_color = Colors.Red,
             inactive_color = Colors.DarkRed,
-            lock = True, callback = button_callback)
+            interactive = False, callback = button_callback)
     )
 
 window.add_widget(Button(
     x = 8, y = 0, width = 1, height = 1, 
-    name = "Record", callback = button_callback, lock = True, 
+    name = "Record", callback = button_callback, interactive = False, 
     active_color = Colors.Red, inactive_color = Colors.Red * 0.5)
 )
 window.add_widget(Button(
     x = 8, y = 1, width = 1, height = 1, 
-    name = "Play", callback = button_callback, lock = True, 
+    name = "Play", callback = button_callback, interactive = False, 
     active_color = Colors.Green, inactive_color = Colors.Green * 0.5)
 )
 window.add_widget(Button(
     x = 8, y = 2, width = 1, height = 1, 
-    name = "Stop", callback = button_callback, lock = True, 
+    name = "Stop", callback = button_callback, interactive = False, 
     active_color = Colors.Yellow, inactive_color = Colors.Yellow * 0.5)
 )
 
