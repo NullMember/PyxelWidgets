@@ -7,7 +7,7 @@ class App():
     Runs a Surface: renders at a fixed frame rate, owns a Clock whose targets
     run under the Surface's lock, and closes everything on exit.
 
-    Input from controllers and clock ticks are handled immediately on their
+    Input from devices and clock ticks are handled immediately on their
     own threads; the shared lock keeps them from interleaving with rendering.
     """
 
@@ -28,14 +28,14 @@ class App():
         self.surface.update()
 
     def run(self) -> None:
-        """Run until stop(), Ctrl+C, or a controller closes (e.g. the Virtual window); then close()."""
+        """Run until stop(), Ctrl+C, or a device closes (e.g. the Virtual window); then close()."""
         self.running = True
         if not self.clock.is_alive():
             self.clock.start()
         period = 1.0 / self.fps
         next_frame = time.perf_counter()
         try:
-            while self.running and not self._controller_closed():
+            while self.running and not self._device_closed():
                 self.step()
                 next_frame += period
                 delay = next_frame - time.perf_counter()
@@ -62,6 +62,6 @@ class App():
         self.clock.terminate()
         self.surface.close()
 
-    def _controller_closed(self) -> bool:
+    def _device_closed(self) -> bool:
         with self.surface.lock:
-            return any(entry['controller'].terminated for entry in self.surface.controllers.values())
+            return any(entry["device"].terminated for entry in self.surface.devices.values())
