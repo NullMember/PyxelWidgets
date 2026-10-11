@@ -2,29 +2,29 @@ from __future__ import annotations
 
 import pyxelwidgets.buffer
 import pyxelwidgets.color
-import pyxelwidgets.enums
 import pyxelwidgets.events
 import pyxelwidgets.group
 import pyxelwidgets.rectangle
+import dataclasses
 import threading
 import typing
 
-# Only for type hints: a surface works with any controller like object
+# Only for type hints: a surface works with any device like object
 if typing.TYPE_CHECKING:
-    import pyxelwidgets.controllers
+    import pyxelwidgets.devices
     import pyxelwidgets.widgets
 
 class Surface(pyxelwidgets.events.Emitter):
     """
-    Maps a tree of widgets onto controllers: routes their input to the topmost
-    widget under each press, and sends the composed frame back on ``update()``.
+    Maps a tree of widgets onto devices: routes pad input to the topmost widget
+    under each press, and shows the composed frame on the devices on ``update()``.
 
     Widgets live in ``root``, a Group covering the whole surface; ``add``,
-    ``remove`` and ``find`` are shortcuts for it. Controllers are placed at an
+    ``remove`` and ``find`` are shortcuts for it. Devices are placed at an
     offset, so several devices can form one larger surface.
 
-    Emits ``Frame`` before rendering each frame and ``Control`` for input from
-    non-grid controls (knobs, faders, encoders, extra buttons).
+    Emits ``Frame`` before rendering each frame, and re-emits every device's
+    control events (ControlPressed, ControlChanged, ...).
 
     ``lock`` is held while processing input and rendering. Hold it when changing
     widgets from another thread, e.g. a MIDI callback of your own.
@@ -36,7 +36,7 @@ class Surface(pyxelwidgets.events.Emitter):
         self.name = name if name is not None else f'Surface_{Surface._count}'
         self.rect = pyxelwidgets.rectangle.Rectangle2D(0, 0, width, height)
         self.root = pyxelwidgets.group.Group(0, 0, width, height, name = f'{self.name}_root')
-        self.controllers = {}
+        self.devices = {}
         self.buffer = pyxelwidgets.buffer.new(width, height, pyxelwidgets.color.Colors.Black)
         self.frame_counter = 0
         self.lock = threading.RLock()
@@ -58,49 +58,48 @@ class Surface(pyxelwidgets.events.Emitter):
     def __getitem__(self, name: str):
         return self.root[name]
 
-    # Controllers
+    # Devices
 
-    def add_controller(self, controller: pyxelwidgets.controllers.Controller, x: int = 0, y: int = 0) -> None:
+    def add_device(self, device: pyxelwidgets.devices.Device, x: int = 0, y: int = 0) -> None:
+        """Place ``device`` with its bottom left pad at surface ``x``, ``y``."""
+        def pad(event):
+            self._pad(event, x, y)
+        def control(event):
+            with self.lock:
+                self.emit(event)
         with self.lock:
-            self.controllers[controller.name] = {
-                'controller': controller,
-                'rect': pyxelwidgets.rectangle.Rectangle2D(x, y, controller.rect.w, controller.rect.h),
+            device.on(pyxelwidgets.events.PadEvent, pad)
+            device.on(pyxelwidgets.events.ControlEvent, control)
+            self.devices[device.name] = {
+                'device': device,
+                'rect': pyxelwidgets.rectangle.Rectangle2D(x, y, device.rect.w, device.rect.h),
+                'handlers': ((pyxelwidgets.events.PadEvent, pad), (pyxelwidgets.events.ControlEvent, control)),
             }
-            controller.set_callback(self.process)
 
-    def remove_controller(self, controller) -> None:
-        """Remove a controller, given the controller or its name."""
-        name = controller if isinstance(controller, str) else controller.name
+    def remove_device(self, device) -> None:
+        """Remove a device, given the device or its name."""
+        name = device if isinstance(device, str) else device.name
         with self.lock:
-            self.controllers.pop(name)
+            entry = self.devices.pop(name)
+            for event_type, handler in entry['handlers']:
+                entry['device'].off(event_type, handler)
 
     def force_update(self) -> None:
         """Resend every pixel on the next update, e.g. after a device reconnected."""
         with self.lock:
-            for entry in self.controllers.values():
-                entry['controller'].buffer[:] = 0
+            for entry in self.devices.values():
+                entry['device'].invalidate()
 
-    def process(self, name, event, data) -> None:
-        """Controller callback: route grid input to widgets, emit Control for other controls."""
+    def _pad(self, event: pyxelwidgets.events.PadEvent, x: int, y: int) -> None:
         with self.lock:
-            if event == pyxelwidgets.enums.Event.Custom:
-                control, action, value = data
-                self.emit(pyxelwidgets.events.Control(self, name, control, action, value))
-                return
-            entry = self.controllers.get(name)
-            if entry is None:
-                # Input still arriving from a controller that was just removed
-                return
-            x, y, velocity = data
-            offset = entry['rect']
-            x, y = x + offset.x, y + offset.y
+            x, y = event.x + x, event.y + y
             if 0 <= x < self.rect.w and 0 <= y < self.rect.h:
-                self.root.input(event, x, y, velocity)
+                self.root.input(dataclasses.replace(event, x = x, y = y))
 
     # Rendering
 
     def update(self) -> None:
-        """Render changed widgets and send changed pixels to every controller."""
+        """Render changed widgets and send changed pixels to every device."""
         with self.lock:
             self.emit(pyxelwidgets.events.Frame(self, self.frame_counter))
             self.frame_counter += 1
@@ -108,18 +107,19 @@ class Surface(pyxelwidgets.events.Emitter):
                 # Transparent areas show as black on the devices
                 self.buffer[:] = pyxelwidgets.color.Colors.Black
                 pyxelwidgets.buffer.composite(self.buffer, self.root.buffer)
-            # Always called: controllers diff against what they sent, and
-            # some (Virtual) also process their own events here
-            for entry in list(self.controllers.values()):
-                intersect = self.rect.intersect(entry['rect'])
-                if intersect:
-                    entry['controller'].update((intersect - entry['rect'], self.buffer[intersect.slice]))
+            # Always called: devices diff against what they show, poll held
+            # pads, and some (Virtual) also process their own events here
+            for entry in list(self.devices.values()):
+                area = self.rect.intersect(entry['rect'])
+                if area:
+                    entry['device'].show(self.buffer[area.slice], area.x - entry['rect'].x, area.y - entry['rect'].y)
 
     def close(self) -> None:
-        """Close all controllers."""
+        """Close all devices."""
         with self.lock:
-            controllers = [entry['controller'] for entry in self.controllers.values()]
-            self.controllers.clear()
-        # Closed outside the lock: closing waits for clock targets that may need it
-        for controller in controllers:
-            controller.close()
+            devices = [entry['device'] for entry in self.devices.values()]
+            for name in list(self.devices):
+                self.remove_device(name)
+        # Closed outside the lock: closing may wait for threads that need it
+        for device in devices:
+            device.close()

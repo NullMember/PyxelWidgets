@@ -180,12 +180,3 @@ class Frame(Event):
     """Emitted by a Surface before rendering each frame."""
     surface: typing.Any
     frame: int
-
-@dataclasses.dataclass(frozen = True)
-class Control(Event):
-    """Input from a non-grid control (knob, fader, encoder, extra button) of a controller."""
-    surface: typing.Any
-    controller: str
-    control: str
-    action: typing.Any
-    value: typing.Any
