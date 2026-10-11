@@ -62,7 +62,7 @@ class Window():
                     area, buffer = widget.updateArea(intersect)
                     if buffer is not None:
                         view = self.buffer[area.slice]
-                        view[:] = numpy.where(buffer == False, view, buffer)
+                        view[:] = buffer
             return intersect, self.buffer[intersect.slice]
         return None, None
 
