@@ -1,5 +1,4 @@
 import pyxelwidgets.buffer
-import pyxelwidgets.enums
 import pyxelwidgets.events
 import pyxelwidgets.color
 import pyxelwidgets.rectangle
@@ -131,18 +130,19 @@ class Widget(pyxelwidgets.events.Emitter):
         self.press(x, y, velocity)
         self.release(x, y, 0.0)
 
-    def input(self, action: pyxelwidgets.enums.Event, x: int, y: int, velocity: float) -> bool:
+    def input(self, event: pyxelwidgets.events.PadEvent) -> bool:
         """
-        Deliver controller input (Pressed, Released, Held, DoublePressed) at widget
-        coordinates. Returns True if it should not reach widgets underneath.
+        Deliver a device pad event whose ``x``, ``y`` are already widget coordinates.
+        Returns True if it should not reach widgets underneath.
         """
-        if action == pyxelwidgets.enums.Event.Pressed:
+        x, y, velocity = event.x, event.y, event.velocity
+        if isinstance(event, pyxelwidgets.events.PadPressed):
             self.press(x, y, velocity)
-        elif action == pyxelwidgets.enums.Event.Released:
+        elif isinstance(event, pyxelwidgets.events.PadReleased):
             self.release(x, y, velocity)
-        elif action == pyxelwidgets.enums.Event.Held:
+        elif isinstance(event, pyxelwidgets.events.PadHeld):
             self.hold(x, y, velocity)
-        elif action == pyxelwidgets.enums.Event.DoublePressed:
+        elif isinstance(event, pyxelwidgets.events.PadDoublePressed):
             self.double_press(x, y, velocity)
         return self.propagation == Propagation.Stop
 
