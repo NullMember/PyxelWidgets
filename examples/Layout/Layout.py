@@ -1,0 +1,21 @@
+"""
+Loads layout.json (made with the designer: ``python -m pyxelwidgets.designer layout.json``)
+and attaches behaviour to its widgets by name.
+"""
+
+import pathlib
+
+from pyxelwidgets import Changed, parser
+
+ui = parser.load(pathlib.Path(__file__).with_name('layout.json'))
+
+for channel in range(1, 9):
+    ui[f'volume{channel}'].on(Changed, lambda e: print(f'{e.widget.name}: {e.value:.2f}'))
+    ui[f'mute{channel}'].on(Changed, lambda e: print(f'{e.widget.name}: {"muted" if e.value else "on"}'))
+
+for name in ('record', 'play', 'stop'):
+    ui[name].on(Changed, lambda e: print(e.widget.name, 'on' if e.value else 'off'))
+
+if __name__ == '__main__':
+    # Runs until Ctrl+C or the grid window is closed
+    ui.app().run()

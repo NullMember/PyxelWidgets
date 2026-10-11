@@ -1,0 +1,275 @@
+{
+  "format": "pyxelwidgets.layout",
+  "version": 1,
+  "surface": {
+    "width": 9,
+    "height": 9
+  },
+  "clock": {
+    "bpm": 120,
+    "ppq": 24
+  },
+  "devices": [
+    {
+      "type": "virtual.Virtual",
+      "x": 0,
+      "y": 0,
+      "options": {
+        "columns": 9,
+        "rows": 9
+      }
+    }
+  ],
+  "widgets": [
+    {
+      "type": "Group",
+      "name": "mixer",
+      "x": 0,
+      "y": 0,
+      "width": 8,
+      "height": 9,
+      "options": {},
+      "widgets": [
+        {
+          "type": "Fader",
+          "name": "volume1",
+          "x": 0,
+          "y": 0,
+          "width": 1,
+          "height": 8,
+          "options": {
+            "active_color": "#ff4040",
+            "mode": "Magnitude"
+          }
+        },
+        {
+          "type": "Button",
+          "name": "mute1",
+          "x": 0,
+          "y": 8,
+          "width": 1,
+          "height": 1,
+          "options": {
+            "mode": "Switch",
+            "active_color": "#ff2020",
+            "inactive_color": "#401010"
+          }
+        },
+        {
+          "type": "Fader",
+          "name": "volume2",
+          "x": 1,
+          "y": 0,
+          "width": 1,
+          "height": 8,
+          "options": {
+            "active_color": "#ff9f1a",
+            "mode": "Magnitude"
+          }
+        },
+        {
+          "type": "Button",
+          "name": "mute2",
+          "x": 1,
+          "y": 8,
+          "width": 1,
+          "height": 1,
+          "options": {
+            "mode": "Switch",
+            "active_color": "#ff2020",
+            "inactive_color": "#401010"
+          }
+        },
+        {
+          "type": "Fader",
+          "name": "volume3",
+          "x": 2,
+          "y": 0,
+          "width": 1,
+          "height": 8,
+          "options": {
+            "active_color": "#ffe14d",
+            "mode": "Magnitude"
+          }
+        },
+        {
+          "type": "Button",
+          "name": "mute3",
+          "x": 2,
+          "y": 8,
+          "width": 1,
+          "height": 1,
+          "options": {
+            "mode": "Switch",
+            "active_color": "#ff2020",
+            "inactive_color": "#401010"
+          }
+        },
+        {
+          "type": "Fader",
+          "name": "volume4",
+          "x": 3,
+          "y": 0,
+          "width": 1,
+          "height": 8,
+          "options": {
+            "active_color": "#62e06a",
+            "mode": "Magnitude"
+          }
+        },
+        {
+          "type": "Button",
+          "name": "mute4",
+          "x": 3,
+          "y": 8,
+          "width": 1,
+          "height": 1,
+          "options": {
+            "mode": "Switch",
+            "active_color": "#ff2020",
+            "inactive_color": "#401010"
+          }
+        },
+        {
+          "type": "Fader",
+          "name": "volume5",
+          "x": 4,
+          "y": 0,
+          "width": 1,
+          "height": 8,
+          "options": {
+            "active_color": "#3fd6c6",
+            "mode": "Magnitude"
+          }
+        },
+        {
+          "type": "Button",
+          "name": "mute5",
+          "x": 4,
+          "y": 8,
+          "width": 1,
+          "height": 1,
+          "options": {
+            "mode": "Switch",
+            "active_color": "#ff2020",
+            "inactive_color": "#401010"
+          }
+        },
+        {
+          "type": "Fader",
+          "name": "volume6",
+          "x": 5,
+          "y": 0,
+          "width": 1,
+          "height": 8,
+          "options": {
+            "active_color": "#4d8dff",
+            "mode": "Magnitude"
+          }
+        },
+        {
+          "type": "Button",
+          "name": "mute6",
+          "x": 5,
+          "y": 8,
+          "width": 1,
+          "height": 1,
+          "options": {
+            "mode": "Switch",
+            "active_color": "#ff2020",
+            "inactive_color": "#401010"
+          }
+        },
+        {
+          "type": "Fader",
+          "name": "volume7",
+          "x": 6,
+          "y": 0,
+          "width": 1,
+          "height": 8,
+          "options": {
+            "active_color": "#9b6bff",
+            "mode": "Magnitude"
+          }
+        },
+        {
+          "type": "Button",
+          "name": "mute7",
+          "x": 6,
+          "y": 8,
+          "width": 1,
+          "height": 1,
+          "options": {
+            "mode": "Switch",
+            "active_color": "#ff2020",
+            "inactive_color": "#401010"
+          }
+        },
+        {
+          "type": "Fader",
+          "name": "volume8",
+          "x": 7,
+          "y": 0,
+          "width": 1,
+          "height": 8,
+          "options": {
+            "active_color": "#ff5fc8",
+            "mode": "Magnitude"
+          }
+        },
+        {
+          "type": "Button",
+          "name": "mute8",
+          "x": 7,
+          "y": 8,
+          "width": 1,
+          "height": 1,
+          "options": {
+            "mode": "Switch",
+            "active_color": "#ff2020",
+            "inactive_color": "#401010"
+          }
+        }
+      ]
+    },
+    {
+      "type": "Button",
+      "name": "record",
+      "x": 8,
+      "y": 8,
+      "width": 1,
+      "height": 1,
+      "options": {
+        "mode": "Switch",
+        "active_color": "#ff2020",
+        "inactive_color": "#ff202040"
+      }
+    },
+    {
+      "type": "Button",
+      "name": "play",
+      "x": 8,
+      "y": 7,
+      "width": 1,
+      "height": 1,
+      "options": {
+        "mode": "Switch",
+        "active_color": "#20ff40",
+        "inactive_color": "#20ff4040"
+      }
+    },
+    {
+      "type": "Button",
+      "name": "stop",
+      "x": 8,
+      "y": 6,
+      "width": 1,
+      "height": 1,
+      "options": {
+        "mode": "Button",
+        "active_color": "#ffd020",
+        "inactive_color": "#ffd02040"
+      }
+    }
+  ]
+}
