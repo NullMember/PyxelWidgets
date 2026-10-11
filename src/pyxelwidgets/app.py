@@ -11,10 +11,10 @@ class App():
     own threads; the shared lock keeps them from interleaving with rendering.
     """
 
-    def __init__(self, manager: pyxelwidgets.window.Manager, fps: float = 60.0, **kwargs):
+    def __init__(self, manager: pyxelwidgets.window.Manager, fps: float = 60.0, *, bpm: float = 120, ppq: int = 24):
         self.manager = manager
         self.fps = fps
-        self.clock = pyxelwidgets.clock.Clock(kwargs.get('bpm', 120), kwargs.get('ppq', 24), lock = manager.lock)
+        self.clock = pyxelwidgets.clock.Clock(bpm, ppq, lock = manager.lock)
         self.running = False
         self._closed = False
 
