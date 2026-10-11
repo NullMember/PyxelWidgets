@@ -2,7 +2,6 @@ import pyxelwidgets.buffer
 import pyxelwidgets.enums
 import pyxelwidgets.color
 import pyxelwidgets.rectangle
-import pyxelwidgets.clock
 import uuid
 import numpy
 import enum
@@ -1192,7 +1191,11 @@ class Knob(Widget):
 
 # Sequencer class
 class Sequencer(Widget):
-    def __init__(self, x: int, y: int, width: int, height: int, clock: pyxelwidgets.clock.Clock = None, **kwargs):
+    """
+    Step sequencer. Drive it by calling ``tick(tick)`` with a clock tick count
+    at ``ppq`` ticks per quarter note, e.g. ``clock.add_target(sequencer.tick)``.
+    """
+    def __init__(self, x: int, y: int, width: int, height: int, **kwargs):
         kwargs['name'] = kwargs.get('name', f'Sequencer_{Sequencer._count}')
         self.state = numpy.ndarray((1, 1), dtype = numpy.bool_)
         self._steps = kwargs.get('steps', width * height)
@@ -1209,14 +1212,7 @@ class Sequencer(Widget):
         self.ppq = kwargs.get('ppq', 24)
         self.current_color = kwargs.get('current_color', pyxelwidgets.color.Colors.Lime)
         self.current_active_color = kwargs.get('current_active_color', pyxelwidgets.color.Colors.Red)
-        self.target = pyxelwidgets.clock.Target(self.tick)
-        if clock != None:
-            self.add_to_clock(clock)
         Sequencer._count += 1
-    
-    def add_to_clock(self, clock: pyxelwidgets.clock.Clock):
-        self.ppq = clock.ppq
-        clock.add_target(self.target)
     
     @property
     def pages(self) -> int:
@@ -1370,7 +1366,8 @@ class Tracker(Widget):
     #     Continuous = enum.auto()
     #     Page = enum.auto()
 
-    def __init__(self, x: int = 0, y: int = 0, width: int = 1, height: int = 1, clock: pyxelwidgets.clock.Clock = None, **kwargs):
+    def __init__(self, x: int = 0, y: int = 0, width: int = 1, height: int = 1, **kwargs):
+        """Drive it like a Sequencer: ``clock.add_target(tracker.tick)``."""
         kwargs['name'] = kwargs.get('name', f'Tracker_{Tracker._count}')
         self.bars = kwargs.get('bars', 64)
         self.bars = self.bars if self.bars >= height else height
@@ -1388,14 +1385,7 @@ class Tracker(Widget):
         self.current_page = 0
         self.current_color = kwargs.get('current_color', pyxelwidgets.color.Colors.Cyan)
         self.current_active_color = kwargs.get('current_active_color', pyxelwidgets.color.Colors.Magenta)
-        self.target = pyxelwidgets.clock.Target(self.tick, name = self.name)
-        if clock != None:
-            self.add_to_clock(clock)
         Tracker._count += 1
-
-    def add_to_clock(self, clock: pyxelwidgets.clock.Clock):
-        self.ppq = clock.ppq
-        clock.add_target(self.target)
 
     def press(self, x: int, y: int, value: float):
         self.states[self.current_page, x, self.rect.h - 1 - y + self.current_top] = not self.states[self.current_page, x, self.rect.h - 1 - y + self.current_top]
