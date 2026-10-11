@@ -27,12 +27,18 @@ classifiers = [
 osc = ["python-osc >= 1.8"]
 test = ["pytest >= 7"]
 
+[project.scripts]
+pyxelwidgets-designer = "pyxelwidgets.designer.__main__:main"
+
 [project.urls]
 Homepage = "https://github.com/NullMember/PyxelWidgets"
 Issues = "https://github.com/NullMember/PyxelWidgets/issues"
 
 [tool.setuptools.dynamic]
 version = { attr = "pyxelwidgets.__version__" }
+
+[tool.setuptools.package-data]
+"pyxelwidgets.designer" = ["static/*"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
