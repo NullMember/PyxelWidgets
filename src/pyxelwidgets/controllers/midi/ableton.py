@@ -169,15 +169,15 @@ class Push2(pyxelwidgets.controllers.midi.MIDI):
             (26, 26, 26), (0, 0, 255), (0, 255, 0), (255, 0, 0)
         ])
 
-    def __init__(self, **kwargs):
-        super().__init__(**kwargs)
+    def __init__(self, *, width: int = 8, height: int = 8, **kwargs):
+        super().__init__(width = width, height = height, **kwargs)
         self._header = [0x00, 0x21, 0x1D, 0x01, 0x01]
     
     def send_command(self, command, *args):
         self.send_sysex(self._header + [command.value] + list(args))
     
     def set_midi_mode(self, mode):
-        self.send_command(Push2.Commands.SetMIDIMode.value, mode.value)
+        self.send_command(Push2.Commands.SetMIDIMode, mode.value)
     
     def connect(self, in_port: str = None, out_port: str = None):
         super().connect(in_port=in_port, out_port=out_port)
