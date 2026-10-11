@@ -1,5 +1,6 @@
 __all__ = ['Controller']
 
+import pyxelwidgets.buffer
 import pyxelwidgets.enums
 import pyxelwidgets.pixel
 import pyxelwidgets.rectangle
@@ -20,8 +21,8 @@ class Controller():
         self.initialized = False
         self.connected = False
         self.terminated = False
-        self.buffer = numpy.ndarray((self.rect.w, self.rect.h), pyxelwidgets.pixel.Pixel)
-        self.buffer.fill(pyxelwidgets.pixel.Colors.Invisible)
+        # What the device currently shows; starts transparent so the first frame is sent in full
+        self.buffer = pyxelwidgets.buffer.new(self.rect.w, self.rect.h)
         self.buttons = numpy.ndarray((self.rect.w, self.rect.h))
         self.buttons.fill(0.0)
         self.clock = pyxelwidgets.clock.Clock()
@@ -100,50 +101,32 @@ class Controller():
         raise NotImplementedError("send_pixel method must be implemented")
 
     def update_one(self, x: int, y: int, pixel: pyxelwidgets.pixel.Pixel):
-        if self.connected:
-            intersect = self.rect.intersect(pyxelwidgets.rectangle.Rectangle2D(x, y, 1, 1))
-            if intersect is not None:
-                if pixel != self.buffer[x, y]:
-                    self.buffer[x, y] = pixel
-                    self.send_pixel(x, y, pixel)
+        self.update_area(pyxelwidgets.rectangle.Rectangle2D(x, y, 1, 1), pixel)
 
     def update_row(self, y: int, pixel: pyxelwidgets.pixel.Pixel):
-        if self.connected:
-            intersect = self.rect.intersect(pyxelwidgets.rectangle.Rectangle2D(0, y, self.rect.w, 1))
-            if intersect is not None:
-                for x in intersect.columns:
-                    if pixel != self.buffer[x, y]:
-                        self.buffer[x, y] = pixel
-                        self.send_pixel(x, y, pixel)
+        self.update_area(pyxelwidgets.rectangle.Rectangle2D(0, y, self.rect.w, 1), pixel)
 
     def update_column(self, x: int, pixel: pyxelwidgets.pixel.Pixel):
-        if self.connected:
-            intersect = self.rect.intersect(pyxelwidgets.rectangle.Rectangle2D(x, 0, 1, self.rect.h))
-            if intersect is not None:
-                for y in intersect.rows:
-                    if pixel != self.buffer[x, y]:
-                        self.buffer[x, y] = pixel
-                        self.send_pixel(x, y, pixel)
+        self.update_area(pyxelwidgets.rectangle.Rectangle2D(x, 0, 1, self.rect.h), pixel)
     
     def update_area(self, rect: pyxelwidgets.rectangle.Rectangle2D, pixel: pyxelwidgets.pixel.Pixel):
         if self.connected:
             intersect = self.rect.intersect(rect)
             if intersect is not None:
-                for x in intersect.columns:
-                    for y in intersect.rows:
-                        if pixel != self.buffer[x, y]:
-                            self.buffer[x, y] = pixel
-                            self.send_pixel(x, y, pixel)
+                self._send(intersect, pyxelwidgets.buffer.new(intersect.w, intersect.h, pixel))
 
     def update(self, data: tuple):
         rect, buffer = data
-        if rect is not None:
-            if self.connected:
-                intersect = self.rect.intersect(rect)
-                if intersect is not None:
-                    updated = numpy.where(buffer[(intersect - rect).slice] != self.buffer[intersect.slice], True, False)
-                    for x in intersect.columns:
-                        for y in intersect.rows:
-                            if updated[x - intersect.x, y - intersect.y]:
-                                self.buffer[x, y] = buffer[x - intersect.x, y - intersect.y]
-                                self.send_pixel(x, y, self.buffer[x, y])
+        if rect is not None and self.connected:
+            intersect = self.rect.intersect(rect)
+            if intersect is not None:
+                self._send(intersect, buffer[(intersect - rect).slice])
+
+    def _send(self, rect: pyxelwidgets.rectangle.Rectangle2D, source: numpy.ndarray):
+        """Send the pixels of ``source`` (placed at ``rect``) that differ from what the device shows."""
+        current = self.buffer[rect.slice]
+        changed = numpy.any(source != current, axis = -1)
+        for dx, dy in numpy.argwhere(changed):
+            x, y = rect.x + int(dx), rect.y + int(dy)
+            current[dx, dy] = source[dx, dy]
+            self.send_pixel(x, y, pyxelwidgets.pixel.Pixel.from_array(source[dx, dy]))

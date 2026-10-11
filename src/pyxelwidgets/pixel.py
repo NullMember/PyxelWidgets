@@ -19,7 +19,7 @@ class Pixel():
                        int((self.acolor[1] ** 2.2) * self.gamma_coefficient),
                        int((self.acolor[2] ** 2.2) * self.gamma_coefficient)]
         
-        self._value = (int(self.alpha * 255) << 24) | (self.color[0] << 16) | (self.color[1] << 8) | self.color[2]
+        self._value = (int(round(self.alpha * 255)) << 24) | (self.color[0] << 16) | (self.color[1] << 8) | self.color[2]
 
     @property
     def a(self) -> int:
@@ -38,7 +38,7 @@ class Pixel():
                        int((self.acolor[2] ** 2.2) * self.gamma_coefficient)]
         
         self._value &= 0x00FFFFFF
-        self._value |= (int(self.alpha * 255) << 24)
+        self._value |= (int(round(self.alpha * 255)) << 24)
 
     @property
     def rgb(self):
@@ -187,7 +187,7 @@ class Pixel():
         palette = numpy.asarray(palette)
         deltas = palette - self.argb
         dist_2 = numpy.einsum('ij,ij->i', deltas, deltas)
-        return numpy.argmin(dist_2)
+        return int(numpy.argmin(dist_2))
 
     def __eq__(self, other) -> bool:
         if not isinstance(other, Pixel):
@@ -282,6 +282,21 @@ class Pixel():
     
     def __index__(self):
         return self._value
+
+    @property
+    def rgba(self) -> tuple:
+        """ Raw (red, green, blue, alpha) tuple, alpha scaled to 0-255 """
+        return self.color[0], self.color[1], self.color[2], int(round(self.alpha * 255))
+
+    def __array__(self, dtype = None, copy = None):
+        """ Lets a Pixel be assigned to frame buffer cells and slices """
+        return numpy.array(self.rgba, dtype = numpy.uint8 if dtype is None else dtype)
+
+    @classmethod
+    def from_array(cls, rgba):
+        """ Create a Pixel from a frame buffer cell """
+        r, g, b, a = (int(v) for v in rgba)
+        return cls(r, g, b, a / 255.0)
 
     def __repr__(self) -> str:
         return f'({self.color.__repr__()}, {self.alpha.__repr__()})'

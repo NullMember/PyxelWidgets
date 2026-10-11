@@ -42,7 +42,7 @@ class Engine():
             return self.effects[name].value(self.counter._step)
     
     def apply(self, name: str, buffer: numpy.ndarray) -> numpy.ndarray:
-        return buffer * self.effects[name].value(self.counter._step)
+        return self.effects[name].apply(self.counter._step, buffer)
 
 class Counter():
 
@@ -131,7 +131,10 @@ class Effect():
         return self.values[step]
 
     def apply(self, step: int, buffer: numpy.ndarray) -> numpy.ndarray:
-        return buffer * self.values[step]
+        """Return a copy of an RGBA buffer with its color (not alpha) scaled by this step's value."""
+        result = buffer.copy()
+        result[..., :3] = numpy.clip(numpy.rint(buffer[..., :3] * self.values[step]), 0, 255)
+        return result
 
 class Gaussian(Effect):
     def __init__(self, gauss = 0.25, **kwargs) -> None:

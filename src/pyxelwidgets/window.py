@@ -13,8 +13,7 @@ class Window():
         self.name = kwargs.get('name', f'Window_{Window._count}')
         self.rect = pyxelwidgets.rectangle.Rectangle2D(0, 0, width, height)
         self.widgets = {}
-        self.buffer = numpy.ndarray((self.rect.w, self.rect.h), pyxelwidgets.pixel.Pixel)
-        self.buffer.fill(pyxelwidgets.pixel.Colors.Invisible)
+        self.buffer = pyxelwidgets.buffer.new(self.rect.w, self.rect.h)
         self.frame_counter = 0
         self.callback = kwargs.get('callback', lambda *_, **__: None)
         Window._count += 1
@@ -51,17 +50,30 @@ class Window():
     def set_callback(self, callback) -> None:
         self.callback = callback
 
-    def update_area(self, rect: pyxelwidgets.rectangle.Rectangle2D):
-        self.callback(self.name, pyxelwidgets.enums.Event.Frame, self.frame_counter)
-        self.frame_counter += 1
-        intersect = self.rect.intersect(rect)
-        if intersect:
+    def render(self) -> bool:
+        """Redraw changed widgets and recompose; returns True if the buffer changed."""
+        with self.lock:
+            self.callback(self.name, pyxelwidgets.enums.Event.Frame, self.frame_counter)
+            self.frame_counter += 1
+            dirty = self._dirty
             for widget in list(self.widgets.values()):
                 if widget.updated:
-                    area, buffer = widget.update_area(intersect)
-                    if buffer is not None:
-                        view = self.buffer[area.slice]
-                        view[:] = buffer
+                    widget.update_area(widget.rect)
+                    dirty = True
+            if dirty:
+                self.buffer[:] = 0
+                for widget in self.widgets.values():
+                    intersect = self.rect.intersect(widget.rect)
+                    if intersect is not None:
+                        source = widget.buffer[(intersect - widget.rect).slice]
+                        pyxelwidgets.buffer.composite(self.buffer[intersect.slice], source)
+                self._dirty = False
+            return dirty
+
+    def update_area(self, rect: pyxelwidgets.rectangle.Rectangle2D):
+        self.render()
+        intersect = self.rect.intersect(rect)
+        if intersect:
             return intersect, self.buffer[intersect.slice]
         return None, None
 
@@ -77,8 +89,7 @@ class Manager():
         self.windows = {}
         self.controllers = {}
         self.rect = pyxelwidgets.rectangle.Rectangle2D(0, 0, width, height)
-        self.buffer = numpy.ndarray((self.rect.w, self.rect.h), pyxelwidgets.pixel.Pixel)
-        self.buffer.fill(pyxelwidgets.pixel.Colors.Invisible)
+        self.buffer = pyxelwidgets.buffer.new(self.rect.w, self.rect.h, pyxelwidgets.pixel.Colors.Black)
         self.callback = kwargs.get('callback', lambda *_, **__: None)
         Manager._count += 1
     
