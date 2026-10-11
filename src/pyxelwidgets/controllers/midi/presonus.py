@@ -38,10 +38,8 @@ class ATOM(pyxelwidgets.controllers.midi.MIDI):
         Enable = 127
         Disable = 0
 
-    def __init__(self, **kwargs):
-        kwargs['width'] = kwargs.get('width', 4)
-        kwargs['height'] = kwargs.get('height', 4)
-        super().__init__(**kwargs)
+    def __init__(self, *, width: int = 4, height: int = 4, **kwargs):
+        super().__init__(width = width, height = height, **kwargs)
 
     def set_native_control(self, state):
         self.send_note_off(0, state.value, 15)

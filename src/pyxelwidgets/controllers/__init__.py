@@ -10,13 +10,26 @@ import time
 
 class Controller():
 
-    _count = 0
+    # Per class counters for default names (MK3_0, Virtual_0, ...)
+    _counts = {}
 
-    def __init__(self, **kwargs):
-        self.name = kwargs.get('name', f'Controller_{Controller._count}')
-        self.rect = pyxelwidgets.rectangle.Rectangle2D(kwargs.get('x', 0), kwargs.get('y', 0), kwargs.get('width', 1), kwargs.get('height', 1))
-        self.held_time = kwargs.get('held_time', 1.0)
-        self.double_press_time = kwargs.get('double_press_time', 0.15)
+    def __init__(self, *,
+                 name: str | None = None,
+                 x: int = 0,
+                 y: int = 0,
+                 width: int = 1,
+                 height: int = 1,
+                 held_time: float = 1.0,
+                 double_press_time: float = 0.15):
+        if name is None:
+            cls = type(self).__name__
+            count = Controller._counts.get(cls, 0)
+            Controller._counts[cls] = count + 1
+            name = f'{cls}_{count}'
+        self.name = name
+        self.rect = pyxelwidgets.rectangle.Rectangle2D(x, y, width, height)
+        self.held_time = held_time
+        self.double_press_time = double_press_time
         self.initialized = False
         self.connected = False
         self.terminated = False
@@ -28,7 +41,6 @@ class Controller():
         self._press_time.fill(0.0)
         self._held = numpy.ndarray((self.rect.w, self.rect.h), threading.Timer)
         self.callback = lambda *_, **__ : None
-        Controller._count += 1
 
     def set_callback(self, callback):
         self.callback = callback

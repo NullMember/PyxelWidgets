@@ -56,10 +56,8 @@ class MK1(pyxelwidgets.controllers.midi.MIDI):
     
     colors = [0x0C, 0x0D, 0x0F, 0x1D, 0x3F, 0x3E, 0x1C, 0x3C]
 
-    def __init__(self, **kwargs):
-        kwargs['width'] = kwargs.get('width', 9)
-        kwargs['height'] = kwargs.get('height', 2)
-        super().__init__(**kwargs)
+    def __init__(self, *, width: int = 9, height: int = 2, **kwargs):
+        super().__init__(width = width, height = height, **kwargs)
 
     def set_mode(self, mode: Mode):
         self.send_note_on(0x0C, mode.value)
@@ -152,10 +150,8 @@ class MK2(pyxelwidgets.controllers.midi.MIDI):
                            (159, 0, 0), (55, 0, 0), (27, 207, 0), (7, 67, 0), 
                            (183, 175, 0), (63, 51, 0), (179, 95, 0), (75, 23, 0)])
     
-    def __init__(self, **kwargs):
-        kwargs['width'] = kwargs.get('width', 8)
-        kwargs['height'] = kwargs.get('height', 2)
-        super().__init__(**kwargs)
+    def __init__(self, *, width: int = 8, height: int = 2, **kwargs):
+        super().__init__(width = width, height = height, **kwargs)
 
     def set_mode(self, mode: Mode):
         self.send_note_on(0x0C, mode.value, 0xF)
@@ -243,10 +239,8 @@ class MK3(pyxelwidgets.controllers.midi.MIDI):
                            (159, 0, 0), (55, 0, 0), (27, 207, 0), (7, 67, 0), 
                            (183, 175, 0), (63, 51, 0), (179, 95, 0), (75, 23, 0)])
     
-    def __init__(self, **kwargs):
-        kwargs['width'] = kwargs.get('width', 8)
-        kwargs['height'] = kwargs.get('height', 2)
-        super().__init__(**kwargs)
+    def __init__(self, *, width: int = 8, height: int = 2, **kwargs):
+        super().__init__(width = width, height = height, **kwargs)
 
     def set_mode(self, mode: Mode):
         self.send_note_on(12, mode.value, 15)

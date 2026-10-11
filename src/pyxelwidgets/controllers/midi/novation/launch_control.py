@@ -55,11 +55,9 @@ class MK1(pyxelwidgets.controllers.midi.MIDI):
     """ 
     Controller Class for Launchpad, Launchpad S, Launchpad Mini, Launchpad Mini MK2
     """
-    def __init__(self, **kwargs):
-        kwargs['width'] = kwargs.get('width', 8)
-        kwargs['height'] = kwargs.get('height', 16)
+    def __init__(self, *, width: int = 8, height: int = 16, **kwargs):
         self.current_template = MK1.Templates.User_0
-        super().__init__(**kwargs)
+        super().__init__(width = width, height = height, **kwargs)
     
     def reset(self, template):
         self.send_control_change(0, 0, template.value)
@@ -182,11 +180,9 @@ class XL(pyxelwidgets.controllers.midi.MIDI):
     """ 
     Controller Class for Launchpad, Launchpad S, Launchpad Mini, Launchpad Mini MK2
     """
-    def __init__(self, **kwargs):
-        kwargs['width'] = kwargs.get('width', 8)
-        kwargs['height'] = kwargs.get('height', 5)
+    def __init__(self, *, width: int = 8, height: int = 5, **kwargs):
         self.current_template = XL.Templates.User_0
-        super().__init__(**kwargs)
+        super().__init__(width = width, height = height, **kwargs)
     
     def reset(self, template):
         self.send_control_change(0, 0, template.value)

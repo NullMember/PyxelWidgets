@@ -18,10 +18,8 @@ class MK1(pyxelwidgets.controllers.midi.MIDI):
     """ 
     Controller Class for Launchpad, Launchpad S, Launchpad Mini, Launchpad Mini MK2
     """
-    def __init__(self, **kwargs):
-        kwargs['width'] = kwargs.get('width', 9)
-        kwargs['height'] = kwargs.get('height', 9)
-        super().__init__(**kwargs)
+    def __init__(self, *, width: int = 9, height: int = 9, **kwargs):
+        super().__init__(width = width, height = height, **kwargs)
 
     def set_layout(self, layout: Layout):
         self.send_control_change(0, layout.value)
@@ -69,10 +67,8 @@ class MK2(pyxelwidgets.controllers.midi.MIDI):
         Volume      = 4
         Pan         = 5
 
-    def __init__(self, **kwargs):
-        kwargs['width'] = kwargs.get('width', 9)
-        kwargs['height'] = kwargs.get('height', 9)
-        super().__init__(**kwargs)
+    def __init__(self, *, width: int = 9, height: int = 9, **kwargs):
+        super().__init__(width = width, height = height, **kwargs)
         self._header = [0x00, 0x20, 0x29, 0x02, 0x18]
         self._sysex_buffer = collections.deque(maxlen = 1024)
     
@@ -186,10 +182,8 @@ class MK3(pyxelwidgets.controllers.midi.MIDI):
         DAW                         = 0
         Programmer                  = 1
 
-    def __init__(self, model, **kwargs):
-        kwargs['width'] = kwargs.get('width', 10)
-        kwargs['height'] = kwargs.get('height', 10)
-        super().__init__(**kwargs)
+    def __init__(self, model, *, width: int = 10, height: int = 10, **kwargs):
+        super().__init__(width = width, height = height, **kwargs)
         self._model = model
         self._header = [0x00, 0x20, 0x29, 0x02, self._model.value]
         self._sysex_buffer = collections.deque(maxlen = 1024)
@@ -271,10 +265,8 @@ class Pro(pyxelwidgets.controllers.midi.MIDI):
         Fader       = 2
         Programmer  = 3
 
-    def __init__(self, **kwargs):
-        kwargs['width'] = kwargs.get('width', 10)
-        kwargs['height'] = kwargs.get('height', 10)
-        super().__init__(**kwargs)
+    def __init__(self, *, width: int = 10, height: int = 10, **kwargs):
+        super().__init__(width = width, height = height, **kwargs)
         self._header = [0x00, 0x20, 0x29, 0x02, 0x10]
         self._sysex_buffer = collections.deque(maxlen = 1024)
     

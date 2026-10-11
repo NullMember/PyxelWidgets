@@ -153,10 +153,8 @@ class MK2(pyxelwidgets.controllers.midi.MIDI):
         (185, 176, 0), (63, 49, 0), (179, 95, 0), (75, 21, 2)
     ])
 
-    def __init__(self, **kwargs):
-        kwargs['width'] = kwargs.get('width', 8)
-        kwargs['height'] = kwargs.get('height', 5)
-        super().__init__(**kwargs)
+    def __init__(self, *, width: int = 8, height: int = 5, **kwargs):
+        super().__init__(width = width, height = height, **kwargs)
         self.device_id = 0x7F
     
     def change_mode(self, mode):

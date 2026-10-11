@@ -52,10 +52,8 @@ class Mini(pyxelwidgets.controllers.midi.MIDI):
         Fader_8 = 55
         Fader_9 = 56
 
-    def __init__(self, **kwargs):
-        kwargs['width'] = kwargs.get('width', 8)
-        kwargs['height'] = kwargs.get('height', 8)
-        super().__init__(**kwargs)
+    def __init__(self, *, width: int = 8, height: int = 8, **kwargs):
+        super().__init__(width = width, height = height, **kwargs)
         self.color_list = [Mini.Colors.Off, Mini.Colors.Red, Mini.Colors.Yellow, Mini.Colors.Green]
     
     def send_color(self, x: int, y: int, color):
