@@ -1,7 +1,6 @@
 from pyxelwidgets.controllers.virtual import Virtual
 from pyxelwidgets.controllers.midi import MIDI
-from pyxelwidgets import ButtonGroup, Event, Fader, Keyboard, Window
-import time
+from pyxelwidgets import App, ButtonGroup, Event, Fader, Keyboard, Manager, Window
 
 def keyboard_callback(name, event, data):
     if event == Event.Changed:
@@ -39,16 +38,15 @@ window.add_widget(volume_fader)
 grid_controller = Virtual(9, 9)
 grid_controller.init()
 grid_controller.connect()
-grid_controller.set_callback(window.process)
+
+manager = Manager(9, 9)
+manager.add_window(window, 0, 0, 9, 9)
+manager.add_controller(grid_controller, 0, 0)
 
 keyboard_controller = MIDI()
 keyboard_controller.init()
 keyboard_controller.connect_virtual("Keyboard")
 
-while True:
-    try:
-        grid_controller.update(window.update())
-        time.sleep(1 / 60)
-    except KeyboardInterrupt:
-        grid_controller.close()
-        break
+# Runs until Ctrl+C or the grid window is closed
+App(manager).run()
+keyboard_controller.close()

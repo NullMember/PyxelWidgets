@@ -1,7 +1,6 @@
 from pyxelwidgets.controllers.virtual import Virtual
 from pyxelwidgets.controllers.midi import MIDI
-from pyxelwidgets import Button, Colors, Event, Fader, Pixel, Window
-import time
+from pyxelwidgets import App, Button, Colors, Event, Fader, Manager, Pixel, Window
 import random
 import enum
 
@@ -24,13 +23,17 @@ class DAW(MIDI):
         super().__init__(**kwargs)
     
     def process_midi(self, message, _):
-        data, delta = message
+        # Called on rtmidi's thread: hold the app lock while changing widgets
+        with app.lock:
+            self.update_widgets(message[0])
+
+    def update_widgets(self, data):
         cmd = data[0] & 0xF0
         chn = data[0] & 0x0F
         if cmd == 0x90: # MCU Leds
             button = data[1]
             value = data[2]
-            if button >= DAW.Buttons.MUTE_0.value and button < DAW.Buttons.MUTE_7.value: # MUTE1-8
+            if button >= DAW.Buttons.MUTE_0.value and button <= DAW.Buttons.MUTE_7.value: # MUTE1-8
                 window.widgets[f"Mute_{button - 16}"].value = 1.0 if value else 0.0
             elif button == DAW.Buttons.STOP.value: # STOP
                 window.widgets["Stop"].value = 1.0 if value else 0.0
@@ -110,17 +113,16 @@ window.add_widget(Button(
 grid_controller = Virtual(9, 9)
 grid_controller.init()
 grid_controller.connect()
-grid_controller.set_callback(window.process)
+
+manager = Manager(9, 9)
+manager.add_window(window, 0, 0, 9, 9)
+manager.add_controller(grid_controller, 0, 0)
+app = App(manager)
 
 daw_controller = DAW()
 daw_controller.init()
 daw_controller.connect_virtual("DAW")
 
-while True:
-    try:
-        grid_controller.update(window.update())
-        time.sleep(1 / 60)
-    except KeyboardInterrupt:
-        grid_controller.close()
-        daw_controller.close()
-        break
+# Runs until Ctrl+C or the grid window is closed
+app.run()
+daw_controller.close()

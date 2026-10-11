@@ -1,8 +1,7 @@
 from pyxelwidgets.controllers.virtual import Virtual
 from pyxelwidgets.controllers.midi import MIDI
-from pyxelwidgets import (Button, ButtonGroup, Colors, Event, Fader, Keyboard, Knob,
+from pyxelwidgets import (App, Button, ButtonGroup, Colors, Event, Fader, Keyboard, Knob,
                           Manager, Pixel, Sequencer, Window)
-import time
 import random
 
 def button_callback(name: str, event: str, data):
@@ -97,7 +96,7 @@ def sequencer_callback(name: str, event: str, data):
             sequencer_window.force_update()
 
 controller = Virtual(9, 9)
-controller.init(True)
+controller.init()
 controller.connect()
 
 keyboard = MIDI()
@@ -119,6 +118,7 @@ manager = Manager(9, 9)
 manager.add_window(top_button_window, 0, 8, 8, 1)
 manager.add_window(windows[current_window], 0, 0, 9, 8)
 manager.add_controller(controller, 0, 0)
+app = App(manager, bpm = 60)
 
 top_button_window.add_widget(
     ButtonGroup(
@@ -203,7 +203,7 @@ for i in range(16):
     sequencer_widgets.append(
         Sequencer(
             x = 0, y = 4, width = 8, height = 4, 
-            clock = controller.clock, 
+            clock = app.clock, 
             callback = sequencer_callback)
     )
 
@@ -224,10 +224,6 @@ sequencer_window.add_widget(
 current_sequencer = 0
 
 if __name__ == "__main__":
-    while True:
-        try:
-            manager.update()
-            time.sleep(1 / 60)
-        except KeyboardInterrupt:
-            manager.destroy()
-            break
+    # Runs until Ctrl+C or the grid window is closed
+    app.run()
+    keyboard.close()
