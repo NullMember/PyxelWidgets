@@ -44,6 +44,9 @@ class Controller():
     def close(self):
         if self.connected:
             self.disconnect()
+        for timer in self._held.flat:
+            if timer is not None:
+                timer.cancel()
         self.clock.terminate()
         self.terminated = True
 
@@ -71,6 +74,8 @@ class Controller():
     
     def setPressed(self, x: int, y: int) -> None:
         currentTime = time.time()
+        if self._held[x, y] is not None:
+            self._held[x, y].cancel()
         self._held[x, y] = threading.Timer(interval = self.heldTime, function = self.setHeld, args = (x, y))
         self._held[x, y].start()
         self.callback(self.name, PyxelWidgets.Utils.Enums.Event.Pressed, (x, y, self.buttons[x, y]))
@@ -79,7 +84,10 @@ class Controller():
         self._pressTime[x, y] = currentTime
 
     def setReleased(self, x: int, y: int) -> None:
-        self._held[x, y].cancel()
+        # Release can arrive without a press, e.g. pad held while connecting
+        if self._held[x, y] is not None:
+            self._held[x, y].cancel()
+            self._held[x, y] = None
         self.callback(self.name, PyxelWidgets.Utils.Enums.Event.Released, (x, y, self.buttons[x, y]))
     
     def setHeld(self, x: int, y: int) -> None:
