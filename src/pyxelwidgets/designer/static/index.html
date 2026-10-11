@@ -1,0 +1,70 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>PyxelWidgets Designer</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <header class="bar">
+    <div class="brand">PyxelWidgets <span>Designer</span></div>
+    <div class="file" id="file" title="Layout file"></div>
+    <div class="tools">
+      <div class="segmented" role="group" aria-label="Mode">
+        <button id="mode-edit" class="active" title="Place and configure widgets (E)">Edit</button>
+        <button id="mode-try" title="Press pads to try the widgets (T)">Try</button>
+      </div>
+      <button id="clock" title="Run the clock so Sequencers and Trackers play">▶ Clock</button>
+      <span class="divider"></span>
+      <button id="undo" title="Undo (Ctrl+Z)">Undo</button>
+      <button id="redo" title="Redo (Ctrl+Shift+Z)">Redo</button>
+      <span class="divider"></span>
+      <button id="open" title="Open a layout file">Open…</button>
+      <input type="file" id="open-file" accept=".json,application/json" hidden>
+      <button id="download" title="Download the layout as JSON">Download</button>
+      <button id="save" class="primary" title="Save to the layout file (Ctrl+S)">Save</button>
+    </div>
+  </header>
+  <main>
+    <aside class="panel" id="left">
+      <section>
+        <h2>Widgets</h2>
+        <p class="hint" id="palette-hint">Click to add to the surface.</p>
+        <div id="palette" class="palette"></div>
+      </section>
+      <section>
+        <h2>Devices</h2>
+        <div class="row">
+          <select id="device-type" aria-label="Device type"></select>
+          <button id="add-device">Add</button>
+        </div>
+        <ul id="devices" class="list"></ul>
+      </section>
+      <section class="grow">
+        <h2>Layers</h2>
+        <ul id="tree" class="tree"></ul>
+      </section>
+    </aside>
+    <section id="stage">
+      <div id="board">
+        <div id="pads"></div>
+        <div id="overlay"></div>
+      </div>
+      <div id="status" role="status"></div>
+    </section>
+    <aside class="panel" id="right">
+      <section id="properties"></section>
+      <section class="grow">
+        <h2>Events <button id="clear-events" class="link">clear</button></h2>
+        <ol id="events" class="events"></ol>
+      </section>
+      <section>
+        <h2>Python <button id="copy-code" class="link">copy</button></h2>
+        <pre id="code"></pre>
+      </section>
+    </aside>
+  </main>
+  <script type="module" src="app.js"></script>
+</body>
+</html>
