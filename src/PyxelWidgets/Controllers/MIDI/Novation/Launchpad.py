@@ -121,8 +121,8 @@ class MK2(PyxelWidgets.Controllers.MIDI.MIDI):
             self.sendSysex(self._header + [3] + list(self._sysexBuffer))
             self._sysexBuffer.clear()
 
-    def updateArea(self, x: int, y: int, width: int, height: int, pixel: PyxelWidgets.Utils.Pixel.Pixel):
-        super().updateArea(x, y, width, height, pixel)
+    def updateArea(self, rect: PyxelWidgets.Utils.Rectangle.Rectangle2D, pixel: PyxelWidgets.Utils.Pixel.Pixel):
+        super().updateArea(rect, pixel)
         if len(self._sysexBuffer):
             self.sendSysex(self._header + [3] + list(self._sysexBuffer))
             self._sysexBuffer.clear()
@@ -249,8 +249,8 @@ class MK3(PyxelWidgets.Controllers.MIDI.MIDI):
             self.sendSysex(self._header + [3] + list(self._sysexBuffer))
             self._sysexBuffer.clear()
 
-    def updateArea(self, x: int, y: int, width: int, height: int, pixel: PyxelWidgets.Utils.Pixel.Pixel):
-        super().updateArea(x, y, width, height, pixel)
+    def updateArea(self, rect: PyxelWidgets.Utils.Rectangle.Rectangle2D, pixel: PyxelWidgets.Utils.Pixel.Pixel):
+        super().updateArea(rect, pixel)
         if len(self._sysexBuffer):
             self.sendSysex(self._header + [3] + list(self._sysexBuffer))
             self._sysexBuffer.clear()
@@ -321,8 +321,8 @@ class Pro(PyxelWidgets.Controllers.MIDI.MIDI):
             self.sendSysex(self._header + [3] + list(self._sysexBuffer))
             self._sysexBuffer.clear()
 
-    def updateArea(self, x: int, y: int, width: int, height: int, pixel: PyxelWidgets.Utils.Pixel.Pixel):
-        super().updateArea(x, y, width, height, pixel)
+    def updateArea(self, rect: PyxelWidgets.Utils.Rectangle.Rectangle2D, pixel: PyxelWidgets.Utils.Pixel.Pixel):
+        super().updateArea(rect, pixel)
         if len(self._sysexBuffer):
             self.sendSysex(self._header + [3] + list(self._sysexBuffer))
             self._sysexBuffer.clear()
