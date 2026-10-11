@@ -1,17 +1,15 @@
-from PyxelWidgets.Controllers.Virtual import Virtual
-from PyxelWidgets.Controllers.MIDI import MIDI
-from PyxelWidgets.Utils.Enums import Event
-from PyxelWidgets.Window import Window
-from PyxelWidgets.Widgets import *
+from pyxelwidgets.controllers.virtual import Virtual
+from pyxelwidgets.controllers.midi import MIDI
+from pyxelwidgets import ButtonGroup, Event, Fader, Keyboard, Window
 import time
 
 def keyboard_callback(name, event, data):
     if event == Event.Changed:
         note, velocity = data
         if velocity > 0.0:
-            keyboard_controller.sendNoteOn(note, int(velocity * volume_fader.value * 127.0))
+            keyboard_controller.send_note_on(note, int(velocity * volume_fader.value * 127.0))
         else:
-            keyboard_controller.sendNoteOff(note)
+            keyboard_controller.send_note_off(note)
 
 def button_callback(name, event, data):
     if event == Event.Pressed:
@@ -34,18 +32,18 @@ octave_buttons.tapped(5, 0)
 volume_fader = Fader(8, 0, 1, 8)
 volume_fader.tapped(0, 5)
 
-window.addWidget(keyboard_widget)
-window.addWidget(octave_buttons)
-window.addWidget(volume_fader)
+window.add_widget(keyboard_widget)
+window.add_widget(octave_buttons)
+window.add_widget(volume_fader)
 
 grid_controller = Virtual(9, 9)
 grid_controller.init()
 grid_controller.connect()
-grid_controller.setCallback(window.process)
+grid_controller.set_callback(window.process)
 
 keyboard_controller = MIDI()
 keyboard_controller.init()
-keyboard_controller.connectVirtual("Keyboard")
+keyboard_controller.connect_virtual("Keyboard")
 
 while True:
     try:

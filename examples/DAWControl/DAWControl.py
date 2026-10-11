@@ -1,9 +1,6 @@
-from PyxelWidgets.Controllers.Virtual import Virtual
-from PyxelWidgets.Controllers.MIDI import MIDI
-from PyxelWidgets.Utils.Enums import Event
-from PyxelWidgets.Utils.Pixel import Pixel, Colors
-from PyxelWidgets.Window import Window
-from PyxelWidgets.Widgets import *
+from pyxelwidgets.controllers.virtual import Virtual
+from pyxelwidgets.controllers.midi import MIDI
+from pyxelwidgets import Button, Colors, Event, Fader, Pixel, Window
 import time
 import random
 import enum
@@ -26,7 +23,7 @@ class DAW(MIDI):
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
     
-    def processMIDI(self, message, _):
+    def process_midi(self, message, _):
         data, delta = message
         cmd = data[0] & 0xF0
         chn = data[0] & 0x0F
@@ -50,32 +47,32 @@ def fader_callback(name, event, data):
     name, index = name.split("_")
     index = int(index)
     if event == Event.Changed:
-        daw_controller.sendPitchBend(int(data * 16383.0), index)
+        daw_controller.send_pitch_bend(int(data * 16383.0), index)
 
 def button_callback(name, event, data):
     if event == Event.Changed:
         if "Mute" in name:
             name, index = name.split("_")
             index = int(index)
-            daw_controller.sendNoteOn(DAW.Buttons.MUTE_0.value + index, 127)
-            daw_controller.sendNoteOff(DAW.Buttons.MUTE_0.value + index, 0)
+            daw_controller.send_note_on(DAW.Buttons.MUTE_0.value + index, 127)
+            daw_controller.send_note_off(DAW.Buttons.MUTE_0.value + index, 0)
         if name == "Stop":
-            daw_controller.sendNoteOn(DAW.Buttons.STOP.value, 127)
-            daw_controller.sendNoteOff(DAW.Buttons.STOP.value, 0)
+            daw_controller.send_note_on(DAW.Buttons.STOP.value, 127)
+            daw_controller.send_note_off(DAW.Buttons.STOP.value, 0)
         if name == "Play":
-            daw_controller.sendNoteOn(DAW.Buttons.PLAY.value, 127 if data else 0)
-            daw_controller.sendNoteOff(DAW.Buttons.PLAY.value, 0)
+            daw_controller.send_note_on(DAW.Buttons.PLAY.value, 127 if data else 0)
+            daw_controller.send_note_off(DAW.Buttons.PLAY.value, 0)
         if name == "Record":
-            daw_controller.sendNoteOn(DAW.Buttons.RECORD.value, 127 if data else 0)
-            daw_controller.sendNoteOff(DAW.Buttons.RECORD.value, 0)
+            daw_controller.send_note_on(DAW.Buttons.RECORD.value, 127 if data else 0)
+            daw_controller.send_note_off(DAW.Buttons.RECORD.value, 0)
 
 window = Window(9, 9)
 for i in range(8):
-    window.addWidget(
+    window.add_widget(
         Fader(
             x = i, y = 0, width = 1, height = 8, 
             name = f"Fader_{i}", 
-            activeColor = Pixel(
+            active_color = Pixel(
                 r = random.randint(0, 255), 
                 g = random.randint(0, 255), 
                 b = random.randint(0, 255)
@@ -85,39 +82,39 @@ for i in range(8):
     )
 
 for i in range(8):
-    window.addWidget(
+    window.add_widget(
         Button(
             x = i, y = 8, width = 1, height = 1, 
             name = f"Mute_{i}", mode = Button.Mode.Switch,
-            activeColor = Colors.Red,
-            deactiveColor = Colors.DarkRed,
+            active_color = Colors.Red,
+            inactive_color = Colors.DarkRed,
             lock = True, callback = button_callback)
     )
 
-window.addWidget(Button(
+window.add_widget(Button(
     x = 8, y = 0, width = 1, height = 1, 
     name = "Record", callback = button_callback, lock = True, 
-    activeColor = Colors.Red, deactiveColor = Colors.Red * 0.5)
+    active_color = Colors.Red, inactive_color = Colors.Red * 0.5)
 )
-window.addWidget(Button(
+window.add_widget(Button(
     x = 8, y = 1, width = 1, height = 1, 
     name = "Play", callback = button_callback, lock = True, 
-    activeColor = Colors.Green, deactiveColor = Colors.Green * 0.5)
+    active_color = Colors.Green, inactive_color = Colors.Green * 0.5)
 )
-window.addWidget(Button(
+window.add_widget(Button(
     x = 8, y = 2, width = 1, height = 1, 
     name = "Stop", callback = button_callback, lock = True, 
-    activeColor = Colors.Yellow, deactiveColor = Colors.Yellow * 0.5)
+    active_color = Colors.Yellow, inactive_color = Colors.Yellow * 0.5)
 )
 
 grid_controller = Virtual(9, 9)
 grid_controller.init()
 grid_controller.connect()
-grid_controller.setCallback(window.process)
+grid_controller.set_callback(window.process)
 
 daw_controller = DAW()
 daw_controller.init()
-daw_controller.connectVirtual("DAW")
+daw_controller.connect_virtual("DAW")
 
 while True:
     try:

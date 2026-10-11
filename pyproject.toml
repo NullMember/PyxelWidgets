@@ -1,6 +1,39 @@
 [build-system]
-requires = [
-    "setuptools >= 42",
-    "wheel"
-]
+requires = ["setuptools >= 77"]
 build-backend = "setuptools.build_meta"
+
+[project]
+name = "pyxelwidgets"
+dynamic = ["version"]
+description = "GUI framework for low resolution devices (e.g. Novation Launchpad, LED keyboards)"
+readme = "README.md"
+license = "MIT"
+license-files = ["LICENSE"]
+authors = [{ name = "Malik Enes Şafak", email = "e.maliksafak@gmail.com" }]
+requires-python = ">= 3.10"
+dependencies = [
+    "numpy >= 1.23",
+    "python-rtmidi >= 1.5",
+]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Developers",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Topic :: Multimedia :: Sound/Audio :: MIDI",
+]
+
+[project.optional-dependencies]
+osc = ["python-osc >= 1.8"]
+test = ["pytest >= 7"]
+
+[project.urls]
+Homepage = "https://github.com/NullMember/PyxelWidgets"
+Issues = "https://github.com/NullMember/PyxelWidgets/issues"
+
+[tool.setuptools.dynamic]
+version = { attr = "pyxelwidgets.__version__" }
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["src"]

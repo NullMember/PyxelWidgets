@@ -1,51 +1,48 @@
-from PyxelWidgets.Controllers.Virtual import Virtual
-from PyxelWidgets.Controllers.MIDI import MIDI
-from PyxelWidgets.Window import Window, Manager
-from PyxelWidgets.Utils.Enums import *
-from PyxelWidgets.Utils.Rectangle import *
-from PyxelWidgets.Utils.Pixel import *
-from PyxelWidgets.Widgets import *
+from pyxelwidgets.controllers.virtual import Virtual
+from pyxelwidgets.controllers.midi import MIDI
+from pyxelwidgets import (Button, ButtonGroup, Colors, Event, Fader, Keyboard, Knob,
+                          Manager, Pixel, Sequencer, Window)
 import time
 import random
 
-def buttonCallback(name: str, event: str, data):
-    global currentWindow
+def button_callback(name: str, event: str, data):
+    global current_window
     x, y = data
     if event == Event.Pressed:
-        if windows[currentWindow] == sequencerWindow:
-            sequencerWindow.removeWidget(sequencerWidgets[currentSequencer].name)
-        if windows[currentWindow] == keyboardWindow:
-            manager.removeWindow(keyboardConfigWindow.name)
-        manager.removeWindow(windows[currentWindow].name)
-        currentWindow = x
-        manager.addWindow(windows[currentWindow], 0, 0, 9, 8)
-        if windows[currentWindow] == sequencerWindow:
-            sequencerWindow.addWidget(sequencerWidgets[currentSequencer])
+        if windows[current_window] == sequencer_window:
+            sequencer_window.remove_widget(sequencer_widgets[current_sequencer].name)
+        if windows[current_window] == keyboard_window:
+            manager.remove_window(keyboard_config_window.name)
+        manager.remove_window(windows[current_window].name)
+        current_window = x
+        manager.add_window(windows[current_window], 0, 0, 9, 8)
+        if windows[current_window] == sequencer_window:
+            sequencer_window.add_widget(sequencer_widgets[current_sequencer])
 
-def faderCallback(name: str, event: str, data):
+def fader_callback(name: str, event: str, data):
     if event == Event.Changed:
         index = name.split("_")[1]
         index = int(index)
-        keyboard.sendControlChange(index + 8, int(data * 127.0))
+        keyboard.send_control_change(index + 8, int(data * 127.0))
 
-def knobCallback(name: str, event: str, data):
+def knob_callback(name: str, event: str, data):
     if event == Event.Changed:
         index = name.split("_")[1]
         index = int(index)
-        keyboard.sendControlChange(index + 16, int(data * 127.0))
+        keyboard.send_control_change(index + 16, int(data * 127.0))
 
-def keyboardCallback(name: str, event: str, data):
+def keyboard_callback(name: str, event: str, data):
     if name == "Keyboard":
         if event == Event.Changed:
             note, velocity = data
-            keyboard.sendNoteOn(note, int(velocity * 127.0))
+            keyboard.send_note_on(note, int(velocity * 127.0))
     if name == "switch":
         if event == Event.Released:
-            manager.removeWindow(keyboardWindow.name)
-            manager.addWindow(keyboardConfigWindow, 0, 0, 9, 8)
+            manager.remove_window(keyboard_window.name)
+            manager.add_window(keyboard_config_window, 0, 0, 9, 8)
 
-def keyboardConfigCallback(name: str, event: str, data):
-    keyboard = keyboardWindow.widgets['Keyboard']
+def keyboard_config_callback(name: str, event: str, data):
+    keyboard = keyboard_window.widgets['Keyboard']
     if name == "Type":
         if event == Event.Pressed:
             x, y = data
@@ -62,42 +59,42 @@ def keyboardConfigCallback(name: str, event: str, data):
             keyboard.octave = x
     elif name == "Scale":
         if event == Event.Pressed:
-            scale = keyboardConfigWindow.widgets['Scale']
+            scale = keyboard_config_window.widgets['Scale']
             x, y = data
             scale = x + (y * scale.width)
             if scale < len(Keyboard.Scale):
                 keyboard.scale = Keyboard.Scale(scale)
     elif name == "switch":
         if event == Event.Released:
-            manager.removeWindow(keyboardConfigWindow.name)
-            manager.addWindow(keyboardWindow, 0, 0, 9, 8)
+            manager.remove_window(keyboard_config_window.name)
+            manager.add_window(keyboard_window, 0, 0, 9, 8)
 
-def sequencerCallback(name: str, event: str, data):
-    global currentSequencer
+def sequencer_callback(name: str, event: str, data):
+    global current_sequencer
     if "Sequencer" in name:
         prefix, index = name.split("_")
         index = int(index)
         if event == Event.Tick:
-            keyboard.sendNoteOn(36 + index, 0, 1)
+            keyboard.send_note_on(36 + index, 0, 1)
         if event == Event.Active:
-            keyboard.sendNoteOn(36 + index, 100 + random.randint(-10, 10), 1)
+            keyboard.send_note_on(36 + index, 100 + random.randint(-10, 10), 1)
     elif "sample" in name:
         if event == Event.Pressed:
             x, y = data
-            sequencerWindow.removeWidget(sequencerWidgets[currentSequencer].name)
-            currentSequencer = x + (y * 4)
-            keyboard.sendNoteOn(36 + currentSequencer, 100, 1)
-            keyboard.sendNoteOn(36 + currentSequencer, 0, 1)
-            sequencerWindow.addWidget(sequencerWidgets[currentSequencer])
+            sequencer_window.remove_widget(sequencer_widgets[current_sequencer].name)
+            current_sequencer = x + (y * 4)
+            keyboard.send_note_on(36 + current_sequencer, 100, 1)
+            keyboard.send_note_on(36 + current_sequencer, 0, 1)
+            sequencer_window.add_widget(sequencer_widgets[current_sequencer])
         if event == Event.Held:
             x, y = data
-            sequencerWidgets[x + (y * 4)].reset()
+            sequencer_widgets[x + (y * 4)].reset()
     elif "height" in name:
         if event == Event.Pressed:
             x, y = data
-            for sequencer in sequencerWidgets:
+            for sequencer in sequencer_widgets:
                 sequencer.steps = (y + 1) * 8
-            sequencerWindow.forceUpdate()
+            sequencer_window.force_update()
 
 controller = Virtual(9, 9)
 controller.init(True)
@@ -105,51 +102,51 @@ controller.connect()
 
 keyboard = MIDI()
 keyboard.init()
-keyboard.connectVirtual('Keyboard')
+keyboard.connect_virtual('Keyboard')
 
-faderWindow = Window(9, 8)
-knobWindow = Window(9, 8)
-keyboardWindow = Window(9, 8)
-keyboardConfigWindow = Window(9, 8)
-sequencerWindow = Window(9, 8)
+fader_window = Window(9, 8)
+knob_window = Window(9, 8)
+keyboard_window = Window(9, 8)
+keyboard_config_window = Window(9, 8)
+sequencer_window = Window(9, 8)
 
-topButtonWindow = Window(8, 1)
+top_button_window = Window(8, 1)
 
-windows = [faderWindow, knobWindow, keyboardWindow, sequencerWindow]
-currentWindow = 0
+windows = [fader_window, knob_window, keyboard_window, sequencer_window]
+current_window = 0
 
 manager = Manager(9, 9)
-manager.addWindow(topButtonWindow, 0, 8, 8, 1)
-manager.addWindow(windows[currentWindow], 0, 0, 9, 8)
-manager.addController(controller, 0, 0)
+manager.add_window(top_button_window, 0, 8, 8, 1)
+manager.add_window(windows[current_window], 0, 0, 9, 8)
+manager.add_controller(controller, 0, 0)
 
-topButtonWindow.addWidget(
+top_button_window.add_widget(
     ButtonGroup(
         x = 0, y = 0, width = len(windows), height = 1, 
-        deactiveColor = Colors.Blue, 
-        callback = buttonCallback)
+        inactive_color = Colors.Blue, 
+        callback = button_callback)
 )
 
 for i in range(8):
-    faderWindow.addWidget(
+    fader_window.add_widget(
         Fader(
             x = i, y = 0, width = 1, height = 8, 
             name = f"DAWFader_{i}", 
-            callback = faderCallback, 
-            activeColor = Pixel(random.randint(0, 255), random.randint(0, 255), random.randint(0, 255)))
+            callback = fader_callback, 
+            active_color = Pixel(random.randint(0, 255), random.randint(0, 255), random.randint(0, 255)))
     )
 
 for i in range(8):
-    knobWindow.addWidget(
+    knob_window.add_widget(
         Knob(
             x = 0, y = 7 - i, width = 8, height = 1, 
             name = f"DAWKnob_{i}", 
-            callback = knobCallback, 
+            callback = knob_callback, 
             type = Knob.Type.BoostCut,
-            activeColor = Pixel(random.randint(0, 255), random.randint(0, 255), random.randint(0, 255)))
+            active_color = Pixel(random.randint(0, 255), random.randint(0, 255), random.randint(0, 255)))
     )
 
-keyboardWindow.addWidget(
+keyboard_window.add_widget(
     Keyboard(
         x = 0, y = 0, width = 8, height = 8,
         name = "Keyboard",
@@ -157,74 +154,74 @@ keyboardWindow.addWidget(
         scale = Keyboard.Scale.Major, 
         root = Keyboard.Root.C, 
         fold = 4, octave = 4,
-        callback = keyboardCallback)
+        callback = keyboard_callback)
 )
-keyboardWindow.addWidget(
+keyboard_window.add_widget(
     Button(
         8, 0, 1, 1, 
         name = "switch", 
-        callback = keyboardCallback, 
-        deactiveColor = Colors.Red)
+        callback = keyboard_callback, 
+        inactive_color = Colors.Red)
 )
-keyboardConfigWindow.addWidget(
+keyboard_config_window.add_widget(
     ButtonGroup(
         x = 0, y = 7, width = len(Keyboard.Type), height = 1,
         name = "Type",
-        callback = keyboardConfigCallback)
+        callback = keyboard_config_callback)
 )
-keyboardConfigWindow.addWidget(
+keyboard_config_window.add_widget(
     Keyboard(
         x = 0, y = 5, width = 8, height = 2,
         name = "Root",
         type = Keyboard.Type.Keyboard,
-        callback = keyboardConfigCallback)
+        callback = keyboard_config_callback)
 )
-keyboardConfigWindow.addWidget(
+keyboard_config_window.add_widget(
     ButtonGroup(
         x = 0, y = 4, width = 8, height = 1,
         name = "Octave",
-        deactiveColor = Colors.PaleVioletRed,
-        callback = keyboardConfigCallback)
+        inactive_color = Colors.PaleVioletRed,
+        callback = keyboard_config_callback)
 )
-keyboardConfigWindow.addWidget(
+keyboard_config_window.add_widget(
     ButtonGroup(
         x = 0, y = 0, width = 8, height = 2,
         name = "Scale",
-        deactiveColor = Colors.SkyBlue,
-        callback = keyboardConfigCallback)
+        inactive_color = Colors.SkyBlue,
+        callback = keyboard_config_callback)
 )
-keyboardConfigWindow.addWidget(
+keyboard_config_window.add_widget(
     Button(
         8, 0, 1, 1, 
         name = "switch", 
-        callback = keyboardConfigCallback, 
-        deactiveColor = Colors.Red)
+        callback = keyboard_config_callback, 
+        inactive_color = Colors.Red)
 )
 
-sequencerWidgets = []
+sequencer_widgets = []
 for i in range(16):
-    sequencerWidgets.append(
+    sequencer_widgets.append(
         Sequencer(
             x = 0, y = 4, width = 8, height = 4, 
             clock = controller.clock, 
-            callback = sequencerCallback)
+            callback = sequencer_callback)
     )
 
-sequencerWindow.addWidget(
+sequencer_window.add_widget(
     ButtonGroup(
         x = 0, y = 0, width = 4, height = 4, 
-        deactiveColor = Pixel(255, 255, 0), 
-        callback = sequencerCallback,
+        inactive_color = Pixel(255, 255, 0), 
+        callback = sequencer_callback,
         name = "sample")
 )
-sequencerWindow.addWidget(
+sequencer_window.add_widget(
     ButtonGroup(
         x = 4, y = 0, width = 1, height = 4,
-        deactiveColor = Pixel(255, 0, 255),
-        callback = sequencerCallback,
+        inactive_color = Pixel(255, 0, 255),
+        callback = sequencer_callback,
         name = "height")
 )
-currentSequencer = 0
+current_sequencer = 0
 
 if __name__ == "__main__":
     while True:

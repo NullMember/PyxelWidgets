@@ -2,6 +2,50 @@
 GUI Framework for low resolution devices (e.g. Novation Launchpad, LED Keyboards)  
 This project is part of my master's thesis. Because of time constraints, this project is still in alpha phase.
 
+## Installation
+
+Requires Python 3.10 or newer.
+
+```sh
+pip install pyxelwidgets          # core + MIDI controllers
+pip install "pyxelwidgets[osc]"   # also OSC controllers
+```
+
+## Quick Start
+
+A fader and a button on the virtual (on-screen) grid controller:
+
+```python
+import time
+
+from pyxelwidgets import Button, Colors, Event, Fader, Window
+from pyxelwidgets.controllers.virtual import Virtual
+
+def on_change(name, event, data):
+    if event == Event.Changed:
+        print(name, data)
+
+window = Window(8, 8)
+window.add_widget(Fader(0, 0, 1, 8, active_color = Colors.Cyan, callback = on_change))
+window.add_widget(Button(7, 0, 1, 1, active_color = Colors.Red, callback = on_change))
+
+controller = Virtual(8, 8)
+controller.init()
+controller.connect()
+controller.set_callback(window.process)
+
+try:
+    while True:
+        controller.update(window.update())
+        time.sleep(1 / 60)
+except KeyboardInterrupt:
+    controller.close()
+```
+
+Hardware controllers live in `pyxelwidgets.controllers.midi`, e.g.
+`from pyxelwidgets.controllers.midi.novation.launchpad import MK3`.
+See [examples](examples) for multi-window layouts and DAW control.
+
 ## Supported Devices  
 
 | Brand      | Family     | Model      | Generation | Support    | Protocol   | Grid       | Color      | Control    |
