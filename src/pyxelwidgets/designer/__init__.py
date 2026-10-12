@@ -61,7 +61,7 @@ def _describe_classes(modules: list, outputs: bool) -> list:
     return found
 
 def catalog() -> dict:
-    """Everything the designer UI offers: widget and binding options, devices, outputs, messages and named colors."""
+    """Everything the designer UI offers: widget and binding options, devices, outputs, messages, links and named colors."""
     devices = _describe_classes(DEVICE_MODULES, False)
     outputs = _describe_classes(OUTPUT_MODULES, True)
     colors = {name: pyxelwidgets.parser.color_to_text(value) for name, value in vars(pyxelwidgets.color.Colors).items()
@@ -69,7 +69,7 @@ def catalog() -> dict:
     schema = pyxelwidgets.parser.schema()
     return {'widgets': schema['widgets'], 'animations': schema['animations'], 'binding': schema['binding'],
             'devices': devices, 'outputs': outputs, 'events': schema['events'], 'messages': schema['messages'],
-            'colors': colors}
+            'link': schema['link'], 'colors': colors}
 
 class PreviewDevice(pyxelwidgets.devices.Device):
     """Covers the whole surface so clicks in the browser reach widgets like real pad presses."""
@@ -163,9 +163,17 @@ def _entries(widgets, found = None) -> dict:
         _entries(entry.get('widgets'), found)
     return found
 
+def _layout_value(entry: dict | None, key: str):
+    """A widget entry's position, size or option ``key`` (None: the default)."""
+    entry = entry or {}
+    if key in ('x', 'y', 'width', 'height'):
+        return entry.get(key, 0 if key in ('x', 'y') else 1)
+    return (entry.get('options') or {}).get(key)
+
 def _carry_state(old_ui, old_layout: dict, ui, layout: dict) -> None:
     """Give the widgets of a rebuilt layout the state of the ones they replace (same name and type)."""
     before, after = _entries(old_layout.get('widgets')), _entries(layout.get('widgets'))
+    linked = {(link.get('target'), link.get('option')) for link in layout.get('links') or []}
     for name, widget in ui.widgets.items():
         old = old_ui.widgets.get(name)
         if old is None or type(old) is not type(widget):
@@ -177,6 +185,11 @@ def _carry_state(old_ui, old_layout: dict, ui, layout: dict) -> None:
             if old_options.get(key) != new_options.get(key):
                 del state[key]
         widget.load_state(state)
+        # Options links changed, while still linked, unless the layout changed them too
+        changed = {key: value for key, value in old.configured.items()
+                   if (name, key) in linked and _layout_value(before.get(name), key) == _layout_value(after.get(name), key)}
+        if changed:
+            widget.configure(**changed)
 
 class Preview:
     """

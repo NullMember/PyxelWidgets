@@ -680,6 +680,251 @@ function mappingCard(widget, mapping, index) {
   );
 }
 
+// ---------------------------------------------------------------- links
+
+function setLinks(layout, links) {
+  if (links.length) layout.links = links;
+  else delete layout.links;
+}
+
+function widgetNamed(name) {
+  return allWidgets().find(({ widget }) => widget.name === name)?.widget;
+}
+
+// The options of a widget a link can change: position, size and its options
+function linkOptions(widget) {
+  return state.catalog.widgets[widget?.type]?.linkable || [];
+}
+
+// Set always; Add to numbers and choices; Toggle on/off options and choices
+function linkChanges(kind) {
+  return Object.entries(state.catalog.link.changes).filter(([, kinds]) => !kinds || kinds.includes(kind)).map(([name]) => name);
+}
+
+// What an option is in the layout (or by default)
+function layoutValue(widget, option) {
+  if (option.name === 'x' || option.name === 'y') return widget[option.name] || 0;
+  if (option.name === 'width' || option.name === 'height') return widget[option.name] ?? 1;
+  return widget.options && option.name in widget.options ? widget.options[option.name] : option.default;
+}
+
+// Event values a link to an option of `kind` can take
+function linkSources(on, kind, change) {
+  if (change !== 'Add' && !state.catalog.link.sources.includes(kind)) return [];
+  return sourceNames(on).filter((name) => {
+    if (name === 'text') return kind === 'str';
+    // Colors cover a range: 0.0-1.0 values only
+    if (kind === 'color' && change !== 'Add') return !INTEGER_SOURCES.has(name);
+    return true;
+  });
+}
+
+// A first change and value that suit the event and the option: a value from the event where one fits
+function defaultLinkValue(link) {
+  const target = widgetNamed(link.target);
+  const option = linkOptions(target).find((candidate) => candidate.name === link.option);
+  for (const key of ['value', 'min', 'max', 'change']) delete link[key];
+  if (!option) return;
+  const sources = sourceNames(link.on);
+  const level = ['value', 'state', 'velocity', 'pressure', 'active'].find((name) => sources.includes(name));
+  switch (option.kind) {
+    case 'bool': {
+      // Follows a switch or a cell; presses toggle it
+      const onOff = ['value', 'state'].find((name) => sources.includes(name));
+      if (onOff) link.value = { source: onOff };
+      else link.change = 'Toggle';
+      return;
+    }
+    case 'enum':
+      link.change = 'Toggle';
+      return;
+    case 'int': {
+      // One per pad (e.g. a page per ButtonGroup cell), else one more each time
+      const source = widgetNamed(link.widget);
+      if (sources.includes('cell') && source && source.width * source.height > 1) link.value = { source: 'cell' };
+      else {
+        link.change = 'Add';
+        link.value = 1;
+      }
+      return;
+    }
+    case 'float':
+    case 'color':
+      link.value = level ? { source: level } : layoutValue(target, option);
+      return;
+    case 'str':
+      if (level) Object.assign(link, { value: { source: level }, min: 0, max: 100 });
+      else link.value = layoutValue(target, option) ?? '';
+      return;
+    default:
+      link.value = layoutValue(target, option);
+  }
+}
+
+function addLink(widget) {
+  // A momentary button acts on presses (it changes on releases too)
+  const momentary = widget.type === 'Button' && (widget.options?.mode || 'Button') !== 'Switch';
+  const on = momentary ? 'Pressed' : defaultEvent(widget);
+  // Another widget if there is one
+  const target = allWidgets().map((item) => item.widget).find((candidate) => candidate !== widget) || widget;
+  change((layout) => {
+    const link = { widget: widget.name, on, target: target.name, option: 'visible' };
+    defaultLinkValue(link);
+    setLinks(layout, [...(layout.links || []), link]);
+  });
+}
+
+function linkFields(widget) {
+  const links = (state.layout.links || []).map((link, index) => [link, index]).filter(([link]) => link.widget === widget.name);
+  return [
+    el('h4', {}, 'Links'),
+    links.length ? null : el('p', { class: 'hint' }, 'Change another widget\'s options when this one is used: show a group, switch a page, move a keyboard\'s octave, dim a color…'),
+    links.map(([link, index]) => linkCard(widget, link, index)),
+    el('div', { class: 'actions' }, el('button', { onclick: () => addLink(widget), title: 'Change an option of a widget on an event of this one' }, 'Add link')),
+  ];
+}
+
+// The value a link sets or adds: a constant, or an event value with its range (or offset)
+function linkValueEditor(link, option, id, edit) {
+  const change = link.change || 'Set';
+  const sources = linkSources(link.on, option.kind, change);
+  const isSource = link.value && typeof link.value === 'object' && !Array.isArray(link.value);
+  const constant = change === 'Add' ? 1 : layoutValue(widgetNamed(link.target), option);
+  const mode = el('select', {
+    id: id('value'), title: 'A constant, or a value from the event',
+    onchange: (e) => edit(() => {
+      delete link.min;
+      delete link.max;
+      link.value = e.target.value === '' ? constant : { source: e.target.value };
+      if (change === 'Set' && option.kind === 'str' && !INTEGER_SOURCES.has(e.target.value)) Object.assign(link, { min: 0, max: 100 });
+    }),
+  },
+  el('option', { value: '', selected: !isSource }, 'constant'),
+  sources.map((name) => el('option', { value: name, selected: isSource && link.value.source === name }, name)),
+  isSource && !sources.includes(link.value.source) ? el('option', { value: link.value.source, selected: true }, `${link.value.source} (not available)`) : null);
+  const number = (key, placeholder, attrs = {}) => el('input', {
+    type: 'number', class: 'small', value: link[key] ?? '', placeholder, title: key, step: option.kind === 'float' ? 'any' : 1, ...attrs,
+    onchange: (e) => edit(() => {
+      if (e.target.value === '') delete link[key];
+      else link[key] = Number(e.target.value);
+    }),
+  });
+  let detail = null;
+  if (!isSource) {
+    if (change === 'Add') {
+      detail = el('input', {
+        type: 'number', class: 'small', value: link.value ?? 1, step: option.kind === 'float' ? 'any' : 1,
+        title: option.kind === 'enum' ? 'Choices to move by' : 'Added each time',
+        onchange: (e) => edit(() => { link.value = option.kind === 'float' ? Number(e.target.value) : parseInt(e.target.value || '0', 10); }),
+      });
+    } else {
+      [detail] = optionControl(option, link.value, (value) => edit(() => { link.value = value ?? constant; }), id('constant'));
+    }
+  } else if (INTEGER_SOURCES.has(link.value.source)) {
+    detail = el('input', {
+      type: 'number', class: 'small', value: link.value.offset ?? '', placeholder: '+0', step: 1, title: 'offset',
+      onchange: (e) => edit(() => {
+        if (e.target.value === '') delete link.value.offset;
+        else link.value.offset = parseInt(e.target.value, 10);
+      }),
+    });
+  } else if (change === 'Set' && link.value.source !== 'text') {
+    // The range 0.0-1.0 covers
+    const title = 'The range 0.0-1.0 covers';
+    if (option.kind === 'color') {
+      const bound = (key, fallback) => optionControl({ kind: 'color' }, link[key] ?? fallback, (value) => edit(() => { link[key] = value; }), id(key))[0];
+      detail = el('span', { class: 'range', title }, bound('min', '#000000'), '–', bound('max', layoutValue(widgetNamed(link.target), option)));
+    } else if (option.kind === 'enum') {
+      const bound = (key, fallback) => el('select', {
+        id: id(key), title: key,
+        onchange: (e) => edit(() => { link[key] = e.target.value; }),
+      }, option.choices.map((choice) => el('option', { value: choice, selected: choice === (link[key] ?? fallback) }, choice)));
+      detail = el('span', { class: 'range', title }, bound('min', option.choices[0]), '–', bound('max', option.choices[option.choices.length - 1]));
+    } else if (option.kind !== 'bool') {
+      detail = el('span', { class: 'range', title }, number('min', '0'), '–', number('max', option.kind === 'int' ? '127' : '1'));
+    }
+  }
+  return el('div', { class: 'control value' }, mode, detail);
+}
+
+function linkCard(widget, link, index) {
+  const events = state.catalog.widgets[widget.type]?.events || [];
+  const target = widgetNamed(link.target);
+  const options = linkOptions(target);
+  const option = options.find((candidate) => candidate.name === link.option);
+  const changeName = link.change || 'Set';
+  const id = (name) => `link-${index}-${name}`;
+  const edit = (mutate) => change(() => mutate(link));
+  // Numbers added to are kept within limits
+  const limits = changeName === 'Add' && option && (option.kind === 'int' || option.kind === 'float');
+  return el('div', { class: 'mapping link' },
+    el('div', { class: 'mapping-head' },
+      el('select', {
+        id: id('on'), title: 'The event of this widget that changes the option',
+        onchange: (e) => edit(() => {
+          link.on = e.target.value;
+          const source = link.value?.source;
+          if (source && !linkSources(link.on, option?.kind, changeName).includes(source)) defaultLinkValue(link);
+        }),
+      }, events.map((name) => el('option', { value: name, selected: name === link.on }, name))),
+      el('span', { class: 'arrow' }, '→'),
+      el('select', {
+        id: id('target'), title: 'The widget whose option changes',
+        onchange: (e) => edit(() => {
+          link.target = e.target.value;
+          const next = linkOptions(widgetNamed(link.target)).find((candidate) => candidate.name === link.option);
+          if (!next) link.option = 'visible';
+          if (next?.kind !== option?.kind || !next) defaultLinkValue(link);
+        }),
+      }, allWidgets().map(({ widget: candidate }) => el('option', { value: candidate.name, selected: candidate.name === link.target },
+        candidate === widget ? `${candidate.name} (itself)` : candidate.name))),
+      el('button', {
+        class: 'link remove', title: 'Remove this link',
+        onclick: () => change((layout) => setLinks(layout, layout.links.filter((_, i) => i !== index))),
+      }, '×')),
+    el('div', { class: 'fields' },
+      el('label', { for: id('option') }, 'option'),
+      el('div', { class: 'control' }, el('select', {
+        id: id('option'),
+        onchange: (e) => edit(() => {
+          link.option = e.target.value;
+          defaultLinkValue(link);
+        }),
+      }, options.map((candidate) => el('option', { value: candidate.name, selected: candidate.name === link.option }, candidate.name.replace(/_/g, ' '))))),
+      option ? [
+        el('label', { for: id('change') }, 'change'),
+        el('div', { class: 'control' }, el('select', {
+          id: id('change'), title: 'Set it, add to it, or toggle it (on/off, next choice)',
+          onchange: (e) => edit(() => {
+            const next = e.target.value;
+            for (const key of ['value', 'min', 'max', 'change']) delete link[key];
+            if (next === 'Toggle') link.change = 'Toggle';
+            else if (next === 'Add') Object.assign(link, { change: 'Add', value: 1 });
+            else {
+              defaultLinkValue(link);
+              if (link.change) {
+                // This option's default is another change: set a constant instead
+                for (const key of ['value', 'min', 'max', 'change']) delete link[key];
+                link.value = layoutValue(target, option);
+              }
+            }
+          }),
+        }, linkChanges(option.kind).map((name) => el('option', { value: name, selected: name === changeName }, name.toLowerCase())))),
+        changeName !== 'Toggle' ? [el('label', { for: id('value') }, changeName === 'Add' ? 'by' : 'to'), linkValueEditor(link, option, id, edit)] : null,
+        limits ? [
+          el('label', { title: 'The lowest and highest it goes' }, 'limits'),
+          el('div', { class: 'control value' }, el('span', { class: 'range' }, ...['min', 'max'].flatMap((key, i) => [i ? '–' : null, el('input', {
+            type: 'number', class: 'small', id: id(key), value: link[key] ?? '', placeholder: 'none', title: key, step: option.kind === 'float' ? 'any' : 1,
+            onchange: (e) => edit(() => {
+              if (e.target.value === '') delete link[key];
+              else link[key] = Number(e.target.value);
+            }),
+          })]))),
+        ] : null,
+      ] : el('p', { class: 'hint' }, `${link.target} has no option ${link.option}`)),
+  );
+}
+
 // ---------------------------------------------------------------- history and sync
 
 function change(mutate) {
@@ -1347,6 +1592,17 @@ function optionField(target, option, prefix = 'option', apply = null) {
   const set = option.name in options;
   const value = set ? options[option.name] : option.default;
   const commit = (newValue) => change(() => (apply ? apply(newValue) : setOption(target, option.name, newValue)));
+  const id = `${prefix}-${option.name}`;
+  const [control, suggestions] = optionControl(option, value, commit, id);
+  return [
+    el('label', { for: id, class: set ? 'changed' : '', title: option.name }, option.name.replace(/_/g, ' ')),
+    el('div', { class: 'control' }, control, suggestions,
+      el('button', { class: 'link reset', title: `Reset to ${JSON.stringify(option.default)}`, onclick: () => commit(undefined) }, 'reset')),
+  ];
+}
+
+// The input for one option kind (and a datalist of suggestions for rates), with element id `id`
+function optionControl(option, value, commit, id) {
   let control, suggestions;
   switch (option.kind) {
     case 'enum':
@@ -1388,24 +1644,19 @@ function optionField(target, option, prefix = 'option', apply = null) {
       // Any note value is accepted; the list only suggests common ones. Some also take seconds.
       const parse = (text) => (option.seconds && /^\d*\.?\d+$/.test(text) ? Number(text) : text || undefined);
       control = el('input', {
-        type: 'text', value: value ?? '', list: `${prefix}-rates-${option.name}`,
+        type: 'text', value: value ?? '', list: `${id}-rates`,
         placeholder: value == null ? 'off' : null,
         title: option.seconds ? 'A note value (1/8, bar…) or seconds (0.5)' : 'A note value (1/16, 1/8., beat, bar…)',
         onchange: (e) => commit(parse(e.target.value.trim())),
       });
-      suggestions = el('datalist', { id: `${prefix}-rates-${option.name}` }, option.choices.map((choice) => el('option', { value: choice })));
+      suggestions = el('datalist', { id: `${id}-rates` }, option.choices.map((choice) => el('option', { value: choice })));
       break;
     }
     default:
       control = el('input', { type: 'text', value: value ?? '', onchange: (e) => commit(e.target.value) });
   }
-  const id = `${prefix}-${option.name}`;
   control.id = id;
-  return [
-    el('label', { for: id, class: set ? 'changed' : '', title: option.name }, option.name.replace(/_/g, ' ')),
-    el('div', { class: 'control' }, control, suggestions,
-      el('button', { class: 'link reset', title: `Reset to ${JSON.stringify(option.default)}`, onclick: () => commit(undefined) }, 'reset')),
-  ];
+  return [control, suggestions];
 }
 
 // The animation of one or more widgets (several only show one they share)
@@ -1610,6 +1861,10 @@ function renderProperties() {
             change((layout) => {
               for (const binding of layout.bindings || []) if (binding.widget === widget.name) binding.widget = name;
               for (const mapping of layout.mappings || []) if (mapping.widget === widget.name) mapping.widget = name;
+              for (const link of layout.links || []) {
+                if (link.widget === widget.name) link.widget = name;
+                if (link.target === widget.name) link.target = name;
+              }
               widget.name = name;
             });
           },
@@ -1619,6 +1874,7 @@ function renderProperties() {
       widget.type === 'Sprite' ? spriteEditor(widget) : null,
       animationFields([widget]),
       messageFields(widget),
+      linkFields(widget),
       el('div', { class: 'actions' },
         el('button', { onclick: () => reorder(path, 1), title: 'Draw above the next widget' }, 'Raise'),
         el('button', { onclick: () => reorder(path, -1), title: 'Draw below the previous widget' }, 'Lower'),
@@ -1836,6 +2092,7 @@ function removeSelection() {
       const names = new Set(allWidgets().map(({ widget }) => widget.name));
       bindings = bindings.filter((binding) => binding.widget === undefined || names.has(binding.widget));
       setMappings(layout, (layout.mappings || []).filter((mapping) => names.has(mapping.widget)));
+      setLinks(layout, (layout.links || []).filter((link) => names.has(link.widget) && names.has(link.target)));
     } else {
       layout.devices.splice(selection.index, 1);
       bindings = bindings.filter((binding) => binding.device !== selection.index)
