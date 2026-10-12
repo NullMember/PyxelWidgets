@@ -6,6 +6,8 @@ const DEFAULT_SIZE = {
   Sequencer: [8, 4], Sprite: [2, 2], Text: [8, 5], Tracker: [4, 8], XY: [4, 4],
 };
 const RHYTHMIC = new Set(['Sequencer', 'Tracker']);
+// Colors offered for painting Sprite frames (any color can be picked too)
+const SWATCHES = ['White', 'Gray', 'Red', 'OrangeRed', 'Orange', 'Yellow', 'Lime', 'Green', 'Cyan', 'DodgerBlue', 'Blue', 'Purple', 'Magenta', 'HotPink'];
 const EVENTS = {
   Button: ['Changed', 'e.value'], Fader: ['Changed', 'e.value'], Knob: ['Changed', 'e.value'], XY: ['Changed', 'e.value'],
   Keyboard: ['NoteOn', 'e.note, e.velocity'], ButtonGroup: ['Toggled', 'e.x, e.y, e.state'],
@@ -17,7 +19,9 @@ const state = {
   layout: null,
   file: null,
   saved: '',
-  selection: null, // null (surface) | {kind: 'widget', path: [i, j, ...]} | {kind: 'device', index}
+  // null (surface) | {kind: 'widget', path: [i, j, ...], paths: [path, ...]} | {kind: 'device', index}
+  // `paths` are all selected widgets, `path` the last one picked (the one panels edit)
+  selection: null,
   mode: 'edit',
   history: [],
   future: [],
@@ -26,6 +30,8 @@ const state = {
   hardware: { enabled: false, devices: [] },
   error: null,
   frameSize: [0, 0],
+  spriteFrame: 0, // the Sprite frame being painted
+  paint: { color: '#ffffff', erase: false },
 };
 
 const $ = (id) => document.getElementById(id);
@@ -244,12 +250,51 @@ function addPage(path) {
     pages.widgets = pages.widgets || [];
     pages.widgets.push({ type: 'Group', name: uniqueName('page'), x, y, width, height, options: {}, widgets: [] });
     setOption(pages, 'page', pages.widgets.length - 1 || undefined);
-    state.selection = { kind: 'widget', path: [...path, pages.widgets.length - 1] };
+    state.selection = widgetSelection([[...path, pages.widgets.length - 1]]);
   });
 }
 
 function samePath(a, b) {
   return a && b && a.length === b.length && a.every((value, i) => value === b[i]);
+}
+
+// ---------------------------------------------------------------- selection
+
+function widgetSelection(paths, path = paths[paths.length - 1]) {
+  return paths.length ? { kind: 'widget', path, paths } : null;
+}
+
+function selectedPaths() {
+  return state.selection?.kind === 'widget' ? state.selection.paths : [];
+}
+
+function isSelected(path) {
+  return selectedPaths().some((selected) => samePath(selected, path));
+}
+
+function isInside(path, ancestor) {
+  return ancestor.length < path.length && samePath(ancestor, path.slice(0, ancestor.length));
+}
+
+// Selected widgets without those inside another selected one: what moves, copies and deletes
+function topSelected() {
+  const paths = selectedPaths();
+  return paths.filter((path) => !paths.some((other) => isInside(path, other)));
+}
+
+// Shift/Ctrl/Cmd+click adds a widget to the selection or takes it out
+function toggleSelected(path) {
+  const paths = selectedPaths();
+  state.selection = isSelected(path)
+    ? widgetSelection(paths.filter((selected) => !samePath(selected, path)))
+    : widgetSelection([...paths, path]);
+  render();
+}
+
+// Paths of widget objects, after a change moved them
+function pathsOf(widgets) {
+  const found = allWidgets();
+  return widgets.map((widget) => found.find((item) => item.widget === widget)?.path).filter(Boolean);
 }
 
 // ---------------------------------------------------------------- history and sync
@@ -293,7 +338,9 @@ function redo() {
 function checkSelection() {
   const selection = state.selection;
   if (selection?.kind === 'widget') {
-    try { if (!widgetAt(selection.path)) state.selection = null; } catch { state.selection = null; }
+    const exists = (path) => { try { return !!widgetAt(path); } catch { return false; } };
+    const paths = selection.paths.filter(exists);
+    state.selection = widgetSelection(paths, exists(selection.path) ? selection.path : undefined);
   } else if (selection?.kind === 'device' && !state.layout.devices[selection.index]) {
     state.selection = null;
   }
@@ -398,11 +445,7 @@ function sendInput(x, y, velocity) {
 
 const held = new Map();
 function padDown(event) {
-  if (state.mode !== 'try') {
-    state.selection = null;
-    render();
-    return;
-  }
+  if (state.mode !== 'try') return startMarquee(event);
   const { x, y } = event.currentTarget.dataset;
   event.currentTarget.setPointerCapture(event.pointerId);
   held.set(event.pointerId, [Number(x), Number(y)]);
@@ -470,67 +513,193 @@ function renderOverlay() {
   overlay.replaceChildren();
   state.layout.devices.forEach((device, index) => {
     const [width, height] = deviceSize(device);
-    const outline = el('div', { class: 'outline device' }, el('span', { class: 'tag' }, deviceInfo(device)?.model || device.type));
+    const selected = state.selection?.kind === 'device' && state.selection.index === index;
+    const outline = el('div', { class: `outline device${selected ? ' selected' : ''}`, dataset: { device: index } },
+      el('span', {
+        class: 'tag', title: 'Drag to move the device on the surface',
+        onpointerdown: (event) => startDeviceDrag(event, index),
+      }, deviceInfo(device)?.model || device.type));
     place(outline, device.x || 0, device.y || 0, width, height);
     overlay.append(outline);
   });
+  const single = selectedPaths().length === 1;
   for (const { widget, path } of allWidgets()) {
     const [x, y] = absolute(path);
-    const selected = state.selection?.kind === 'widget' && samePath(state.selection.path, path);
+    const selected = isSelected(path);
     // Widgets on other pages of a Pages aren't shown
     if (hiddenBy(path).length && !selected) continue;
     const hidden = widget.options?.visible === false;
     const outline = el('div', {
       class: `outline widget${isGroup(widget) ? ' group' : ''}${selected ? ' selected' : ''}`,
       title: `${widget.name} (${widget.type})`,
+      dataset: { path: path.join('.') },
       onpointerdown: (event) => startDrag(event, path, 'move'),
     }, el('span', { class: 'tag' }, widget.name));
     if (hidden) outline.style.opacity = 0.35;
-    if (selected) outline.append(el('div', { class: 'handle', onpointerdown: (event) => startDrag(event, path, 'resize') }));
+    if (selected && single) outline.append(el('div', { class: 'handle', onpointerdown: (event) => startDrag(event, path, 'resize') }));
     place(outline, x, y, widget.width, widget.height);
     overlay.append(outline);
   }
+}
+
+// Calls move(dx, dy) in pads while the pointer drags, then done(dx, dy)
+function dragPads(event, move, done) {
+  const start = [event.clientX, event.clientY];
+  let delta = [0, 0];
+  const onMove = (e) => {
+    delta = [Math.round((e.clientX - start[0]) / step()), -Math.round((e.clientY - start[1]) / step())];
+    move(...delta);
+  };
+  const onUp = () => {
+    window.removeEventListener('pointermove', onMove);
+    window.removeEventListener('pointerup', onUp);
+    done(...delta);
+  };
+  window.addEventListener('pointermove', onMove);
+  window.addEventListener('pointerup', onUp);
+}
+
+function clamp(value, low, high) {
+  return Math.max(low, Math.min(high, value));
+}
+
+// The furthest every widget of `paths` can move together while staying in its parent
+function moveLimits(paths) {
+  const limits = { dx: [-Infinity, Infinity], dy: [-Infinity, Infinity] };
+  for (const path of paths) {
+    const widget = widgetAt(path);
+    const [parentWidth, parentHeight] = containerSize(path);
+    const x = widget.x || 0, y = widget.y || 0;
+    limits.dx = [Math.max(limits.dx[0], -x), Math.min(limits.dx[1], parentWidth - widget.width - x)];
+    limits.dy = [Math.max(limits.dy[0], -y), Math.min(limits.dy[1], parentHeight - widget.height - y)];
+  }
+  return limits;
 }
 
 function startDrag(event, path, kind) {
   if (state.mode !== 'edit' || event.button !== 0) return;
   event.stopPropagation();
   event.preventDefault();
-  if (!(state.selection?.kind === 'widget' && samePath(state.selection.path, path))) {
-    state.selection = { kind: 'widget', path };
+  if (event.shiftKey || event.ctrlKey || event.metaKey) return toggleSelected(path);
+  if (!isSelected(path)) {
+    state.selection = widgetSelection([path]);
     render();
   }
-  const widget = widgetAt(path);
-  const [parentWidth, parentHeight] = containerSize(path);
-  const origin = { x: widget.x || 0, y: widget.y || 0, width: widget.width, height: widget.height };
-  const start = [event.clientX, event.clientY];
-  const target = [...$('overlay').querySelectorAll('.outline.widget')].find((node) => node.classList.contains('selected'));
-  let result = origin;
+  if (kind === 'resize') {
+    const widget = widgetAt(path);
+    const [parentWidth, parentHeight] = containerSize(path);
+    const x = widget.x || 0, y = widget.y || 0;
+    const node = $('overlay').querySelector(`.outline.widget[data-path="${path.join('.')}"]`);
+    const size = (dx, dy) => [clamp(widget.width + dx, 1, parentWidth - x), clamp(widget.height + dy, 1, parentHeight - y)];
+    return dragPads(event,
+      (dx, dy) => place(node, ...absolute(path), ...size(dx, dy)),
+      (dx, dy) => {
+        const [width, height] = size(dx, dy);
+        if (width !== widget.width || height !== widget.height) change(() => Object.assign(widget, { width, height }));
+      });
+  }
+  // Move every selected widget (a selected group carries its children)
+  const paths = topSelected();
+  const limits = moveLimits(paths);
+  const nodes = paths.map((p) => [p, $('overlay').querySelector(`.outline.widget[data-path="${p.join('.')}"]`)]);
+  const offset = (dx, dy) => [clamp(dx, ...limits.dx), clamp(dy, ...limits.dy)];
+  dragPads(event,
+    (dx, dy) => {
+      const [ox, oy] = offset(dx, dy);
+      for (const [p, node] of nodes) {
+        const [x, y] = absolute(p);
+        if (node) place(node, x + ox, y + oy, widgetAt(p).width, widgetAt(p).height);
+      }
+    },
+    (dx, dy) => {
+      const [ox, oy] = offset(dx, dy);
+      if (!ox && !oy) return;
+      const widgets = paths.map(widgetAt);
+      change(() => widgets.forEach((widget) => Object.assign(widget, { x: (widget.x || 0) + ox, y: (widget.y || 0) + oy })));
+    });
+}
+
+function startDeviceDrag(event, index) {
+  if (state.mode !== 'edit' || event.button !== 0) return;
+  event.stopPropagation();
+  event.preventDefault();
+  if (!(state.selection?.kind === 'device' && state.selection.index === index)) select({ kind: 'device', index });
+  const device = state.layout.devices[index];
+  const [width, height] = deviceSize(device);
+  const { width: surfaceWidth, height: surfaceHeight } = state.layout.surface;
+  const x = device.x || 0, y = device.y || 0;
+  // Inside the surface; one bigger than the surface can only shift over it
+  const position = (dx, dy) => [
+    clamp(x + dx, Math.min(0, surfaceWidth - width), Math.max(0, surfaceWidth - width)),
+    clamp(y + dy, Math.min(0, surfaceHeight - height), Math.max(0, surfaceHeight - height)),
+  ];
+  const node = $('overlay').querySelector(`.outline.device[data-device="${index}"]`);
+  dragPads(event,
+    (dx, dy) => place(node, ...position(dx, dy), width, height),
+    (dx, dy) => {
+      const [nx, ny] = position(dx, dy);
+      if (nx !== x || ny !== y) change(() => Object.assign(device, { x: nx, y: ny }));
+    });
+}
+
+// Widgets inside a rectangle of pads (x0, y0 inclusive, x1, y1 exclusive): a group that
+// doesn't fit offers its children instead
+function widgetsIn(x0, y0, x1, y1) {
+  const found = [];
+  const visit = (list, prefix) => list.forEach((widget, index) => {
+    const path = [...prefix, index];
+    if (hiddenBy(path).length) return;
+    const [x, y] = absolute(path);
+    if (x >= x0 && y >= y0 && x + widget.width <= x1 && y + widget.height <= y1) found.push(path);
+    else if (widget.widgets) visit(widget.widgets, path);
+  });
+  visit(state.layout.widgets, []);
+  return found;
+}
+
+// Dragging on empty space draws a selection rectangle; a click there selects the surface
+function startMarquee(event) {
+  if (state.mode !== 'edit' || event.button !== 0) return;
+  event.preventDefault();
+  const overlay = $('overlay');
+  const bounds = overlay.getBoundingClientRect();
+  const adding = event.shiftKey || event.ctrlKey || event.metaKey;
+  const kept = adding ? selectedPaths() : [];
+  const start = [event.clientX - bounds.left, event.clientY - bounds.top];
+  const box = el('div', { class: 'marquee' });
+  let moved = false;
   const move = (e) => {
-    const dx = Math.round((e.clientX - start[0]) / step());
-    const dy = -Math.round((e.clientY - start[1]) / step());
-    if (kind === 'move') {
-      result = {
-        ...origin,
-        x: Math.max(0, Math.min(parentWidth - origin.width, origin.x + dx)),
-        y: Math.max(0, Math.min(parentHeight - origin.height, origin.y + dy)),
-      };
-    } else {
-      result = {
-        ...origin,
-        width: Math.max(1, Math.min(parentWidth - origin.x, origin.width + dx)),
-        height: Math.max(1, Math.min(parentHeight - origin.y, origin.height + dy)),
-      };
+    const end = [e.clientX - bounds.left, e.clientY - bounds.top];
+    if (!moved && Math.hypot(end[0] - start[0], end[1] - start[1]) < 4) return;
+    if (!moved) overlay.append(box);
+    moved = true;
+    const [left, right] = [Math.min(start[0], end[0]), Math.max(start[0], end[0])];
+    const [top, bottom] = [Math.min(start[1], end[1]), Math.max(start[1], end[1])];
+    Object.assign(box.style, { left: `${left}px`, top: `${top}px`, width: `${right - left}px`, height: `${bottom - top}px` });
+    // Pads whose centre is inside
+    const size = step();
+    const centre = parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--pad')) / 2;
+    const first = (from) => Math.ceil((from - centre) / size), after = (to) => Math.floor((to - centre) / size) + 1;
+    const height = state.layout.surface.height;
+    const [x0, x1] = [first(left), after(right)];
+    const rows = [first(top), after(bottom)];
+    const found = x1 > x0 && rows[1] > rows[0] ? widgetsIn(x0, height - rows[1], x1, height - rows[0]) : [];
+    for (const node of overlay.querySelectorAll('.outline.widget')) {
+      const path = node.dataset.path.split('.').map(Number);
+      node.classList.toggle('selected', [...kept, ...found].some((p) => samePath(p, path)));
     }
-    const [ax, ay] = absolute(path);
-    if (target) place(target, ax - origin.x + result.x, ay - origin.y + result.y, result.width, result.height);
+    box.dataset.found = JSON.stringify(found);
   };
   const up = () => {
     window.removeEventListener('pointermove', move);
     window.removeEventListener('pointerup', up);
-    if (['x', 'y', 'width', 'height'].some((key) => result[key] !== origin[key])) {
-      change(() => Object.assign(widgetAt(path), { x: result.x, y: result.y, width: result.width, height: result.height }));
+    box.remove();
+    if (!moved) {
+      if (!adding) select(null);
+      return;
     }
+    const found = JSON.parse(box.dataset.found || '[]').filter((path) => !kept.some((p) => samePath(p, path)));
+    select(widgetSelection([...kept, ...found]));
   };
   window.addEventListener('pointermove', move);
   window.addEventListener('pointerup', up);
@@ -539,20 +708,21 @@ function startDrag(event, path, kind) {
 function renderTree() {
   const build = (list, prefix) => el('ul', {}, [...list.entries()].reverse().map(([index, widget]) => {
     const path = [...prefix, index];
-    const selected = state.selection?.kind === 'widget' && samePath(state.selection.path, path);
+    const selected = isSelected(path);
     const visible = widget.options?.visible !== false;
     const offPage = widget.type !== undefined && prefix.length && widgetAt(prefix).type === 'Pages' && index !== currentPage(widgetAt(prefix));
     return el('li', {},
       el('div', {
         class: `node${selected ? ' selected' : ''}${offPage ? ' off-page' : ''}`,
         title: offPage ? 'Another page: selecting it shows that page' : null,
-        onclick: () => {
+        onclick: (event) => {
+          if (event.shiftKey || event.ctrlKey || event.metaKey) return toggleSelected(path);
           const hidden = hiddenBy(path);
-          if (!hidden.length) return select({ kind: 'widget', path });
+          if (!hidden.length) return select(widgetSelection([path]));
           // Show the page the widget is on
           change(() => {
             for (const [pagesPath, page] of hidden) setOption(widgetAt(pagesPath), 'page', page || undefined);
-            state.selection = { kind: 'widget', path };
+            state.selection = widgetSelection([path]);
           });
         },
       },
@@ -606,12 +776,14 @@ function setOption(target, name, value) {
   else target.options[name] = value;
 }
 
-// A labelled editor for one option from the catalog schema
-function optionField(target, option) {
+// A labelled editor for one option from the catalog schema. `prefix` keeps element ids
+// apart; `apply(value)` replaces setting the option on `target` (e.g. on several widgets).
+function optionField(target, option, prefix = 'option', apply = null) {
+  if (option.kind === 'frames') return [];
   const options = target.options || {};
   const set = option.name in options;
   const value = set ? options[option.name] : option.default;
-  const commit = (newValue) => change(() => setOption(target, option.name, newValue));
+  const commit = (newValue) => change(() => (apply ? apply(newValue) : setOption(target, option.name, newValue)));
   let control, suggestions;
   switch (option.kind) {
     case 'enum':
@@ -649,21 +821,184 @@ function optionField(target, option) {
       control = el('div', { class: 'control' }, axis(0), axis(1));
       break;
     }
-    case 'rate':
-      // Any note value is accepted; the list only suggests common ones
-      control = el('input', { type: 'text', value: value ?? '', list: `rates-${option.name}`, onchange: (e) => commit(e.target.value.trim() || undefined) });
-      suggestions = el('datalist', { id: `rates-${option.name}` }, option.choices.map((choice) => el('option', { value: choice })));
+    case 'rate': {
+      // Any note value is accepted; the list only suggests common ones. Some also take seconds.
+      const parse = (text) => (option.seconds && /^\d*\.?\d+$/.test(text) ? Number(text) : text || undefined);
+      control = el('input', {
+        type: 'text', value: value ?? '', list: `${prefix}-rates-${option.name}`,
+        placeholder: value == null ? 'off' : null,
+        title: option.seconds ? 'A note value (1/8, bar…) or seconds (0.5)' : 'A note value (1/16, 1/8., beat, bar…)',
+        onchange: (e) => commit(parse(e.target.value.trim())),
+      });
+      suggestions = el('datalist', { id: `${prefix}-rates-${option.name}` }, option.choices.map((choice) => el('option', { value: choice })));
       break;
+    }
     default:
       control = el('input', { type: 'text', value: value ?? '', onchange: (e) => commit(e.target.value) });
   }
-  const id = `option-${option.name}`;
+  const id = `${prefix}-${option.name}`;
   control.id = id;
   return [
     el('label', { for: id, class: set ? 'changed' : '', title: option.name }, option.name.replace(/_/g, ' ')),
     el('div', { class: 'control' }, control, suggestions,
       el('button', { class: 'link reset', title: `Reset to ${JSON.stringify(option.default)}`, onclick: () => commit(undefined) }, 'reset')),
   ];
+}
+
+// The animation of one or more widgets (several only show one they share)
+function animationFields(widgets) {
+  const entries = widgets.map((widget) => widget.animation);
+  const same = entries.every((entry) => JSON.stringify(entry) === JSON.stringify(entries[0]));
+  const type = same ? (entries[0]?.type ?? '') : null;
+  const info = type ? state.catalog.animations[type] : null;
+  const select = el('select', {
+    id: 'animation-type',
+    onchange: (e) => change(() => widgets.forEach((widget) => {
+      if (e.target.value) widget.animation = { type: e.target.value, options: {} };
+      else delete widget.animation;
+    })),
+  },
+  type === null ? el('option', { value: 'mixed', selected: true, disabled: true }, 'mixed') : null,
+  el('option', { value: '', selected: type === '' }, 'None'),
+  Object.keys(state.catalog.animations).map((name) => el('option', { value: name, selected: name === type }, name)));
+  return [
+    el('h4', {}, 'Animation'),
+    el('div', { class: 'fields' },
+      el('label', { for: 'animation-type', title: 'Changes how the widget looks over time; note values follow the transport' }, 'type'),
+      el('div', { class: 'control' }, select),
+      info ? info.options.flatMap((option) => optionField(entries[0], option, 'animation',
+        widgets.length > 1 ? (value) => widgets.forEach((widget) => setOption(widget.animation, option.name, value)) : null)) : null),
+    info ? el('p', { class: 'hint note' }, info.doc.replace(/``/g, '')) : null,
+  ];
+}
+
+// ---------------------------------------------------------------- sprite frames
+
+// A Sprite's frames sized to the widget: rows from the top, each a list of colors or null.
+// Stored frames of another size keep their bottom-left, like the Sprite does.
+function spriteFrames(widget) {
+  const frames = widget.options?.frames?.length ? widget.options.frames : [[]];
+  return frames.map((rows) => Array.from({ length: widget.height }, (_, top) => {
+    const row = rows[rows.length - widget.height + top] || [];
+    return Array.from({ length: widget.width }, (_, x) => row[x] ?? null);
+  }));
+}
+
+function setFrames(widget, frames) {
+  const blank = frames.length === 1 && frames[0].every((row) => row.every((color) => color === null));
+  setOption(widget, 'frames', blank ? undefined : frames);
+}
+
+function spriteEditor(widget) {
+  if (state.spriteFor !== widget.name) {
+    state.spriteFor = widget.name;
+    state.spriteFrame = 0;
+  }
+  const frames = spriteFrames(widget);
+  const index = state.spriteFrame = clamp(state.spriteFrame, 0, frames.length - 1);
+  const paint = state.paint;
+  const edit = (mutate) => change(() => {
+    const copy = spriteFrames(widget);
+    mutate(copy);
+    setFrames(widget, copy);
+  });
+  const showFrame = (i) => { state.spriteFrame = i; renderProperties(); };
+
+  // A stroke paints cells as the pointer passes over them, then changes the layout once
+  let stroke = null;
+  const paintCell = (cell) => {
+    if (!stroke || !cell?.classList.contains('cell')) return;
+    const color = stroke.erase ? null : paint.color;
+    stroke.frame[Number(cell.dataset.top)][Number(cell.dataset.x)] = color;
+    cell.style.backgroundColor = color || '';
+    cell.classList.toggle('empty', !color);
+  };
+  const size = clamp(Math.floor(266 / Math.max(widget.width, widget.height * 0.75)) - 2, 6, 28);
+  const grid = el('div', {
+    class: 'sprite-grid', id: 'sprite-grid', style: `grid-template-columns: repeat(${widget.width}, ${size}px)`,
+    oncontextmenu: (e) => e.preventDefault(),
+    onpointerdown: (e) => {
+      e.preventDefault();
+      grid.setPointerCapture(e.pointerId);
+      stroke = { erase: paint.erase || e.button === 2, frame: frames[index].map((row) => [...row]) };
+      paintCell(e.target);
+    },
+    // Captured: find the cell under the pointer
+    onpointermove: (e) => paintCell(document.elementFromPoint(e.clientX, e.clientY)),
+    onpointerup: () => {
+      const done = stroke;
+      stroke = null;
+      if (done && JSON.stringify(done.frame) !== JSON.stringify(frames[index])) edit((copy) => { copy[index] = done.frame; });
+    },
+  }, frames[index].map((row, top) => row.map((color, x) => el('div', {
+    class: `cell${color ? '' : ' empty'}`, dataset: { top, x },
+    style: `width: ${size}px; height: ${size}px;${color ? ` background-color: ${color}` : ''}`,
+  }))));
+
+  const blankFrame = () => Array.from({ length: widget.height }, () => Array(widget.width).fill(null));
+  const swatches = SWATCHES.filter((name) => state.catalog.colors[name]).map((name) => [name, state.catalog.colors[name]]);
+  return [
+    el('h4', {}, 'Frames'),
+    el('div', { class: 'frames' },
+      frames.map((_, i) => el('button', { class: i === index ? 'active' : '', onclick: () => showFrame(i), title: `Paint frame ${i + 1}` }, String(i + 1))),
+      el('button', { title: 'Add a blank frame after this one', onclick: () => { state.spriteFrame = index + 1; edit((copy) => copy.splice(index + 1, 0, blankFrame())); } }, '+')),
+    el('div', { class: 'paint' },
+      el('input', {
+        type: 'color', value: paint.color, title: 'Paint color',
+        onchange: (e) => { Object.assign(paint, { color: e.target.value, erase: false }); renderProperties(); },
+      }),
+      el('div', { class: 'swatches' }, swatches.map(([name, text]) => el('button', {
+        class: `swatch${!paint.erase && paint.color === text ? ' active' : ''}`, title: name, style: `background-color: ${text}`,
+        onclick: () => { Object.assign(paint, { color: text, erase: false }); renderProperties(); },
+      }))),
+      el('button', {
+        class: paint.erase ? 'active' : '', title: 'Paint transparent cells (or drag with the right button)',
+        onclick: () => { paint.erase = !paint.erase; renderProperties(); },
+      }, 'Eraser')),
+    grid,
+    el('div', { class: 'actions' },
+      el('button', { title: 'Paint the whole frame', onclick: () => edit((copy) => { copy[index] = copy[index].map((row) => row.map(() => (paint.erase ? null : paint.color))); }) }, 'Fill'),
+      el('button', { title: 'Copy this frame after it', onclick: () => { state.spriteFrame = index + 1; edit((copy) => copy.splice(index + 1, 0, copy[index].map((row) => [...row]))); } }, 'Copy'),
+      el('button', { title: 'Move earlier', disabled: index === 0, onclick: () => { state.spriteFrame = index - 1; edit((copy) => copy.splice(index - 1, 0, ...copy.splice(index, 1))); } }, '◀'),
+      el('button', { title: 'Move later', disabled: index === frames.length - 1, onclick: () => { state.spriteFrame = index + 1; edit((copy) => copy.splice(index + 1, 0, ...copy.splice(index, 1))); } }, '▶'),
+      el('button', {
+        class: 'danger', title: frames.length > 1 ? 'Delete this frame' : 'Clear this frame',
+        onclick: () => edit((copy) => (copy.length > 1 ? copy.splice(index, 1) : copy.splice(0, 1, blankFrame()))),
+      }, frames.length > 1 ? 'Delete' : 'Clear')),
+    el('p', { class: 'hint note' }, frames.length > 1
+      ? 'Left-drag paints, right-drag erases. Set a rate to play the frames.'
+      : 'Left-drag paints, right-drag erases. Add frames to animate it.'),
+  ];
+}
+
+// Several widgets: their shared options and animation, and what can be done to all
+function multiProperties(panel, paths) {
+  const widgets = paths.map(widgetAt);
+  const types = [...new Set(widgets.map((widget) => widget.type))];
+  const optionsOf = (type) => state.catalog.widgets[type]?.options || [];
+  const shared = optionsOf(types[0]).filter((option) => option.kind !== 'frames'
+    && types.every((type) => optionsOf(type).some((other) => other.name === option.name && other.kind === option.kind)));
+  // Shows a value when every widget has it
+  const common = { options: {} };
+  for (const option of shared) {
+    const values = widgets.map((widget) => widget.options?.[option.name]);
+    if (values[0] !== undefined && values.every((value) => JSON.stringify(value) === JSON.stringify(values[0]))) common.options[option.name] = values[0];
+  }
+  fill(panel,
+    el('h3', {}, `${widgets.length} widgets`),
+    el('p', { class: 'doc' }, widgets.map((widget) => widget.name).join(', ')),
+    shared.length ? [
+      el('h4', {}, types.length > 1 ? 'Shared options' : 'Options'),
+      el('div', { class: 'fields' }, shared.flatMap((option) => optionField(common, option, 'option',
+        (value) => widgets.forEach((widget) => setOption(widget, option.name, value))))),
+    ] : null,
+    animationFields(widgets),
+    el('div', { class: 'actions' },
+      el('button', { onclick: () => duplicate(), title: 'Ctrl+D' }, 'Duplicate'),
+      el('button', { onclick: () => groupSelection(), title: 'Put them in a new Group (Ctrl+G)' }, 'Group'),
+      el('button', { class: 'danger', onclick: () => removeSelection(), title: 'Delete' }, 'Delete')),
+    el('p', { class: 'hint note' }, 'Drag one or use the arrow keys to move them together. Shift+click adds or removes a widget; drag on empty pads to select an area.'),
+  );
 }
 
 function numberInput(label, value, onchange, attrs = {}) {
@@ -673,6 +1008,7 @@ function numberInput(label, value, onchange, attrs = {}) {
 function renderProperties() {
   const panel = $('properties');
   const selection = state.selection;
+  if (selection?.kind === 'widget' && selection.paths.length > 1) return multiProperties(panel, selection.paths);
   if (selection?.kind === 'widget') {
     const path = selection.path;
     const widget = widgetAt(path);
@@ -716,10 +1052,13 @@ function renderProperties() {
         })),
         (info?.options || []).flatMap((option) => optionField(widget, option)),
         info?.bindable ? bindingFields(widget) : null),
+      widget.type === 'Sprite' ? spriteEditor(widget) : null,
+      animationFields([widget]),
       el('div', { class: 'actions' },
         el('button', { onclick: () => reorder(path, 1), title: 'Draw above the next widget' }, 'Raise'),
         el('button', { onclick: () => reorder(path, -1), title: 'Draw below the previous widget' }, 'Lower'),
-        el('button', { onclick: () => duplicate(path), title: 'Ctrl+D' }, 'Duplicate'),
+        el('button', { onclick: () => duplicate(), title: 'Ctrl+D' }, 'Duplicate'),
+        widget.type === 'Group' ? el('button', { onclick: () => ungroup(path), title: 'Move its widgets out (Ctrl+Shift+G)' }, 'Ungroup') : null,
         el('button', { class: 'danger', onclick: () => removeSelection(), title: 'Delete' }, 'Delete')),
       widget.type === 'Pages' ? [
         el('p', { class: 'hint' }, `Page ${currentPage(widget) + 1} of ${widget.widgets?.length || 0} shown. Widgets added from the palette go on it; select a widget in Layers to show its page.`),
@@ -773,7 +1112,7 @@ function renderProperties() {
           else render();
         },
       }))),
-    el('p', { class: 'hint' }, 'Select a widget to edit it. In Try mode, click pads to press them; hold for a Held event.'),
+    el('p', { class: 'hint' }, 'Select a widget to edit it; Shift+click or drag on empty pads to select several. Drag a device by its name. In Try mode, click pads to press them; hold for a Held event.'),
     el('h4', {}, 'Transport controls'),
     transportControls(),
   );
@@ -852,7 +1191,7 @@ function addWidget(type) {
   change((layout) => {
     const list = group ? widgetAt(group).widgets : layout.widgets;
     list.push(widget);
-    state.selection = { kind: 'widget', path: [...(group || []), list.length - 1] };
+    state.selection = widgetSelection([[...(group || []), list.length - 1]]);
   });
 }
 
@@ -870,7 +1209,11 @@ function removeSelection() {
   change((layout) => {
     let bindings = layout.bindings || [];
     if (selection.kind === 'widget') {
-      childrenOf(selection.path).splice(selection.path[selection.path.length - 1], 1);
+      const widgets = topSelected().map(widgetAt);
+      for (const widget of widgets) {
+        const list = childrenOf(pathsOf([widget])[0]);
+        list.splice(list.indexOf(widget), 1);
+      }
       const names = new Set(allWidgets().map(({ widget }) => widget.name));
       bindings = bindings.filter((binding) => binding.widget === undefined || names.has(binding.widget));
     } else {
@@ -891,12 +1234,14 @@ function reorder(path, direction) {
   if (target < 0 || target >= list.length) return;
   change(() => {
     [list[index], list[target]] = [list[target], list[index]];
-    state.selection = { kind: 'widget', path: [...path.slice(0, -1), target] };
+    state.selection = widgetSelection([[...path.slice(0, -1), target]]);
   });
 }
 
-function duplicate(path) {
-  const copy = JSON.parse(JSON.stringify(widgetAt(path)));
+// Copies of the selected widgets, each above its original; the copies get selected
+function duplicate() {
+  const originals = topSelected().map(widgetAt);
+  if (!originals.length) return;
   const taken = new Set();
   const rename = (widget) => {
     widget.name = uniqueName(widget.type, taken);
@@ -904,27 +1249,79 @@ function duplicate(path) {
     (widget.widgets || []).forEach(rename);
   };
   change(() => {
-    rename(copy);
-    const list = childrenOf(path);
-    list.splice(path[path.length - 1] + 1, 0, copy);
-    state.selection = { kind: 'widget', path: [...path.slice(0, -1), path[path.length - 1] + 1] };
+    const copies = originals.map((original) => {
+      const copy = JSON.parse(JSON.stringify(original));
+      rename(copy);
+      const list = childrenOf(pathsOf([original])[0]);
+      list.splice(list.indexOf(original) + 1, 0, copy);
+      return copy;
+    });
+    state.selection = widgetSelection(pathsOf(copies));
   });
 }
 
-function nudge(dx, dy, resize) {
-  const selection = state.selection;
-  if (selection?.kind !== 'widget') return;
-  const widget = widgetAt(selection.path);
-  const [parentWidth, parentHeight] = containerSize(selection.path);
-  change(() => {
-    if (resize) {
-      widget.width = Math.max(1, Math.min(parentWidth - (widget.x || 0), widget.width + dx));
-      widget.height = Math.max(1, Math.min(parentHeight - (widget.y || 0), widget.height + dy));
-    } else {
-      widget.x = Math.max(0, Math.min(parentWidth - widget.width, (widget.x || 0) + dx));
-      widget.y = Math.max(0, Math.min(parentHeight - widget.height, (widget.y || 0) + dy));
-    }
+// Move the selected widgets into a new Group around them (they must share a parent)
+function groupSelection() {
+  const paths = topSelected();
+  const parent = paths[0].slice(0, -1);
+  if (!paths.every((path) => samePath(path.slice(0, -1), parent))) {
+    return setStatus('Only widgets in the same group can be grouped', 'error');
+  }
+  if (parent.length && widgetAt(parent).type === 'Pages') return setStatus('Add a page to group widgets on a Pages', 'error');
+  const widgets = paths.map(widgetAt);
+  const x0 = Math.min(...widgets.map((w) => w.x || 0)), y0 = Math.min(...widgets.map((w) => w.y || 0));
+  const x1 = Math.max(...widgets.map((w) => (w.x || 0) + w.width)), y1 = Math.max(...widgets.map((w) => (w.y || 0) + w.height));
+  change((layout) => {
+    const list = parent.length ? widgetAt(parent).widgets : layout.widgets;
+    const index = Math.min(...widgets.map((widget) => list.indexOf(widget)));
+    // Keep their drawing order
+    const ordered = list.filter((widget) => widgets.includes(widget));
+    const group = {
+      type: 'Group', name: uniqueName('Group'), x: x0, y: y0, width: x1 - x0, height: y1 - y0, options: {},
+      widgets: ordered.map((widget) => ({ ...widget, x: (widget.x || 0) - x0, y: (widget.y || 0) - y0 })),
+    };
+    const rest = list.filter((widget) => !widgets.includes(widget));
+    rest.splice(index, 0, group);
+    list.splice(0, list.length, ...rest);
+    state.selection = widgetSelection(pathsOf([group]));
   });
+}
+
+// Move the group's widgets out to its parent, where the group was
+function ungroup(path) {
+  const group = widgetAt(path);
+  change(() => {
+    const list = childrenOf(path);
+    const children = (group.widgets || []).map((widget) => ({ ...widget, x: (widget.x || 0) + (group.x || 0), y: (widget.y || 0) + (group.y || 0) }));
+    list.splice(list.indexOf(group), 1, ...children);
+    state.selection = widgetSelection(pathsOf(children));
+  });
+}
+
+function selectAll() {
+  // The selected widget's siblings, or everything on the surface
+  const scope = state.selection?.kind === 'widget' ? state.selection.path.slice(0, -1) : [];
+  const list = scope.length ? widgetAt(scope).widgets : state.layout.widgets;
+  select(widgetSelection(list.map((_, index) => [...scope, index]).filter((path) => !hiddenBy(path).length)));
+}
+
+function nudge(dx, dy, resize) {
+  const paths = topSelected();
+  if (!paths.length) return;
+  if (resize) {
+    return change(() => paths.forEach((path) => {
+      const widget = widgetAt(path);
+      const [parentWidth, parentHeight] = containerSize(path);
+      widget.width = clamp(widget.width + dx, 1, parentWidth - (widget.x || 0));
+      widget.height = clamp(widget.height + dy, 1, parentHeight - (widget.y || 0));
+    }));
+  }
+  // Together, as far as all of them can go
+  const limits = moveLimits(paths);
+  const [ox, oy] = [clamp(dx, ...limits.dx), clamp(dy, ...limits.dy)];
+  if (!ox && !oy) return;
+  const widgets = paths.map(widgetAt);
+  change(() => widgets.forEach((widget) => Object.assign(widget, { x: (widget.x || 0) + ox, y: (widget.y || 0) + oy })));
 }
 
 async function save() {
@@ -998,7 +1395,7 @@ function bindToolbar() {
     setStatus('Copied the Python snippet', 'ok');
   };
   $('stage').addEventListener('pointerdown', (event) => {
-    if (state.mode === 'edit' && (event.target.id === 'stage' || event.target.id === 'board')) select(null);
+    if (event.target.id === 'stage' || event.target.id === 'board') startMarquee(event);
   });
   window.addEventListener('resize', () => { renderBoard(); renderOverlay(); });
   window.addEventListener('beforeunload', (event) => {
@@ -1011,7 +1408,13 @@ function bindToolbar() {
     if (mod && key === 'z') { event.preventDefault(); return event.shiftKey ? redo() : undo(); }
     if (mod && key === 'y') { event.preventDefault(); return redo(); }
     if (mod && key === 's') { event.preventDefault(); return save(); }
-    if (mod && key === 'd' && state.selection?.kind === 'widget') { event.preventDefault(); return duplicate(state.selection.path); }
+    if (mod && key === 'd' && state.selection?.kind === 'widget') { event.preventDefault(); return duplicate(); }
+    if (mod && key === 'a' && state.mode === 'edit') { event.preventDefault(); return selectAll(); }
+    if (mod && key === 'g' && state.selection?.kind === 'widget') {
+      event.preventDefault();
+      const widget = widgetAt(state.selection.path);
+      return event.shiftKey ? (widget.type === 'Group' && ungroup(state.selection.path)) : groupSelection();
+    }
     if (mod) return;
     if (key === 'e') return setMode('edit');
     if (key === 't') return setMode('try');

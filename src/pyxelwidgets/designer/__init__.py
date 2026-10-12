@@ -58,7 +58,8 @@ def catalog() -> dict:
     colors = {name: pyxelwidgets.parser.color_to_text(value) for name, value in vars(pyxelwidgets.color.Colors).items()
               if isinstance(value, pyxelwidgets.color.Color)}
     schema = pyxelwidgets.parser.schema()
-    return {'widgets': schema['widgets'], 'binding': schema['binding'], 'devices': devices, 'colors': colors}
+    return {'widgets': schema['widgets'], 'animations': schema['animations'], 'binding': schema['binding'],
+            'devices': devices, 'colors': colors}
 
 class PreviewDevice(pyxelwidgets.devices.Device):
     """Covers the whole surface so clicks in the browser reach widgets like real pad presses."""
@@ -141,6 +142,7 @@ class Preview:
         device = PreviewDevice(width = ui.surface.rect.w, height = ui.surface.rect.h, held_time = 0.6)
         device.connect()
         ui.surface.add_device(device)
+        ui.surface.transport = self._idle(ui)
         for widget in ui.widgets.values():
             widget.on(pyxelwidgets.events.WidgetEvent, self._record)
         with self.lock:
@@ -264,11 +266,16 @@ class Preview:
             self.ui.surface.transport = self.transport
             self.transport.play()
 
+    @staticmethod
+    def _idle(ui):
+        # A stopped transport: animations run at the layout's tempo while not playing
+        return pyxelwidgets.transport.Transport(**ui.transport_settings())
+
     def stop(self) -> None:
         with self.lock:
             transport, self.transport = self.transport, None
             if self.ui is not None:
-                self.ui.surface.transport = None
+                self.ui.surface.transport = self._idle(self.ui)
         if transport is not None:
             transport.close()
 

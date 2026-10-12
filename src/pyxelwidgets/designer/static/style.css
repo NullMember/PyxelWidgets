@@ -111,13 +111,16 @@ body.try .pad:active { transform: scale(0.96); }
 .outline.widget { border: 2px solid rgba(91, 157, 255, 0.45); cursor: move; }
 .outline.widget.group { border-style: dashed; border-color: rgba(200, 160, 255, 0.5); }
 .outline.widget.selected { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); z-index: 5; }
-.outline.device { border: 2px dashed var(--device); pointer-events: none; opacity: 0.65; }
+.outline.device { border: 2px dashed var(--device); pointer-events: none; opacity: 0.65; z-index: 6; }
+.outline.device.selected { opacity: 1; box-shadow: 0 0 0 3px rgba(240, 180, 76, 0.2); }
 .outline .tag {
   position: absolute; top: -9px; left: 6px; padding: 0 5px; font-size: 10px; line-height: 16px; border-radius: 4px;
   background: #0c0d10; color: var(--muted); white-space: nowrap; pointer-events: none;
 }
 .outline.selected .tag { color: var(--accent); }
-.outline.device .tag { top: auto; bottom: -9px; color: var(--device); }
+.outline.device .tag { top: auto; bottom: -9px; color: var(--device); pointer-events: auto; cursor: move; }
+.outline.device .tag:hover { background: #1f1a10; }
+.marquee { position: absolute; border: 1px solid var(--accent); background: var(--accent-soft); border-radius: 3px; z-index: 7; }
 .handle {
   position: absolute; width: 12px; height: 12px; right: -7px; top: -7px; border-radius: 3px;
   background: var(--accent); border: 2px solid #0c0d10; cursor: nesw-resize;
@@ -148,6 +151,21 @@ body.try .outline .tag, body.try .handle { display: none; }
 .color input[type=range] { flex: 1; min-width: 0; width: 100%; }
 .actions { display: flex; gap: 6px; margin-top: 12px; flex-wrap: wrap; }
 .actions .danger { color: var(--danger); }
+button.active { background: var(--accent-soft); border-color: var(--accent); color: var(--accent); }
+.hint.note { margin: 10px 0 0; }
+
+.frames, .paint { display: flex; gap: 4px; flex-wrap: wrap; align-items: center; margin-bottom: 8px; }
+.frames button { min-width: 28px; padding: 2px 6px; }
+.paint input[type=color] { width: 32px; height: 26px; border: 1px solid var(--line); border-radius: 4px; padding: 0; background: none; flex: none; }
+.swatches { display: flex; flex-wrap: wrap; gap: 3px; flex: 1; min-width: 0; }
+.swatch { width: 16px; height: 16px; padding: 0; border-radius: 3px; border: 1px solid rgba(255, 255, 255, 0.15); }
+.swatch.active { outline: 2px solid var(--accent); outline-offset: 1px; }
+.sprite-grid { display: grid; gap: 2px; width: max-content; padding: 4px; background: #0c0d10; border-radius: 6px; touch-action: none; cursor: crosshair; }
+.sprite-grid .cell { border-radius: 2px; }
+/* Transparent: a checkerboard */
+.sprite-grid .cell.empty {
+  background: repeating-conic-gradient(#2a2e36 0 25%, #1c1f25 0 50%) 50% / 8px 8px;
+}
 
 .events { margin: 0; padding: 0; list-style: none; font: 12px/1.5 ui-monospace, Menlo, monospace; overflow: auto; flex: 1; min-height: 0; }
 .tree { overflow: auto; flex: 1; min-height: 0; }
