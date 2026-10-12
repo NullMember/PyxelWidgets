@@ -3,10 +3,14 @@ Layout files: a JSON description of a Surface, the devices it is shown on and
 its widgets, as written by the designer (``python -m pyxelwidgets.designer``).
 
     {
-      "format": "pyxelwidgets.layout", "version": 2,
+      "format": "pyxelwidgets.layout", "version": 3,
       "surface": {"width": 9, "height": 9},
       "transport": {"bpm": 120, "signature": [4, 4]},
       "devices": [{"type": "novation.LaunchpadMiniMK3", "x": 0, "y": 0, "options": {}}],
+      "bindings": [
+        {"device": 0, "control": "Top1", "widget": "volume", "options": {"takeover": "Pickup"}},
+        {"device": 0, "control": "Top8", "action": "transport.toggle"}
+      ],
       "widgets": [
         {"type": "Fader", "name": "volume", "x": 0, "y": 0, "width": 1, "height": 8,
          "options": {"active_color": "#00ffff", "mode": "Magnitude"}},
@@ -17,7 +21,11 @@ its widgets, as written by the designer (``python -m pyxelwidgets.designer``).
 
 Widget options are the widget's constructor arguments: colors as ``#rrggbb``
 or ``#rrggbbaa``, enums by member name (``"Magnitude"`` for ``Fader.Mode``),
-rates as note values (``"1/16"``). Version 1 layouts are upgraded on load.
+rates as note values (``"1/16"``). Older versions are upgraded on load.
+
+Bindings connect a device's named controls (by the device's index in
+``devices``) to a widget, with Binding options (``takeover``, ``glide_time``,
+``step``, ``axis``), or to an action (see ``ACTIONS``).
 Device inputs/outputs are optional port names; without them devices are found
 by their port names.
 
@@ -40,6 +48,7 @@ import pathlib
 import types
 import typing
 
+import pyxelwidgets.binding
 import pyxelwidgets.color
 import pyxelwidgets.group
 import pyxelwidgets.surface
@@ -47,7 +56,15 @@ import pyxelwidgets.transport
 import pyxelwidgets.widgets
 
 FORMAT = 'pyxelwidgets.layout'
-VERSION = 2
+VERSION = 3
+
+# Actions a binding can trigger, on the transport given to Parser.bind
+ACTIONS = {
+    'transport.play': lambda transport: transport.play,
+    'transport.stop': lambda transport: transport.stop,
+    'transport.toggle': lambda transport: transport.toggle,
+    'transport.rewind': lambda transport: (lambda: transport.locate(0)),
+}
 
 # Suggested values for rate options; any note value is accepted
 RATES = ['1/1', '1/2', '1/4', '1/8', '1/16', '1/32', '1/4.', '1/8.', '1/16.', '1/4T', '1/8T', '1/16T', 'beat', 'bar']
@@ -66,8 +83,11 @@ def widget_types() -> dict:
 # Arguments set by the layout itself, not by options
 _PLACEMENT = {'self', 'x', 'y', 'width', 'height', 'name'}
 
-# Base class arguments a widget sets itself (a Group's background is its inactive_color)
-_HIDDEN = {pyxelwidgets.group.Group: {'active_color', 'inactive_color'}}
+# Arguments that aren't options: set by the class itself (a Group's background is its
+# inactive_color) or by the layout entry (a binding's device, control and target)
+_HIDDEN = {pyxelwidgets.group.Group: {'active_color', 'inactive_color'},
+           # Set by the binding entry itself
+           pyxelwidgets.binding.Binding: {'source', 'control', 'target', 'device', 'clock'}}
 
 def _parameters(cls) -> list:
     """Keyword arguments of ``cls``, following ``**kwargs`` into base classes."""
@@ -157,7 +177,8 @@ def schema() -> dict:
             'container': issubclass(cls, pyxelwidgets.group.Group),
             'options': option_schema(cls),
         }
-    return {'format': FORMAT, 'version': VERSION, 'widgets': widgets}
+    return {'format': FORMAT, 'version': VERSION, 'widgets': widgets,
+            'binding': {'options': option_schema(pyxelwidgets.binding.Binding), 'actions': list(ACTIONS)}}
 
 def _options(cls, options: dict, where: str) -> dict:
     parameters = {parameter.name: parameter for parameter in _parameters(cls)}
@@ -226,6 +247,8 @@ class Parser():
         if devices:
             self.get_devices()
         self.get_widgets()
+        self.binding_settings()
+        self.bindings = self.bind(self.devices) if devices else []
 
     def __getitem__(self, name: str):
         return self.widgets[name]
@@ -292,7 +315,49 @@ class Parser():
         import pyxelwidgets.app
         app = pyxelwidgets.app.App(self.surface, fps, **self.transport_settings())
         self.attach(app.transport)
+        self.bindings += self.bind(self.devices, app.transport, widgets = False)
         return app
+
+    def binding_settings(self) -> list:
+        """The layout's bindings as (device index, control, widget or None, action or None, Binding options)."""
+        bindings = self.json.get('bindings') or []
+        if not isinstance(bindings, list):
+            raise LayoutError('bindings: must be a list')
+        count = len(self.json.get('devices') or [])
+        settings = []
+        for index, binding in enumerate(bindings):
+            where = f'bindings[{index}]'
+            device, control = binding.get('device'), binding.get('control')
+            widget, action = binding.get('widget'), binding.get('action')
+            if isinstance(device, bool) or not isinstance(device, int) or not 0 <= device < count:
+                raise LayoutError(f'{where}.device: must be the index of one of the {count} devices, got {device!r}')
+            if not isinstance(control, str) or not control:
+                raise LayoutError(f'{where}.control: must be a control name, got {control!r}')
+            if (widget is None) == (action is None):
+                raise LayoutError(f'{where}: needs either "widget" or "action"')
+            if widget is not None and widget not in self.widgets:
+                raise LayoutError(f'{where}.widget: no widget named {widget!r}')
+            if action is not None and action not in ACTIONS:
+                raise LayoutError(f'{where}.action: unknown action {action!r} (actions: {", ".join(ACTIONS)})')
+            settings.append((device, control, widget, action, _options(pyxelwidgets.binding.Binding, binding.get('options'), where)))
+        return settings
+
+    def bind(self, devices: list, transport = None, *, widgets: bool = True) -> list:
+        """
+        Create the layout's bindings on the surface: widget bindings (with
+        ``widgets``) and, given a ``transport``, action bindings. ``devices``
+        are in layout order; a missing one (None) is skipped. Returns the Bindings.
+        """
+        created = []
+        for index, control, widget, action, options in self.binding_settings():
+            device = devices[index] if index < len(devices) else None
+            if device is None:
+                continue
+            if widget is not None and widgets:
+                created.append(self.surface.bind(device, control, self.widgets[widget], **options))
+            elif action is not None and transport is not None:
+                created.append(self.surface.bind(device, control, ACTIONS[action](transport)))
+        return created
 
 def _fraction_text(value: fractions.Fraction) -> str:
     return str(value.numerator) if value.denominator == 1 else f'{value.numerator}/{value.denominator}'
@@ -302,17 +367,23 @@ def upgrade(layout: dict) -> dict:
     if not isinstance(layout, dict) or layout.get('format') != FORMAT:
         raise LayoutError(f'not a {FORMAT} layout')
     version = layout.get('version')
-    if version not in (1, VERSION):
+    if isinstance(version, bool) or version not in range(1, VERSION + 1):
         raise LayoutError(f'unsupported {FORMAT} version {version!r} (supported: 1 to {VERSION})')
     if version == VERSION:
         return layout
-    # Version 1 had a tick based clock; Sequencer/Tracker timing was set in ticks per quarter note
+    layout = _from_version_1(layout) if version == 1 else copy.deepcopy(layout)
+    # Version 3 added the optional "bindings"; nothing to convert
+    layout['version'] = VERSION
+    return layout
+
+def _from_version_1(layout: dict) -> dict:
+    """Version 1 had a tick based clock; Sequencer/Tracker timing was set in ticks per quarter note."""
     clock = layout.get('clock') or {}
     transport = {'bpm': clock.get('bpm', 120), 'signature': [4, 4]}
     # Same key order, with the transport where the clock was
     layout = {('transport' if key == 'clock' else key): (transport if key == 'clock' else copy.deepcopy(value))
               for key, value in layout.items()}
-    layout['version'] = VERSION
+    layout['version'] = 2
     layout.setdefault('transport', transport)
     def convert(widgets, where):
         for index, widget in enumerate(widgets or []):
