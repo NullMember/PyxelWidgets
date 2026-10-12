@@ -24,7 +24,8 @@ import re
 import typing
 
 __all__ = ['Source', 'Message', 'MidiMessage', 'NoteOn', 'NoteOff', 'ControlChange', 'ProgramChange',
-           'PitchBend', 'PolyPressure', 'ChannelPressure', 'OscMessage', 'Command', 'INTEGER_SOURCES']
+           'PitchBend', 'PolyPressure', 'ChannelPressure', 'OscMessage', 'Command', 'INTEGER_SOURCES',
+           'Hotkey', 'Key', 'TypeText', 'MouseMove', 'MouseButton', 'MouseClick', 'Scroll', 'KEY_NAMES', 'parse_keys']
 
 #: Sources that are whole numbers; the others are 0.0-1.0 (``text`` is a string)
 INTEGER_SOURCES = frozenset({'x', 'y', 'cell', 'note', 'step', 'row', 'page', 'delta'})
@@ -325,3 +326,126 @@ class Command(Message):
     @property
     def sources(self) -> list:
         return _placeholders(self.name) + ([self.value] if isinstance(self.value, Source) else [])
+
+# Keyboard and mouse (see pyxelwidgets.devices.desktop)
+
+#: Named keys for Hotkey and Key, besides single characters ('a', '1', '/')
+KEY_NAMES = frozenset({
+    'ctrl', 'shift', 'alt', 'cmd', 'enter', 'space', 'tab', 'esc', 'backspace', 'delete', 'caps_lock',
+    'up', 'down', 'left', 'right', 'home', 'end', 'page_up', 'page_down',
+    *(f'f{n}' for n in range(1, 21)),
+    'media_play_pause', 'media_next', 'media_previous', 'media_volume_up', 'media_volume_down', 'media_volume_mute',
+})
+
+# Other names people write for them
+_KEY_ALIASES = {
+    'control': 'ctrl', 'option': 'alt', 'opt': 'alt', 'command': 'cmd', 'super': 'cmd', 'win': 'cmd', 'meta': 'cmd',
+    'return': 'enter', 'escape': 'esc', 'pgup': 'page_up', 'pgdn': 'page_down', 'del': 'delete', 'plus': '+',
+    'play': 'media_play_pause', 'next': 'media_next', 'previous': 'media_previous',
+    'volume_up': 'media_volume_up', 'volume_down': 'media_volume_down', 'mute': 'media_volume_mute',
+}
+
+def parse_keys(keys: str) -> tuple:
+    """``'ctrl+shift+s'`` → ``('ctrl', 'shift', 's')``; raises ValueError for unknown keys."""
+    names = []
+    text = str(keys).lower().replace(' ', '')
+    for part in ['+'] if text == '+' else text.split('+'):
+        name = _KEY_ALIASES.get(part, part)
+        if not name:
+            raise ValueError(f'empty key in {keys!r} (write "plus" for +)')
+        if name not in KEY_NAMES and len(name) != 1:
+            raise ValueError(f'unknown key {part!r} in {keys!r} (keys: single characters, {", ".join(sorted(KEY_NAMES - {f"f{n}" for n in range(2, 21)}))}...)')
+        names.append(name)
+    if not names:
+        raise ValueError('no keys')
+    return tuple(names)
+
+def _check_keys(keys) -> None:
+    # Keys with placeholders ('f{x+1}') are checked once filled in
+    if isinstance(keys, str) and '{' not in keys:
+        parse_keys(keys)
+
+_BUTTONS = ('left', 'right', 'middle')
+
+@dataclasses.dataclass(frozen = True)
+class Hotkey(Message):
+    """Press ``keys`` together, then let go: ``'ctrl+c'``, ``'cmd+shift+4'``, ``'f{x+1}'`` (one per column)."""
+    keys: str = 'ctrl+c'
+
+    def __post_init__(self):
+        _check_keys(self.keys)
+
+    def resolve(self, sources: dict) -> 'Hotkey':
+        return Hotkey(_fill(self.keys, sources))
+
+    @property
+    def sources(self) -> list:
+        return _placeholders(self.keys)
+
+@dataclasses.dataclass(frozen = True)
+class Key(Message):
+    """Hold ``keys`` down while ``state`` is above 0, let go at 0 (e.g. push to talk, a held Shift)."""
+    keys: str = 'shift'
+    state: typing.Any = Source('value')
+
+    def __post_init__(self):
+        _check_keys(self.keys)
+
+    def resolve(self, sources: dict) -> 'Key':
+        return Key(_fill(self.keys, sources), _resolve(self.state, sources, None))
+
+    @property
+    def sources(self) -> list:
+        return _placeholders(self.keys) + ([self.state] if isinstance(self.state, Source) else [])
+
+@dataclasses.dataclass(frozen = True)
+class TypeText(Message):
+    """Type ``text`` (placeholders such as ``{x+1}`` take a value from the event)."""
+    text: str = 'Hello'
+
+    def resolve(self, sources: dict) -> 'TypeText':
+        return TypeText(_fill(self.text, sources))
+
+    @property
+    def sources(self) -> list:
+        return _placeholders(self.text)
+
+@dataclasses.dataclass(frozen = True)
+class MouseMove(Message):
+    """
+    Move the pointer: to ``x``, ``y`` on the main screen (0.0-1.0 from the
+    bottom-left, e.g. an XY's ``value_x``/``value_y``), or with ``relative``
+    by ``x``, ``y`` pixels (positive y is up).
+    """
+    x: typing.Any = Source('value_x')
+    y: typing.Any = Source('value_y')
+    relative: bool = False
+
+@dataclasses.dataclass(frozen = True)
+class MouseButton(Message):
+    """Hold a mouse ``button`` (left, right, middle) down while ``state`` is above 0, let go at 0 (dragging)."""
+    button: str = 'left'
+    state: typing.Any = Source('value')
+    choices: typing.ClassVar[dict] = {'button': _BUTTONS}
+
+    def __post_init__(self):
+        if self.button not in _BUTTONS:
+            raise ValueError(f'button must be one of {", ".join(_BUTTONS)}, got {self.button!r}')
+
+@dataclasses.dataclass(frozen = True)
+class MouseClick(Message):
+    """Click a mouse ``button`` (left, right, middle) ``count`` times (2: a double click)."""
+    button: str = 'left'
+    count: typing.Any = 1
+    ranges: typing.ClassVar[dict] = {'count': (1, 3)}
+    choices: typing.ClassVar[dict] = {'button': _BUTTONS}
+
+    def __post_init__(self):
+        if self.button not in _BUTTONS:
+            raise ValueError(f'button must be one of {", ".join(_BUTTONS)}, got {self.button!r}')
+
+@dataclasses.dataclass(frozen = True)
+class Scroll(Message):
+    """Scroll by ``dx``, ``dy`` steps (positive dy is up), e.g. a knob's ``delta``."""
+    dx: typing.Any = 0
+    dy: typing.Any = Source('delta')
