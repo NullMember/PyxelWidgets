@@ -9,14 +9,16 @@ class App():
 
     Input from devices and transport subscribers are handled immediately on
     their own threads; the shared lock keeps them from interleaving with
-    rendering. The transport doesn't play until ``app.transport.play()``.
+    rendering. The transport doesn't play until ``app.transport.play()``, or
+    with ``sync = True`` it follows an external clock (see
+    ``pyxelwidgets.devices.midi_clock``).
     """
 
     def __init__(self, surface: pyxelwidgets.surface.Surface, fps: float = 60.0, *,
-                 bpm: float = 120, signature: tuple = (4, 4)):
+                 bpm: float = 120, signature: tuple = (4, 4), sync: bool = False):
         self.surface = surface
         self.fps = fps
-        self.transport = pyxelwidgets.transport.Transport(bpm, signature = signature, lock = surface.lock)
+        self.transport = pyxelwidgets.transport.Transport(bpm, signature = signature, sync = sync, lock = surface.lock)
         self.running = False
         self._closed = False
 
