@@ -28,6 +28,16 @@ class Group(pyxelwidgets.widgets.Widget):
         super().__init__(x, y, width, height, inactive_color = background, propagation = propagation, **kwargs)
 
     @property
+    def background(self) -> pyxelwidgets.color.Color:
+        """The color of the area no child covers (the group's ``inactive_color``)."""
+        return self.inactive_color
+
+    @background.setter
+    def background(self, value: pyxelwidgets.color.Color) -> None:
+        self.inactive_color = value
+        self.updated = True
+
+    @property
     def children(self) -> tuple:
         """Children from bottom to top."""
         return tuple(self._children)
