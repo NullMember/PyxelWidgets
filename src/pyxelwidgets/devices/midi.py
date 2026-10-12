@@ -1,4 +1,6 @@
 import platform
+import queue
+import threading
 
 import rtmidi
 import rtmidi.midiutil
@@ -6,6 +8,58 @@ import rtmidi.midiutil
 import pyxelwidgets.devices
 import pyxelwidgets.devices.te_virtual_midi
 import pyxelwidgets.events
+
+class _MidiThread:
+    """
+    Runs every port listing, opening and closing on one thread. CoreMIDI
+    (macOS) only shows ports appearing and disappearing (devices plugged in
+    and out) to the thread that first used it in the process, so that has to
+    be the same thread every time. Sending and receiving don't need it.
+    """
+
+    def __init__(self) -> None:
+        self._calls = queue.Queue()
+        self._thread = None
+        self._start_lock = threading.Lock()
+
+    def call(self, function, *args, **kwargs):
+        """``function(*args, **kwargs)`` on the MIDI thread; returns its result or raises its error."""
+        if threading.current_thread() is self._thread:
+            return function(*args, **kwargs)
+        with self._start_lock:
+            if self._thread is None:
+                self._thread = threading.Thread(target = self._run, name = 'PyxelWidgetsMIDI', daemon = True)
+                self._thread.start()
+        done = threading.Event()
+        result = {}
+        self._calls.put((function, args, kwargs, done, result))
+        done.wait()
+        if 'error' in result:
+            raise result['error']
+        return result.get('value')
+
+    def _run(self) -> None:
+        while True:
+            function, args, kwargs, done, result = self._calls.get()
+            try:
+                result['value'] = function(*args, **kwargs)
+            except BaseException as error:
+                result['error'] = error
+            done.set()
+
+#: Opens, closes and lists MIDI ports (see _MidiThread)
+midi_thread = _MidiThread()
+
+def _list_ports() -> tuple:
+    # A port still appearing can have no name yet
+    return ([name for name in rtmidi.MidiIn().get_ports() if name is not None],
+            [name for name in rtmidi.MidiOut().get_ports() if name is not None])
+
+def _open_virtual(port: str) -> tuple:
+    midi_input, midi_output = rtmidi.MidiIn(), rtmidi.MidiOut()
+    midi_input.open_virtual_port(port)
+    midi_output.open_virtual_port(port)
+    return midi_input, midi_output
 
 class InvalidMIDIPortException(Exception):
     def __init__(self, *args: object) -> None:
@@ -36,9 +90,7 @@ class MIDI(pyxelwidgets.devices.Device):
     @staticmethod
     def available_ports() -> tuple:
         """Names of the (input, output) MIDI ports."""
-        # A port still appearing can have no name yet
-        return ([name for name in rtmidi.MidiIn().get_ports() if name is not None],
-                [name for name in rtmidi.MidiOut().get_ports() if name is not None])
+        return midi_thread.call(_list_ports)
 
     @classmethod
     def find_ports(cls) -> tuple:
@@ -64,11 +116,11 @@ class MIDI(pyxelwidgets.devices.Device):
             in_port, out_port = self.find_ports()
         super().connect()
         if in_port is not None:
-            self._midi_input, self._midi_input_name = rtmidi.midiutil.open_midiinput(in_port, interactive = False)
+            self._midi_input, self._midi_input_name = midi_thread.call(rtmidi.midiutil.open_midiinput, in_port, interactive = False)
             self._midi_input.ignore_types(sysex = False, timing = False)
             self._midi_input.set_callback(self.process_midi)
         if out_port is not None:
-            self._midi_output, self._midi_output_name = rtmidi.midiutil.open_midioutput(out_port, interactive = False)
+            self._midi_output, self._midi_output_name = midi_thread.call(rtmidi.midiutil.open_midioutput, out_port, interactive = False)
         if self._midi_input is None and self._midi_output is None:
             self.connected = False
             # Not plugged in: check() connects it when it is
@@ -90,12 +142,11 @@ class MIDI(pyxelwidgets.devices.Device):
             else:
                 self.connected = False
         else:
-            self._midi_input, self._midi_input_name = (rtmidi.MidiIn(), port)
-            self._midi_input.open_virtual_port(port)
+            midi_input, midi_output = midi_thread.call(_open_virtual, port)
+            self._midi_input, self._midi_input_name = (midi_input, port)
             self._midi_input.ignore_types(sysex = False, timing = False)
             self._midi_input.set_callback(self.process_midi)
-            self._midi_output, self._midi_output_name = (rtmidi.MidiOut(), port)
-            self._midi_output.open_virtual_port(port)
+            self._midi_output, self._midi_output_name = (midi_output, port)
             self.virtual = True
 
     def check(self, ports: tuple | None = None) -> bool:
@@ -161,7 +212,7 @@ class MIDI(pyxelwidgets.devices.Device):
         for port in (self._midi_input, self._midi_output):
             if port is not None:
                 try:
-                    port.close_port()
+                    midi_thread.call(port.close_port)
                 except Exception:
                     pass
         self._midi_input = self._midi_output = None
@@ -172,10 +223,10 @@ class MIDI(pyxelwidgets.devices.Device):
             self.on_disconnect()
         super().disconnect()
         if self._midi_input is not None:
-            self._midi_input.close_port()
+            midi_thread.call(self._midi_input.close_port)
             self._midi_input = None
         if self._midi_output is not None:
-            self._midi_output.close_port()
+            midi_thread.call(self._midi_output.close_port)
             self._midi_output = None
 
     def on_connect(self) -> None:
