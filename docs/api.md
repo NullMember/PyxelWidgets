@@ -1533,6 +1533,10 @@ range (`minimum = 8, maximum = 7`) turns a 0.0-1.0 value around.
 
 An action's value is a number: 0.0-1.0 sources cover `minimum` to
 `maximum` (whole numbers if both are), whole number sources add `offset`.
+A text value is filled in from the event: `'pad {x},{y} at {velocity}'`;
+`{all}` is every value (`x=1 y=0 velocity=0.5`):
+
+    Link(pads, print, value = 'pressed {cell}', on = Pressed)
 
 Options change through `target.configure`, which doesn't emit events, so
 links don't trigger each other in loops (Pages emits PageChanged for a new
@@ -1687,7 +1691,9 @@ are the range a 0.0-1.0 source covers and clamp numbers (see
 one of the target widget's `actions` (`advance`, `play` with a step
 `value`, `next`...) or, without a target, a transport action
 (`ACTIONS`: `transport.play`..., or `VALUE_ACTIONS` taking a
-number: `transport.tempo`, `transport.tempo_add`).
+number: `transport.tempo`, `transport.tempo_add`), or `debug`, which
+writes its `value`, a text filled in from the event (`"pad {x}"`,
+`{all}`: every value; the default), to `Parser.debug`.
 
 Load a layout and attach behaviour by widget name:
 
