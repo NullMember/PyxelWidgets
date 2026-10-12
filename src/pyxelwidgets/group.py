@@ -130,6 +130,8 @@ class Pages(Group):
 
     emits = (pyxelwidgets.events.PageChanged,)
 
+    actions = {'next': None, 'previous': None}
+
     class Selector(enum.Enum):
         Off     = enum.auto()
         Top     = enum.auto()
