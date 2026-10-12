@@ -260,11 +260,15 @@ class Preview:
                 return
             self.transport = pyxelwidgets.transport.Transport(**self.ui.transport_settings(), lock = self.ui.surface.lock)
             self.ui.attach(self.transport)
+            # Animations follow the music while playing
+            self.ui.surface.transport = self.transport
             self.transport.play()
 
     def stop(self) -> None:
         with self.lock:
             transport, self.transport = self.transport, None
+            if self.ui is not None:
+                self.ui.surface.transport = None
         if transport is not None:
             transport.close()
 
