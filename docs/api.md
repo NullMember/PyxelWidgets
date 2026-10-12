@@ -733,6 +733,18 @@ a display (`'Timecode'`, value a string). Buttons are pressed while
 - **`match(message)`**
 - **`sources`**
 
+### `PluginParameter` (Message)
+
+```python
+PluginParameter(track: str = '', plugin: str = '', parameter: str = '', value: Any = Source(name='delta', min=None, max=None, offset=0))
+```
+
+A plug-in parameter, through a control surface's plug-in mode (Mackie
+Control): `track`, `plugin` and `parameter` are names as the
+surface scanned them from the DAW (`scan_tracks`, `scan_plugins`,
+`scan_parameters`). `value` is V-Pot steps (a knob's or fader's
+`delta`); received, it is the parameter's position 0.0-1.0.
+
 ### `Hotkey` (Message)
 
 ```python
@@ -2584,10 +2596,20 @@ send steps (negative turns left) and receive their LED ring position 0.0-1.0.
 Received displays (`Timecode`, `Name 1`, `Display`...) carry text and
 meters (`Meter 1`) 0.0-1.0.
 
+Mackie Control also reaches plug-in parameters through the DAW's plug-in
+mode, by name: `scan_tracks()`, `scan_plugins(track)` and
+`scan_parameters(track, plugin)` press its buttons and read its display,
+and `PluginParameter` messages turn a parameter's V-Pot:
+
+    mackie.scan_tracks()                       # ['Drums', 'Bass', ...] (7 characters at most)
+    mackie.scan_plugins('Bass')                # ['ReaEQ', 'ReaComp']
+    mackie.scan_parameters('Bass', 'ReaComp')  # ['Thresh', 'Ratio', ...]
+    surface.map(knob, mackie, PluginParameter('Bass', 'ReaComp', 'Ratio'), on = Changed, feedback = True)
+
 ### `MackieControl` (_ControlSurface)
 
 ```python
-MackieControl(*, mode: MackieControl.Mode = MackieControl.Mode.MackieControl, **kwargs)
+MackieControl(*, mode: MackieControl.Mode = MackieControl.Mode.MackieControl, plugin_button: str = 'Plug-in', channel_button: str = 'Pan', next_page: str = 'Bank Right', previous_page: str = 'Bank Left', **kwargs)
 ```
 
 Mackie Control Universal (or Logic Control, or an extender, by `mode`):
@@ -2597,9 +2619,20 @@ assignment displays and the 2x56 character LCD (`Name 1`-`8`,
 `Value 1`-`8` for the strips' top and bottom lines, `Display` for
 both). Answers the Logic Control connection handshake.
 
+- `plugin_button: str = 'Plug-in', optional`: The button showing the selected track's plug-ins on the strips (a V-Pot press opens one's parameters).
+- `channel_button: str = 'Pan', optional`: The button going back to the tracks on the strips.
+- `next_page: str = 'Bank Right', optional`: The button showing a plug-in's next 8 parameters.
+- `previous_page: str = 'Bank Left', optional`: The button showing a plug-in's previous 8 parameters.
+
 - **`header`**
 - **`send(message)`**
 - **`decode(midi: list)`**
+- **`close()`**
+- **`row(line: int = 0)`**: The 8 strips' texts on the display's top (0) or bottom (1) line.
+- **`scanned()`**: What the scans found: `tracks`, `plugins` by track and `parameters` by track and plug-in.
+- **`scan_tracks()`**: The DAW's track names: banks through the strips from the first, reading the display (a DAW shows at most 7 characters; repeated names get " (2)"). Blocks for a while; don't call it from a MIDI or widget event handler.
+- **`scan_plugins(track: str)`**: The plug-ins on `track` (a name from `scan_tracks`), as the DAW's plug-in mode shows them.
+- **`scan_parameters(track: str, plugin: str)`**: The parameters of `plugin` on `track`: opens it and pages through its parameters, 8 at a time.
 
 #### `Mode` (Enum)
 
@@ -2718,6 +2751,7 @@ what the widgets' mappings send.
 - **`set_connected(kind: str, index: int, connected: bool)`**: Connect or disconnect layout `devices[index]` or `outputs[index]` (`kind`); returns the status.
 - **`set_hardware(enabled: bool)`**: Connect (or close) every device and output of the layout, and the ones added later.
 - **`hardware_status()`**
+- **`scan(index: int, what: str, track: str | None = None, plugin: str | None = None)`**: Scan the DAW through connected output `index` (Mackie Control): `what` is `tracks`, `plugins` (of `track`), `parameters` (of `plugin` on `track`) or `known` (what earlier scans found). Returns the names found and everything scanned so far. Takes seconds: the DAW is driven.
 - **`close()`**
 - **`frame(since: int = 0)`**: Render; pixels are `#rrggbb` rows from the top, plus events after `since`.
 - **`input(x: int, y: int, velocity: float)`**: Press (`velocity` > 0) or release the surface pad at `x`, `y`.
