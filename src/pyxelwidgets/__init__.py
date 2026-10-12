@@ -63,6 +63,7 @@ _exports = {
     'NoteOn': 'events',
     'NoteOff': 'events',
     'StepPlayed': 'events',
+    'StepEnded': 'events',
     'PageChanged': 'events',
     'RowPlayed': 'events',
     'ClipQueued': 'events',
