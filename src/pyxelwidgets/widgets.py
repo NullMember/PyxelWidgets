@@ -7,6 +7,8 @@ import pyxelwidgets.rate
 import pyxelwidgets.rectangle
 import numpy
 import enum
+import math
+import random
 import time
 import typing
 
@@ -1467,6 +1469,10 @@ class Timed:
     #: Link actions to pause and resume the widget on its clock
     clock_actions = {'start': None, 'stop': None, 'toggle': None}
 
+    #: Calls of ``tick`` per ``rate``: more than one lets the widget time things
+    #: within a step (a Sequencer's swing and gates), ``count`` then counts them
+    divisions = 1
+
     def __init__(self, *args,
                  clock: Clock = Clock.Transport,
                  bpm: float = 120.0,
@@ -1499,24 +1505,35 @@ class Timed:
             else:
                 self.advance()
 
+    def silence(self) -> None:
+        """End what's sounding (a Sequencer's gate); glue calls it when the clock stops."""
+
     def start(self) -> None:
         self.running = True
 
     def stop(self) -> None:
         self.running = False
+        self.silence()
 
     def toggle(self) -> None:
-        self.running = not self.running
+        if self.running:
+            self.stop()
+        else:
+            self.start()
 
 class Sequencer(Timed, Widget):
     """
     Step sequencer. Each step plays when ``play(step)`` or ``advance()`` is
     called; its ``clock`` (the transport, one of its own, or none) does every
-    ``rate``. Emits StepPlayed. Steps beyond one screen are on pages: ``page``
-    is the one shown and edited.
+    ``rate``, with ``swing``. Emits StepPlayed, and StepEnded when an active
+    step's ``gate`` ends. Steps beyond one screen are on pages: ``page`` is the
+    one shown and edited.
     """
 
-    emits = (pyxelwidgets.events.StepPlayed,)
+    emits = (pyxelwidgets.events.StepPlayed, pyxelwidgets.events.StepEnded)
+
+    # Called 24 times a step, to time swing and gates
+    divisions = 24
 
     actions = {'advance': None, 'play': 'int', 'reset': None, **Timed.clock_actions}
 
@@ -1526,6 +1543,9 @@ class Sequencer(Timed, Widget):
                  step: int = 0,
                  page: int = 0,
                  follow: bool = True,
+                 swing: float = 50.0,
+                 gate: float = 0.5,
+                 gate_random: float = 0.0,
                  current_color: pyxelwidgets.color.Color = pyxelwidgets.color.Colors.Lime,
                  current_active_color: pyxelwidgets.color.Color = pyxelwidgets.color.Colors.Red,
                  **kwargs):
@@ -1536,7 +1556,34 @@ class Sequencer(Timed, Widget):
             The page shown and edited.
         follow: bool = True, optional
             Show the page of the playing step when it plays.
+        swing: float = 50.0, optional
+            Where every second step starts, in percent of a pair of steps: 50
+            is straight, 66 a triplet feel, 75 the most. Needs a clock (calls
+            of ``play``/``advance`` aren't delayed).
+        gate: float = 0.5, optional
+            How long an active step sounds, in steps (up to 1): StepEnded then.
+            Without a clock it ends when the next step plays.
+        gate_random: float = 0.0, optional
+            Each hit's gate is longer or shorter by up to this many steps, at random.
         """
+        if not 50.0 <= swing <= 75.0:
+            raise ValueError(f'swing must be from 50 to 75 percent, got {swing!r}')
+        if not 0.0 < gate <= 1.0:
+            raise ValueError(f'gate must be more than 0 and at most 1 step, got {gate!r}')
+        if not 0.0 <= gate_random <= 1.0:
+            raise ValueError(f'gate_random must be from 0 to 1 step, got {gate_random!r}')
+        self.swing = swing
+        self.gate = gate
+        self.gate_random = gate_random
+        self._random = random.Random()
+        # Clock time in steps (its own clock counts while running), the swung step it played last,
+        # the active step sounding and when (in steps) its gate ends
+        self._position = 0.0
+        self._last_count = None
+        self._slot = None
+        self._sounding = None
+        self._gate_length = 0.0
+        self._gate_end = None
         self.state = numpy.ndarray((1, 1), dtype = numpy.bool_)
         self._steps = steps if steps is not None else width * height
         self._step = 0
@@ -1602,7 +1649,8 @@ class Sequencer(Timed, Widget):
         self.updated = True
 
     def play(self, step: int) -> None:
-        """Move to ``step`` (wrapped to ``steps``) and emit StepPlayed."""
+        """Move to ``step`` (wrapped to ``steps``) and emit StepPlayed; a sounding step ends first."""
+        self.silence()
         self._step = int(step) % self._steps
         page = self._step // self.rect.area
         if page != self.current_page:
@@ -1610,8 +1658,57 @@ class Sequencer(Timed, Widget):
             if self.follow:
                 self._page = page
             self.emit(pyxelwidgets.events.PageChanged(self, self.current_page))
-        self.emit(pyxelwidgets.events.StepPlayed(self, self._step, bool(self._is_tick_active())))
+        active = bool(self._is_tick_active())
+        gate = 0.0
+        if active:
+            spread = min(max(float(self.gate_random), 0.0), 1.0)
+            gate = float(self.gate) + (self._random.uniform(-spread, spread) if spread else 0.0)
+            # At least one division, at most a step
+            gate = min(max(gate, 1 / self.divisions), 1.0)
+            self._sounding, self._gate_length, self._gate_end = self._step, gate, None
+        self.emit(pyxelwidgets.events.StepPlayed(self, self._step, active, gate))
         self.updated = True
+
+    def silence(self) -> None:
+        """End the sounding step's gate now (StepEnded), e.g. when the clock stops."""
+        if self._sounding is not None:
+            step, self._sounding, self._gate_end = self._sounding, None, None
+            self.emit(pyxelwidgets.events.StepEnded(self, step))
+
+    def tick(self, count: int) -> None:
+        """
+        Called by its clock ``divisions`` times a step: plays steps (every second
+        one late by ``swing``) and ends gates. ``count`` counts divisions.
+        """
+        last, self._last_count = self._last_count, count
+        if not self.running:
+            self.silence()
+            # Its own clock resumes where it paused
+            self._last_count = None
+            return
+        if self.clock == Clock.Transport:
+            # The transport's position: relocating moves it, and back (or replaying) plays again
+            self._position = count / self.divisions
+            if last is not None and count <= last:
+                self._slot = None
+        elif last is not None:
+            self._position += (count - last) / self.divisions
+        if self._gate_end is not None and self._position >= self._gate_end:
+            self.silence()
+        slot = math.floor(self._position)
+        delay = (min(max(float(self.swing), 50.0), 75.0) / 50.0) - 1.0
+        if slot % 2 and self._position - slot < delay:
+            # Every second step starts late
+            slot -= 1
+        if slot == self._slot:
+            return
+        self._slot = slot
+        if self.clock == Clock.Transport:
+            self.play(slot)
+        else:
+            self.advance()
+        if self._sounding is not None:
+            self._gate_end = slot + (delay if slot % 2 else 0.0) + self._gate_length
 
     def advance(self) -> None:
         """Play the next step."""
