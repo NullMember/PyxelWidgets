@@ -3,13 +3,18 @@ Layout files: a JSON description of a Surface, the devices it is shown on and
 its widgets, as written by the designer (``python -m pyxelwidgets.designer``).
 
     {
-      "format": "pyxelwidgets.layout", "version": 4,
+      "format": "pyxelwidgets.layout", "version": 5,
       "surface": {"width": 9, "height": 9},
       "transport": {"bpm": 120, "signature": [4, 4]},
       "devices": [{"type": "novation.LaunchpadMiniMK3", "x": 0, "y": 0, "options": {}}],
       "bindings": [
         {"device": 0, "control": "Top1", "widget": "volume", "options": {"takeover": "Pickup"}},
         {"device": 0, "control": "Top8", "action": "transport.toggle"}
+      ],
+      "outputs": [{"name": "daw", "type": "mackie.MackieControl", "virtual": "PyxelWidgets", "options": {}}],
+      "mappings": [
+        {"widget": "volume", "on": "Changed", "output": "daw", "feedback": true,
+         "message": {"type": "Command", "name": "Fader 1", "value": {"source": "value"}}}
       ],
       "widgets": [
         {"type": "Fader", "name": "volume", "x": 0, "y": 0, "width": 1, "height": 8,
@@ -33,6 +38,13 @@ Bindings connect a device's named controls (by the device's index in
 Device inputs/outputs are optional port names; without them devices are found
 by their port names.
 
+Outputs send widget events to other software: MIDI ports, OSC, Mackie
+Control, HUI (``devices`` modules, with ``input``/``output`` port names or a
+``virtual`` port name). Mappings send a widget's ``on`` event to an output as
+``message`` (a class of ``pyxelwidgets.message`` with its fields, each a
+constant or ``{"source": "velocity", "min": 0, "max": 127, "offset": 0}``);
+with ``feedback`` what the output receives updates the widget.
+
 Load a layout and attach behaviour by widget name::
 
     ui = pyxelwidgets.parser.load('layout.json')
@@ -43,6 +55,7 @@ Load a layout and attach behaviour by widget name::
 """
 
 import copy
+import dataclasses
 import enum
 import fractions
 import importlib
@@ -58,14 +71,17 @@ import pyxelwidgets.animation
 import pyxelwidgets.binding
 import pyxelwidgets.buffer
 import pyxelwidgets.color
+import pyxelwidgets.events
 import pyxelwidgets.group
+import pyxelwidgets.mapping
+import pyxelwidgets.message
 import pyxelwidgets.rate
 import pyxelwidgets.surface
 import pyxelwidgets.transport
 import pyxelwidgets.widgets
 
 FORMAT = 'pyxelwidgets.layout'
-VERSION = 4
+VERSION = 5
 
 # Actions a binding can trigger, on the transport given to Parser.bind
 ACTIONS = {
@@ -77,6 +93,10 @@ ACTIONS = {
 
 # Animations a widget entry can have, by name
 ANIMATIONS = {cls.__name__: cls for cls in (pyxelwidgets.animation.Blink, pyxelwidgets.animation.Pulse, pyxelwidgets.animation.Fade)}
+
+# Messages mappings send, by class name
+MESSAGES = {name: getattr(pyxelwidgets.message, name) for name in (
+    'NoteOn', 'NoteOff', 'ControlChange', 'ProgramChange', 'PitchBend', 'PolyPressure', 'ChannelPressure', 'OscMessage', 'Command')}
 
 # Suggested values for rate options; any note value is accepted
 RATES = ['1/1', '1/2', '1/4', '1/8', '1/16', '1/32', '1/4.', '1/8.', '1/16.', '1/4T', '1/8T', '1/16T', 'beat', 'bar']
@@ -239,10 +259,97 @@ def schema() -> dict:
             # Has a value a knob, fader or button binding can set (Button, Fader, Knob, XY)
             'bindable': issubclass(cls, pyxelwidgets.widgets.ValueWidget),
             'options': option_schema(cls),
+            'events': [event.__name__ for event in cls.events()],
         }
+    events = {event.__name__: {'doc': _doc(event), 'sources': pyxelwidgets.mapping.available(event)}
+              for cls in widget_types().values() for event in cls.events()}
     return {'format': FORMAT, 'version': VERSION, 'widgets': widgets,
             'animations': {name: {'doc': _doc(cls), 'options': option_schema(cls)} for name, cls in ANIMATIONS.items()},
-            'binding': {'options': option_schema(pyxelwidgets.binding.Binding), 'actions': list(ACTIONS)}}
+            'binding': {'options': option_schema(pyxelwidgets.binding.Binding), 'actions': list(ACTIONS)},
+            'events': events, 'messages': message_schema()}
+
+def message_schema() -> dict:
+    """Mapping message types with their fields: name, default (encoded) and range (whole numbers) or kind."""
+    messages = {}
+    for name, cls in MESSAGES.items():
+        if cls is pyxelwidgets.message.OscMessage:
+            fields = [{'name': 'address', 'kind': 'text', 'default': '/'}, {'name': 'args', 'kind': 'list', 'default': []}]
+        else:
+            fields = []
+            for field in dataclasses.fields(cls):
+                if field.name == 'flash':
+                    continue
+                entry = {'name': field.name, 'default': _encode_field(field.default)}
+                if field.name in cls.ranges:
+                    entry['range'] = list(cls.ranges[field.name])
+                else:
+                    entry['kind'] = 'text' if isinstance(field.default, str) else 'value'
+                fields.append(entry)
+        messages[name] = {'doc': _doc(cls), 'fields': fields}
+    return messages
+
+def _encode_field(value):
+    if isinstance(value, pyxelwidgets.message.Source):
+        encoded = {'source': value.name}
+        for key, default in (('min', None), ('max', None), ('offset', 0)):
+            if getattr(value, key) != default:
+                encoded[key] = getattr(value, key)
+        return encoded
+    return value
+
+def message_to_json(message: pyxelwidgets.message.Message) -> dict:
+    """A mapping message as layout JSON."""
+    data = {'type': type(message).__name__}
+    if isinstance(message, pyxelwidgets.message.OscMessage):
+        data.update(address = message.address, args = [_encode_field(arg) for arg in message.args])
+    else:
+        data.update({field.name: _encode_field(getattr(message, field.name))
+                     for field in dataclasses.fields(message) if field.name != 'flash'})
+    return data
+
+def _decode_field(value, where: str, field_range = None):
+    if isinstance(value, dict):
+        name = value.get('source')
+        unknown = set(value) - {'source', 'min', 'max', 'offset'}
+        if not isinstance(name, str) or not name or unknown:
+            raise LayoutError(f'{where}: a source is {{"source": name, "min", "max", "offset"}}, got {value!r}')
+        for key in ('min', 'max'):
+            if value.get(key) is not None and (isinstance(value[key], bool) or not isinstance(value[key], (int, float))):
+                raise LayoutError(f'{where}.{key}: must be a number, got {value[key]!r}')
+        offset = value.get('offset', 0)
+        if isinstance(offset, bool) or not isinstance(offset, int):
+            raise LayoutError(f'{where}.offset: must be a whole number, got {offset!r}')
+        return pyxelwidgets.message.Source(name, value.get('min'), value.get('max'), offset)
+    if isinstance(value, bool) or not isinstance(value, (int, float, str)):
+        raise LayoutError(f'{where}: must be a number, text or a source, got {value!r}')
+    if field_range is not None and (not isinstance(value, int) or not field_range[0] <= value <= field_range[1]):
+        raise LayoutError(f'{where}: must be a whole number from {field_range[0]} to {field_range[1]}, got {value!r}')
+    return value
+
+def message_from_json(data, where: str = 'message') -> pyxelwidgets.message.Message:
+    """A mapping message from layout JSON; raises LayoutError naming the field."""
+    cls = MESSAGES.get(data.get('type')) if isinstance(data, dict) else None
+    if cls is None:
+        kind = data.get('type') if isinstance(data, dict) else data
+        raise LayoutError(f'{where}.type: unknown message {kind!r} (messages: {", ".join(MESSAGES)})')
+    if cls is pyxelwidgets.message.OscMessage:
+        address, args = data.get('address'), data.get('args', [])
+        if not isinstance(address, str) or not address.startswith('/'):
+            raise LayoutError(f'{where}.address: must start with "/", got {address!r}')
+        if not isinstance(args, list):
+            raise LayoutError(f'{where}.args: must be a list')
+        return cls(address, *[_decode_field(arg, f'{where}.args[{i}]') for i, arg in enumerate(args)])
+    names = [field.name for field in dataclasses.fields(cls) if field.name != 'flash']
+    fields = {}
+    for key, value in data.items():
+        if key == 'type':
+            continue
+        if key not in names:
+            raise LayoutError(f'{where}: {cls.__name__} has no field {key!r} (fields: {", ".join(names)})')
+        fields[key] = _decode_field(value, f'{where}.{key}', cls.ranges.get(key))
+    if cls is pyxelwidgets.message.Command and not isinstance(fields.get('name', 'Play'), str):
+        raise LayoutError(f'{where}.name: must be a command name')
+    return cls(**fields)
 
 def _options(cls, options: dict, where: str) -> dict:
     parameters = {parameter.name: parameter for parameter in _parameters(cls)}
@@ -280,6 +387,18 @@ def device_class(device: dict, where: str = 'device') -> type:
         return getattr(importlib.import_module(f'pyxelwidgets.devices.{module_name}'), class_name)
     except (ImportError, AttributeError, ValueError):
         raise LayoutError(f'{where}.type: unknown device {device.get("type")!r}') from None
+
+def build_output(entry: dict, where: str = 'output'):
+    """Create a layout ``outputs`` entry and connect it: to its ports, a ``virtual`` port, or (OSC) its address."""
+    cls = device_class(entry, where)
+    instance = cls(name = entry['name'], **_options(cls, entry.get('options'), where))
+    if entry.get('virtual'):
+        instance.connect_virtual(entry['virtual'])
+    elif entry.get('input') or entry.get('output'):
+        instance.connect(entry.get('input'), entry.get('output'))
+    else:
+        instance.connect()
+    return instance
 
 def build_device(device: dict, where: str = 'device'):
     """Create a layout ``device`` entry and connect it to its ports (or the ports found by name)."""
@@ -319,6 +438,12 @@ class Parser():
         self.get_widgets()
         self.binding_settings()
         self.bindings = self.bind(self.devices) if devices else []
+        self.outputs = {}
+        self.mapping_settings()
+        if devices:
+            for index, entry in enumerate(self.output_settings()):
+                self.outputs[entry['name']] = build_output(entry, f'outputs[{index}]')
+        self.mappings = self.map(self.outputs) if devices else []
 
     def __getitem__(self, name: str):
         return self.widgets[name]
@@ -407,6 +532,74 @@ class Parser():
         self.bindings += self.bind(self.devices, app.transport, widgets = False)
         return app
 
+    def output_settings(self) -> list:
+        """The layout's ``outputs`` entries, checked: unique names and known types."""
+        outputs = self.json.get('outputs') or []
+        if not isinstance(outputs, list):
+            raise LayoutError('outputs: must be a list')
+        names = set()
+        for index, entry in enumerate(outputs):
+            where = f'outputs[{index}]'
+            name = entry.get('name') if isinstance(entry, dict) else None
+            if not isinstance(name, str) or not name or name in names:
+                raise LayoutError(f'{where}.name: output names must be given and unique, got {name!r}')
+            names.add(name)
+            cls = device_class(entry, where)
+            if not getattr(cls, 'messages', None):
+                raise LayoutError(f'{where}.type: {entry["type"]} is not an output')
+            for key in ('input', 'output', 'virtual'):
+                if entry.get(key) is not None and not isinstance(entry[key], str):
+                    raise LayoutError(f'{where}.{key}: must be a port name')
+            _options(cls, entry.get('options'), where)
+        return outputs
+
+    def mapping_settings(self) -> list:
+        """The layout's mappings as (widget name, event class or None, output name, message, feedback)."""
+        mappings = self.json.get('mappings') or []
+        if not isinstance(mappings, list):
+            raise LayoutError('mappings: must be a list')
+        outputs = {entry['name']: device_class(entry) for entry in self.output_settings()}
+        settings = []
+        for index, entry in enumerate(mappings):
+            where = f'mappings[{index}]'
+            if not isinstance(entry, dict):
+                raise LayoutError(f'{where}: must be an object')
+            widget, on, output = entry.get('widget'), entry.get('on'), entry.get('output')
+            feedback = entry.get('feedback', False)
+            if widget not in self.widgets:
+                raise LayoutError(f'{where}.widget: no widget named {widget!r}')
+            if output not in outputs:
+                raise LayoutError(f'{where}.output: no output named {output!r} (outputs: {", ".join(outputs) or "none"})')
+            if not isinstance(feedback, bool):
+                raise LayoutError(f'{where}.feedback: must be true or false')
+            event = None
+            if on is not None:
+                events = {cls.__name__: cls for cls in type(self.widgets[widget]).events()}
+                if on not in events:
+                    raise LayoutError(f'{where}.on: {widget} ({type(self.widgets[widget]).__name__}) has no event {on!r} (events: {", ".join(events)})')
+                event = events[on]
+            elif not feedback:
+                raise LayoutError(f'{where}: needs "on", "feedback" or both')
+            message = message_from_json(entry.get('message'), f'{where}.message')
+            cls = outputs[output]
+            if type(message).__name__ not in cls.messages:
+                raise LayoutError(f'{where}.message.type: {cls.model} takes {", ".join(cls.messages)}, not {type(message).__name__}')
+            commands = getattr(cls, 'commands', None)
+            if isinstance(message, pyxelwidgets.message.Command) and commands and '{' not in message.name and message.name not in commands:
+                raise LayoutError(f'{where}.message.name: {cls.model} has no command {message.name!r}')
+            if event is not None:
+                names = pyxelwidgets.mapping.available(event)
+                for source in message.sources:
+                    if source.name not in names:
+                        raise LayoutError(f'{where}.message: {on} has no {source.name!r} (it has {", ".join(names)})')
+            settings.append((widget, event, output, message, feedback))
+        return settings
+
+    def map(self, outputs: dict) -> list:
+        """Create the layout's mappings on the surface for ``outputs`` (by name; missing ones are skipped)."""
+        return [self.surface.map(self.widgets[widget], outputs[output], message, on = on, feedback = feedback)
+                for widget, on, output, message, feedback in self.mapping_settings() if output in outputs]
+
     def binding_settings(self) -> list:
         """The layout's bindings as (device index, control, widget or None, action or None, Binding options)."""
         bindings = self.json.get('bindings') or []
@@ -461,7 +654,7 @@ def upgrade(layout: dict) -> dict:
     if version == VERSION:
         return layout
     layout = _from_version_1(layout) if version == 1 else copy.deepcopy(layout)
-    # Version 3 added the optional "bindings"; nothing to convert
+    # Version 3 added the optional "bindings" and version 5 "outputs" and "mappings"; nothing to convert
     _from_version_3(layout.get('widgets'))
     layout['version'] = VERSION
     return layout
