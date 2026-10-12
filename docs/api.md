@@ -260,10 +260,19 @@ NoteOff(widget: 'typing.Any', note: 'int', velocity: 'float')
 ### `StepPlayed` (WidgetEvent)
 
 ```python
-StepPlayed(widget: typing.Any, step: int, active: bool)
+StepPlayed(widget: typing.Any, step: int, active: bool, gate: float = 1.0)
 ```
 
 The Sequencer playhead moved to `step`; `active` if that step is on.
+`gate` is how long an active step sounds, in steps (StepEnded follows).
+
+### `StepEnded` (WidgetEvent)
+
+```python
+StepEnded(widget: typing.Any, step: int)
+```
+
+The gate of an active Sequencer `step` ended: send a NoteOff on it.
 
 ### `PageChanged` (WidgetEvent)
 
@@ -1077,6 +1086,7 @@ from the transport or from a clock of the widget's own.
 - `running: bool = True, optional`: Played by its clock; False pauses it (`start`/`stop`/`toggle`).
 
 - **`tick(count: int)`**: Called by its clock with the number of `rate` lengths since it started: while `running`, the transport places it at `count`, its own clock moves it one on (so it resumes where it paused).
+- **`silence()`**: End what's sounding (a Sequencer's gate); glue calls it when the clock stops.
 - **`start()`**
 - **`stop()`**
 - **`toggle()`**
@@ -1084,24 +1094,30 @@ from the transport or from a clock of the widget's own.
 ### `Sequencer` (Timed, Widget)
 
 ```python
-Sequencer(x: int, y: int, width: int, height: int, *, steps: int | None = None, rate: rate.Rate = '1/16', step: int = 0, page: int = 0, follow: bool = True, current_color: Color = Colors.Lime, current_active_color: Color = Colors.Red, **kwargs)
+Sequencer(x: int, y: int, width: int, height: int, *, steps: int | None = None, rate: rate.Rate = '1/16', step: int = 0, page: int = 0, follow: bool = True, swing: float = 50.0, gate: float = 0.5, gate_random: float = 0.0, current_color: Color = Colors.Lime, current_active_color: Color = Colors.Red, **kwargs)
 ```
 
 Step sequencer. Each step plays when `play(step)` or `advance()` is
 called; its `clock` (the transport, one of its own, or none) does every
-`rate`. Emits StepPlayed. Steps beyond one screen are on pages: `page`
-is the one shown and edited.
+`rate`, with `swing`. Emits StepPlayed, and StepEnded when an active
+step's `gate` ends. Steps beyond one screen are on pages: `page` is the
+one shown and edited.
 
 - `step: int = 0, optional`: The current (playing) step.
 - `page: int = 0, optional`: The page shown and edited.
 - `follow: bool = True, optional`: Show the page of the playing step when it plays.
+- `swing: float = 50.0, optional`: Where every second step starts, in percent of a pair of steps: 50 is straight, 66 a triplet feel, 75 the most. Needs a clock (calls of `play`/`advance` aren't delayed).
+- `gate: float = 0.5, optional`: How long an active step sounds, in steps (up to 1): StepEnded then. Without a clock it ends when the next step plays.
+- `gate_random: float = 0.0, optional`: Each hit's gate is longer or shorter by up to this many steps, at random.
 
 - **`pages`**
 - **`page`** (settable)
 - **`step`** (settable): The current step; setting it moves there without playing it.
 - **`steps`** (settable)
 - **`current`** (settable)
-- **`play(step: int)`**: Move to `step` (wrapped to `steps`) and emit StepPlayed.
+- **`play(step: int)`**: Move to `step` (wrapped to `steps`) and emit StepPlayed; a sounding step ends first.
+- **`silence()`**: End the sounding step's gate now (StepEnded), e.g. when the clock stops.
+- **`tick(count: int)`**: Called by its clock `divisions` times a step: plays steps (every second one late by `swing`) and ends gates. `count` counts divisions.
 - **`advance()`**: Play the next step.
 - **`handle_press(x: int, y: int, value: float)`**
 - **`save_state()`**
@@ -1362,11 +1378,12 @@ Continue → `play()`, Stop → `stop()`, Song Position → `locate(sixteenths /
 ### `Transport` (Emitter)
 
 ```python
-Transport(bpm: float = 120.0, *, signature: tuple = (4, 4), ppq: int = 24, sync: bool = False, lock = None)
+Transport(bpm: float = 120.0, *, signature: tuple = (4, 4), ppq: int = 96, sync: bool = False, lock = None)
 ```
 
 Tempo, time signature, play/stop and the position, counted in `tick`
-(`ppq` ticks per quarter note). Emits TransportStarted, TransportStopped,
+(`ppq` ticks per quarter note: 96, so a 16th note's swing can move in
+24ths of it). Emits TransportStarted, TransportStopped,
 TransportLocated and TempoChanged.
 
 `lock` (e.g. a Surface's lock) is held while calling subscribers and
@@ -1381,13 +1398,13 @@ handlers; it must be reentrant so they may control the transport.
 - **`beats`**: Position in quarter notes.
 - **`bar`**: Bar of the position, counted from 0.
 - **`beat`**: Beat within the bar, counted from 0, in the signature's beat note value.
-- **`ticks(rate)`**: Length of `rate` in ticks, e.g. `'1/16'` → 6 at 24 ppq.
+- **`ticks(rate)`**: Length of `rate` in ticks, e.g. `'1/16'` → 24 at 96 ppq.
 - **`play()`**: Play from the current position; the first tick plays right away (with `sync`, on the next `pulse()`).
 - **`stop()`**: Stop at the current position; `play()` continues from there.
 - **`toggle()`**
 - **`locate(beats: float = 0)`**: Move to `beats` quarter notes from the start; while playing, that position plays next.
 - **`close()`**: Stop and wait for the timer thread to finish.
-- **`every(rate, callback: Callable | None = None, *, offset = 0)`**: Call `callback(count)` every `rate` while playing, where `count` is the number of `rate` lengths since the start (e.g. the 16th note number), so the callback follows `locate` too. `offset` (a rate, e.g. `'1/32'`) delays the calls. Returns a Subscription; usable as a decorator, which returns the function.
+- **`every(rate, callback: Callable | None = None, *, offset = 0, divisions: int = 1)`**: Call `callback(count)` every `rate` while playing, where `count` is the number of `rate` lengths since the start (e.g. the 16th note number), so the callback follows `locate` too. `offset` (a rate, e.g. `'1/32'`) delays the calls. With `divisions` the callback is called that many times per `rate` (as often as ticks allow; counts in between may be skipped), counting divisions: a Sequencer times swing and gates with them. Returns a Subscription; usable as a decorator, which returns the function.
 - **`cancel(subscription)`**: Remove a Subscription, or every subscription of a callback.
 - **`subscriptions`**
 - **`pulse()`**: One MIDI Timing Clock (24 per quarter note): advances while playing. The tempo is measured once a beat, averaged over up to 4 beats.
@@ -1395,7 +1412,7 @@ handlers; it must be reentrant so they may control the transport.
 ### `Subscription`
 
 ```python
-Subscription(transport, rate, callback: Callable, offset)
+Subscription(transport, rate, callback: Callable, offset, divisions: int = 1)
 ```
 
 A callback made every `rate` by a Transport; `cancel()` removes it.
@@ -1691,6 +1708,11 @@ Sprite frames as lists of rows from the top, each a list of colors (`null`
 is transparent). A widget's optional `animation` is one of `ANIMATIONS`
 with its options. Older versions are upgraded on load.
 
+`transport.sync` makes the transport follow another program's MIDI clock
+(a DAW sending MIDI clock to a port): `{"input": "IAC Driver Bus 1"}` or a
+virtual port it can send to, `{"virtual": "PyxelWidgets Clock"}`. Its
+tempo, start, stop and position (song position) then come from there.
+
 Bindings connect a device's named controls (by the device's index in
 `devices`) to a widget, with Binding options (`takeover`, `glide_time`,
 `step`, `axis`), or to an action (see `ACTIONS`).
@@ -1814,12 +1836,14 @@ e.g. to validate or preview a layout.
 - **`get_surface()`**
 - **`get_devices()`**
 - **`get_widgets()`**
-- **`transport_settings()`**: Keyword arguments for a Transport (or App) from the layout's `transport`.
+- **`sync_settings()`**: The layout's `transport.sync`: `{"input": port}` or `{"virtual": port}`, the MIDI port a DAW's clock comes in through; None if the transport keeps its own time.
+- **`sync_input(transport)`**: A MidiClockInput driving `transport` (created with `sync = True`) from the `sync` port, connected; None without sync.
+- **`transport_settings()`**: Keyword arguments for a Transport (or App) from the layout's `transport` (bpm and signature).
 - **`timed(clock: Clock)`**: The widgets (Sequencers, Trackers...) played by `clock`.
-- **`attach(transport)`**: Subscribe the widgets the transport plays (`clock = Clock.Transport`) to `transport` at their `rate`; returns the Subscriptions.
+- **`attach(transport)`**: Subscribe the widgets the transport plays (`clock = Clock.Transport`) to `transport` at their `rate`; a Sequencer's sounding step ends when it stops. Returns the Subscriptions.
 - **`start_clocks(*, lock = None)`**: Start a clock (a Transport, holding `lock`) for each widget with a clock of its own (`clock = Clock.Own`), following its `bpm`; returns them, to `close()` when done (`close_clocks`).
 - **`close_clocks()`**
-- **`app(fps: float = 60.0)`**: An App running the surface, with the widgets following its transport, and their own clocks started.
+- **`app(fps: float = 60.0)`**: An App running the surface, with the widgets following its transport, and their own clocks started. With `transport.sync` the transport follows the DAW's MIDI clock (`ui.clock_input`, closed with the App).
 - **`output_settings()`**: The layout's `outputs` entries, checked: unique names and known types.
 - **`mapping_settings()`**: The layout's mappings as (widget name, event class or None, output name, message, feedback).
 - **`map(outputs: dict)`**: Create the layout's mappings on the surface for `outputs` (by name; missing ones are skipped).
@@ -2697,9 +2721,11 @@ what the widgets' mappings send.
 - **`close()`**
 - **`frame(since: int = 0)`**: Render; pixels are `#rrggbb` rows from the top, plus events after `since`.
 - **`input(x: int, y: int, velocity: float)`**: Press (`velocity` > 0) or release the surface pad at `x`, `y`.
-- **`play()`**: Play the layout's transport from the start so Sequencers and Trackers play.
+- **`play()`**: Play the layout's transport from the start so Sequencers and Trackers play (not while a DAW plays it).
 - **`bpm`**: The tempo: the layout's, or one a link set.
 - **`set_tempo(bpm: float)`**: Change the tempo (from a link) until the layout's tempo changes.
+- **`synced`**: Following a DAW's clock: the DAW plays and stops the transport.
+- **`playing`**
 - **`stop()`**
 
 ### `Designer`
