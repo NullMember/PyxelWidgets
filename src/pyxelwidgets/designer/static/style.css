@@ -90,6 +90,7 @@ h2 {
 .node .eye { opacity: 0.8; padding: 0 4px; border: none; background: none; }
 .node .eye.hidden { opacity: 0.3; }
 .swatch-device { width: 10px; height: 10px; border: 2px dashed var(--device); border-radius: 2px; flex: none; }
+.swatch-output { width: 10px; height: 10px; border: 2px solid var(--ok); border-radius: 50%; flex: none; }
 
 #stage {
   position: relative; display: flex; flex-direction: column; align-items: center; justify-content: center;
@@ -153,6 +154,20 @@ body.try .outline .tag, body.try .handle { display: none; }
 .actions .danger { color: var(--danger); }
 button.active { background: var(--accent-soft); border-color: var(--accent); color: var(--accent); }
 .hint.note { margin: 10px 0 0; }
+
+.mapping { border: 1px solid var(--line); border-radius: 8px; padding: 8px; margin-bottom: 8px; background: var(--panel-2); }
+.mapping .fields { grid-template-columns: 70px 1fr; }
+.mapping-head { display: flex; gap: 6px; align-items: center; margin-bottom: 8px; }
+.mapping-head select { flex: 1; min-width: 0; }
+.mapping-head .arrow { color: var(--muted); }
+.mapping-head .remove { font-size: 16px; }
+.control.value { flex-wrap: wrap; }
+.control.value select { flex: 1 1 110px; min-width: 0; }
+.control.value .range { display: flex; gap: 4px; align-items: center; color: var(--muted); }
+input.small { width: 58px !important; flex: none; }
+.args { display: flex; flex-direction: column; gap: 4px; align-items: flex-start; min-width: 0; }
+.arg { display: flex; gap: 4px; align-items: center; width: 100%; }
+.arg .control { flex: 1; }
 
 .frames, .paint { display: flex; gap: 4px; flex-wrap: wrap; align-items: center; margin-bottom: 8px; }
 .frames button { min-width: 28px; padding: 2px 6px; }

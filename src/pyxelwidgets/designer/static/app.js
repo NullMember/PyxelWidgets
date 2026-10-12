@@ -19,7 +19,7 @@ const state = {
   layout: null,
   file: null,
   saved: '',
-  // null (surface) | {kind: 'widget', path: [i, j, ...], paths: [path, ...]} | {kind: 'device', index}
+  // null (surface) | {kind: 'widget', path: [i, j, ...], paths: [path, ...]} | {kind: 'device', index} | {kind: 'output', index}
   // `paths` are all selected widgets, `path` the last one picked (the one panels edit)
   selection: null,
   mode: 'edit',
@@ -27,7 +27,7 @@ const state = {
   future: [],
   lastEvent: 0,
   playing: false,
-  hardware: { enabled: false, devices: [] },
+  hardware: { enabled: false, devices: [], outputs: [] },
   error: null,
   frameSize: [0, 0],
   spriteFrame: 0, // the Sprite frame being painted
@@ -297,6 +297,317 @@ function pathsOf(widgets) {
   return widgets.map((widget) => found.find((item) => item.widget === widget)?.path).filter(Boolean);
 }
 
+// ---------------------------------------------------------------- outputs and mappings
+
+const INTEGER_SOURCES = new Set(['x', 'y', 'cell', 'note', 'step', 'row', 'page', 'delta']);
+
+function outputsOf(layout = state.layout) {
+  return layout.outputs || [];
+}
+
+function outputInfo(output) {
+  return state.catalog.outputs.find((info) => info.type === output?.type);
+}
+
+function setMappings(layout, mappings) {
+  if (mappings.length) layout.mappings = mappings;
+  else delete layout.mappings;
+}
+
+function uniqueOutputName(base) {
+  const taken = new Set(outputsOf().map((output) => output.name));
+  if (!taken.has(base)) return base;
+  for (let i = 2; ; i++) if (!taken.has(`${base}${i}`)) return `${base}${i}`;
+}
+
+function addOutput() {
+  const type = $('output-type').value;
+  const info = state.catalog.outputs.find((output) => output.type === type);
+  const base = { 'mackie.MackieControl': 'mackie', 'mackie.HUI': 'hui', 'osc.REAPER': 'reaper', 'osc.OSC': 'osc' }[type] || 'midi';
+  change((layout) => {
+    const name = uniqueOutputName(base);
+    // MIDI outputs start as a virtual port other software can pick
+    const output = { name, type, ...(info?.midi ? { virtual: `PyxelWidgets ${name}` } : {}), options: {} };
+    layout.outputs = [...outputsOf(layout), output];
+    state.selection = { kind: 'output', index: layout.outputs.length - 1 };
+  });
+}
+
+function removeOutput(index) {
+  change((layout) => {
+    const [removed] = layout.outputs.splice(index, 1);
+    if (!layout.outputs.length) delete layout.outputs;
+    setMappings(layout, (layout.mappings || []).filter((mapping) => mapping.output !== removed.name));
+    state.selection = null;
+  });
+}
+
+function renderOutputs() {
+  const list = $('outputs');
+  list.replaceChildren(...outputsOf().map((output, index) => {
+    const selected = state.selection?.kind === 'output' && state.selection.index === index;
+    const count = (state.layout.mappings || []).filter((mapping) => mapping.output === output.name).length;
+    return el('li', { class: selected ? 'selected' : '', onclick: () => select({ kind: 'output', index }) },
+      el('span', { class: 'swatch-output' }),
+      el('span', { class: 'name' }, output.name),
+      hardwareDot(index, 'outputs'),
+      el('span', { class: 'type' }, `${outputInfo(output)?.model || output.type}${count ? ` · ${count}` : ''}`));
+  }));
+  if (!outputsOf().length) list.append(el('li', { class: 'hint' }, 'MIDI ports, OSC, Mackie Control or HUI that widgets send to.'));
+}
+
+function outputProperties(panel, index) {
+  const output = outputsOf()[index];
+  const info = outputInfo(output);
+  const port = (key, label, placeholder) => [
+    el('label', { for: `output-${key}` }, label),
+    el('div', { class: 'control' }, el('input', {
+      type: 'text', id: `output-${key}`, value: output[key] || '', placeholder,
+      onchange: (e) => change(() => { if (e.target.value.trim()) output[key] = e.target.value.trim(); else delete output[key]; }),
+    })),
+  ];
+  const used = (state.layout.mappings || []).filter((mapping) => mapping.output === output.name);
+  fill(panel,
+    el('h3', {}, info?.model || output.type),
+    el('p', { class: 'doc' }, info?.midi
+      ? 'Other software (a DAW, a synth) picks the virtual port, or set existing input/output ports instead.'
+      : 'Sends OSC to host:send port and listens on the receive port.'),
+    el('div', { class: 'fields' },
+      el('label', { for: 'output-name' }, 'name'),
+      el('div', { class: 'control' }, el('input', {
+        type: 'text', id: 'output-name', value: output.name,
+        onchange: (e) => {
+          const name = e.target.value.trim();
+          if (!name || outputsOf().some((other) => other !== output && other.name === name)) {
+            setStatus(`Output name "${name}" is empty or already used`, 'error');
+            return render();
+          }
+          change((layout) => {
+            for (const mapping of layout.mappings || []) if (mapping.output === output.name) mapping.output = name;
+            output.name = name;
+          });
+        },
+      })),
+      info?.midi ? [port('virtual', 'virtual port', 'none'), port('input', 'input port', 'none'), port('output', 'output port', 'none')] : null,
+      (info?.options || []).flatMap((option) => optionField(output, option))),
+    el('p', { class: 'hint note' }, used.length
+      ? `${used.length} message${used.length > 1 ? 's' : ''} from ${[...new Set(used.map((m) => m.widget))].join(', ')}.`
+      : 'Select a widget and add a message to send its events here.'),
+    el('div', { class: 'actions' }, el('button', { class: 'danger', onclick: () => removeOutput(index) }, 'Remove output')),
+  );
+}
+
+// The event a new message is sent on: the widget's main one
+function defaultEvent(widget) {
+  const events = state.catalog.widgets[widget.type]?.events || [];
+  return ['Changed', 'Toggled', 'NoteOn', 'StepPlayed', 'RowPlayed', 'PageChanged', 'Pressed'].find((name) => events.includes(name)) || events[0];
+}
+
+// A useful first message for an event on an output
+function defaultMessage(widget, on, info) {
+  const accepts = info?.messages || [];
+  const source = (name, extra = {}) => ({ source: name, ...extra });
+  const xy = widget.type === 'XY';
+  if (accepts.includes('Command')) {
+    if (on === 'Changed') return { type: 'Command', name: 'Fader 1', value: source(xy ? 'value_x' : 'value') };
+    if (on === 'Toggled') return { type: 'Command', name: 'Mute {x+1}', value: source('state') };
+    return { type: 'Command', name: 'Play', value: on === 'Released' ? 0 : 1 };
+  }
+  if (accepts.includes('OscMessage')) {
+    if (on === 'Changed') return { type: 'OscMessage', address: '/track/1/volume', args: [source(xy ? 'value_x' : 'value')] };
+    if (on === 'Toggled') return { type: 'OscMessage', address: '/track/{x+1}/mute', args: [source('state')] };
+    return { type: 'OscMessage', address: '/play', args: [on === 'Released' ? 0 : 1] };
+  }
+  const cells = widget.width * widget.height > 1 && !['Fader', 'Knob', 'XY', 'Button'].includes(widget.type);
+  const note = cells ? source('cell', { offset: 36 }) : 60;
+  switch (on) {
+    case 'Pressed': return { type: 'NoteOn', note, velocity: source('velocity'), channel: 1 };
+    case 'Released': return { type: 'NoteOff', note, velocity: 0, channel: 1 };
+    case 'Changed': return { type: 'ControlChange', control: 1, value: source(xy ? 'value_x' : 'value'), channel: 1 };
+    case 'Toggled': return { type: 'NoteOn', note: source('cell', { offset: 36 }), velocity: source('state'), channel: 1 };
+    case 'NoteOn': return { type: 'NoteOn', note: source('note'), velocity: source('velocity'), channel: 1 };
+    case 'NoteOff': return { type: 'NoteOff', note: source('note'), velocity: 0, channel: 1 };
+    case 'Pressure': return { type: 'PolyPressure', note, pressure: source('pressure'), channel: 1 };
+    case 'StepPlayed': return { type: 'NoteOn', note: 36, velocity: source('active'), channel: 1 };
+    default: return { type: 'NoteOn', note: 60, velocity: 127, channel: 1 };
+  }
+}
+
+function addMapping(widget) {
+  const output = outputsOf()[0];
+  const on = defaultEvent(widget);
+  change((layout) => {
+    setMappings(layout, [...(layout.mappings || []), { widget: widget.name, on, output: output.name, message: defaultMessage(widget, on, outputInfo(output)) }]);
+  });
+}
+
+// Names of the event values a layout message uses, placeholders included
+function messageSources(message) {
+  const found = [];
+  const visit = (value) => {
+    if (value && typeof value === 'object' && !Array.isArray(value)) found.push(value.source);
+    else if (Array.isArray(value)) value.forEach(visit);
+    else if (typeof value === 'string') for (const match of value.matchAll(/\{(\w+)/g)) found.push(match[1]);
+  };
+  for (const [key, value] of Object.entries(message || {})) if (key !== 'type') visit(value);
+  return found;
+}
+
+// Sources a field can take: the event's values, or (receiving only) anything a message carries
+function sourceNames(on) {
+  if (on) return state.catalog.events[on]?.sources || [];
+  return [...new Set([...Object.values(state.catalog.events).flatMap((event) => event.sources), 'state', 'text'])];
+}
+
+// A field's editor: a constant or one of the event's values (with its range or offset)
+function valueEditor(id, value, field, sources, commit) {
+  const isSource = value && typeof value === 'object';
+  const textual = field.kind === 'text' || field.kind === 'arg';
+  const mode = el('select', {
+    id, title: 'A constant, or a value from the event',
+    onchange: (e) => commit(e.target.value === '' ? (field.range ? field.range[0] : (textual ? '' : 0)) : { source: e.target.value }),
+  },
+  el('option', { value: '', selected: !isSource }, 'constant'),
+  sources.map((name) => el('option', { value: name, selected: isSource && value.source === name }, name)),
+  // A source the event doesn't have (e.g. after changing the event)
+  isSource && !sources.includes(value.source) ? el('option', { value: value.source, selected: true }, `${value.source} (not available)`) : null);
+  const number = (key, placeholder, attrs = {}) => el('input', {
+    type: 'number', class: 'small', value: value?.[key] ?? '', placeholder, title: key, ...attrs,
+    onchange: (e) => {
+      const next = { ...value };
+      if (e.target.value === '') delete next[key];
+      else next[key] = Number(e.target.value);
+      commit(next);
+    },
+  });
+  let detail;
+  if (!isSource) {
+    detail = el('input', {
+      type: textual ? 'text' : 'number', class: textual ? '' : 'small', value: value ?? '',
+      ...(field.range ? { min: field.range[0], max: field.range[1], step: 1 } : { step: 'any' }),
+      onchange: (e) => {
+        const text = e.target.value;
+        // OSC arguments: numbers when they look like one
+        commit(field.range ? parseInt(text || field.range[0], 10) : (textual && !/^-?\d*\.?\d+$/.test(text) ? text : Number(text)));
+      },
+    });
+  } else if (INTEGER_SOURCES.has(value.source)) {
+    detail = number('offset', '+0', { step: 1 });
+  } else if (value.source === 'text') {
+    detail = null;
+  } else {
+    detail = el('span', { class: 'range', title: 'The range 0.0-1.0 covers' },
+      number('min', field.range ? String(field.range[0]) : '0'), '–', number('max', field.range ? String(field.range[1]) : '1'));
+  }
+  return el('div', { class: 'control value' }, mode, detail);
+}
+
+function messageFields(widget) {
+  const mappings = (state.layout.mappings || []).map((mapping, index) => [mapping, index]).filter(([mapping]) => mapping.widget === widget.name);
+  const outputs = outputsOf();
+  return [
+    el('h4', {}, 'Messages'),
+    outputs.length ? null : el('p', { class: 'hint' }, 'Add an output (a MIDI port, OSC, Mackie Control or HUI) to send this widget\'s events to other software.'),
+    mappings.map(([mapping, index]) => mappingCard(widget, mapping, index)),
+    outputs.length ? el('div', { class: 'actions' }, el('button', { onclick: () => addMapping(widget), title: 'Send an event of this widget to an output' }, 'Add message')) : null,
+  ];
+}
+
+function mappingCard(widget, mapping, index) {
+  const events = state.catalog.widgets[widget.type]?.events || [];
+  const output = outputsOf().find((candidate) => candidate.name === mapping.output);
+  const info = outputInfo(output);
+  const message = mapping.message || {};
+  const schema = state.catalog.messages[message.type];
+  const id = (name) => `mapping-${index}-${name}`;
+  const edit = (mutate) => change(() => mutate(mapping));
+  const sources = sourceNames(mapping.on);
+  const setField = (name) => (value) => edit(() => { mapping.message[name] = value; });
+  const suggestions = message.type === 'Command'
+    ? (info?.commands || []).map((command) => command.name)
+    : message.type === 'OscMessage' ? (info?.addresses || []) : [];
+  const fieldEditors = (schema?.fields || []).flatMap((field) => {
+    if (field.kind === 'list') {
+      // OSC arguments
+      const args = message.args || [];
+      return [
+        el('label', {}, 'arguments'),
+        el('div', { class: 'args' },
+          args.map((arg, i) => el('div', { class: 'arg' },
+            valueEditor(id(`arg${i}`), arg, { kind: 'arg' }, sources, (value) => edit(() => { mapping.message.args[i] = value; })),
+            el('button', { class: 'link', title: 'Remove', onclick: () => edit(() => { mapping.message.args.splice(i, 1); }) }, '×'))),
+          el('button', { class: 'link', onclick: () => edit(() => { mapping.message.args = [...args, { source: sources.includes('value') ? 'value' : sources[0] || 'value' }]; }) }, '+ argument')),
+      ];
+    }
+    const value = field.name in message ? message[field.name] : field.default;
+    if (field.kind === 'text') {
+      const list = `${id(field.name)}-list`;
+      return [
+        el('label', { for: id(field.name), title: 'Placeholders like {x+1} take a value from the event' }, field.name),
+        el('div', { class: 'control' },
+          el('input', { type: 'text', id: id(field.name), value: value ?? '', list, onchange: (e) => setField(field.name)(e.target.value) }),
+          el('datalist', { id: list }, suggestions.map((name) => el('option', { value: name })))),
+      ];
+    }
+    return [el('label', { for: id(field.name) }, field.name), valueEditor(id(field.name), value, field, sources, setField(field.name))];
+  });
+  return el('div', { class: 'mapping' },
+    el('div', { class: 'mapping-head' },
+      el('select', {
+        id: id('on'), title: 'The widget event that sends it; receive only: just feedback',
+        onchange: (e) => edit(() => {
+          if (e.target.value) {
+            mapping.on = e.target.value;
+            // A message using values the new event doesn't have becomes its default one
+            const available = sourceNames(mapping.on);
+            if (messageSources(mapping.message).some((name) => !available.includes(name))) {
+              mapping.message = defaultMessage(widget, mapping.on, info);
+            }
+          } else {
+            delete mapping.on;
+            mapping.feedback = true;
+          }
+        }),
+      },
+      events.map((name) => el('option', { value: name, selected: name === mapping.on }, name)),
+      el('option', { value: '', selected: !mapping.on }, 'receive only')),
+      el('span', { class: 'arrow' }, '→'),
+      el('select', {
+        id: id('output'),
+        onchange: (e) => edit(() => {
+          mapping.output = e.target.value;
+          const next = outputInfo(outputsOf().find((candidate) => candidate.name === mapping.output));
+          // A message the new output can't send becomes its default one
+          if (!next?.messages.includes(mapping.message?.type)) mapping.message = defaultMessage(widget, mapping.on, next);
+        }),
+      }, outputsOf().map((candidate) => el('option', { value: candidate.name, selected: candidate.name === mapping.output }, candidate.name))),
+      el('button', {
+        class: 'link remove', title: 'Remove this message',
+        onclick: () => change((layout) => setMappings(layout, layout.mappings.filter((_, i) => i !== index))),
+      }, '×')),
+    el('div', { class: 'fields' },
+      el('label', { for: id('type') }, 'message'),
+      el('div', { class: 'control' }, el('select', {
+        id: id('type'),
+        onchange: (e) => edit(() => {
+          const type = e.target.value;
+          const fields = state.catalog.messages[type].fields;
+          // Keep the fields both types have
+          const next = { type };
+          for (const field of fields) if (field.name in mapping.message && field.kind !== 'list') next[field.name] = mapping.message[field.name];
+          if (type === 'OscMessage') Object.assign(next, { address: mapping.message.address || '/', args: mapping.message.args || [] });
+          mapping.message = next;
+        }),
+      }, (info?.messages || Object.keys(state.catalog.messages)).map((type) => el('option', { value: type, selected: type === message.type }, type)))),
+      fieldEditors,
+      el('label', { for: id('feedback'), title: 'Matching messages from the output update the widget' }, 'feedback'),
+      el('div', { class: 'control' }, el('input', {
+        type: 'checkbox', id: id('feedback'), checked: !!mapping.feedback, disabled: !mapping.on,
+        onchange: (e) => edit(() => { if (e.target.checked) mapping.feedback = true; else delete mapping.feedback; }),
+      }))),
+  );
+}
+
 // ---------------------------------------------------------------- history and sync
 
 function change(mutate) {
@@ -342,6 +653,8 @@ function checkSelection() {
     const paths = selection.paths.filter(exists);
     state.selection = widgetSelection(paths, exists(selection.path) ? selection.path : undefined);
   } else if (selection?.kind === 'device' && !state.layout.devices[selection.index]) {
+    state.selection = null;
+  } else if (selection?.kind === 'output' && !outputsOf()[selection.index]) {
     state.selection = null;
   }
 }
@@ -403,6 +716,7 @@ async function poll() {
       state.hardware = frame.hardware;
       renderToolbar();
       renderDevices();
+      renderOutputs();
     }
   } catch {
     setStatus('Lost connection to the designer server', 'error');
@@ -466,6 +780,7 @@ function render() {
   renderOverlay();
   renderTree();
   renderDevices();
+  renderOutputs();
   renderProperties();
   renderCode();
   renderToolbar();
@@ -755,13 +1070,13 @@ function renderDevices() {
   if (!state.layout.devices.length) list.append(el('li', { class: 'hint' }, 'Preview only. Add the hardware the layout runs on.'));
 }
 
-function hardwareDot(index) {
+function hardwareDot(index, list = 'devices') {
   if (!state.hardware.enabled) return null;
-  const status = state.hardware.devices[index];
+  const status = state.hardware[list]?.[index];
   if (!status) return el('span', { class: 'dot', title: 'Connecting…' });
   return el('span', {
     class: `dot ${status.connected ? 'on' : 'off'}`,
-    title: status.connected ? 'Connected: mirrors the preview, pads work the widgets' : status.error,
+    title: status.connected ? (list === 'devices' ? 'Connected: mirrors the preview, pads work the widgets' : 'Connected: sends and receives messages') : status.error,
   });
 }
 
@@ -1046,6 +1361,7 @@ function renderProperties() {
             }
             change((layout) => {
               for (const binding of layout.bindings || []) if (binding.widget === widget.name) binding.widget = name;
+              for (const mapping of layout.mappings || []) if (mapping.widget === widget.name) mapping.widget = name;
               widget.name = name;
             });
           },
@@ -1054,6 +1370,7 @@ function renderProperties() {
         info?.bindable ? bindingFields(widget) : null),
       widget.type === 'Sprite' ? spriteEditor(widget) : null,
       animationFields([widget]),
+      messageFields(widget),
       el('div', { class: 'actions' },
         el('button', { onclick: () => reorder(path, 1), title: 'Draw above the next widget' }, 'Raise'),
         el('button', { onclick: () => reorder(path, -1), title: 'Draw below the previous widget' }, 'Lower'),
@@ -1067,6 +1384,7 @@ function renderProperties() {
     );
     return;
   }
+  if (selection?.kind === 'output') return outputProperties(panel, selection.index);
   if (selection?.kind === 'device') {
     const device = state.layout.devices[selection.index];
     const info = deviceInfo(device);
@@ -1152,9 +1470,10 @@ function renderToolbar() {
   play.classList.toggle('on', state.playing);
   if (!state.playing) $('position').textContent = '';
   const hardware = $('hardware');
-  const connected = state.hardware.devices.filter((d) => d.connected).length;
+  const all = [...state.hardware.devices, ...(state.hardware.outputs || [])];
+  const connected = all.filter((d) => d.connected).length;
   hardware.classList.toggle('on', state.hardware.enabled);
-  hardware.textContent = state.hardware.enabled ? `Hardware ${connected}/${state.hardware.devices.length}` : 'Hardware';
+  hardware.textContent = state.hardware.enabled ? `Hardware ${connected}/${all.length}` : 'Hardware';
   $('palette-hint').textContent = targetGroup() ? `Click to add to ${widgetAt(targetGroup()).name}.` : 'Click to add to the surface.';
 }
 
@@ -1206,6 +1525,7 @@ function addDevice() {
 function removeSelection() {
   const selection = state.selection;
   if (!selection) return;
+  if (selection.kind === 'output') return removeOutput(selection.index);
   change((layout) => {
     let bindings = layout.bindings || [];
     if (selection.kind === 'widget') {
@@ -1216,6 +1536,7 @@ function removeSelection() {
       }
       const names = new Set(allWidgets().map(({ widget }) => widget.name));
       bindings = bindings.filter((binding) => binding.widget === undefined || names.has(binding.widget));
+      setMappings(layout, (layout.mappings || []).filter((mapping) => names.has(mapping.widget)));
     } else {
       layout.devices.splice(selection.index, 1);
       bindings = bindings.filter((binding) => binding.device !== selection.index)
@@ -1370,10 +1691,11 @@ function bindToolbar() {
   $('mode-try').onclick = () => setMode('try');
   $('hardware').onclick = async () => {
     const reply = await api('POST', '/api/hardware', { enabled: !state.hardware.enabled });
-    state.hardware = { enabled: !state.hardware.enabled, devices: reply.devices || [] };
+    state.hardware = { enabled: !state.hardware.enabled, devices: reply.devices || [], outputs: reply.outputs || [] };
     renderToolbar();
     renderDevices();
-    const failed = state.hardware.devices.find((d) => !d.connected);
+    renderOutputs();
+    const failed = [...state.hardware.devices, ...state.hardware.outputs].find((d) => !d.connected);
     if (state.hardware.enabled && failed) setStatus(`Some devices aren't connected: ${failed.error}`, 'error');
     else if (state.hardware.enabled) setStatus('Hardware connected: it mirrors the preview', 'ok');
   };
@@ -1389,6 +1711,7 @@ function bindToolbar() {
   $('open').onclick = () => $('open-file').click();
   $('open-file').onchange = (e) => { if (e.target.files[0]) open(e.target.files[0]); e.target.value = ''; };
   $('add-device').onclick = addDevice;
+  $('add-output').onclick = addOutput;
   $('clear-events').onclick = () => $('events').replaceChildren();
   $('copy-code').onclick = async () => {
     await navigator.clipboard?.writeText($('code').textContent);
@@ -1436,6 +1759,7 @@ function buildCatalog() {
   for (const device of state.catalog.devices) (groups[device.vendor || 'Other'] ||= []).push(device);
   $('device-type').replaceChildren(...Object.entries(groups).map(([vendor, devices]) =>
     el('optgroup', { label: vendor }, devices.map((device) => el('option', { value: device.type }, device.model)))));
+  $('output-type').replaceChildren(...state.catalog.outputs.map((output) => el('option', { value: output.type }, output.model)));
 }
 
 async function start() {

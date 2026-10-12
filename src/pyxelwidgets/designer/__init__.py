@@ -23,12 +23,14 @@ import urllib.parse
 import pyxelwidgets.color
 import pyxelwidgets.devices
 import pyxelwidgets.events
+import pyxelwidgets.message
 import pyxelwidgets.parser
 import pyxelwidgets.transport
 
 __all__ = ['Preview', 'Designer', 'new_layout', 'catalog']
 
 DEVICE_MODULES = ['novation', 'akai', 'ableton', 'presonus', 'virtual']
+OUTPUT_MODULES = ['midi_port', 'mackie', 'osc']
 
 def new_layout(width: int = 9, height: int = 9) -> dict:
     return {
@@ -40,26 +42,34 @@ def new_layout(width: int = 9, height: int = 9) -> dict:
         'widgets': [],
     }
 
-def catalog() -> dict:
-    """Everything the designer UI offers: widget and binding options, devices and named colors."""
-    devices = []
-    for module_name in DEVICE_MODULES:
+def _describe_classes(modules: list, outputs: bool) -> list:
+    found = []
+    for module_name in modules:
         try:
             module = importlib.import_module(f'pyxelwidgets.devices.{module_name}')
         except ImportError:
             continue
         for name in getattr(module, '__all__', []):
             cls = getattr(module, name)
-            if isinstance(cls, type) and issubclass(cls, pyxelwidgets.devices.Device):
+            if isinstance(cls, type) and issubclass(cls, pyxelwidgets.devices.Device) and bool(getattr(cls, 'messages', None)) == outputs:
                 info = cls.describe()
                 info['type'] = f'{module_name}.{name}'
                 info['options'] = pyxelwidgets.parser.option_schema(cls)
-                devices.append(info)
+                # MIDI outputs connect to ports or a virtual port; OSC by its options
+                info['midi'] = hasattr(cls, 'connect_virtual') if outputs else None
+                found.append(info)
+    return found
+
+def catalog() -> dict:
+    """Everything the designer UI offers: widget and binding options, devices, outputs, messages and named colors."""
+    devices = _describe_classes(DEVICE_MODULES, False)
+    outputs = _describe_classes(OUTPUT_MODULES, True)
     colors = {name: pyxelwidgets.parser.color_to_text(value) for name, value in vars(pyxelwidgets.color.Colors).items()
               if isinstance(value, pyxelwidgets.color.Color)}
     schema = pyxelwidgets.parser.schema()
     return {'widgets': schema['widgets'], 'animations': schema['animations'], 'binding': schema['binding'],
-            'devices': devices, 'colors': colors}
+            'devices': devices, 'outputs': outputs, 'events': schema['events'], 'messages': schema['messages'],
+            'colors': colors}
 
 class PreviewDevice(pyxelwidgets.devices.Device):
     """Covers the whole surface so clicks in the browser reach widgets like real pad presses."""
@@ -82,8 +92,44 @@ def _event_json(event) -> dict:
     return data
 
 def _device_key(device: dict) -> str:
-    """What makes two layout device entries the same connection (position aside)."""
-    return json.dumps({key: device.get(key) for key in ('type', 'options', 'input', 'output')}, sort_keys = True)
+    """What makes two layout device (or output) entries the same connection (position and name aside)."""
+    return json.dumps({key: device.get(key) for key in ('type', 'options', 'input', 'output', 'virtual')}, sort_keys = True)
+
+def _message_json(message) -> dict:
+    if isinstance(message, pyxelwidgets.message.OscMessage):
+        return {'address': message.address, 'args': list(message.args)}
+    return {field.name: getattr(message, field.name) for field in dataclasses.fields(message)
+            if field.name != 'flash' or message.flash}
+
+class _OutputProxy(pyxelwidgets.events.Emitter):
+    """
+    Stands in for a layout output in the preview: logs what mappings send and,
+    with hardware on, forwards it to the real output and its replies back.
+    """
+
+    def __init__(self, preview, name: str):
+        self.preview = preview
+        self.name = name
+        self.target = None
+
+    def attach(self, output) -> None:
+        self.detach()
+        self.target = output
+        output.on(pyxelwidgets.events.MessageReceived, self._received)
+
+    def detach(self) -> None:
+        if self.target is not None:
+            self.target.off(pyxelwidgets.events.MessageReceived, self._received)
+            self.target = None
+
+    def send(self, message) -> None:
+        self.preview._log(self.name, f'→ {type(message).__name__}', _message_json(message))
+        if self.target is not None:
+            self.target.send(message)
+
+    def _received(self, event) -> None:
+        self.preview._log(self.name, f'← {type(event.message).__name__}', _message_json(event.message))
+        self.emit(pyxelwidgets.events.MessageReceived(self, event.message))
 
 class _PreviewActions:
     """Binding actions for the preview: its transport only exists while playing."""
@@ -132,6 +178,9 @@ class Preview:
         self.hardware_enabled = False
         # One entry per layout device: {'key', 'device' (or None), 'error'}
         self.hardware = []
+        # One entry per layout output: {'key', 'output' (or None), 'error'}
+        self.outputs = []
+        self.proxies = {}
         self._render_stop = None
         self.load(layout or new_layout())
 
@@ -145,25 +194,36 @@ class Preview:
         ui.surface.transport = self._idle(ui)
         for widget in ui.widgets.values():
             widget.on(pyxelwidgets.events.WidgetEvent, self._record)
+        # Mappings send to stand-ins that log, and forward to the real outputs with hardware on
+        proxies = {entry['name']: _OutputProxy(self, entry['name']) for entry in ui.output_settings()}
+        ui.mappings = ui.map(proxies)
         with self.lock:
             playing = self.transport is not None
             self.stop()
             old = self.ui
-            self.layout, self.ui, self.device = copy.deepcopy(layout), ui, device
+            for proxy in self.proxies.values():
+                proxy.detach()
+            self.layout, self.ui, self.device, self.proxies = copy.deepcopy(layout), ui, device, proxies
             if self.hardware_enabled:
                 self._attach_hardware(old)
             if playing:
                 self.play()
 
     def _record(self, event) -> None:
+        self._append(_event_json(event))
+
+    def _log(self, name: str, kind: str, fields: dict) -> None:
+        self._append({'event': kind, 'widget': name, **fields})
+
+    def _append(self, entry: dict) -> None:
         with self._events_lock:
             self.event_counter += 1
-            self.events.append((self.event_counter, _event_json(event)))
+            self.events.append((self.event_counter, entry))
 
     # Hardware
 
-    def set_hardware(self, enabled: bool) -> list:
-        """Connect (or close) the layout's devices; returns their status."""
+    def set_hardware(self, enabled: bool) -> dict:
+        """Connect (or close) the layout's devices and outputs; returns their status."""
         with self.lock:
             if enabled and not self.hardware_enabled:
                 self.hardware_enabled = True
@@ -178,10 +238,17 @@ class Preview:
                         self.ui.surface.remove_device(entry['device'])
                         entry['device'].close()
                 self.hardware = []
+                for proxy in self.proxies.values():
+                    proxy.detach()
+                for entry in self.outputs:
+                    if entry['device'] is not None:
+                        entry['device'].close()
+                self.outputs = []
             return self.hardware_status()
 
-    def hardware_status(self) -> list:
-        return [{'connected': entry['device'] is not None, 'error': entry['error']} for entry in self.hardware]
+    def hardware_status(self) -> dict:
+        status = lambda entries: [{'connected': entry['device'] is not None, 'error': entry['error']} for entry in entries]
+        return {'enabled': self.hardware_enabled, 'devices': status(self.hardware), 'outputs': status(self.outputs)}
 
     def _attach_hardware(self, old_ui) -> None:
         """Connect the current layout's devices, reusing the ones already open for unchanged entries."""
@@ -207,6 +274,38 @@ class Preview:
                 device.close()
         # Removing devices from the old surface removed their bindings
         self.ui.bind([entry['device'] for entry in self.hardware], _PreviewActions(self))
+        self._attach_outputs()
+
+    def _attach_outputs(self) -> None:
+        """Connect the layout's outputs to their stand-ins, reusing open ones for unchanged entries."""
+        pool = {}
+        for entry in self.outputs:
+            if entry['device'] is not None:
+                pool.setdefault(entry['key'], []).append(entry['device'])
+        self.outputs = []
+        for index, spec in enumerate(self.layout.get('outputs') or []):
+            key = _device_key(spec)
+            reused = pool.get(key)
+            output, error = (reused.pop(0) if reused else None), None
+            if output is None:
+                output, error = self._open_output(spec, index)
+            if output is not None and spec['name'] in self.proxies:
+                self.proxies[spec['name']].attach(output)
+            self.outputs.append({'key': key, 'device': output, 'error': error})
+        for outputs in pool.values():
+            for output in outputs:
+                output.close()
+
+    @staticmethod
+    def _open_output(spec: dict, index: int) -> tuple:
+        try:
+            output = pyxelwidgets.parser.build_output(spec, f'outputs[{index}]')
+        except Exception as error:
+            return None, str(error) or type(error).__name__
+        if not output.connected:
+            output.close()
+            return None, 'no port: give it a virtual port name, or input/output ports'
+        return output, None
 
     @staticmethod
     def _open(spec: dict, index: int) -> tuple:
@@ -248,7 +347,7 @@ class Preview:
             return {'width': buffer.shape[0], 'height': buffer.shape[1], 'pixels': rows, 'events': events,
                     'playing': transport is not None,
                     'position': f'{transport.bar + 1}.{transport.beat + 1}' if transport is not None else None,
-                    'hardware': {'enabled': self.hardware_enabled, 'devices': self.hardware_status()}}
+                    'hardware': self.hardware_status()}
 
     def input(self, x: int, y: int, velocity: float) -> None:
         """Press (``velocity`` > 0) or release the surface pad at ``x``, ``y``."""
@@ -367,7 +466,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
             elif path == '/api/save':
                 self.designer.save(body)
             elif path == '/api/hardware':
-                self._json({'ok': True, 'devices': preview.set_hardware(bool(body.get('enabled')))})
+                self._json({'ok': True, **preview.set_hardware(bool(body.get('enabled')))})
                 return
             else:
                 self._send(404, b'Not found', 'text/plain')
