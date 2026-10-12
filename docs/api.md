@@ -1531,6 +1531,13 @@ a source is added as the event has it (`delta` steps, or 0.0-1.0).
 Numbers end up clamped to `minimum`/`maximum` when given; a reversed
 range (`minimum = 8, maximum = 7`) turns a 0.0-1.0 value around.
 
+The value can also be a `Condition`: an event value compared with a
+constant chooses between two values:
+
+    # Sequencer n shows only while cell n is chosen (16 links, one per sequencer)
+    Link(tabs, sequencers[n], 'visible', Condition(Source('cell'), '==', n), on = Toggled)
+    Link(tabs, pad, 'active_color', Condition(Source('x'), '<', 4, Colors.Red, Colors.Blue), on = Toggled)
+
 An action's value is a number: 0.0-1.0 sources cover `minimum` to
 `maximum` (whole numbers if both are), whole number sources add `offset`.
 A text value is filled in from the event: `'pad {x},{y} at {velocity}'`;
@@ -1562,6 +1569,19 @@ state (`Change.Toggle`, which takes no value). Without `option`,
 An enum.
 
 Members: `Set`, `Add`, `Toggle`.
+
+### `Condition`
+
+```python
+Condition(source: Source, op: str = '==', to: Any = 0, then: Any = True, otherwise: Any = False)
+```
+
+A link value chosen by a comparison: `then` if the event's `source`
+(whole numbers with their offset, 0.0-1.0 values as they are) compared
+with `op` (==, !=, <, <=, >, >=) to `to` is true, else `otherwise`.
+
+- **`test(sources: dict)`**
+- **`choose(sources: dict)`**
 
 # Putting it together
 
@@ -1687,7 +1707,9 @@ Links change a `target` widget's `option` (one of its options, or `x`,
 `Set` (default), `Add` or `Toggle`; `value` is a constant encoded like
 the option, or `{"source": "value", "offset": 0}`; optional `min`/`max`
 are the range a 0.0-1.0 source covers and clamp numbers (see
-`pyxelwidgets.link`). Instead of an option a link can call an `action`:
+`pyxelwidgets.link`). A value can be a condition choosing between two:
+`{"if": {"source": "cell"}, "op": "==", "to": 3, "then": true, "else": false}`
+(`then`/`else` encoded like the option; true/false by default for on/off options). Instead of an option a link can call an `action`:
 one of the target widget's `actions` (`advance`, `play` with a step
 `value`, `next`...) or, without a target, a transport action
 (`ACTIONS`: `transport.play`..., or `VALUE_ACTIONS` taking a
