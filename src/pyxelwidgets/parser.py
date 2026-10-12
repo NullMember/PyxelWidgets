@@ -78,6 +78,7 @@ def widget_types() -> dict:
              if isinstance(cls, type) and issubclass(cls, pyxelwidgets.widgets.Widget)
              and cls not in (pyxelwidgets.widgets.Widget, pyxelwidgets.widgets.ValueWidget)}
     types['Group'] = pyxelwidgets.group.Group
+    types['Pages'] = pyxelwidgets.group.Pages
     return dict(sorted(types.items()))
 
 # Arguments set by the layout itself, not by options
@@ -86,6 +87,7 @@ _PLACEMENT = {'self', 'x', 'y', 'width', 'height', 'name'}
 # Arguments that aren't options: set by the class itself (a Group's background is its
 # inactive_color) or by the layout entry (a binding's device, control and target)
 _HIDDEN = {pyxelwidgets.group.Group: {'active_color', 'inactive_color'},
+           pyxelwidgets.group.Pages: {'active_color', 'inactive_color'},
            # Set by the binding entry itself
            pyxelwidgets.binding.Binding: {'source', 'control', 'target', 'device', 'clock'}}
 
@@ -175,6 +177,8 @@ def schema() -> dict:
             # Only the class's own docstring: an inherited one describes the base class
             'doc': inspect.cleandoc(cls.__dict__['__doc__']).split('\n\n')[0].replace('\n', ' ') if cls.__dict__.get('__doc__') else '',
             'container': issubclass(cls, pyxelwidgets.group.Group),
+            # Has a value a knob, fader or button binding can set (Button, Fader, Knob, XY)
+            'bindable': issubclass(cls, pyxelwidgets.widgets.ValueWidget),
             'options': option_schema(cls),
         }
     return {'format': FORMAT, 'version': VERSION, 'widgets': widgets,
