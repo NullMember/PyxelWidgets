@@ -36,6 +36,8 @@ const state = {
   frameSize: [0, 0],
   spriteFrame: 0, // the Sprite frame being painted
   paint: { color: '#ffffff', erase: false },
+  eventLog: [], // events from the preview, newest last
+  eventsPaused: false,
 };
 
 const $ = (id) => document.getElementById(id);
@@ -67,6 +69,66 @@ async function api(method, path, body) {
   });
   const data = await response.json();
   return { ok: response.ok, ...data };
+}
+
+// ---------------------------------------------------------------- view preferences (this browser only)
+
+// Folded sections, panel sizes, the drawer; per layout file: collapsed, hidden and locked layers
+const prefs = (() => {
+  try {
+    return JSON.parse(localStorage.getItem('pyxelwidgets.designer') || '{}');
+  } catch {
+    return {};
+  }
+})();
+
+function savePrefs() {
+  try {
+    localStorage.setItem('pyxelwidgets.designer', JSON.stringify(prefs));
+  } catch {
+    // Private windows: preferences last for this page only
+  }
+}
+
+function viewKey() {
+  return state.file || '(unsaved)';
+}
+
+// Widget names in a per-file view set: 'collapsed', 'hidden' (in the designer only) or 'locked'
+function viewSet(kind) {
+  return new Set(prefs.views?.[viewKey()]?.[kind] || []);
+}
+
+function setViewSet(kind, names) {
+  prefs.views ||= {};
+  prefs.views[viewKey()] ||= {};
+  prefs.views[viewKey()][kind] = [...names];
+  savePrefs();
+  if (kind === 'hidden') sendHidden();
+}
+
+function toggleView(kind, name) {
+  const names = viewSet(kind);
+  if (names.has(name)) names.delete(name);
+  else names.add(name);
+  setViewSet(kind, names);
+  render();
+}
+
+// Keep view sets following renamed widgets
+function renameInViews(from, to) {
+  for (const kind of ['collapsed', 'hidden', 'locked']) {
+    const names = viewSet(kind);
+    if (names.delete(from)) {
+      names.add(to);
+      setViewSet(kind, names);
+    }
+  }
+}
+
+// Widgets hidden in the designer only are hidden in the preview too
+function sendHidden() {
+  api('POST', '/api/view', { hidden: [...viewSet('hidden')] });
 }
 
 // ---------------------------------------------------------------- layout model
@@ -995,6 +1057,296 @@ function linkCard(widget, link, index) {
   );
 }
 
+// ---------------------------------------------------------------- the drawer: events, connections, Python, problems
+
+const CLOCK_EVENTS = new Set(['StepPlayed', 'RowPlayed', 'ClipQueued', 'ClipStarted', 'ClipStopped', 'PageChanged']);
+
+function drawerPrefs() {
+  prefs.drawer ||= { open: true, tab: 'events', height: 230, filter: 'all', handlers: false };
+  return prefs.drawer;
+}
+
+function openDrawer(tab) {
+  const drawer = drawerPrefs();
+  drawer.open = true;
+  if (tab) drawer.tab = tab;
+  savePrefs();
+  renderDrawer();
+}
+
+function renderDrawer() {
+  const drawer = drawerPrefs();
+  $('drawer').classList.toggle('collapsed', !drawer.open);
+  document.documentElement.style.setProperty('--drawer', `${drawer.height}px`);
+  $('drawer-toggle').textContent = drawer.open ? '▾' : '▴';
+  const problems = findProblems();
+  const counts = { connections: connectionRows().length, problems: problems.length };
+  for (const button of document.querySelectorAll('.tabs button')) {
+    const tab = button.dataset.tab;
+    button.classList.toggle('active', tab === drawer.tab && drawer.open);
+    fill(button, button.dataset.label || (button.dataset.label = button.textContent),
+      counts[tab] ? el('span', { class: 'count' }, counts[tab]) : null);
+  }
+  for (const panel of document.querySelectorAll('.drawer-body > [data-panel]')) panel.classList.toggle('shown', panel.dataset.panel === drawer.tab);
+  if (drawer.tab === 'events') renderEvents();
+  const tools = $('drawer-tools');
+  if (drawer.tab === 'events') {
+    fill(tools,
+      el('select', {
+        id: 'event-filter', title: 'Which events to show',
+        onchange: (e) => { drawer.filter = e.target.value; savePrefs(); renderEvents(); },
+      }, [['all', 'All events'], ['selected', 'Selected widget'], ['quiet', 'Without clock events']].map(([value, label]) =>
+        el('option', { value, selected: drawer.filter === value }, label))),
+      el('button', {
+        id: 'pause-events', class: state.eventsPaused ? 'active' : '', title: 'Pause the list (events are still kept)',
+        onclick: () => { state.eventsPaused = !state.eventsPaused; renderDrawer(); renderEvents(); },
+      }, state.eventsPaused ? 'Resume' : 'Pause'),
+      el('button', { id: 'clear-events', class: 'link', onclick: () => { state.eventLog = []; renderEvents(); } }, 'clear'));
+  } else if (drawer.tab === 'python') {
+    fill(tools,
+      el('label', { title: 'Print each widget\'s main event' },
+        el('input', { type: 'checkbox', id: 'code-handlers', checked: !!drawer.handlers, onchange: (e) => { drawer.handlers = e.target.checked; savePrefs(); renderCode(); } }),
+        ' with handlers'),
+      el('button', {
+        id: 'copy-code', class: 'link',
+        onclick: async () => {
+          await navigator.clipboard?.writeText($('code').textContent);
+          setStatus('Copied the Python snippet', 'ok');
+        },
+      }, 'copy'));
+  } else {
+    tools.replaceChildren();
+  }
+  renderConnections();
+  renderProblems(problems);
+}
+
+// Every link, message and binding: [kind, from, to, what, select]
+function connectionRows() {
+  const rows = [];
+  for (const link of state.layout.links || []) {
+    const to = link.target || 'Transport';
+    const what = link.action ? `${link.on} → ${link.action.replace(/^transport\./, '')}` : `${link.on} → ${(link.change || 'set').toLowerCase()} ${link.option}`;
+    rows.push(['link', link.widget, to, what, () => selectWidgetNamed(link.widget)]);
+  }
+  for (const mapping of state.layout.mappings || []) {
+    const message = mapping.message || {};
+    const what = `${mapping.on || 'receive only'} → ${message.type}${message.name ? ` ${message.name}` : ''}${message.address ? ` ${message.address}` : ''}${mapping.feedback ? ' · feedback' : ''}`;
+    rows.push(['message', mapping.widget, mapping.output, what, () => selectWidgetNamed(mapping.widget)]);
+  }
+  for (const binding of state.layout.bindings || []) {
+    const device = state.layout.devices[binding.device];
+    const from = `${deviceInfo(device)?.model || device?.type} ${binding.control}`;
+    rows.push(['binding', from, binding.widget || binding.action, binding.widget ? (binding.options?.takeover || '') : 'action', () => select({ kind: 'device', index: binding.device })]);
+  }
+  return rows;
+}
+
+function renderConnections() {
+  const rows = connectionRows();
+  fill($('connections'), rows.length
+    ? el('table', {},
+      el('tr', {}, ['', 'From', 'To', 'What'].map((head) => el('th', {}, head))),
+      rows.map(([kind, from, to, what, go]) => el('tr', { class: 'connection', onclick: go, title: 'Select it' },
+        el('td', { class: 'kind' }, kind), el('td', {}, from), el('td', {}, to), el('td', {}, what))))
+    : el('p', { class: 'hint' }, 'No links, messages or bindings yet: add them on a widget, under Behaviour.'));
+}
+
+// Things that won't work as the layout is: [level ('error' or 'warning'), text, select]
+function findProblems() {
+  const problems = [];
+  if (state.error) problems.push(['error', state.error, null]);
+  const names = new Map(allWidgets().map(({ widget, path }) => [widget.name, { widget, path }]));
+  const outputs = new Set(outputsOf().map((output) => output.name));
+  for (const link of state.layout.links || []) {
+    if (!names.has(link.widget)) problems.push(['error', `A link from a missing widget "${link.widget}"`, null]);
+    else if (link.target && !names.has(link.target)) problems.push(['error', `${link.widget}: links to a missing widget "${link.target}"`, () => selectWidgetNamed(link.widget)]);
+    else if (link.option && !linkOptions(names.get(link.target).widget).some((option) => option.name === link.option)) {
+      problems.push(['error', `${link.widget}: ${link.target} has no option "${link.option}"`, () => selectWidgetNamed(link.widget)]);
+    }
+  }
+  for (const mapping of state.layout.mappings || []) {
+    if (!outputs.has(mapping.output)) problems.push(['error', `${mapping.widget}: sends to a missing output "${mapping.output}"`, () => selectWidgetNamed(mapping.widget)]);
+  }
+  outputsOf().forEach((output, index) => {
+    const info = outputInfo(output);
+    if (info?.midi && !output.virtual && !output.input && !output.output) {
+      problems.push(['warning', `Output ${output.name} has no port: give it a virtual port name, or input/output ports`, () => select({ kind: 'output', index })]);
+    }
+    const status = state.hardware.outputs?.[index];
+    if (status && !status.connected && status.error) problems.push(['warning', `Output ${output.name}: ${status.error}`, () => select({ kind: 'output', index })]);
+  });
+  state.layout.devices.forEach((device, index) => {
+    const status = state.hardware.devices?.[index];
+    if (status && !status.connected && status.error && !device.type.startsWith('virtual.')) {
+      problems.push(['warning', `${deviceInfo(device)?.model || device.type}: ${status.error}`, () => select({ kind: 'device', index })]);
+    }
+  });
+  const { width, height } = state.layout.surface;
+  for (const { widget, path } of allWidgets()) {
+    if (path.length === 1 && ((widget.x || 0) + widget.width > width || (widget.y || 0) + widget.height > height)) {
+      problems.push(['warning', `${widget.name} reaches past the surface`, () => select(widgetSelection([path]))]);
+    }
+  }
+  return problems;
+}
+
+function renderProblems(problems = findProblems()) {
+  fill($('problem-list'), problems.length
+    ? problems.map(([level, text, go]) => el('li', { class: level, onclick: go || null, title: go ? 'Show it' : null }, text))
+    : el('li', { class: 'none' }, 'No problems found.'));
+  const badge = $('problems');
+  badge.hidden = !problems.length;
+  badge.classList.toggle('error', problems.some(([level]) => level === 'error'));
+  badge.textContent = `⚠ ${problems.length}`;
+  badge.title = `${problems.length} problem${problems.length === 1 ? '' : 's'} in the layout`;
+}
+
+function renderEvents() {
+  if (state.eventsPaused) return;
+  const filter = drawerPrefs().filter;
+  const selected = state.selection?.kind === 'widget' ? new Set(selectedPaths().map((path) => widgetAt(path)?.name)) : new Set();
+  const shown = state.eventLog.filter((event) => filter === 'all'
+    || (filter === 'quiet' && !CLOCK_EVENTS.has(event.event))
+    || (filter === 'selected' && selected.has(event.widget)));
+  fill($('events'), shown.slice(-200).reverse().map((event) => {
+    const fields = Object.entries(event)
+      .filter(([key]) => !['id', 'widget', 'event'].includes(key))
+      .map(([key, value]) => `${key}=${Array.isArray(value) ? `[${value}]` : value}`)
+      .join(' ');
+    return el('li', { title: `${event.widget} ${event.event} ${fields}` },
+      el('b', {}, event.widget), ' ', el('span', { class: 'kind' }, event.event), ' ', fields);
+  }));
+}
+
+function bindDrawer() {
+  for (const button of document.querySelectorAll('.tabs button')) {
+    button.onclick = () => {
+      const drawer = drawerPrefs();
+      drawer.open = !(drawer.open && drawer.tab === button.dataset.tab);
+      drawer.tab = button.dataset.tab;
+      savePrefs();
+      renderDrawer();
+    };
+  }
+  $('drawer-toggle').onclick = () => {
+    drawerPrefs().open = !drawerPrefs().open;
+    savePrefs();
+    renderDrawer();
+  };
+  // Drag the bar to make the drawer taller or shorter
+  $('drawer').querySelector('.drawer-bar').addEventListener('pointerdown', (event) => {
+    if (event.target.closest('button, select, input, label') || !drawerPrefs().open) return;
+    const startY = event.clientY;
+    const startHeight = drawerPrefs().height;
+    const move = (e) => {
+      drawerPrefs().height = clamp(startHeight - (e.clientY - startY), 80, Math.round(window.innerHeight * 0.7));
+      document.documentElement.style.setProperty('--drawer', `${drawerPrefs().height}px`);
+      renderBoard();
+      renderOverlay();
+    };
+    const up = () => {
+      window.removeEventListener('pointermove', move);
+      window.removeEventListener('pointerup', up);
+      savePrefs();
+    };
+    window.addEventListener('pointermove', move);
+    window.addEventListener('pointerup', up);
+  });
+}
+
+// ---------------------------------------------------------------- panels and help
+
+function renderPanels() {
+  prefs.panels ||= { left: true, right: true, leftWidth: 290, rightWidth: 360 };
+  const panels = prefs.panels;
+  document.body.classList.toggle('no-left', !panels.left);
+  document.body.classList.toggle('no-right', !panels.right);
+  document.documentElement.style.setProperty('--left', `${panels.leftWidth}px`);
+  document.documentElement.style.setProperty('--right', `${panels.rightWidth}px`);
+  $('toggle-left').classList.toggle('active', panels.left);
+  $('toggle-right').classList.toggle('active', panels.right);
+}
+
+function togglePanel(side, shown = !prefs.panels[side]) {
+  prefs.panels[side] = shown;
+  savePrefs();
+  renderPanels();
+  renderBoard();
+  renderOverlay();
+}
+
+// The grid alone (F), or back to the panels as they were
+function toggleFocus() {
+  const panels = prefs.panels;
+  if (panels.left || panels.right) {
+    panels.before = { left: panels.left, right: panels.right };
+    panels.left = panels.right = false;
+  } else {
+    Object.assign(panels, panels.before || { left: true, right: true });
+  }
+  savePrefs();
+  renderPanels();
+  renderBoard();
+  renderOverlay();
+}
+
+function bindSplitters() {
+  for (const [id, side, sign] of [['split-left', 'leftWidth', 1], ['split-right', 'rightWidth', -1]]) {
+    $(id).addEventListener('pointerdown', (event) => {
+      event.preventDefault();
+      const startX = event.clientX;
+      const start = prefs.panels[side];
+      $(id).classList.add('active');
+      const move = (e) => {
+        prefs.panels[side] = clamp(start + sign * (e.clientX - startX), 200, 560);
+        renderPanels();
+        renderBoard();
+        renderOverlay();
+      };
+      const up = () => {
+        $(id).classList.remove('active');
+        window.removeEventListener('pointermove', move);
+        window.removeEventListener('pointerup', up);
+        savePrefs();
+      };
+      window.addEventListener('pointermove', move);
+      window.addEventListener('pointerup', up);
+    });
+  }
+}
+
+const SHORTCUTS = [
+  ['E / T', 'Edit or Try mode'],
+  ['Alt + click', 'press a pad while editing'],
+  ['Space', 'play or stop the transport'],
+  ['Ctrl/Cmd + Z, Ctrl/Cmd + Shift + Z', 'undo, redo'],
+  ['Ctrl/Cmd + S', 'save'],
+  ['Ctrl/Cmd + C, X, V', 'copy, cut and paste widgets (also between layouts)'],
+  ['Ctrl/Cmd + D', 'duplicate'],
+  ['Ctrl/Cmd + A', 'select everything in the group'],
+  ['Shift + click, drag on empty pads', 'select several'],
+  ['Ctrl/Cmd + G, Ctrl/Cmd + Shift + G', 'group, ungroup'],
+  ['Arrows, Shift + arrows', 'move, resize'],
+  ['Delete', 'delete'],
+  ['Ctrl/Cmd + scroll, + / − / 0', 'zoom'],
+  ['[ and ]', 'show or hide the left or right panel'],
+  ['F', 'the grid alone (again: back)'],
+  ['`', 'show or hide the drawer'],
+  ['Escape', 'select nothing'],
+  ['?', 'this list'],
+];
+
+function showShortcuts() {
+  const dialog = $('dialog');
+  fill(dialog,
+    el('h3', {}, 'Keyboard shortcuts'),
+    el('table', { class: 'keys' }, SHORTCUTS.map(([keys, what]) => el('tr', {},
+      el('td', {}, keys.split(', ').map((key, i) => [i ? ', ' : null, el('kbd', {}, key)])), el('td', {}, what)))),
+    el('div', { class: 'buttons' }, el('button', { onclick: () => dialog.close() }, 'Close')));
+  dialog.showModal();
+}
+
 // ---------------------------------------------------------------- history and sync
 
 function change(mutate) {
@@ -1104,6 +1456,7 @@ async function poll() {
       renderToolbar();
       renderDevices();
       renderOutputs();
+      renderDrawer();
     }
   } catch {
     setStatus('Lost connection to the designer server', 'error');
@@ -1125,17 +1478,12 @@ function paint(frame) {
 
 function addEvents(events) {
   if (!events.length) return;
-  const list = $('events');
   for (const event of events) {
     state.lastEvent = Math.max(state.lastEvent, event.id);
-    const fields = Object.entries(event)
-      .filter(([key]) => !['id', 'widget', 'event'].includes(key))
-      .map(([key, value]) => `${key}=${Array.isArray(value) ? `[${value}]` : value}`)
-      .join(' ');
-    list.prepend(el('li', { title: `${event.widget} ${event.event} ${fields}` },
-      el('b', {}, event.widget), ' ', el('span', { class: 'kind' }, event.event), ' ', fields));
+    state.eventLog.push(event);
   }
-  while (list.children.length > 200) list.lastChild.remove();
+  if (state.eventLog.length > 500) state.eventLog.splice(0, state.eventLog.length - 500);
+  renderEvents();
 }
 
 // Input goes in order, and after any pending layout change: rebuilding the preview resets widget state
@@ -1146,11 +1494,27 @@ function sendInput(x, y, velocity) {
 
 const held = new Map();
 function padDown(event) {
-  if (state.mode !== 'try') return startMarquee(event);
-  const { x, y } = event.currentTarget.dataset;
-  event.currentTarget.setPointerCapture(event.pointerId);
-  held.set(event.pointerId, [Number(x), Number(y)]);
-  sendInput(Number(x), Number(y), 1.0);
+  if (state.mode !== 'try' && !event.altKey) return startMarquee(event);
+  pressAt(event);
+}
+
+// Press the pad under the pointer (Try mode, or Alt + click while editing) until it's released
+function pressAt(event) {
+  const pad = document.elementsFromPoint(event.clientX, event.clientY).find((node) => node.classList?.contains('pad'));
+  if (!pad) return;
+  event.preventDefault();
+  event.stopPropagation();
+  const x = Number(pad.dataset.x), y = Number(pad.dataset.y);
+  held.set(event.pointerId, [x, y]);
+  const up = (e) => {
+    if (e.pointerId !== event.pointerId) return;
+    window.removeEventListener('pointerup', up);
+    window.removeEventListener('pointercancel', up);
+    padUp(e);
+  };
+  window.addEventListener('pointerup', up);
+  window.addEventListener('pointercancel', up);
+  sendInput(x, y, 1.0);
 }
 
 function padUp(event) {
@@ -1172,6 +1536,7 @@ function render() {
   renderCode();
   renderToolbar();
   renderDirty();
+  renderDrawer();
 }
 
 function step() {
@@ -1230,30 +1595,64 @@ function place(node, x, y, width, height) {
   node.style.height = `${height * size - 4 + 4}px`;
 }
 
+// Links between widgets: the widgets `name` changes, and the ones changing it
+function relations(name) {
+  const links = state.layout.links || [];
+  return {
+    affects: new Set(links.filter((link) => link.widget === name && link.target && link.target !== name).map((link) => link.target)),
+    affectedBy: new Set(links.filter((link) => link.target === name && link.widget !== name).map((link) => link.widget)),
+  };
+}
+
 function renderOverlay() {
   const overlay = $('overlay');
   overlay.replaceChildren();
+  // Devices at the same place (e.g. a Launchpad mirrored in a browser) share one tag
+  const places = new Map();
+  state.layout.devices.forEach((device, index) => {
+    const key = `${device.x || 0},${device.y || 0}`;
+    if (!places.has(key)) places.set(key, []);
+    places.get(key).push(index);
+  });
   state.layout.devices.forEach((device, index) => {
     const [width, height] = deviceSize(device);
     const selected = state.selection?.kind === 'device' && state.selection.index === index;
-    const outline = el('div', { class: `outline device${selected ? ' selected' : ''}`, dataset: { device: index } },
-      el('span', {
-        class: 'tag', title: 'Drag to move the device on the surface',
-        onpointerdown: (event) => startDeviceDrag(event, index),
-      }, deviceInfo(device)?.model || device.type));
+    const together = places.get(`${device.x || 0},${device.y || 0}`);
+    const tag = together[0] === index ? el('span', { class: 'tag' },
+      together.map((other, i) => [
+        i ? el('span', { class: 'mirror' }, '+') : null,
+        el('span', {
+          title: 'Drag to move the device on the surface',
+          onpointerdown: (event) => startDeviceDrag(event, other),
+        }, deviceInfo(state.layout.devices[other])?.model || state.layout.devices[other].type),
+      ]),
+      together.length > 1 ? el('span', { class: 'mirror', title: 'They show the same pads' }, '· mirrored') : null) : null;
+    const outline = el('div', { class: `outline device${selected ? ' selected' : ''}`, dataset: { device: index } }, tag);
     place(outline, device.x || 0, device.y || 0, width, height);
     overlay.append(outline);
   });
-  const single = selectedPaths().length === 1;
+  const paths = selectedPaths();
+  const single = paths.length === 1;
+  const related = single ? relations(widgetAt(paths[0]).name) : { affects: new Set(), affectedBy: new Set() };
+  const hiddenHere = viewSet('hidden');
+  const locked = viewSet('locked');
   for (const { widget, path } of allWidgets()) {
     const [x, y] = absolute(path);
     const selected = isSelected(path);
     // Widgets on other pages of a Pages aren't shown
     if (hiddenBy(path).length && !selected) continue;
     const hidden = widget.options?.visible === false;
+    const classes = ['outline', 'widget'];
+    if (isGroup(widget)) classes.push('group');
+    if (selected) classes.push('selected');
+    if (related.affects.has(widget.name)) classes.push('affects');
+    if (related.affectedBy.has(widget.name)) classes.push('affected-by');
+    if (locked.has(widget.name)) classes.push('locked');
+    if (hiddenHere.has(widget.name) && !selected) classes.push('hidden-here');
+    const role = related.affects.has(widget.name) ? ' · changed by the selection' : related.affectedBy.has(widget.name) ? ' · changes the selection' : '';
     const outline = el('div', {
-      class: `outline widget${isGroup(widget) ? ' group' : ''}${selected ? ' selected' : ''}`,
-      title: `${widget.name} (${widget.type})`,
+      class: classes.join(' '),
+      title: `${widget.name} (${widget.type})${role}`,
       dataset: { path: path.join('.') },
       onpointerdown: (event) => startDrag(event, path, 'move'),
     }, el('span', { class: 'tag' }, widget.name));
@@ -1299,6 +1698,7 @@ function moveLimits(paths) {
 }
 
 function startDrag(event, path, kind) {
+  if (event.altKey && state.mode === 'edit') return pressAt(event);
   if (state.mode !== 'edit' || event.button !== 0) return;
   event.stopPropagation();
   event.preventDefault();
@@ -1372,7 +1772,9 @@ function widgetsIn(x0, y0, x1, y1) {
     const path = [...prefix, index];
     if (hiddenBy(path).length) return;
     const [x, y] = absolute(path);
-    if (x >= x0 && y >= y0 && x + widget.width <= x1 && y + widget.height <= y1) found.push(path);
+    // Locked and hidden-here widgets aren't picked on the grid
+    const skipped = viewSet('locked').has(widget.name) || viewSet('hidden').has(widget.name);
+    if (!skipped && x >= x0 && y >= y0 && x + widget.width <= x1 && y + widget.height <= y1) found.push(path);
     else if (widget.widgets) visit(widget.widgets, path);
   });
   visit(state.layout.widgets, []);
@@ -1427,15 +1829,44 @@ function startMarquee(event) {
   window.addEventListener('pointerup', up);
 }
 
+const ICONS = {
+  eye: '<svg viewBox="0 0 16 16" width="13" height="13" aria-hidden="true"><path d="M1 8s2.5-5 7-5 7 5 7 5-2.5 5-7 5-7-5-7-5z" fill="none" stroke="currentColor" stroke-width="1.4"/><circle cx="8" cy="8" r="2" fill="currentColor"/></svg>',
+  eyeOff: '<svg viewBox="0 0 16 16" width="13" height="13" aria-hidden="true"><path d="M1 8s2.5-5 7-5 7 5 7 5-2.5 5-7 5-7-5-7-5z" fill="none" stroke="currentColor" stroke-width="1.4"/><path d="M2 14L14 2" stroke="currentColor" stroke-width="1.6"/></svg>',
+  lock: '<svg viewBox="0 0 16 16" width="13" height="13" aria-hidden="true"><rect x="3" y="7" width="10" height="7" rx="1.5" fill="currentColor"/><path d="M5 7V5a3 3 0 0 1 6 0v2" fill="none" stroke="currentColor" stroke-width="1.4"/></svg>',
+};
+
+function icon(name) {
+  const span = el('span', { class: 'svg' });
+  span.innerHTML = ICONS[name];
+  return span;
+}
+
 function renderTree() {
-  const build = (list, prefix) => el('ul', {}, [...list.entries()].reverse().map(([index, widget]) => {
+  const collapsed = viewSet('collapsed');
+  const hiddenHere = viewSet('hidden');
+  const locked = viewSet('locked');
+  const query = $('layer-search').value.trim().toLowerCase();
+  const matches = (widget) => !query || widget.name.toLowerCase().includes(query) || widget.type.toLowerCase().includes(query)
+    || (widget.widgets || []).some(matches);
+  // Groups around the selection open up, without being remembered as open
+  const open = new Set(selectedPaths().flatMap((path) => path.slice(0, -1).map((_, i) => widgetAt(path.slice(0, i + 1)).name)));
+  const toggle = (kind, name, on, titles, icons) => el('button', {
+    class: `toggle ${kind}${on ? ' on' : ''}`, title: on ? titles[1] : titles[0], 'aria-label': on ? titles[1] : titles[0],
+    onclick: (event) => {
+      event.stopPropagation();
+      toggleView(kind, name);
+    },
+  }, icon(on ? icons[1] : icons[0]));
+  const build = (list, prefix) => el('ul', {}, [...list.entries()].reverse().filter(([, widget]) => matches(widget)).map(([index, widget]) => {
     const path = [...prefix, index];
     const selected = isSelected(path);
-    const visible = widget.options?.visible !== false;
+    const children = widget.widgets?.length;
+    const folded = children && collapsed.has(widget.name) && !query && !open.has(widget.name);
     const offPage = widget.type !== undefined && prefix.length && widgetAt(prefix).type === 'Pages' && index !== currentPage(widgetAt(prefix));
+    const here = hiddenHere.has(widget.name);
     return el('li', {},
       el('div', {
-        class: `node${selected ? ' selected' : ''}${offPage ? ' off-page' : ''}`,
+        class: `node${selected ? ' selected' : ''}${offPage ? ' off-page' : ''}${here ? ' hidden-here' : ''}`,
         title: offPage ? 'Another page: selecting it shows that page' : 'Drag to reorder, or onto a group to move it inside',
         draggable: 'true',
         dataset: { path: path.join('.') },
@@ -1460,19 +1891,22 @@ function renderTree() {
         },
       },
         el('button', {
-          class: `eye${visible ? '' : ' hidden'}`, title: visible ? 'Hide' : 'Show',
+          class: `caret${children ? '' : ' none'}`, title: folded ? 'Show what is inside' : 'Fold', 'aria-label': folded ? 'Expand' : 'Collapse',
           onclick: (event) => {
             event.stopPropagation();
-            change(() => setOption(widgetAt(path), 'visible', visible ? false : undefined));
+            if (children) toggleView('collapsed', widget.name);
           },
-        }, visible ? '◉' : '○'),
+        }, folded ? '▸' : '▾'),
         el('span', { class: 'name' }, widget.name),
-        el('span', { class: 'type' }, widget.type)),
-      widget.widgets?.length ? build(widget.widgets, path) : null);
+        el('span', { class: 'type' }, folded ? `${widget.type} · ${children}` : widget.type),
+        toggle('hidden', widget.name, here, ['Hide in the designer (the layout keeps it)', 'Show in the designer'], ['eye', 'eyeOff']),
+        toggle('locked', widget.name, locked.has(widget.name), ['Lock: no dragging it on the grid', 'Unlock'], ['lock', 'lock'])),
+      children && !folded ? build(widget.widgets, path) : null);
   }));
   const tree = $('tree');
   tree.replaceChildren(...build(state.layout.widgets, []).children);
   if (!state.layout.widgets.length) tree.append(el('li', { class: 'hint' }, 'No widgets yet.'));
+  else if (!tree.children.length) tree.append(el('li', { class: 'hint' }, `Nothing matches "${query}".`));
 }
 
 // ---------------------------------------------------------------- reordering layers
@@ -1698,12 +2132,14 @@ function optionControl(option, value, commit, id) {
       const text = value || '#000000';
       const rgb = text.slice(0, 7);
       const alpha = text.length === 9 ? parseInt(text.slice(7), 16) : 255;
-      const picker = el('input', { type: 'color', value: rgb });
-      const slider = el('input', { type: 'range', min: 0, max: 255, value: alpha, title: 'Opacity' });
+      const picker = el('input', { type: 'color', value: rgb, title: 'Color' });
+      const slider = el('input', { type: 'range', min: 0, max: 255, value: alpha, title: 'Opacity', 'aria-label': 'Opacity' });
+      const shown = el('span', { class: 'alpha', title: 'Opacity' }, `${Math.round(alpha / 2.55)}%`);
       const update = () => commit(picker.value + (Number(slider.value) === 255 ? '' : Number(slider.value).toString(16).padStart(2, '0')));
       picker.addEventListener('change', update);
+      slider.addEventListener('input', () => { shown.textContent = `${Math.round(slider.value / 2.55)}%`; });
       slider.addEventListener('change', update);
-      control = el('div', { class: 'color' }, picker, slider);
+      control = el('div', { class: 'color' }, picker, slider, shown);
       break;
     }
     case 'point': {
@@ -1751,7 +2187,6 @@ function animationFields(widgets) {
   el('option', { value: '', selected: type === '' }, 'None'),
   Object.keys(state.catalog.animations).map((name) => el('option', { value: name, selected: name === type }, name)));
   return [
-    el('h4', {}, 'Animation'),
     el('div', { class: 'fields' },
       el('label', { for: 'animation-type', title: 'Changes how the widget looks over time; note values follow the transport' }, 'type'),
       el('div', { class: 'control' }, select),
@@ -1827,7 +2262,6 @@ function spriteEditor(widget) {
   const blankFrame = () => Array.from({ length: widget.height }, () => Array(widget.width).fill(null));
   const swatches = SWATCHES.filter((name) => state.catalog.colors[name]).map((name) => [name, state.catalog.colors[name]]);
   return [
-    el('h4', {}, 'Frames'),
     el('div', { class: 'frames' },
       frames.map((_, i) => el('button', { class: i === index ? 'active' : '', onclick: () => showFrame(i), title: `Paint frame ${i + 1}` }, String(i + 1))),
       el('button', { title: 'Add a blank frame after this one', onclick: () => { state.spriteFrame = index + 1; edit((copy) => copy.splice(index + 1, 0, blankFrame())); } }, '+')),
@@ -1874,24 +2308,81 @@ function multiProperties(panel, paths) {
     if (values[0] !== undefined && values.every((value) => JSON.stringify(value) === JSON.stringify(values[0]))) common.options[option.name] = values[0];
   }
   fill(panel,
-    el('h3', {}, `${widgets.length} widgets`),
+    el('div', { class: 'props-head' },
+      el('h3', {}, `${widgets.length} widgets`),
+      el('div', { class: 'actions' },
+        el('button', { onclick: () => duplicate(), title: 'Duplicate (Ctrl+D)' }, 'Duplicate'),
+        el('button', { onclick: () => groupSelection(), title: 'Put them in a new Group (Ctrl+G)' }, 'Group'),
+        el('button', { class: 'danger', onclick: () => removeSelection(), title: 'Delete (Del)' }, 'Delete'))),
     el('p', { class: 'doc' }, widgets.map((widget) => widget.name).join(', ')),
     shared.length ? [
       el('h4', {}, types.length > 1 ? 'Shared options' : 'Options'),
       el('div', { class: 'fields' }, shared.flatMap((option) => optionField(common, option, 'option',
         (value) => widgets.forEach((widget) => setOption(widget, option.name, value))))),
     ] : null,
-    animationFields(widgets),
-    el('div', { class: 'actions' },
-      el('button', { onclick: () => duplicate(), title: 'Ctrl+D' }, 'Duplicate'),
-      el('button', { onclick: () => groupSelection(), title: 'Put them in a new Group (Ctrl+G)' }, 'Group'),
-      el('button', { class: 'danger', onclick: () => removeSelection(), title: 'Delete' }, 'Delete')),
+    group('animation', 'Animation', animationFields(widgets)),
     el('p', { class: 'hint note' }, 'Drag one or use the arrow keys to move them together. Shift+click adds or removes a widget; drag on empty pads to select an area.'),
   );
 }
 
 function numberInput(label, value, onchange, attrs = {}) {
   return el('label', {}, label, el('input', { type: 'number', value, step: 1, ...attrs, onchange: (e) => onchange(parseInt(e.target.value, 10)) }));
+}
+
+// Options most layouts leave alone: shown under "More options"
+const ADVANCED = new Set(['visible', 'propagation', 'interactive', 'held_time', 'double_press_time']);
+
+// A collapsible group of the properties panel; open or closed is remembered in this browser
+function group(key, title, children, { count = null, open = true } = {}) {
+  prefs.groups ||= {};
+  const details = el('details', { class: 'group', dataset: { group: key } },
+    el('summary', {}, title, count ? el('span', { class: 'count' }, count) : null),
+    children);
+  details.open = prefs.groups[key] ?? open;
+  details.addEventListener('toggle', () => {
+    prefs.groups[key] = details.open;
+    savePrefs();
+  });
+  return details;
+}
+
+// Option fields, the rarely changed ones folded away (open when one of them is set)
+function optionFields(target, options, prefix = 'option') {
+  const main = options.filter((option) => !ADVANCED.has(option.name));
+  const more = options.filter((option) => ADVANCED.has(option.name));
+  const changed = more.some((option) => option.name in (target.options || {}));
+  return [
+    main.flatMap((option) => optionField(target, option, prefix)),
+    more.length ? el('details', { class: 'more', open: changed },
+      el('summary', {}, `More options (${more.map((option) => option.name.replace(/_/g, ' ')).join(', ')})`),
+      el('div', { class: 'fields' }, more.flatMap((option) => optionField(target, option, prefix)))) : null,
+  ];
+}
+
+// What changes a widget from elsewhere: links of other widgets, device controls, outputs' feedback
+function controlledBy(widget) {
+  const items = [];
+  for (const link of state.layout.links || []) {
+    if (link.target !== widget.name || link.widget === widget.name) continue;
+    const what = link.action ? `${link.on} → ${link.action}` : `${link.on} → ${(link.change || 'set').toLowerCase()} ${link.option}`;
+    items.push({ from: link.widget, what, go: () => selectWidgetNamed(link.widget) });
+  }
+  for (const binding of state.layout.bindings || []) {
+    if (binding.widget !== widget.name) continue;
+    const device = state.layout.devices[binding.device];
+    items.push({ from: deviceInfo(device)?.model || device?.type || 'device', what: `control ${binding.control}`, go: () => select({ kind: 'device', index: binding.device }) });
+  }
+  for (const mapping of state.layout.mappings || []) {
+    if (mapping.widget !== widget.name || !mapping.feedback) continue;
+    const index = outputsOf().findIndex((output) => output.name === mapping.output);
+    items.push({ from: mapping.output, what: `feedback: ${mapping.message?.type}${mapping.message?.name ? ` ${mapping.message.name}` : ''}`, go: () => select({ kind: 'output', index }) });
+  }
+  return items;
+}
+
+function selectWidgetNamed(name) {
+  const found = allWidgets().find(({ widget }) => widget.name === name);
+  if (found) select(widgetSelection([found.path]));
 }
 
 function renderProperties() {
@@ -1915,9 +2406,19 @@ function renderProperties() {
       if (value === (widget[key] ?? 0)) return render();
       change(() => { widget[key] = value; });
     };
+    const incoming = controlledBy(widget);
+    const behaviour = (state.layout.mappings || []).filter((mapping) => mapping.widget === widget.name).length
+      + (state.layout.links || []).filter((link) => link.widget === widget.name).length + incoming.length;
     fill(panel,
-      el('h3', {}, widget.type),
+      el('div', { class: 'props-head' },
+        el('h3', { title: widget.name }, widget.type),
+        el('div', { class: 'actions' },
+          el('button', { onclick: () => reorder(path, 1), title: 'Raise: draw above the next widget', 'aria-label': 'Raise' }, '▲'),
+          el('button', { onclick: () => reorder(path, -1), title: 'Lower: draw below the previous widget', 'aria-label': 'Lower' }, '▼'),
+          el('button', { onclick: () => duplicate(), title: 'Duplicate (Ctrl+D)' }, 'Duplicate'),
+          el('button', { class: 'danger', onclick: () => removeSelection(), title: 'Delete (Del)' }, 'Delete'))),
       el('p', { class: 'doc' }, (info?.doc || '').replace(/``/g, '')),
+      group('properties', 'Properties', [
       el('div', { class: 'quad' },
         numberInput('x', widget.x || 0, setGeometry('x'), { min: 0, max: parentWidth - 1 }),
         numberInput('y', widget.y || 0, setGeometry('y'), { min: 0, max: parentHeight - 1 }),
@@ -1933,6 +2434,7 @@ function renderProperties() {
               setStatus(`Widget name "${name}" is empty or already used`, 'error');
               return render();
             }
+            renameInViews(widget.name, name);
             change((layout) => {
               for (const binding of layout.bindings || []) if (binding.widget === widget.name) binding.widget = name;
               for (const mapping of layout.mappings || []) if (mapping.widget === widget.name) mapping.widget = name;
@@ -1944,22 +2446,26 @@ function renderProperties() {
             });
           },
         })),
-        (info?.options || []).flatMap((option) => optionField(widget, option)),
+        optionFields(widget, (info?.options || []).filter((option) => !ADVANCED.has(option.name))),
         info?.bindable ? bindingFields(widget) : null),
-      widget.type === 'Sprite' ? spriteEditor(widget) : null,
-      animationFields([widget]),
-      messageFields(widget),
-      linkFields(widget),
-      el('div', { class: 'actions' },
-        el('button', { onclick: () => reorder(path, 1), title: 'Draw above the next widget' }, 'Raise'),
-        el('button', { onclick: () => reorder(path, -1), title: 'Draw below the previous widget' }, 'Lower'),
-        el('button', { onclick: () => duplicate(), title: 'Ctrl+D' }, 'Duplicate'),
-        widget.type === 'Group' ? el('button', { onclick: () => ungroup(path), title: 'Move its widgets out (Ctrl+Shift+G)' }, 'Ungroup') : null,
-        el('button', { class: 'danger', onclick: () => removeSelection(), title: 'Delete' }, 'Delete')),
+      optionFields(widget, (info?.options || []).filter((option) => ADVANCED.has(option.name))),
+      widget.type === 'Group' ? el('div', { class: 'actions' }, el('button', { onclick: () => ungroup(path), title: 'Move its widgets out (Ctrl+Shift+G)' }, 'Ungroup')) : null,
       widget.type === 'Pages' ? [
         el('p', { class: 'hint' }, `Page ${currentPage(widget) + 1} of ${widget.widgets?.length || 0} shown. Widgets added from the palette go on it; select a widget in Layers to show its page.`),
         el('div', { class: 'actions' }, el('button', { onclick: () => addPage(path) }, 'Add page')),
       ] : isGroup(widget) ? el('p', { class: 'hint' }, 'Widgets added from the palette go inside this group.') : null,
+      ]),
+      widget.type === 'Sprite' ? group('frames', 'Frames', spriteEditor(widget)) : null,
+      group('behaviour', 'Behaviour', [
+        el('h4', {}, 'Changed by'),
+        incoming.length
+          ? el('ul', { class: 'controlled' }, incoming.map((item) => el('li', { onclick: item.go, title: 'Select it' },
+            el('span', { class: 'from' }, item.from), el('span', { class: 'what' }, item.what))))
+          : el('p', { class: 'hint' }, 'Nothing changes this widget: links of other widgets, device controls and output feedback show up here.'),
+        messageFields(widget),
+        linkFields(widget),
+      ], { count: behaviour || null }),
+      group('animation', 'Animation', animationFields([widget]), { count: widget.animation ? widget.animation.type : null }),
     );
     return;
   }
@@ -1985,7 +2491,8 @@ function renderProperties() {
         el('label', {}, 'height', el('input', { type: 'number', value: height, disabled: true }))),
       el('div', { class: 'fields' },
         info?.ports?.length ? [port('input', 'input port'), port('output', 'output port')] : null,
-        (info?.options || []).flatMap((option) => optionField(device, option))),
+        optionFields(device, (info?.options || []).filter((option) => !ADVANCED.has(option.name)))),
+      optionFields(device, (info?.options || []).filter((option) => ADVANCED.has(option.name))),
       info?.controls?.length ? el('p', { class: 'hint' }, `Controls: ${info.controls.map((c) => c.name).join(', ')}`) : null,
       el('div', { class: 'actions' }, el('button', { class: 'danger', onclick: () => removeSelection() }, 'Remove device')),
     );
@@ -2017,11 +2524,12 @@ function renderProperties() {
 
 function renderCode() {
   const used = new Set();
-  const lines = allWidgets().filter(({ widget }) => EVENTS[widget.type]).map(({ widget }) => {
+  const handlers = drawerPrefs().handlers;
+  const lines = handlers ? allWidgets().filter(({ widget }) => EVENTS[widget.type]).map(({ widget }) => {
     const [event, fields] = EVENTS[widget.type];
     used.add(event);
     return `ui[${JSON.stringify(widget.name)}].on(${event}, lambda e: print(${JSON.stringify(widget.name)}, ${fields}))`;
-  });
+  }) : [];
   const file = state.file ? state.file.split(/[\\/]/).pop() : 'layout.json';
   $('code').textContent = [
     'from pyxelwidgets import parser',
@@ -2048,7 +2556,9 @@ function renderToolbar() {
   play.textContent = state.playing ? '■ Stop' : '▶ Play';
   play.classList.toggle('on', state.playing);
   if (!state.playing) $('position').textContent = '';
-  $('palette-hint').textContent = targetGroup() ? `Click to add to ${widgetAt(targetGroup()).name}.` : 'Click to add to the surface.';
+  $('palette-hint').textContent = targetGroup() ? `into ${widgetAt(targetGroup()).name}` : '';
+  $('device-count').textContent = state.layout.devices.length || '';
+  $('output-count').textContent = outputsOf().length || '';
 }
 
 function renderDirty() {
@@ -2313,6 +2823,7 @@ async function open(file) {
 function setMode(mode) {
   state.mode = mode;
   for (const pointer of held.keys()) padUp({ pointerId: pointer });
+  if (mode === 'try') openDrawer('events');
   renderToolbar();
 }
 
@@ -2349,11 +2860,14 @@ function bindToolbar() {
   $('open-file').onchange = (e) => { if (e.target.files[0]) open(e.target.files[0]); e.target.value = ''; };
   $('add-device').onclick = addDevice;
   $('add-output').onclick = addOutput;
-  $('clear-events').onclick = () => $('events').replaceChildren();
-  $('copy-code').onclick = async () => {
-    await navigator.clipboard?.writeText($('code').textContent);
-    setStatus('Copied the Python snippet', 'ok');
-  };
+  $('toggle-left').onclick = () => togglePanel('left');
+  $('toggle-right').onclick = () => togglePanel('right');
+  $('help').onclick = showShortcuts;
+  $('problems').onclick = () => openDrawer('problems');
+  $('layer-search').addEventListener('input', renderTree);
+  bindFolds();
+  bindDrawer();
+  bindSplitters();
   $('stage').addEventListener('pointerdown', (event) => {
     if (event.target.id === 'stage' || event.target.id === 'board') startMarquee(event);
   });
@@ -2379,6 +2893,11 @@ function bindToolbar() {
       return event.shiftKey ? (widget.type === 'Group' && ungroup(state.selection.path)) : groupSelection();
     }
     if (mod) return;
+    if (key === '?' ) return showShortcuts();
+    if (key === '[') return togglePanel('left');
+    if (key === ']') return togglePanel('right');
+    if (key === 'f') return toggleFocus();
+    if (key === '`') { drawerPrefs().open = !drawerPrefs().open; savePrefs(); return renderDrawer(); }
     if (key === 'e') return setMode('edit');
     if (key === 't') return setMode('try');
     if (key === 'escape') return select(null);
@@ -2391,10 +2910,20 @@ function bindToolbar() {
   });
 }
 
+// A widget drawn small (rows from the top of colors, null where transparent), or null
+function thumb(preview) {
+  if (!preview) return null;
+  const rows = preview.length;
+  const columns = preview[0].length;
+  const cell = Math.max(3, Math.floor((30 - (Math.max(rows, columns) - 1)) / Math.max(rows, columns)));
+  return el('span', { class: 'thumb', style: `grid-template-columns: repeat(${columns}, ${cell}px); grid-auto-rows: ${cell}px` },
+    preview.flat().map((color) => el('i', { style: `background: ${color || '#0c0d10'}` })));
+}
+
 function buildCatalog() {
   $('palette').replaceChildren(...Object.entries(state.catalog.widgets).map(([type, info]) =>
     el('button', {
-      title: `${(info.doc || type).replace(/``/g, '')} Click to add, or drag onto the grid.`, onclick: () => addWidget(type), dataset: { type },
+      title: `${(info.doc || type).replace(/``/g, '')}\nClick to add, or drag onto the grid.`, onclick: () => addWidget(type), dataset: { type },
       draggable: 'true',
       ondragstart: (event) => {
         state.dragType = type;
@@ -2403,12 +2932,28 @@ function buildCatalog() {
       },
       ondragend: () => { state.dragType = null; clearGhost(); },
     },
-      el('span', { class: 'glyph' }, type === 'ButtonGroup' ? 'BG' : type.slice(0, 2)), el('span', { class: 'label' }, type))));
+      thumb(info.preview) || el('span', { class: 'glyph' }, type === 'ButtonGroup' ? 'BG' : type.slice(0, 2)),
+      el('span', { class: 'label' }, type))));
   const groups = {};
   for (const device of state.catalog.devices) (groups[device.vendor || 'Other'] ||= []).push(device);
   $('device-type').replaceChildren(...Object.entries(groups).map(([vendor, devices]) =>
     el('optgroup', { label: vendor }, devices.map((device) => el('option', { value: device.type }, device.model)))));
   $('output-type').replaceChildren(...state.catalog.outputs.map((output) => el('option', { value: output.type }, output.model)));
+}
+
+// Sections of the left panel fold away; remembered in this browser
+function bindFolds() {
+  prefs.folds ||= {};
+  for (const section of document.querySelectorAll('.fold')) {
+    const name = section.dataset.fold;
+    section.classList.toggle('collapsed', !!prefs.folds[name]);
+    section.querySelector('.fold-head').addEventListener('click', (event) => {
+      if (event.target.closest('button, input, select')) return;
+      prefs.folds[name] = !prefs.folds[name];
+      section.classList.toggle('collapsed', prefs.folds[name]);
+      savePrefs();
+    });
+  }
 }
 
 async function start() {
@@ -2420,8 +2965,10 @@ async function start() {
   state.file = current.file;
   state.saved = JSON.stringify(state.layout);
   buildCatalog();
+  renderPanels();
   bindToolbar();
   render();
+  sendHidden();
   poll();
 }
 

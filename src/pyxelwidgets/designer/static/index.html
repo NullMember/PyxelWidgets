@@ -11,6 +11,9 @@
     <div class="brand">PyxelWidgets <span>Designer</span></div>
     <div class="file" id="file" title="Layout file"></div>
     <div class="tools">
+      <button id="toggle-left" class="icon" title="Show or hide the left panel ([)" aria-label="Left panel">⟨</button>
+      <button id="toggle-right" class="icon" title="Show or hide the right panel (])" aria-label="Right panel">⟩</button>
+      <span class="divider"></span>
       <div class="segmented" role="group" aria-label="Mode">
         <button id="mode-edit" class="active" title="Place and configure widgets (E)">Edit</button>
         <button id="mode-try" title="Press pads to try the widgets (T)">Try</button>
@@ -27,6 +30,8 @@
       <button id="undo" title="Undo (Ctrl+Z)">Undo</button>
       <button id="redo" title="Redo (Ctrl+Shift+Z)">Redo</button>
       <span class="divider"></span>
+      <button id="problems" class="problems" title="Problems in the layout" hidden></button>
+      <button id="help" class="icon" title="Keyboard shortcuts (?)" aria-label="Keyboard shortcuts">?</button>
       <button id="open" title="Open a layout file">Open…</button>
       <input type="file" id="open-file" accept=".json,application/json" hidden>
       <button id="download" title="Download the layout as JSON">Download</button>
@@ -35,51 +40,72 @@
   </header>
   <main>
     <aside class="panel" id="left">
-      <section>
-        <h2>Widgets</h2>
-        <p class="hint" id="palette-hint">Click to add to the surface.</p>
-        <div id="palette" class="palette"></div>
-      </section>
-      <section>
-        <h2>Devices</h2>
-        <div class="row">
-          <select id="device-type" aria-label="Device type"></select>
-          <button id="add-device">Add</button>
+      <section class="fold" data-fold="widgets">
+        <h2 class="fold-head">Widgets <span class="fold-note" id="palette-hint"></span></h2>
+        <div class="fold-body">
+          <div id="palette" class="palette"></div>
         </div>
-        <ul id="devices" class="list"></ul>
       </section>
-      <section>
-        <h2>Outputs</h2>
-        <div class="row">
-          <select id="output-type" aria-label="Output type"></select>
-          <button id="add-output">Add</button>
+      <section class="fold" data-fold="devices">
+        <h2 class="fold-head">Devices <span class="count" id="device-count"></span></h2>
+        <div class="fold-body">
+          <div class="row">
+            <select id="device-type" aria-label="Device type"></select>
+            <button id="add-device">Add</button>
+          </div>
+          <ul id="devices" class="list"></ul>
         </div>
-        <ul id="outputs" class="list"></ul>
       </section>
-      <section class="grow">
+      <section class="fold" data-fold="outputs">
+        <h2 class="fold-head">Outputs <span class="count" id="output-count"></span></h2>
+        <div class="fold-body">
+          <div class="row">
+            <select id="output-type" aria-label="Output type"></select>
+            <button id="add-output">Add</button>
+          </div>
+          <ul id="outputs" class="list"></ul>
+        </div>
+      </section>
+      <section class="grow layers">
         <h2>Layers</h2>
+        <input type="search" id="layer-search" placeholder="Find a widget" aria-label="Find a widget">
         <ul id="tree" class="tree"></ul>
       </section>
+      <div class="splitter" id="split-left" title="Drag to resize"></div>
     </aside>
-    <section id="stage">
-      <div id="board">
-        <div id="pads"></div>
-        <div id="overlay"></div>
-      </div>
-      <div id="status" role="status"></div>
+    <section id="center">
+      <section id="stage">
+        <div id="board">
+          <div id="pads"></div>
+          <div id="overlay"></div>
+        </div>
+        <div id="status" role="status"></div>
+      </section>
+      <section id="drawer">
+        <div class="drawer-bar">
+          <div class="tabs" role="tablist">
+            <button data-tab="events" role="tab">Events</button>
+            <button data-tab="connections" role="tab">Connections</button>
+            <button data-tab="python" role="tab">Python</button>
+            <button data-tab="problems" role="tab">Problems</button>
+          </div>
+          <div class="drawer-tools" id="drawer-tools"></div>
+          <button id="drawer-toggle" class="icon" title="Show or hide (`)" aria-label="Drawer">▾</button>
+        </div>
+        <div class="drawer-body">
+          <ol id="events" class="events" data-panel="events"></ol>
+          <div id="connections" data-panel="connections"></div>
+          <pre id="code" data-panel="python"></pre>
+          <ul id="problem-list" class="problem-list" data-panel="problems"></ul>
+        </div>
+      </section>
     </section>
     <aside class="panel" id="right">
+      <div class="splitter" id="split-right" title="Drag to resize"></div>
       <section id="properties"></section>
-      <section class="grow">
-        <h2>Events <button id="clear-events" class="link">clear</button></h2>
-        <ol id="events" class="events"></ol>
-      </section>
-      <section>
-        <h2>Python <button id="copy-code" class="link">copy</button></h2>
-        <pre id="code"></pre>
-      </section>
     </aside>
   </main>
+  <dialog id="dialog"></dialog>
   <script type="module" src="app.js"></script>
 </body>
 </html>

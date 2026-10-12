@@ -26,6 +26,7 @@ import pyxelwidgets.events
 import pyxelwidgets.message
 import pyxelwidgets.parser
 import pyxelwidgets.transport
+import pyxelwidgets.widgets
 
 __all__ = ['Preview', 'Designer', 'new_layout', 'catalog']
 
@@ -63,6 +64,54 @@ def _describe(cls, kind: str, outputs: bool) -> dict:
     info['midi'] = hasattr(cls, 'connect_virtual') if outputs else None
     return info
 
+# Palette previews: each widget drawn small, at this size, with these options (containers get none)
+PREVIEWS = {
+    'Button': ((2, 2), {'value': 1.0, 'active_color': pyxelwidgets.color.Colors.Lime}),
+    'ButtonGroup': ((4, 1), {}),
+    'ClipLauncher': ((4, 3), {}),
+    'DrumPads': ((4, 4), {}),
+    'Fader': ((1, 4), {'value': 0.6, 'active_color': pyxelwidgets.color.Colors.Cyan}),
+    'Keyboard': ((4, 3), {}),
+    'Knob': ((3, 3), {'value': 0.6}),
+    'Meter': ((1, 4), {'value': 0.9}),
+    'Sequencer': ((4, 2), {}),
+    'Sprite': ((3, 3), {}),
+    'Text': ((4, 5), {'text': 'A', 'scroll': 'Off'}),
+    'Tracker': ((3, 4), {}),
+    'XY': ((3, 3), {'value': (0.6, 0.4)}),
+}
+
+def _preview(cls, name: str) -> list | None:
+    """``cls`` drawn small: rows from the top of ``#rrggbb`` (None where transparent), or None."""
+    size, options = PREVIEWS.get(name, (None, None))
+    if size is None:
+        return None
+    options = dict(options)
+    if name == 'Text':
+        options['scroll'] = pyxelwidgets.widgets.Text.Scroll.Off
+    try:
+        widget = cls(0, 0, *size, **options)
+        if name == 'Sequencer':
+            for x, y in ((0, 1), (2, 1), (1, 0), (3, 0)):
+                widget.state[x, y] = True
+        elif name == 'Tracker':
+            for x, y in ((0, 0), (1, 1), (2, 2), (0, 3)):
+                widget.states[0, x, y] = True
+        elif name == 'ClipLauncher':
+            widget.clips[0, 2] = widget.clips[2, 1] = pyxelwidgets.widgets.ClipLauncher.Playing
+        elif name == 'DrumPads':
+            widget.levels[1, 1] = widget.levels[2, 2] = 1.0
+        elif name == 'Sprite':
+            heart = [[0, 1, 0], [1, 1, 1], [1, 0, 1]]
+            widget.configure(frames = [[[pyxelwidgets.color.Colors.Red if heart[2 - y][x] else pyxelwidgets.color.Colors.Invisible
+                                         for y in range(3)] for x in range(3)]])
+        widget.render()
+    except Exception:
+        return None
+    buffer = widget.buffer
+    return [[f'#{int(buffer[x, y, 0]):02x}{int(buffer[x, y, 1]):02x}{int(buffer[x, y, 2]):02x}' if buffer[x, y, 3] else None
+             for x in range(buffer.shape[0])] for y in reversed(range(buffer.shape[1]))]
+
 def catalog() -> dict:
     """Everything the designer UI offers: widget and binding options, devices, outputs, messages, links and named colors."""
     devices = _describe_classes(DEVICE_MODULES, False)
@@ -74,6 +123,8 @@ def catalog() -> dict:
     colors = {name: pyxelwidgets.parser.color_to_text(value) for name, value in vars(pyxelwidgets.color.Colors).items()
               if isinstance(value, pyxelwidgets.color.Color)}
     schema = pyxelwidgets.parser.schema()
+    for name, cls in pyxelwidgets.parser.widget_types().items():
+        schema['widgets'][name]['preview'] = _preview(cls, name)
     return {'widgets': schema['widgets'], 'animations': schema['animations'], 'binding': schema['binding'],
             'devices': devices, 'outputs': outputs, 'events': schema['events'], 'messages': schema['messages'],
             'link': schema['link'], 'colors': colors}
@@ -231,6 +282,8 @@ class Preview:
         self.event_counter = 0
         # A tempo set by a link, until the layout's tempo changes
         self.tempo = None
+        # Widgets hidden in the designer only (by name), to see what's underneath
+        self.hidden = set()
         self.connect = connect
         # Connections switched on or off by hand, by connection key: True or False
         self.choices = {}
@@ -274,11 +327,30 @@ class Preview:
                 proxy.detach()
             self.layout, self.ui, self.device, self.proxies = copy.deepcopy(layout), ui, device, proxies
             self._attach(old)
+            self._hide(set(), self.hidden)
             ui.surface.transport = self._idle(ui)
             # Widgets with clocks of their own run while editing
             ui.start_clocks(lock = ui.surface.lock)
             if playing:
                 self.play()
+
+    def set_hidden(self, names) -> None:
+        """Hide widgets (by name) in the preview only, e.g. to see what's underneath; the layout is unchanged."""
+        with self.lock:
+            before, self.hidden = self.hidden, set(names)
+            self._hide(before, self.hidden)
+
+    def _hide(self, before: set, after: set) -> None:
+        widgets = _entries(self.layout.get('widgets'))
+        with self.ui.surface.lock:
+            for name in before | after:
+                widget = self.ui.widgets.get(name)
+                if widget is None:
+                    continue
+                if name in after:
+                    widget.visible = False
+                else:
+                    widget.visible = ((widgets.get(name) or {}).get('options') or {}).get('visible', True)
 
     def _record(self, event) -> None:
         self._append(_event_json(event))
@@ -584,6 +656,8 @@ class Handler(http.server.BaseHTTPRequestHandler):
                 preview.play() if body.get('playing') else preview.stop()
             elif path == '/api/save':
                 self.designer.save(body)
+            elif path == '/api/view':
+                preview.set_hidden([str(name) for name in body.get('hidden', [])])
             elif path == '/api/connect':
                 self._json({'ok': True, **preview.set_connected(str(body['kind']), int(body['index']), bool(body['connected']))})
                 return
