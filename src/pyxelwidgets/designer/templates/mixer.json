@@ -1,0 +1,669 @@
+{
+  "format": "pyxelwidgets.layout",
+  "version": 6,
+  "surface": {
+    "width": 9,
+    "height": 9
+  },
+  "transport": {
+    "bpm": 120,
+    "signature": [
+      4,
+      4
+    ]
+  },
+  "devices": [
+    {
+      "type": "novation.LaunchpadMiniMK3",
+      "x": 0,
+      "y": 0,
+      "options": {}
+    }
+  ],
+  "outputs": [
+    {
+      "name": "daw",
+      "type": "mackie.MackieControl",
+      "virtual": "PyxelWidgets MCU",
+      "options": {}
+    }
+  ],
+  "widgets": [
+    {
+      "type": "Fader",
+      "name": "fader1",
+      "x": 0,
+      "y": 0,
+      "width": 1,
+      "height": 8,
+      "options": {
+        "active_color": "#ff4040"
+      }
+    },
+    {
+      "type": "Fader",
+      "name": "fader2",
+      "x": 1,
+      "y": 0,
+      "width": 1,
+      "height": 8,
+      "options": {
+        "active_color": "#ff9a40"
+      }
+    },
+    {
+      "type": "Fader",
+      "name": "fader3",
+      "x": 2,
+      "y": 0,
+      "width": 1,
+      "height": 8,
+      "options": {
+        "active_color": "#ffe040"
+      }
+    },
+    {
+      "type": "Fader",
+      "name": "fader4",
+      "x": 3,
+      "y": 0,
+      "width": 1,
+      "height": 8,
+      "options": {
+        "active_color": "#7cff40"
+      }
+    },
+    {
+      "type": "Fader",
+      "name": "fader5",
+      "x": 4,
+      "y": 0,
+      "width": 1,
+      "height": 8,
+      "options": {
+        "active_color": "#40ffb0"
+      }
+    },
+    {
+      "type": "Fader",
+      "name": "fader6",
+      "x": 5,
+      "y": 0,
+      "width": 1,
+      "height": 8,
+      "options": {
+        "active_color": "#40c8ff"
+      }
+    },
+    {
+      "type": "Fader",
+      "name": "fader7",
+      "x": 6,
+      "y": 0,
+      "width": 1,
+      "height": 8,
+      "options": {
+        "active_color": "#6a6aff"
+      }
+    },
+    {
+      "type": "Fader",
+      "name": "fader8",
+      "x": 7,
+      "y": 0,
+      "width": 1,
+      "height": 8,
+      "options": {
+        "active_color": "#d060ff"
+      }
+    },
+    {
+      "type": "Button",
+      "name": "mute1",
+      "x": 0,
+      "y": 8,
+      "width": 1,
+      "height": 1,
+      "options": {
+        "active_color": "#ff0000",
+        "inactive_color": "#3f0000",
+        "interactive": false
+      }
+    },
+    {
+      "type": "Button",
+      "name": "mute2",
+      "x": 1,
+      "y": 8,
+      "width": 1,
+      "height": 1,
+      "options": {
+        "active_color": "#ff0000",
+        "inactive_color": "#3f0000",
+        "interactive": false
+      }
+    },
+    {
+      "type": "Button",
+      "name": "mute3",
+      "x": 2,
+      "y": 8,
+      "width": 1,
+      "height": 1,
+      "options": {
+        "active_color": "#ff0000",
+        "inactive_color": "#3f0000",
+        "interactive": false
+      }
+    },
+    {
+      "type": "Button",
+      "name": "mute4",
+      "x": 3,
+      "y": 8,
+      "width": 1,
+      "height": 1,
+      "options": {
+        "active_color": "#ff0000",
+        "inactive_color": "#3f0000",
+        "interactive": false
+      }
+    },
+    {
+      "type": "Button",
+      "name": "mute5",
+      "x": 4,
+      "y": 8,
+      "width": 1,
+      "height": 1,
+      "options": {
+        "active_color": "#ff0000",
+        "inactive_color": "#3f0000",
+        "interactive": false
+      }
+    },
+    {
+      "type": "Button",
+      "name": "mute6",
+      "x": 5,
+      "y": 8,
+      "width": 1,
+      "height": 1,
+      "options": {
+        "active_color": "#ff0000",
+        "inactive_color": "#3f0000",
+        "interactive": false
+      }
+    },
+    {
+      "type": "Button",
+      "name": "mute7",
+      "x": 6,
+      "y": 8,
+      "width": 1,
+      "height": 1,
+      "options": {
+        "active_color": "#ff0000",
+        "inactive_color": "#3f0000",
+        "interactive": false
+      }
+    },
+    {
+      "type": "Button",
+      "name": "mute8",
+      "x": 7,
+      "y": 8,
+      "width": 1,
+      "height": 1,
+      "options": {
+        "active_color": "#ff0000",
+        "inactive_color": "#3f0000",
+        "interactive": false
+      }
+    },
+    {
+      "type": "Button",
+      "name": "record",
+      "x": 8,
+      "y": 0,
+      "width": 1,
+      "height": 1,
+      "options": {
+        "active_color": "#ff0000",
+        "inactive_color": "#3f0000",
+        "interactive": false
+      }
+    },
+    {
+      "type": "Button",
+      "name": "play",
+      "x": 8,
+      "y": 1,
+      "width": 1,
+      "height": 1,
+      "options": {
+        "active_color": "#00ff00",
+        "inactive_color": "#003f00",
+        "interactive": false
+      }
+    },
+    {
+      "type": "Button",
+      "name": "stop",
+      "x": 8,
+      "y": 2,
+      "width": 1,
+      "height": 1,
+      "options": {
+        "active_color": "#ffff00",
+        "inactive_color": "#3f3f00",
+        "interactive": false
+      }
+    },
+    {
+      "type": "Button",
+      "name": "rewind",
+      "x": 8,
+      "y": 3,
+      "width": 1,
+      "height": 1,
+      "options": {
+        "active_color": "#00ffff",
+        "inactive_color": "#003f3f",
+        "interactive": false
+      }
+    },
+    {
+      "type": "Button",
+      "name": "forward",
+      "x": 8,
+      "y": 4,
+      "width": 1,
+      "height": 1,
+      "options": {
+        "active_color": "#00ffff",
+        "inactive_color": "#003f3f",
+        "interactive": false
+      }
+    }
+  ],
+  "mappings": [
+    {
+      "widget": "fader1",
+      "on": "Changed",
+      "output": "daw",
+      "feedback": true,
+      "message": {
+        "type": "Command",
+        "name": "Fader 1",
+        "value": {
+          "source": "value"
+        }
+      }
+    },
+    {
+      "widget": "fader2",
+      "on": "Changed",
+      "output": "daw",
+      "feedback": true,
+      "message": {
+        "type": "Command",
+        "name": "Fader 2",
+        "value": {
+          "source": "value"
+        }
+      }
+    },
+    {
+      "widget": "fader3",
+      "on": "Changed",
+      "output": "daw",
+      "feedback": true,
+      "message": {
+        "type": "Command",
+        "name": "Fader 3",
+        "value": {
+          "source": "value"
+        }
+      }
+    },
+    {
+      "widget": "fader4",
+      "on": "Changed",
+      "output": "daw",
+      "feedback": true,
+      "message": {
+        "type": "Command",
+        "name": "Fader 4",
+        "value": {
+          "source": "value"
+        }
+      }
+    },
+    {
+      "widget": "fader5",
+      "on": "Changed",
+      "output": "daw",
+      "feedback": true,
+      "message": {
+        "type": "Command",
+        "name": "Fader 5",
+        "value": {
+          "source": "value"
+        }
+      }
+    },
+    {
+      "widget": "fader6",
+      "on": "Changed",
+      "output": "daw",
+      "feedback": true,
+      "message": {
+        "type": "Command",
+        "name": "Fader 6",
+        "value": {
+          "source": "value"
+        }
+      }
+    },
+    {
+      "widget": "fader7",
+      "on": "Changed",
+      "output": "daw",
+      "feedback": true,
+      "message": {
+        "type": "Command",
+        "name": "Fader 7",
+        "value": {
+          "source": "value"
+        }
+      }
+    },
+    {
+      "widget": "fader8",
+      "on": "Changed",
+      "output": "daw",
+      "feedback": true,
+      "message": {
+        "type": "Command",
+        "name": "Fader 8",
+        "value": {
+          "source": "value"
+        }
+      }
+    },
+    {
+      "widget": "mute1",
+      "on": "Pressed",
+      "output": "daw",
+      "feedback": true,
+      "message": {
+        "type": "Command",
+        "name": "Mute 1",
+        "value": 1
+      }
+    },
+    {
+      "widget": "mute1",
+      "on": "Released",
+      "output": "daw",
+      "message": {
+        "type": "Command",
+        "name": "Mute 1",
+        "value": 0
+      }
+    },
+    {
+      "widget": "mute2",
+      "on": "Pressed",
+      "output": "daw",
+      "feedback": true,
+      "message": {
+        "type": "Command",
+        "name": "Mute 2",
+        "value": 1
+      }
+    },
+    {
+      "widget": "mute2",
+      "on": "Released",
+      "output": "daw",
+      "message": {
+        "type": "Command",
+        "name": "Mute 2",
+        "value": 0
+      }
+    },
+    {
+      "widget": "mute3",
+      "on": "Pressed",
+      "output": "daw",
+      "feedback": true,
+      "message": {
+        "type": "Command",
+        "name": "Mute 3",
+        "value": 1
+      }
+    },
+    {
+      "widget": "mute3",
+      "on": "Released",
+      "output": "daw",
+      "message": {
+        "type": "Command",
+        "name": "Mute 3",
+        "value": 0
+      }
+    },
+    {
+      "widget": "mute4",
+      "on": "Pressed",
+      "output": "daw",
+      "feedback": true,
+      "message": {
+        "type": "Command",
+        "name": "Mute 4",
+        "value": 1
+      }
+    },
+    {
+      "widget": "mute4",
+      "on": "Released",
+      "output": "daw",
+      "message": {
+        "type": "Command",
+        "name": "Mute 4",
+        "value": 0
+      }
+    },
+    {
+      "widget": "mute5",
+      "on": "Pressed",
+      "output": "daw",
+      "feedback": true,
+      "message": {
+        "type": "Command",
+        "name": "Mute 5",
+        "value": 1
+      }
+    },
+    {
+      "widget": "mute5",
+      "on": "Released",
+      "output": "daw",
+      "message": {
+        "type": "Command",
+        "name": "Mute 5",
+        "value": 0
+      }
+    },
+    {
+      "widget": "mute6",
+      "on": "Pressed",
+      "output": "daw",
+      "feedback": true,
+      "message": {
+        "type": "Command",
+        "name": "Mute 6",
+        "value": 1
+      }
+    },
+    {
+      "widget": "mute6",
+      "on": "Released",
+      "output": "daw",
+      "message": {
+        "type": "Command",
+        "name": "Mute 6",
+        "value": 0
+      }
+    },
+    {
+      "widget": "mute7",
+      "on": "Pressed",
+      "output": "daw",
+      "feedback": true,
+      "message": {
+        "type": "Command",
+        "name": "Mute 7",
+        "value": 1
+      }
+    },
+    {
+      "widget": "mute7",
+      "on": "Released",
+      "output": "daw",
+      "message": {
+        "type": "Command",
+        "name": "Mute 7",
+        "value": 0
+      }
+    },
+    {
+      "widget": "mute8",
+      "on": "Pressed",
+      "output": "daw",
+      "feedback": true,
+      "message": {
+        "type": "Command",
+        "name": "Mute 8",
+        "value": 1
+      }
+    },
+    {
+      "widget": "mute8",
+      "on": "Released",
+      "output": "daw",
+      "message": {
+        "type": "Command",
+        "name": "Mute 8",
+        "value": 0
+      }
+    },
+    {
+      "widget": "record",
+      "on": "Pressed",
+      "output": "daw",
+      "feedback": true,
+      "message": {
+        "type": "Command",
+        "name": "Record",
+        "value": 1
+      }
+    },
+    {
+      "widget": "record",
+      "on": "Released",
+      "output": "daw",
+      "message": {
+        "type": "Command",
+        "name": "Record",
+        "value": 0
+      }
+    },
+    {
+      "widget": "play",
+      "on": "Pressed",
+      "output": "daw",
+      "feedback": true,
+      "message": {
+        "type": "Command",
+        "name": "Play",
+        "value": 1
+      }
+    },
+    {
+      "widget": "play",
+      "on": "Released",
+      "output": "daw",
+      "message": {
+        "type": "Command",
+        "name": "Play",
+        "value": 0
+      }
+    },
+    {
+      "widget": "stop",
+      "on": "Pressed",
+      "output": "daw",
+      "feedback": true,
+      "message": {
+        "type": "Command",
+        "name": "Stop",
+        "value": 1
+      }
+    },
+    {
+      "widget": "stop",
+      "on": "Released",
+      "output": "daw",
+      "message": {
+        "type": "Command",
+        "name": "Stop",
+        "value": 0
+      }
+    },
+    {
+      "widget": "rewind",
+      "on": "Pressed",
+      "output": "daw",
+      "feedback": true,
+      "message": {
+        "type": "Command",
+        "name": "Rewind",
+        "value": 1
+      }
+    },
+    {
+      "widget": "rewind",
+      "on": "Released",
+      "output": "daw",
+      "message": {
+        "type": "Command",
+        "name": "Rewind",
+        "value": 0
+      }
+    },
+    {
+      "widget": "forward",
+      "on": "Pressed",
+      "output": "daw",
+      "feedback": true,
+      "message": {
+        "type": "Command",
+        "name": "Fast Forward",
+        "value": 1
+      }
+    },
+    {
+      "widget": "forward",
+      "on": "Released",
+      "output": "daw",
+      "message": {
+        "type": "Command",
+        "name": "Fast Forward",
+        "value": 0
+      }
+    }
+  ]
+}

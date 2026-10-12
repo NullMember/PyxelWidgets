@@ -38,7 +38,7 @@ Issues = "https://github.com/NullMember/PyxelWidgets/issues"
 version = { attr = "pyxelwidgets.__version__" }
 
 [tool.setuptools.package-data]
-"pyxelwidgets.designer" = ["static/*"]
+"pyxelwidgets.designer" = ["static/*", "templates/*.json"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

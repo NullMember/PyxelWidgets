@@ -1338,7 +1338,7 @@ const SHORTCUTS = [
 ];
 
 function showShortcuts() {
-  const dialog = $('dialog');
+  const dialog = newDialog();
   fill(dialog,
     el('h3', {}, 'Keyboard shortcuts'),
     el('table', { class: 'keys' }, SHORTCUTS.map(([keys, what]) => el('tr', {},
@@ -1537,6 +1537,7 @@ function render() {
   renderToolbar();
   renderDirty();
   renderDrawer();
+  renderWelcome();
 }
 
 function step() {
@@ -2550,8 +2551,7 @@ function renderToolbar() {
   document.body.classList.toggle('try', state.mode === 'try');
   $('undo').disabled = !state.history.length;
   $('redo').disabled = !state.future.length;
-  $('save').disabled = !state.file;
-  $('save').title = state.file ? `Save to ${state.file} (Ctrl+S)` : 'Started without a file: use Download';
+  $('save').title = state.file ? `Save to ${state.file} (Ctrl+S)` : 'Save: choose where to keep it (Ctrl+S)';
   const play = $('play');
   play.textContent = state.playing ? '■ Stop' : '▶ Play';
   play.classList.toggle('on', state.playing);
@@ -2564,7 +2564,7 @@ function renderToolbar() {
 function renderDirty() {
   const dirty = JSON.stringify(state.layout) !== state.saved;
   $('file').classList.toggle('dirty', dirty);
-  $('file').textContent = state.file ? state.file.split(/[\\/]/).pop() : 'Unsaved layout (use Download)';
+  $('file').textContent = state.file ? state.file.split(/[\\/]/).pop() : 'Unsaved layout';
   $('file').title = state.file || '';
   document.title = `${dirty ? '• ' : ''}PyxelWidgets Designer`;
 }
@@ -2701,17 +2701,21 @@ function reorder(path, direction) {
   });
 }
 
-// Copies of the selected widgets, each above its original; the copies get selected
+// Copies of the selected widgets, each above its original, with their messages and links;
+// the copies get selected
 function duplicate() {
   const originals = topSelected().map(widgetAt);
   if (!originals.length) return;
   const taken = new Set();
+  const renames = new Map();
   const rename = (widget) => {
-    widget.name = uniqueName(widget.type, taken);
-    taken.add(widget.name);
+    const name = uniqueName(widget.type, taken);
+    renames.set(widget.name, name);
+    widget.name = name;
+    taken.add(name);
     (widget.widgets || []).forEach(rename);
   };
-  change(() => {
+  change((layout) => {
     const copies = originals.map((original) => {
       const copy = JSON.parse(JSON.stringify(original));
       rename(copy);
@@ -2719,8 +2723,121 @@ function duplicate() {
       list.splice(list.indexOf(original) + 1, 0, copy);
       return copy;
     });
+    copyBehaviour(layout, renames);
     state.selection = widgetSelection(pathsOf(copies));
   });
+}
+
+// Messages and links of renamed (copied) widgets, for the copies: links between copies stay between copies
+function copyBehaviour(layout, renames, links = layout.links || [], mappings = layout.mappings || [], outputs = null) {
+  const names = new Set(allWidgets().map(({ widget }) => widget.name));
+  let dropped = 0;
+  const newLinks = [];
+  for (const link of links) {
+    if (!renames.has(link.widget)) continue;
+    const copy = { ...link, widget: renames.get(link.widget) };
+    if (link.target !== undefined) {
+      if (renames.has(link.target)) copy.target = renames.get(link.target);
+      else if (!names.has(link.target)) {
+        dropped++;
+        continue;
+      }
+    }
+    newLinks.push(copy);
+  }
+  const known = new Set(outputsOf(layout).map((output) => output.name));
+  const newMappings = [];
+  for (const mapping of mappings) {
+    if (!renames.has(mapping.widget)) continue;
+    if (!known.has(mapping.output)) {
+      dropped++;
+      continue;
+    }
+    newMappings.push({ ...JSON.parse(JSON.stringify(mapping)), widget: renames.get(mapping.widget) });
+  }
+  setLinks(layout, [...(layout.links || []), ...newLinks]);
+  setMappings(layout, [...(layout.mappings || []), ...newMappings]);
+  return dropped;
+}
+
+// ---------------------------------------------------------------- copy and paste
+
+const CLIPBOARD_KEY = 'pyxelwidgets.clipboard';
+
+// The selected widgets with their messages and links, for pasting here or in another layout
+function copySelection(cut = false) {
+  if (state.selection?.kind !== 'widget') return;
+  const widgets = topSelected().map(widgetAt);
+  const names = new Set();
+  const collect = (widget) => {
+    names.add(widget.name);
+    (widget.widgets || []).forEach(collect);
+  };
+  widgets.forEach(collect);
+  const clip = {
+    format: 'pyxelwidgets.clipboard',
+    widgets: widgets.map((widget) => ({ widget: JSON.parse(JSON.stringify(widget)), at: absolute(pathsOf([widget])[0]) })),
+    links: (state.layout.links || []).filter((link) => names.has(link.widget)),
+    mappings: (state.layout.mappings || []).filter((mapping) => names.has(mapping.widget)),
+  };
+  const text = JSON.stringify(clip);
+  state.clipboard = clip;
+  try {
+    localStorage.setItem(CLIPBOARD_KEY, text);
+  } catch {
+    // This page only
+  }
+  navigator.clipboard?.writeText(text).catch(() => {});
+  const count = `${widgets.length} widget${widgets.length > 1 ? 's' : ''}`;
+  if (cut) removeSelection();
+  setStatus(`${cut ? 'Cut' : 'Copied'} ${count}`, 'ok');
+}
+
+function readClipboard() {
+  try {
+    const stored = JSON.parse(localStorage.getItem(CLIPBOARD_KEY) || 'null');
+    if (stored?.format === 'pyxelwidgets.clipboard') return stored;
+  } catch {
+    // Use this page's
+  }
+  return state.clipboard;
+}
+
+// Paste into the selected group (or next to the selected widget, or on the surface), on top,
+// where they were; names stay unless taken
+function pasteWidgets(clip = readClipboard(), into = targetGroup()) {
+  if (!clip?.widgets?.length) return setStatus('Nothing to paste: copy widgets first (Ctrl+C)', 'error');
+  const existing = new Set(allWidgets().map(({ widget }) => widget.name));
+  const taken = new Set();
+  const renames = new Map();
+  const rename = (widget) => {
+    const name = existing.has(widget.name) || taken.has(widget.name) ? uniqueName(widget.type, taken) : widget.name;
+    renames.set(widget.name, name);
+    widget.name = name;
+    taken.add(name);
+    (widget.widgets || []).forEach(rename);
+  };
+  let dropped = 0;
+  change((layout) => {
+    const container = into ? widgetAt(into) : null;
+    const list = container ? (container.widgets ||= []) : layout.widgets;
+    const [ox, oy] = into ? absolute(into) : [0, 0];
+    const [width, height] = container ? [container.width, container.height] : [layout.surface.width, layout.surface.height];
+    const pasted = clip.widgets.map(({ widget, at }) => {
+      const copy = JSON.parse(JSON.stringify(widget));
+      rename(copy);
+      copy.width = Math.min(copy.width, width);
+      copy.height = Math.min(copy.height, height);
+      copy.x = clamp(at[0] - ox, 0, width - copy.width);
+      copy.y = clamp(at[1] - oy, 0, height - copy.height);
+      list.push(copy);
+      return copy;
+    });
+    dropped = copyBehaviour(layout, renames, clip.links || [], clip.mappings || []);
+    state.selection = widgetSelection(pathsOf(pasted));
+  });
+  const count = `${clip.widgets.length} widget${clip.widgets.length > 1 ? 's' : ''}`;
+  setStatus(dropped ? `Pasted ${count}; ${dropped} message${dropped > 1 ? 's or links' : ' or link'} left out (their output or target isn't in this layout)` : `Pasted ${count}`, dropped ? '' : 'ok');
 }
 
 // Move the selected widgets into a new Group around them (they must share a parent)
@@ -2787,9 +2904,76 @@ function nudge(dx, dy, resize) {
   change(() => widgets.forEach((widget) => Object.assign(widget, { x: (widget.x || 0) + ox, y: (widget.y || 0) + oy })));
 }
 
+// ---------------------------------------------------------------- files
+
+function dirty() {
+  return JSON.stringify(state.layout) !== state.saved;
+}
+
+function addRecent(file) {
+  if (!file) return;
+  prefs.recent = [file, ...(prefs.recent || []).filter((other) => other !== file)].slice(0, 8);
+  savePrefs();
+}
+
+// A layout the server loaded (opened, new, saved as): it becomes the current one
+function useLayout(reply) {
+  state.layout = reply.layout;
+  state.layout.devices = state.layout.devices || [];
+  state.layout.widgets = state.layout.widgets || [];
+  state.file = reply.file;
+  state.saved = JSON.stringify(state.layout);
+  state.history = [];
+  state.future = [];
+  state.selection = null;
+  state.frameSize = [0, 0];
+  addRecent(reply.file);
+  render();
+  sendHidden();
+}
+
+// A modal dialog of its own, removed once closed
+function newDialog() {
+  const dialog = el('dialog');
+  dialog.addEventListener('close', () => dialog.remove());
+  document.body.append(dialog);
+  return dialog;
+}
+
+// A small dialog: resolves with the value of `fields` (by name) on OK, or null
+function ask({ title, text = null, fields = [], ok = 'OK', extra = null }) {
+  const dialog = newDialog();
+  return new Promise((resolve) => {
+    const inputs = fields.map((field) => el('input', { type: 'text', id: `ask-${field.name}`, value: field.value ?? '', placeholder: field.placeholder || '' }));
+    const finish = (value) => {
+      dialog.onclose = null;
+      dialog.close();
+      resolve(value);
+    };
+    fill(dialog,
+      el('h3', {}, title),
+      text ? el('p', { class: 'hint' }, text) : null,
+      fields.length ? el('div', { class: 'fields' }, fields.map((field, i) => [
+        el('label', { for: `ask-${field.name}` }, field.label), el('div', { class: 'control' }, inputs[i])])) : null,
+      extra ? extra(finish) : null,
+      el('div', { class: 'buttons' },
+        el('button', { onclick: () => finish(null) }, 'Cancel'),
+        el('button', { class: 'primary', id: 'ask-ok', onclick: () => finish(Object.fromEntries(fields.map((field, i) => [field.name, inputs[i].value.trim()]))) }, ok)));
+    dialog.onclose = () => resolve(null);
+    for (const input of inputs) input.addEventListener('keydown', (e) => { if (e.key === 'Enter') $('ask-ok').click(); });
+    dialog.showModal();
+    inputs[0]?.select();
+  });
+}
+
+async function confirmDiscard() {
+  if (!dirty() || (!state.file && !state.layout.widgets.length && !state.layout.devices.length)) return true;
+  return !!(await ask({ title: 'Discard unsaved changes?', text: `${state.file || 'This layout'} has changes that aren't saved.`, ok: 'Discard' }));
+}
+
 async function save() {
-  if (!state.file) return;
-  const reply = await api('POST', '/api/save', state.layout);
+  if (!state.file) return saveAs();
+  const reply = await api('POST', '/api/save', { layout: state.layout });
   if (reply.ok) {
     state.saved = JSON.stringify(state.layout);
     renderDirty();
@@ -2799,6 +2983,71 @@ async function save() {
   }
 }
 
+async function saveAs() {
+  const suggestion = state.file || `${prefs.lastDirectory || ''}layout.json`;
+  const answer = await ask({ title: 'Save as', fields: [{ name: 'path', label: 'file', value: suggestion, placeholder: 'folder/name.json' }], ok: 'Save' });
+  if (!answer?.path) return;
+  await flushSync();
+  const reply = await api('POST', '/api/save', { layout: state.layout, path: answer.path });
+  if (!reply.ok) return setStatus(reply.error, 'error');
+  prefs.lastDirectory = reply.file.replace(/[^\\/]*$/, '');
+  state.file = reply.file;
+  state.saved = JSON.stringify(state.layout);
+  addRecent(reply.file);
+  render();
+  setStatus(`Saved ${reply.file}`, 'ok');
+}
+
+async function openPath(path) {
+  if (!(await confirmDiscard())) return;
+  const reply = await api('POST', '/api/open', { path });
+  if (!reply.ok) return setStatus(`Can't open ${path}: ${reply.error}`, 'error');
+  useLayout(reply);
+  setStatus(`Opened ${reply.file}`, 'ok');
+}
+
+async function newLayout(template = null) {
+  if (!(await confirmDiscard())) return;
+  const reply = await api('POST', '/api/new', { template });
+  if (!reply.ok) return setStatus(reply.error, 'error');
+  useLayout(reply);
+  setStatus(template ? `New layout from the ${template} template: Save asks where to keep it` : 'New layout', 'ok');
+}
+
+async function templates() {
+  state.templates ||= (await api('GET', '/api/templates')).templates || [];
+  return state.templates;
+}
+
+async function showNew() {
+  const list = await templates();
+  const dialog = newDialog();
+  fill(dialog,
+    el('h3', {}, 'New layout'),
+    el('div', { class: 'choices' },
+      el('button', { onclick: () => { dialog.close(); newLayout(); } }, el('b', {}, 'Empty'), el('small', {}, 'A 9x9 grid, nothing on it')),
+      list.map((template) => el('button', { dataset: { template: template.name }, onclick: () => { dialog.close(); newLayout(template.name); } },
+        el('b', {}, template.title), el('small', {}, template.doc)))),
+    el('div', { class: 'buttons' }, el('button', { onclick: () => dialog.close() }, 'Cancel')));
+  dialog.showModal();
+}
+
+async function showOpen() {
+  const recent = prefs.recent || [];
+  const answer = await ask({
+    title: 'Open a layout',
+    fields: [{ name: 'path', label: 'file', value: state.file || '', placeholder: 'folder/name.json' }],
+    ok: 'Open',
+    extra: (finish) => [
+      recent.length ? [el('p', { class: 'hint' }, 'Recent'), el('ul', { class: 'recent-list' }, recent.map((file) =>
+        el('li', { title: file, onclick: () => finish({ path: file }) }, file)))] : null,
+      el('p', { class: 'hint' }, el('button', { class: 'link', onclick: () => { finish(null); $('open-file').click(); } },
+        'Or import one from this computer (Save then asks where to keep it)…')),
+    ],
+  });
+  if (answer?.path) openPath(answer.path);
+}
+
 function download() {
   const blob = new Blob([JSON.stringify(state.layout, null, 2) + '\n'], { type: 'application/json' });
   const link = el('a', { href: URL.createObjectURL(blob), download: state.file ? state.file.split(/[\\/]/).pop() : 'layout.json' });
@@ -2806,19 +3055,98 @@ function download() {
   URL.revokeObjectURL(link.href);
 }
 
-async function open(file) {
+// A layout file from this computer: no path on the server, so Save asks where to keep it
+async function importFile(file) {
   try {
     const layout = JSON.parse(await file.text());
-    const reply = await api('PUT', '/api/layout', layout);
+    if (!(await confirmDiscard())) return;
+    const reply = await api('POST', '/api/new', { layout });
     if (!reply.ok) throw new Error(reply.error);
-    // Older versions come back upgraded
-    replaceLayout(reply.layout);
-    setStatus(`Opened ${file.name}`, 'ok');
+    useLayout(reply);
+    setStatus(`Imported ${file.name}: Save asks where to keep it`, 'ok');
   } catch (error) {
     setStatus(`Can't open ${file.name}: ${error.message}`, 'error');
-    scheduleSync();
   }
 }
+
+function showFileMenu() {
+  const list = $('file-list');
+  if (!list.hidden) return (list.hidden = true);
+  const item = (label, action, keys = null, attrs = {}) => el('button', { role: 'menuitem', ...attrs, onclick: () => { list.hidden = true; action(); } },
+    label, keys ? el('span', { class: 'keys' }, keys) : null);
+  const recent = (prefs.recent || []).filter((file) => file !== state.file);
+  fill(list,
+    item('New…', showNew, null, { id: 'menu-new' }),
+    item('Open…', showOpen, null, { id: 'menu-open' }),
+    recent.length ? [el('div', { class: 'head' }, 'Recent'), recent.map((file) => item(file, () => openPath(file), null, { class: 'recent', title: file }))] : null,
+    el('hr'),
+    item('Save', save, 'Ctrl+S'),
+    item('Save as…', saveAs, 'Ctrl+Shift+S', { id: 'menu-save-as' }),
+    el('hr'),
+    item('Download', download),
+    item('Import from this computer…', () => $('open-file').click()));
+  list.hidden = false;
+  setTimeout(() => window.addEventListener('pointerdown', function close(event) {
+    if (!event.target.closest('.menu-wrap')) list.hidden = true;
+    window.removeEventListener('pointerdown', close);
+  }), 0);
+}
+
+// ---------------------------------------------------------------- starting out
+
+async function detectDevices() {
+  const { devices } = await api('GET', '/api/detect');
+  return devices || [];
+}
+
+function addDeviceOfType(type) {
+  change((layout) => {
+    layout.devices.push({ type, x: 0, y: 0, options: {} });
+    state.selection = { kind: 'device', index: layout.devices.length - 1 };
+  });
+}
+
+async function showDetect() {
+  const found = await detectDevices();
+  const dialog = newDialog();
+  fill(dialog,
+    el('h3', {}, 'Devices plugged in'),
+    found.length
+      ? el('div', { class: 'choices' }, found.map((device) => el('button', { onclick: () => { dialog.close(); addDeviceOfType(device.type); } },
+        el('b', {}, device.model), el('small', {}, `Add it (${device.type})`))))
+      : el('p', { class: 'hint' }, 'None found. Plug one in, or pick one from the list next to Add.'),
+    el('div', { class: 'buttons' }, el('button', { onclick: () => dialog.close() }, 'Close')));
+  dialog.showModal();
+}
+
+// An empty layout invites a template, the device you play on, or the palette
+async function renderWelcome() {
+  const empty = !state.layout.widgets.length && !state.layout.devices.length && state.mode === 'edit' && !state.welcomeClosed;
+  let card = document.querySelector('.welcome');
+  if (!empty) return card?.remove();
+  if (card) return;
+  card = el('div', { class: 'welcome' });
+  $('stage').append(card);
+  const list = await templates();
+  fill(card, el('div', { class: 'card' },
+    el('div', { class: 'props-head' }, el('h3', {}, 'Start a layout'),
+      el('button', { class: 'link', title: 'Close', onclick: () => { state.welcomeClosed = true; card.remove(); } }, '✕')),
+    el('p', { class: 'hint' }, 'From a template:'),
+    el('div', { class: 'choices' }, list.map((template) => el('button', { dataset: { template: template.name }, onclick: () => newLayout(template.name) },
+      el('b', {}, template.title), el('small', {}, template.doc)))),
+    el('p', { class: 'hint' }, 'Or add the device you play on, then drag widgets from the palette onto the grid.'),
+    el('div', { class: 'found' }, el('button', {
+      id: 'welcome-detect',
+      onclick: async (event) => {
+        const found = await detectDevices();
+        event.target.replaceWith(found.length
+          ? el('div', { class: 'found' }, found.map((device) => el('button', { onclick: () => addDeviceOfType(device.type) }, `Add ${device.model}`)))
+          : el('p', { class: 'hint' }, 'No device found: plug one in, or pick one under Devices.'));
+      },
+    }, 'Detect connected devices'))));
+}
+
+
 
 function setMode(mode) {
   state.mode = mode;
@@ -2855,9 +3183,9 @@ function bindToolbar() {
   $('undo').onclick = undo;
   $('redo').onclick = redo;
   $('save').onclick = save;
-  $('download').onclick = download;
-  $('open').onclick = () => $('open-file').click();
-  $('open-file').onchange = (e) => { if (e.target.files[0]) open(e.target.files[0]); e.target.value = ''; };
+  $('file-menu').onclick = showFileMenu;
+  $('detect-devices').onclick = showDetect;
+  $('open-file').onchange = (e) => { if (e.target.files[0]) importFile(e.target.files[0]); e.target.value = ''; };
   $('add-device').onclick = addDevice;
   $('add-output').onclick = addOutput;
   $('toggle-left').onclick = () => togglePanel('left');
@@ -2884,8 +3212,12 @@ function bindToolbar() {
     if (mod && (key === '=' || key === '+')) { event.preventDefault(); return setZoom(state.zoom * 1.25); }
     if (mod && key === '-') { event.preventDefault(); return setZoom(state.zoom / 1.25); }
     if (mod && key === '0') { event.preventDefault(); return setZoom(1); }
-    if (mod && key === 's') { event.preventDefault(); return save(); }
+    if (mod && key === 's') { event.preventDefault(); return event.shiftKey ? saveAs() : save(); }
+    if (mod && key === 'o') { event.preventDefault(); return showOpen(); }
     if (mod && key === 'd' && state.selection?.kind === 'widget') { event.preventDefault(); return duplicate(); }
+    if (mod && key === 'c' && state.selection?.kind === 'widget' && !window.getSelection()?.toString()) { event.preventDefault(); return copySelection(); }
+    if (mod && key === 'x' && state.selection?.kind === 'widget' && state.mode === 'edit') { event.preventDefault(); return copySelection(true); }
+    if (mod && key === 'v' && state.mode === 'edit') { event.preventDefault(); return pasteWidgets(); }
     if (mod && key === 'a' && state.mode === 'edit') { event.preventDefault(); return selectAll(); }
     if (mod && key === 'g' && state.selection?.kind === 'widget') {
       event.preventDefault();
@@ -2927,10 +3259,11 @@ function buildCatalog() {
       draggable: 'true',
       ondragstart: (event) => {
         state.dragType = type;
+        document.body.classList.add('dragging');
         event.dataTransfer.setData('text/plain', type);
         event.dataTransfer.effectAllowed = 'copy';
       },
-      ondragend: () => { state.dragType = null; clearGhost(); },
+      ondragend: () => { state.dragType = null; document.body.classList.remove('dragging'); clearGhost(); },
     },
       thumb(info.preview) || el('span', { class: 'glyph' }, type === 'ButtonGroup' ? 'BG' : type.slice(0, 2)),
       el('span', { class: 'label' }, type))));
@@ -2964,6 +3297,7 @@ async function start() {
   state.layout.widgets = state.layout.widgets || [];
   state.file = current.file;
   state.saved = JSON.stringify(state.layout);
+  addRecent(state.file);
   buildCatalog();
   renderPanels();
   bindToolbar();

@@ -1,0 +1,205 @@
+{
+  "format": "pyxelwidgets.layout",
+  "version": 5,
+  "surface": {
+    "width": 9,
+    "height": 9
+  },
+  "transport": {
+    "bpm": 120,
+    "signature": [
+      4,
+      4
+    ]
+  },
+  "devices": [
+    {
+      "type": "novation.LaunchpadMiniMK3",
+      "x": 0,
+      "y": 0,
+      "options": {}
+    }
+  ],
+  "outputs": [
+    {
+      "name": "drums",
+      "type": "midi_port.MidiPort",
+      "virtual": "PyxelWidgets Drums",
+      "options": {}
+    }
+  ],
+  "widgets": [
+    {
+      "type": "ButtonGroup",
+      "name": "pads",
+      "x": 0,
+      "y": 0,
+      "width": 4,
+      "height": 4,
+      "options": {
+        "mode": "Button",
+        "active_color": "#ff8c00",
+        "inactive_color": "#331c00"
+      }
+    },
+    {
+      "type": "ButtonGroup",
+      "name": "programs",
+      "x": 0,
+      "y": 8,
+      "width": 8,
+      "height": 1,
+      "options": {
+        "mode": "Switch",
+        "active_color": "#00ffff",
+        "inactive_color": "#003333"
+      }
+    },
+    {
+      "type": "Fader",
+      "name": "macro1",
+      "x": 4,
+      "y": 0,
+      "width": 1,
+      "height": 8,
+      "options": {
+        "active_color": "#ff0000"
+      }
+    },
+    {
+      "type": "Fader",
+      "name": "macro2",
+      "x": 5,
+      "y": 0,
+      "width": 1,
+      "height": 8,
+      "options": {
+        "active_color": "#ffff00"
+      }
+    },
+    {
+      "type": "Fader",
+      "name": "macro3",
+      "x": 6,
+      "y": 0,
+      "width": 1,
+      "height": 8,
+      "options": {
+        "active_color": "#00ff00"
+      }
+    },
+    {
+      "type": "Fader",
+      "name": "macro4",
+      "x": 7,
+      "y": 0,
+      "width": 1,
+      "height": 8,
+      "options": {
+        "active_color": "#1e90ff"
+      }
+    }
+  ],
+  "mappings": [
+    {
+      "widget": "pads",
+      "on": "Pressed",
+      "output": "drums",
+      "feedback": true,
+      "message": {
+        "type": "NoteOn",
+        "note": {
+          "source": "cell",
+          "offset": 36
+        },
+        "velocity": {
+          "source": "velocity"
+        },
+        "channel": 10
+      }
+    },
+    {
+      "widget": "pads",
+      "on": "Released",
+      "output": "drums",
+      "feedback": true,
+      "message": {
+        "type": "NoteOff",
+        "note": {
+          "source": "cell",
+          "offset": 36
+        },
+        "velocity": 0,
+        "channel": 10
+      }
+    },
+    {
+      "widget": "programs",
+      "on": "Pressed",
+      "output": "drums",
+      "message": {
+        "type": "ProgramChange",
+        "program": {
+          "source": "x"
+        },
+        "channel": 10
+      }
+    },
+    {
+      "widget": "macro1",
+      "on": "Changed",
+      "output": "drums",
+      "feedback": true,
+      "message": {
+        "type": "ControlChange",
+        "control": 21,
+        "value": {
+          "source": "value"
+        },
+        "channel": 1
+      }
+    },
+    {
+      "widget": "macro2",
+      "on": "Changed",
+      "output": "drums",
+      "feedback": true,
+      "message": {
+        "type": "ControlChange",
+        "control": 22,
+        "value": {
+          "source": "value"
+        },
+        "channel": 1
+      }
+    },
+    {
+      "widget": "macro3",
+      "on": "Changed",
+      "output": "drums",
+      "feedback": true,
+      "message": {
+        "type": "ControlChange",
+        "control": 23,
+        "value": {
+          "source": "value"
+        },
+        "channel": 1
+      }
+    },
+    {
+      "widget": "macro4",
+      "on": "Changed",
+      "output": "drums",
+      "feedback": true,
+      "message": {
+        "type": "ControlChange",
+        "control": 24,
+        "value": {
+          "source": "value"
+        },
+        "channel": 1
+      }
+    }
+  ]
+}

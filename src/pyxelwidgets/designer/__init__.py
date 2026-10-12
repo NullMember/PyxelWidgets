@@ -15,6 +15,7 @@ import http.server
 import importlib
 import importlib.resources
 import json
+import os
 import mimetypes
 import pathlib
 import threading
@@ -584,11 +585,99 @@ class Designer:
         """Stop the transport and close connected hardware."""
         self.preview.close()
 
-    def save(self, layout: dict) -> None:
-        if self.path is None:
-            raise ValueError('The designer was started without a file; use Download instead')
+    def save(self, layout: dict, path: str | None = None) -> None:
+        """Save to the layout file, or to ``path``, which becomes the layout file (Save As)."""
+        target = _path(path) if path else self.path
+        if target is None:
+            raise ValueError('Choose where to save it (Save As)')
         self.preview.load(layout)
-        self.path.write_text(json.dumps(self.preview.layout, indent = 2) + '\n')
+        target.parent.mkdir(parents = True, exist_ok = True)
+        target.write_text(json.dumps(self.preview.layout, indent = 2) + '\n')
+        self.path = target
+
+    def open(self, path: str) -> None:
+        """Open the layout file at ``path``; it becomes the layout file."""
+        target = _path(path)
+        try:
+            layout = json.loads(target.read_text())
+        except FileNotFoundError:
+            raise ValueError(f'No file {target}') from None
+        except json.JSONDecodeError as error:
+            raise ValueError(f'{target} is not a layout: {error}') from None
+        self.preview.load(layout)
+        self.path = target
+
+    def new(self, template: str | None = None, layout: dict | None = None) -> None:
+        """Start a layout: empty, from one of ``templates()``, or ``layout`` (imported); it has no file until saved."""
+        if layout is not None:
+            pass
+        elif template:
+            entry = next((entry for entry in templates() if entry['name'] == template), None)
+            if entry is None:
+                raise ValueError(f'No template {template!r}')
+            layout = json.loads((TEMPLATES / f'{template}.json').read_text())
+        else:
+            layout = new_layout()
+        self.preview.load(layout)
+        self.path = None
+
+def _path(path: str) -> pathlib.Path:
+    path = pathlib.Path(path).expanduser()
+    if path.suffix != '.json':
+        path = path.with_suffix('.json')
+    return path.resolve()
+
+#: Layouts to start from
+TEMPLATES = pathlib.Path(__file__).parent / 'templates'
+_TEMPLATE_INFO = {
+    'drums': ('Drum controller', '4x4 drum pads, program changes and four faders on a MIDI port'),
+    'keyboard': ('MIDI keyboard', 'Scales, octaves and a mod wheel, rearranged by links'),
+    'mixer': ('DAW mixer', 'Eight faders, mutes and transport for Mackie Control (REAPER, Logic...)'),
+    'performance': ('Performance', 'Clip launcher, drum pads, a beat sequencer and a meter'),
+}
+
+def templates() -> list:
+    """Layouts to start from: name, title, description."""
+    found = []
+    for name, (title, doc) in _TEMPLATE_INFO.items():
+        if (TEMPLATES / f'{name}.json').is_file():
+            found.append({'name': name, 'title': title, 'doc': doc})
+    return found
+
+def detect_devices() -> list:
+    """Layout device types whose MIDI ports are present now (devices plugged in)."""
+    try:
+        import pyxelwidgets.devices.midi
+        inputs, outputs = pyxelwidgets.devices.midi.MIDI.available_ports()
+    except ImportError:
+        return []
+    # Type → (model, longest matching pattern, matching ports)
+    matches = {}
+    for module_name in DEVICE_MODULES:
+        try:
+            module = importlib.import_module(f'pyxelwidgets.devices.{module_name}')
+        except ImportError:
+            continue
+        for name in getattr(module, '__all__', []):
+            cls = getattr(module, name)
+            if not (isinstance(cls, type) and issubclass(cls, pyxelwidgets.devices.midi.MIDI) and cls.ports):
+                continue
+            ports = [port for port in inputs + outputs if any(pattern in port for pattern in cls.ports)]
+            if ports:
+                length = max(len(pattern) for pattern in cls.ports if any(pattern in port for port in ports))
+                matches[f'{module_name}.{name}'] = (cls.model, length, ports)
+    # A generic match on another port of a more specific device doesn't count: a Launchpad
+    # Mini MK3's "DAW" port contains the first Launchpad Mini's "Launchpad Mini"
+    def shadowed(kind):
+        _, length, ports = matches[kind]
+        def specific(other, other_length, other_ports):
+            # A longer pattern, or the same length on fewer of the same ports
+            return other != kind and (other_length > length or set(other_ports) < set(ports))
+        return all(any(specific(other, other_length, other_ports) and len(os.path.commonprefix([port, other_port])) > length
+                       for other, (_, other_length, other_ports) in matches.items() for other_port in other_ports)
+                   for port in ports)
+    found = {kind: model for kind, (model, _, _) in matches.items() if not shadowed(kind)}
+    return [{'type': kind, 'model': model} for kind, model in found.items()]
 
 class Handler(http.server.BaseHTTPRequestHandler):
     designer: Designer = None
@@ -617,6 +706,10 @@ class Handler(http.server.BaseHTTPRequestHandler):
         preview = self.designer.preview
         if url.path == '/api/catalog':
             self._json(self.designer.catalog)
+        elif url.path == '/api/templates':
+            self._json({'templates': templates()})
+        elif url.path == '/api/detect':
+            self._json({'devices': detect_devices()})
         elif url.path == '/api/layout':
             self._json({'layout': preview.layout, 'file': str(self.designer.path) if self.designer.path else None})
         elif url.path == '/api/frame':
@@ -655,7 +748,21 @@ class Handler(http.server.BaseHTTPRequestHandler):
             elif path == '/api/play':
                 preview.play() if body.get('playing') else preview.stop()
             elif path == '/api/save':
-                self.designer.save(body)
+                # {"layout", "path"} (Save As), or the layout itself
+                if isinstance(body, dict) and 'layout' in body:
+                    self.designer.save(body['layout'], body.get('path'))
+                else:
+                    self.designer.save(body)
+                self._json({'ok': True, 'file': str(self.designer.path), 'layout': preview.layout})
+                return
+            elif path in ('/api/open', '/api/new'):
+                if path == '/api/open':
+                    self.designer.open(str(body['path']))
+                else:
+                    body = body if isinstance(body, dict) else {}
+                    self.designer.new(body.get('template'), body.get('layout'))
+                self._json({'ok': True, 'file': str(self.designer.path) if self.designer.path else None, 'layout': preview.layout})
+                return
             elif path == '/api/view':
                 preview.set_hidden([str(name) for name in body.get('hidden', [])])
             elif path == '/api/connect':

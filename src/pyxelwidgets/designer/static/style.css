@@ -346,3 +346,21 @@ kbd { background: var(--panel-2); border: 1px solid var(--line); border-bottom-w
 .svg { display: inline-flex; align-items: center; }
 #properties > .props-head + .doc { margin-bottom: 0; }
 .palette-empty { color: var(--muted); }
+
+/* The File menu */
+.menu-wrap { position: relative; }
+.menu {
+  position: absolute; right: 0; top: calc(100% + 4px); z-index: 50; min-width: 240px; padding: 4px;
+  background: var(--panel); border: 1px solid var(--line); border-radius: 8px; box-shadow: 0 12px 30px rgba(0, 0, 0, 0.5);
+}
+.menu button { display: flex; width: 100%; text-align: left; border: none; background: none; padding: 5px 10px; border-radius: 5px; gap: 10px; }
+.menu button:hover { background: var(--accent-soft); }
+.menu button .keys { margin-left: auto; color: var(--muted); font-size: 11px; }
+.menu .head { color: var(--muted); font-size: 11px; text-transform: uppercase; letter-spacing: 0.6px; padding: 6px 10px 2px; }
+.menu hr { border: none; border-top: 1px solid var(--line); margin: 4px 0; }
+.menu .recent { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; direction: rtl; text-align: left; }
+dialog input[type=text] { width: 100%; }
+dialog .recent-list { list-style: none; margin: 8px 0 0; padding: 0; max-height: 200px; overflow: auto; }
+dialog .recent-list li { padding: 4px 6px; border-radius: 5px; cursor: pointer; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+dialog .recent-list li:hover { background: var(--accent-soft); }
+body.dragging .welcome { display: none; }

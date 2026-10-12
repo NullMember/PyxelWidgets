@@ -1,0 +1,247 @@
+{
+  "format": "pyxelwidgets.layout",
+  "version": 6,
+  "surface": {
+    "width": 9,
+    "height": 9
+  },
+  "transport": {
+    "bpm": 120,
+    "signature": [
+      4,
+      4
+    ]
+  },
+  "devices": [
+    {
+      "type": "novation.LaunchpadMiniMK3",
+      "x": 0,
+      "y": 0,
+      "options": {}
+    }
+  ],
+  "outputs": [
+    {
+      "name": "keys",
+      "type": "midi_port.MidiPort",
+      "virtual": "PyxelWidgets Keys",
+      "options": {}
+    }
+  ],
+  "widgets": [
+    {
+      "type": "Keyboard",
+      "name": "keyboard",
+      "x": 0,
+      "y": 0,
+      "width": 8,
+      "height": 8,
+      "options": {
+        "octave": 4
+      }
+    },
+    {
+      "type": "Fader",
+      "name": "mod",
+      "x": 0,
+      "y": 7,
+      "width": 8,
+      "height": 1,
+      "options": {
+        "direction": "Horizontal",
+        "mode": "Magnitude",
+        "active_color": "#ff00ff",
+        "visible": false
+      }
+    },
+    {
+      "type": "Button",
+      "name": "octave_down",
+      "x": 0,
+      "y": 8,
+      "width": 1,
+      "height": 1,
+      "options": {
+        "active_color": "#0080ff",
+        "inactive_color": "#001933"
+      }
+    },
+    {
+      "type": "Button",
+      "name": "octave_up",
+      "x": 1,
+      "y": 8,
+      "width": 1,
+      "height": 1,
+      "options": {
+        "active_color": "#0080ff",
+        "inactive_color": "#001933"
+      }
+    },
+    {
+      "type": "Button",
+      "name": "scale",
+      "x": 2,
+      "y": 8,
+      "width": 1,
+      "height": 1,
+      "options": {
+        "active_color": "#ffff00",
+        "inactive_color": "#333300"
+      }
+    },
+    {
+      "type": "Button",
+      "name": "root",
+      "x": 3,
+      "y": 8,
+      "width": 1,
+      "height": 1,
+      "options": {
+        "active_color": "#ff8c00",
+        "inactive_color": "#331c00"
+      }
+    },
+    {
+      "type": "Button",
+      "name": "layout",
+      "x": 4,
+      "y": 8,
+      "width": 1,
+      "height": 1,
+      "options": {
+        "active_color": "#00ff00",
+        "inactive_color": "#003300"
+      }
+    },
+    {
+      "type": "Button",
+      "name": "show_mod",
+      "x": 8,
+      "y": 7,
+      "width": 1,
+      "height": 1,
+      "options": {
+        "mode": "Switch",
+        "active_color": "#ff0000",
+        "inactive_color": "#330000"
+      }
+    }
+  ],
+  "mappings": [
+    {
+      "widget": "keyboard",
+      "on": "NoteOn",
+      "output": "keys",
+      "message": {
+        "type": "NoteOn",
+        "note": {
+          "source": "note"
+        },
+        "velocity": {
+          "source": "velocity"
+        },
+        "channel": 1
+      }
+    },
+    {
+      "widget": "keyboard",
+      "on": "NoteOff",
+      "output": "keys",
+      "message": {
+        "type": "NoteOff",
+        "note": {
+          "source": "note"
+        },
+        "velocity": 0,
+        "channel": 1
+      }
+    },
+    {
+      "widget": "mod",
+      "on": "Changed",
+      "output": "keys",
+      "feedback": true,
+      "message": {
+        "type": "ControlChange",
+        "control": 1,
+        "value": {
+          "source": "value"
+        },
+        "channel": 1
+      }
+    }
+  ],
+  "links": [
+    {
+      "widget": "octave_down",
+      "on": "Pressed",
+      "target": "keyboard",
+      "option": "octave",
+      "change": "Add",
+      "value": -1,
+      "min": 1
+    },
+    {
+      "widget": "octave_up",
+      "on": "Pressed",
+      "target": "keyboard",
+      "option": "octave",
+      "change": "Add",
+      "value": 1,
+      "max": 8
+    },
+    {
+      "widget": "scale",
+      "on": "Pressed",
+      "target": "keyboard",
+      "option": "scale",
+      "change": "Toggle"
+    },
+    {
+      "widget": "root",
+      "on": "Pressed",
+      "target": "keyboard",
+      "option": "root",
+      "change": "Toggle"
+    },
+    {
+      "widget": "layout",
+      "on": "Pressed",
+      "target": "keyboard",
+      "option": "type",
+      "change": "Toggle"
+    },
+    {
+      "widget": "mod",
+      "on": "Changed",
+      "target": "keyboard",
+      "option": "keyboard_color",
+      "value": {
+        "source": "value"
+      },
+      "min": "#004040",
+      "max": "#00ffff"
+    },
+    {
+      "widget": "show_mod",
+      "on": "Changed",
+      "target": "mod",
+      "option": "visible",
+      "value": {
+        "source": "value"
+      }
+    },
+    {
+      "widget": "show_mod",
+      "on": "Changed",
+      "target": "keyboard",
+      "option": "height",
+      "value": {
+        "source": "value"
+      },
+      "min": 8,
+      "max": 7
+    }
+  ]
+}

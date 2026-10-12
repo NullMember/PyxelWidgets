@@ -1,0 +1,342 @@
+{
+  "format": "pyxelwidgets.layout",
+  "version": 6,
+  "surface": {
+    "width": 9,
+    "height": 9
+  },
+  "transport": {
+    "bpm": 120,
+    "signature": [
+      4,
+      4
+    ]
+  },
+  "devices": [
+    {
+      "type": "novation.LaunchpadMiniMK3",
+      "x": 0,
+      "y": 0,
+      "options": {}
+    },
+    {
+      "type": "web.WebGrid",
+      "x": 0,
+      "y": 0,
+      "options": {
+        "columns": 9,
+        "rows": 9,
+        "title": "PyxelWidgets Performance"
+      }
+    }
+  ],
+  "outputs": [
+    {
+      "name": "midi",
+      "type": "midi_port.MidiPort",
+      "virtual": "PyxelWidgets Performance",
+      "options": {}
+    }
+  ],
+  "widgets": [
+    {
+      "type": "ClipLauncher",
+      "name": "clips",
+      "x": 0,
+      "y": 4,
+      "width": 8,
+      "height": 4
+    },
+    {
+      "type": "DrumPads",
+      "name": "drums",
+      "x": 0,
+      "y": 0,
+      "width": 4,
+      "height": 4
+    },
+    {
+      "type": "Sequencer",
+      "name": "beat",
+      "x": 4,
+      "y": 0,
+      "width": 4,
+      "height": 4,
+      "options": {
+        "clock": "Own",
+        "bpm": 120,
+        "running": false,
+        "active_color": "#ff00ff",
+        "current_color": "#333333",
+        "current_active_color": "#ffffff"
+      }
+    },
+    {
+      "type": "Meter",
+      "name": "level",
+      "x": 8,
+      "y": 0,
+      "width": 1,
+      "height": 4,
+      "options": {
+        "falloff": 1.5,
+        "hold": 0.5
+      }
+    },
+    {
+      "type": "Button",
+      "name": "play",
+      "x": 0,
+      "y": 8,
+      "width": 1,
+      "height": 1,
+      "options": {
+        "active_color": "#00ff00",
+        "inactive_color": "#003300",
+        "mode": "Switch"
+      }
+    },
+    {
+      "type": "Button",
+      "name": "stop_clips",
+      "x": 1,
+      "y": 8,
+      "width": 1,
+      "height": 1,
+      "options": {
+        "active_color": "#ff0000",
+        "inactive_color": "#330000"
+      }
+    },
+    {
+      "type": "Button",
+      "name": "bank_down",
+      "x": 2,
+      "y": 8,
+      "width": 1,
+      "height": 1,
+      "options": {
+        "active_color": "#ff8c00",
+        "inactive_color": "#331c00"
+      }
+    },
+    {
+      "type": "Button",
+      "name": "bank_up",
+      "x": 3,
+      "y": 8,
+      "width": 1,
+      "height": 1,
+      "options": {
+        "active_color": "#ff8c00",
+        "inactive_color": "#331c00"
+      }
+    },
+    {
+      "type": "Button",
+      "name": "beat_toggle",
+      "x": 7,
+      "y": 8,
+      "width": 1,
+      "height": 1,
+      "options": {
+        "active_color": "#ff00ff",
+        "inactive_color": "#330033",
+        "mode": "Switch"
+      }
+    },
+    {
+      "type": "Button",
+      "name": "scene1",
+      "x": 8,
+      "y": 7,
+      "width": 1,
+      "height": 1,
+      "options": {
+        "active_color": "#00ffff",
+        "inactive_color": "#003333"
+      }
+    },
+    {
+      "type": "Button",
+      "name": "scene2",
+      "x": 8,
+      "y": 6,
+      "width": 1,
+      "height": 1,
+      "options": {
+        "active_color": "#00ffff",
+        "inactive_color": "#003333"
+      }
+    },
+    {
+      "type": "Button",
+      "name": "scene3",
+      "x": 8,
+      "y": 5,
+      "width": 1,
+      "height": 1,
+      "options": {
+        "active_color": "#00ffff",
+        "inactive_color": "#003333"
+      }
+    },
+    {
+      "type": "Button",
+      "name": "scene4",
+      "x": 8,
+      "y": 4,
+      "width": 1,
+      "height": 1,
+      "options": {
+        "active_color": "#00ffff",
+        "inactive_color": "#003333"
+      }
+    }
+  ],
+  "mappings": [
+    {
+      "widget": "drums",
+      "on": "NoteOn",
+      "output": "midi",
+      "message": {
+        "type": "NoteOn",
+        "note": {
+          "source": "note"
+        },
+        "velocity": {
+          "source": "velocity"
+        },
+        "channel": 10
+      }
+    },
+    {
+      "widget": "drums",
+      "on": "NoteOff",
+      "output": "midi",
+      "message": {
+        "type": "NoteOff",
+        "note": {
+          "source": "note"
+        },
+        "velocity": 0,
+        "channel": 10
+      }
+    },
+    {
+      "widget": "beat",
+      "on": "StepPlayed",
+      "output": "midi",
+      "message": {
+        "type": "NoteOn",
+        "note": 42,
+        "velocity": {
+          "source": "active"
+        },
+        "channel": 10
+      }
+    },
+    {
+      "widget": "clips",
+      "on": "ClipStarted",
+      "output": "midi",
+      "message": {
+        "type": "NoteOn",
+        "note": {
+          "source": "cell",
+          "offset": 60
+        },
+        "velocity": 127,
+        "channel": 1
+      }
+    },
+    {
+      "widget": "clips",
+      "on": "ClipStopped",
+      "output": "midi",
+      "message": {
+        "type": "NoteOff",
+        "note": {
+          "source": "cell",
+          "offset": 60
+        },
+        "velocity": 0,
+        "channel": 1
+      }
+    }
+  ],
+  "links": [
+    {
+      "widget": "play",
+      "on": "Pressed",
+      "action": "transport.toggle"
+    },
+    {
+      "widget": "stop_clips",
+      "on": "Pressed",
+      "target": "clips",
+      "action": "stop_all"
+    },
+    {
+      "widget": "bank_down",
+      "on": "Pressed",
+      "target": "drums",
+      "option": "bank",
+      "change": "Add",
+      "value": -1,
+      "min": 0
+    },
+    {
+      "widget": "bank_up",
+      "on": "Pressed",
+      "target": "drums",
+      "option": "bank",
+      "change": "Add",
+      "value": 1,
+      "max": 5
+    },
+    {
+      "widget": "beat_toggle",
+      "on": "Pressed",
+      "target": "beat",
+      "action": "toggle"
+    },
+    {
+      "widget": "drums",
+      "on": "NoteOn",
+      "target": "level",
+      "option": "value",
+      "value": {
+        "source": "velocity"
+      }
+    },
+    {
+      "widget": "scene1",
+      "on": "Pressed",
+      "target": "clips",
+      "action": "launch_scene",
+      "value": 0
+    },
+    {
+      "widget": "scene2",
+      "on": "Pressed",
+      "target": "clips",
+      "action": "launch_scene",
+      "value": 1
+    },
+    {
+      "widget": "scene3",
+      "on": "Pressed",
+      "target": "clips",
+      "action": "launch_scene",
+      "value": 2
+    },
+    {
+      "widget": "scene4",
+      "on": "Pressed",
+      "target": "clips",
+      "action": "launch_scene",
+      "value": 3
+    }
+  ]
+}

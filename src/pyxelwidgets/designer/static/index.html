@@ -32,9 +32,11 @@
       <span class="divider"></span>
       <button id="problems" class="problems" title="Problems in the layout" hidden></button>
       <button id="help" class="icon" title="Keyboard shortcuts (?)" aria-label="Keyboard shortcuts">?</button>
-      <button id="open" title="Open a layout file">Open…</button>
+      <div class="menu-wrap">
+        <button id="file-menu" title="New, open, save as, download" aria-haspopup="true">File ▾</button>
+        <div class="menu" id="file-list" role="menu" hidden></div>
+      </div>
       <input type="file" id="open-file" accept=".json,application/json" hidden>
-      <button id="download" title="Download the layout as JSON">Download</button>
       <button id="save" class="primary" title="Save to the layout file (Ctrl+S)">Save</button>
     </div>
   </header>
@@ -52,6 +54,7 @@
           <div class="row">
             <select id="device-type" aria-label="Device type"></select>
             <button id="add-device">Add</button>
+            <button id="detect-devices" title="Find the devices plugged in">Detect</button>
           </div>
           <ul id="devices" class="list"></ul>
         </div>
@@ -105,7 +108,6 @@
       <section id="properties"></section>
     </aside>
   </main>
-  <dialog id="dialog"></dialog>
   <script type="module" src="app.js"></script>
 </body>
 </html>
