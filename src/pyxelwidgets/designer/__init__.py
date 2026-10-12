@@ -132,7 +132,7 @@ class _OutputProxy(pyxelwidgets.events.Emitter):
         self.emit(pyxelwidgets.events.MessageReceived(self, event.message))
 
 class _PreviewActions:
-    """Binding actions for the preview: its transport only exists while playing."""
+    """Binding and link actions for the preview: its transport only exists while playing."""
 
     def __init__(self, preview):
         self.preview = preview
@@ -241,6 +241,8 @@ class Preview:
         # Mappings send to stand-ins that log, and forward to the connected outputs
         proxies = {entry['name']: _OutputProxy(self, entry['name']) for entry in ui.output_settings()}
         ui.mappings = ui.map(proxies)
+        # Transport actions play and stop the preview
+        ui.links += ui.link(_PreviewActions(self), widgets = False)
         with self.lock:
             playing = self.transport is not None
             self.stop()
