@@ -1460,7 +1460,7 @@ class Clock(enum.Enum):
 class Timed:
     """
     Mixin for widgets a clock plays every ``rate``. Widgets don't know about
-    clocks: glue (``Parser.attach``, ``Parser.start_clocks``) calls ``tick``
+    clocks: glue (``App.attach``, ``Parser.attach``, ``Parser.start_clocks``) calls ``tick``
     from the transport or from a clock of the widget's own.
     """
 
