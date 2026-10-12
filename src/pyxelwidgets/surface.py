@@ -149,6 +149,30 @@ class Surface(pyxelwidgets.events.Emitter):
             link.close()
             self.links.remove(link)
 
+    def check_devices(self, devices = None) -> list:
+        """
+        Let ``devices`` (default: the surface's devices and its mappings'
+        outputs) notice being unplugged and plugged back in, with their
+        ``check()`` (MIDI devices have one). Ports are listed once, outside the
+        lock; each check holds it. Returns the devices whose connection changed.
+        App calls this about once a second.
+        """
+        if devices is None:
+            with self.lock:
+                devices = [entry['device'] for entry in self.devices.values()] + [mapping.output for mapping in self.mappings]
+        devices = [device for device in dict.fromkeys(devices) if callable(getattr(device, 'check', None))]
+        lister = next((device for device in devices if hasattr(device, 'available_ports')), None)
+        try:
+            ports = lister.available_ports() if lister is not None else None
+        except Exception:
+            return []
+        changed = []
+        for device in devices:
+            with self.lock:
+                if device.check(ports) if ports is not None else device.check():
+                    changed.append(device)
+        return changed
+
     def force_update(self) -> None:
         """Resend every pixel on the next update, e.g. after a device reconnected."""
         with self.lock:
