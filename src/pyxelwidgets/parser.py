@@ -58,7 +58,9 @@ are the range a 0.0-1.0 source covers and clamp numbers (see
 one of the target widget's ``actions`` (``advance``, ``play`` with a step
 ``value``, ``next``...) or, without a target, a transport action
 (``ACTIONS``: ``transport.play``..., or ``VALUE_ACTIONS`` taking a
-number: ``transport.tempo``, ``transport.tempo_add``).
+number: ``transport.tempo``, ``transport.tempo_add``), or ``debug``, which
+writes its ``value``, a text filled in from the event (``"pad {x}"``,
+``{all}``: every value; the default), to ``Parser.debug``.
 
 Load a layout and attach behaviour by widget name::
 
@@ -333,7 +335,7 @@ def schema() -> dict:
             'events': events, 'messages': message_schema(),
             'link': {'changes': {name: sorted(kinds) if kinds else None for name, kinds in LINK_CHANGES.items()},
                      'sources': sorted(LINK_SOURCES),
-                     'actions': {**{name: None for name in ACTIONS}, **{name: 'float' for name in VALUE_ACTIONS}}}}
+                     'actions': {**{name: None for name in ACTIONS}, **{name: 'float' for name in VALUE_ACTIONS}, 'debug': 'text'}}}
 
 def message_schema() -> dict:
     """Mapping message types with their fields: name, default (encoded) and range (whole numbers) or kind."""
@@ -519,6 +521,8 @@ class Parser():
         self.transport_settings()
         # Clocks of widgets with their own (start_clocks)
         self.clocks = []
+        #: Where debug links write: debug(widget name, text); prints by default (the designer logs them)
+        self.debug = lambda widget, text: print(f'{widget}: {text}', flush = True)
         self.devices = []
         self.widgets = {}
         self.surface = None
@@ -758,6 +762,17 @@ class Parser():
         action, target = entry['action'], entry.get('target')
         if 'change' in entry:
             raise LayoutError(f'{where}.change: an action is called, not changed')
+        if action == 'debug':
+            # Writes a text filled in from the event: every value by default
+            if target is not None:
+                raise LayoutError(f'{where}.target: debug has no target')
+            value = entry.get('value')
+            if value is not None and not isinstance(value, str):
+                raise LayoutError(f'{where}.value: debug takes a text, e.g. "pad {{x}} at {{velocity}}", got {value!r}')
+            if 'min' in entry or 'max' in entry:
+                raise LayoutError(f'{where}: debug has no range')
+            setting['value'] = value or f'{event.__name__} {{all}}'
+            return
         if isinstance(action, str) and action.startswith('transport.'):
             if target is not None:
                 raise LayoutError(f'{where}.target: transport actions have no target')
@@ -877,7 +892,12 @@ class Parser():
         created = []
         for setting in self.link_settings():
             action, target = setting['action'], setting['target']
-            if action is not None and action.startswith('transport.'):
+            if action == 'debug':
+                if not widgets:
+                    continue
+                name = setting['widget']
+                target, option = (lambda text, name = name: self.debug(name, text)), None
+            elif action is not None and action.startswith('transport.'):
                 if transport is None:
                     continue
                 target, option = (ACTIONS.get(action) or VALUE_ACTIONS[action])(transport), None
