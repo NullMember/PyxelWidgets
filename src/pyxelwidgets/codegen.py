@@ -9,6 +9,7 @@ designer.
 
 import dataclasses
 import enum
+import importlib
 import keyword
 import re
 import sys
@@ -68,6 +69,8 @@ def loader(layout: dict, file: str = 'layout.json', *, handlers: bool = False) -
     if _played(layout):
         code += ['app = ui.app()  # Sequencers and Trackers follow app.transport', 'app.transport.play()', 'app.run()']
     else:
+        if (layout.get('transport') or {}).get('sync'):
+            code.append("# The transport follows the DAW's MIDI clock (the layout's transport.sync)")
         code.append('ui.app().run()')
     return '\n'.join(code) + '\n'
 
@@ -86,7 +89,9 @@ def _walk(widgets: list):
         yield from _walk(item.get('widgets') or [])
 
 def _played(layout: dict) -> bool:
-    # Widgets the transport plays: started with app.transport.play()
+    # Widgets the transport plays: started with app.transport.play() (unless a DAW starts it)
+    if (layout.get('transport') or {}).get('sync'):
+        return False
     return any(item.get('type') in ('Sequencer', 'Tracker', 'ClipLauncher') and (item.get('options') or {}).get('clock', 'Transport') == 'Transport'
                for item in _walk(layout.get('widgets', [])))
 
@@ -309,7 +314,18 @@ class _Writer:
         settings = self.ui.transport_settings()
         options = [(key, self.value(tuple(value) if key == 'signature' else value)) for key, value in settings.items()
                    if not _same(tuple(value) if key == 'signature' else value, {'bpm': 120, 'signature': (4, 4)}[key])]
-        return [f'app = {self.call(self.name(pyxelwidgets.app.App), ["surface"], options)}']
+        sync = self.ui.sync_settings()
+        if sync is None:
+            return [f'app = {self.call(self.name(pyxelwidgets.app.App), ["surface"], options)}']
+        clock_input = importlib.import_module('pyxelwidgets.devices.midi_clock').MidiClockInput
+        options.append(('sync', 'True'))
+        variable = self.variable(('clock', 'input'), 'daw_clock')
+        connect = f'connect_virtual({sync["virtual"]!r})' if 'virtual' in sync else f'connect({sync["input"]!r}, None)'
+        return [f'app = {self.call(self.name(pyxelwidgets.app.App), ["surface"], options)}',
+                "# The transport follows the DAW's MIDI clock: tempo, start, stop and position",
+                f'{variable} = {self.name(clock_input)}(app.transport)',
+                f'{variable}.{connect}',
+                f'app.clocks.append({variable})  # closed with the app']
 
     def bindings(self) -> list:
         lines = []
