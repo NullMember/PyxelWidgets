@@ -1,5 +1,6 @@
 import pyxelwidgets.surface
 import pyxelwidgets.transport
+import pyxelwidgets.widgets
 import time
 
 class App():
@@ -36,6 +37,27 @@ class App():
     def lock(self):
         """Hold this when changing widgets from a thread the App doesn't manage."""
         return self.surface.lock
+
+    def attach(self, widget):
+        """
+        Play ``widget`` (a Sequencer, Tracker or ClipLauncher) on its clock: the
+        app's transport (``clock = Clock.Transport``) or a clock of its own
+        following its ``bpm`` (``Clock.Own``, closed with the App). Returns the
+        Subscription, or None for ``Clock.Off``.
+        """
+        if widget.clock == pyxelwidgets.widgets.Clock.Transport:
+            return self.transport.every(widget.rate, widget.tick)
+        if widget.clock != pyxelwidgets.widgets.Clock.Own:
+            return None
+        clock = pyxelwidgets.transport.Transport(widget.bpm, signature = self.transport.signature, lock = self.lock)
+        def tick(count):
+            # The widget's tempo may change (e.g. from a link)
+            clock.bpm = widget.bpm
+            widget.tick(count)
+        subscription = clock.every(widget.rate, tick)
+        clock.play()
+        self.clocks.append(clock)
+        return subscription
 
     def step(self) -> None:
         """Render one frame; use this to drive the App from your own loop."""
