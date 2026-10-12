@@ -3,7 +3,7 @@ Layout files: a JSON description of a Surface, the devices it is shown on and
 its widgets, as written by the designer (``python -m pyxelwidgets.designer``).
 
     {
-      "format": "pyxelwidgets.layout", "version": 3,
+      "format": "pyxelwidgets.layout", "version": 4,
       "surface": {"width": 9, "height": 9},
       "transport": {"bpm": 120, "signature": [4, 4]},
       "devices": [{"type": "novation.LaunchpadMiniMK3", "x": 0, "y": 0, "options": {}}],
@@ -13,7 +13,8 @@ its widgets, as written by the designer (``python -m pyxelwidgets.designer``).
       ],
       "widgets": [
         {"type": "Fader", "name": "volume", "x": 0, "y": 0, "width": 1, "height": 8,
-         "options": {"active_color": "#00ffff", "mode": "Magnitude"}},
+         "options": {"active_color": "#00ffff", "mode": "Magnitude"},
+         "animation": {"type": "Pulse", "options": {"rate": "1/2"}}},
         {"type": "Group", "name": "page", "x": 0, "y": 0, "width": 8, "height": 8,
          "options": {"visible": false}, "widgets": [...]}
       ]
@@ -21,7 +22,10 @@ its widgets, as written by the designer (``python -m pyxelwidgets.designer``).
 
 Widget options are the widget's constructor arguments: colors as ``#rrggbb``
 or ``#rrggbbaa``, enums by member name (``"Magnitude"`` for ``Fader.Mode``),
-rates as note values (``"1/16"``). Older versions are upgraded on load.
+rates as note values (``"1/16"``) or seconds where a widget allows both,
+Sprite frames as lists of rows from the top, each a list of colors (``null``
+is transparent). A widget's optional ``animation`` is one of ``ANIMATIONS``
+with its options. Older versions are upgraded on load.
 
 Bindings connect a device's named controls (by the device's index in
 ``devices``) to a widget, with Binding options (``takeover``, ``glide_time``,
@@ -48,15 +52,20 @@ import pathlib
 import types
 import typing
 
+import numpy
+
+import pyxelwidgets.animation
 import pyxelwidgets.binding
+import pyxelwidgets.buffer
 import pyxelwidgets.color
 import pyxelwidgets.group
+import pyxelwidgets.rate
 import pyxelwidgets.surface
 import pyxelwidgets.transport
 import pyxelwidgets.widgets
 
 FORMAT = 'pyxelwidgets.layout'
-VERSION = 3
+VERSION = 4
 
 # Actions a binding can trigger, on the transport given to Parser.bind
 ACTIONS = {
@@ -65,6 +74,9 @@ ACTIONS = {
     'transport.toggle': lambda transport: transport.toggle,
     'transport.rewind': lambda transport: (lambda: transport.locate(0)),
 }
+
+# Animations a widget entry can have, by name
+ANIMATIONS = {cls.__name__: cls for cls in (pyxelwidgets.animation.Blink, pyxelwidgets.animation.Pulse, pyxelwidgets.animation.Fade)}
 
 # Suggested values for rate options; any note value is accepted
 RATES = ['1/1', '1/2', '1/4', '1/8', '1/16', '1/32', '1/4.', '1/8.', '1/16.', '1/4T', '1/8T', '1/16T', 'beat', 'bar']
@@ -88,6 +100,8 @@ _PLACEMENT = {'self', 'x', 'y', 'width', 'height', 'name'}
 # inactive_color) or by the layout entry (a binding's device, control and target)
 _HIDDEN = {pyxelwidgets.group.Group: {'active_color', 'inactive_color'},
            pyxelwidgets.group.Pages: {'active_color', 'inactive_color'},
+           # Shows its frames only
+           pyxelwidgets.widgets.Sprite: {'active_color', 'inactive_color'},
            # Set by the binding entry itself
            pyxelwidgets.binding.Binding: {'source', 'control', 'target', 'device', 'clock'}}
 
@@ -110,15 +124,20 @@ def _parameters(cls) -> list:
     return found
 
 def _kind(parameter) -> tuple:
-    """(kind, enum class or None) of a constructor parameter."""
+    """(kind, enum class or None) of a constructor parameter; a rate's second value is True if it also takes seconds."""
     annotation, default = parameter.annotation, parameter.default
     # Optional[X] / X | None: the kind of X
     if typing.get_origin(annotation) in (typing.Union, types.UnionType):
         arguments = [argument for argument in typing.get_args(annotation) if argument is not type(None)]
+        if pyxelwidgets.rate.Rate in arguments:
+            # Rate | float: a note value or seconds
+            return 'rate', float in arguments
         if len(arguments) == 1:
             annotation = arguments[0]
-    if annotation is pyxelwidgets.widgets.Rate:
-        return 'rate', None
+    if annotation is pyxelwidgets.rate.Rate:
+        return 'rate', False
+    if annotation is pyxelwidgets.widgets.Frames:
+        return 'frames', None
     if isinstance(annotation, type) and issubclass(annotation, enum.Enum):
         return 'enum', annotation
     if isinstance(default, enum.Enum):
@@ -142,6 +161,38 @@ def text_to_color(text: str) -> pyxelwidgets.color.Color:
     values = [int(digits[i:i + 2], 16) for i in range(0, len(digits), 2)]
     return pyxelwidgets.color.Color(values[0], values[1], values[2], values[3] / 255 if len(values) == 4 else 1.0)
 
+def frames_to_json(frames) -> list:
+    """Sprite frames (RGBA buffers) as layout JSON: rows from the top, colors as text, None if transparent."""
+    encoded = []
+    for frame in frames:
+        frame = numpy.asarray(frame)
+        encoded.append([[color_to_text(pyxelwidgets.color.Color.from_array(frame[x, y])) if frame[x, y, 3] else None
+                         for x in range(frame.shape[0])]
+                        for y in reversed(range(frame.shape[1]))])
+    return encoded
+
+def json_to_frames(frames) -> list:
+    """Layout JSON frames to RGBA buffers (see ``frames_to_json``); rows may differ in length."""
+    if not isinstance(frames, list) or not frames:
+        raise ValueError('expected a list of frames, each a list of rows')
+    buffers = []
+    for index, rows in enumerate(frames):
+        if not isinstance(rows, list) or not rows or not all(isinstance(row, list) for row in rows):
+            raise ValueError(f'frame {index} must be a list of rows, each a list of colors')
+        width = max(len(row) for row in rows)
+        if not width:
+            raise ValueError(f'frame {index} is empty')
+        buffer = pyxelwidgets.buffer.new(width, len(rows))
+        for top, row in enumerate(rows):
+            for x, text in enumerate(row):
+                if text is not None:
+                    try:
+                        buffer[x, len(rows) - 1 - top] = text_to_color(text)
+                    except ValueError as error:
+                        raise ValueError(f'frame {index} row {top}: {error}') from None
+        buffers.append(buffer)
+    return buffers
+
 def _encode(value, kind):
     if kind == 'color':
         return color_to_text(value)
@@ -149,39 +200,48 @@ def _encode(value, kind):
         return value.name
     if kind == 'point':
         return list(value)
+    if kind == 'frames':
+        return frames_to_json(value)
     return value
 
 def option_schema(cls) -> list:
     """Layout options of a widget or device class: name, kind, default and enum choices."""
     options = []
     for parameter in _parameters(cls):
-        kind, enum_type = _kind(parameter)
+        kind, extra = _kind(parameter)
         if kind == 'json':
             # Not representable in a layout (e.g. Sprite frames)
             continue
         option = {'name': parameter.name, 'kind': kind}
         if parameter.default is not parameter.empty:
             option['default'] = None if parameter.default is None else _encode(parameter.default, kind)
-        if enum_type is not None:
-            option['choices'] = [member.name for member in enum_type]
+        if kind == 'enum':
+            option['choices'] = [member.name for member in extra]
         elif kind == 'rate':
             option['choices'] = RATES
+            if extra:
+                # Also a number of seconds
+                option['seconds'] = True
         options.append(option)
     return options
+
+def _doc(cls) -> str:
+    # Only the class's own docstring: an inherited one describes the base class
+    return inspect.cleandoc(cls.__dict__['__doc__']).split('\n\n')[0].replace('\n', ' ') if cls.__dict__.get('__doc__') else ''
 
 def schema() -> dict:
     """Widget types with their options (kind, default, enum choices), for building editors."""
     widgets = {}
     for name, cls in widget_types().items():
         widgets[name] = {
-            # Only the class's own docstring: an inherited one describes the base class
-            'doc': inspect.cleandoc(cls.__dict__['__doc__']).split('\n\n')[0].replace('\n', ' ') if cls.__dict__.get('__doc__') else '',
+            'doc': _doc(cls),
             'container': issubclass(cls, pyxelwidgets.group.Group),
             # Has a value a knob, fader or button binding can set (Button, Fader, Knob, XY)
             'bindable': issubclass(cls, pyxelwidgets.widgets.ValueWidget),
             'options': option_schema(cls),
         }
     return {'format': FORMAT, 'version': VERSION, 'widgets': widgets,
+            'animations': {name: {'doc': _doc(cls), 'options': option_schema(cls)} for name, cls in ANIMATIONS.items()},
             'binding': {'options': option_schema(pyxelwidgets.binding.Binding), 'actions': list(ACTIONS)}}
 
 def _options(cls, options: dict, where: str) -> dict:
@@ -190,18 +250,24 @@ def _options(cls, options: dict, where: str) -> dict:
     for key, value in (options or {}).items():
         if key not in parameters:
             raise LayoutError(f'{where}.options: {cls.__name__} has no option {key!r} (options: {", ".join(parameters)})')
-        kind, enum_type = _kind(parameters[key])
+        kind, extra = _kind(parameters[key])
         try:
             if kind == 'color':
                 value = text_to_color(value)
             elif kind == 'enum':
-                if value not in enum_type.__members__:
-                    raise ValueError(f'unknown value {value!r} (choices: {", ".join(enum_type.__members__)})')
-                value = enum_type[value]
+                if value not in extra.__members__:
+                    raise ValueError(f'unknown value {value!r} (choices: {", ".join(extra.__members__)})')
+                value = extra[value]
             elif kind == 'point':
                 value = tuple(value)
+            elif kind == 'frames':
+                value = json_to_frames(value)
             elif kind == 'rate':
-                pyxelwidgets.transport.parse_rate(value)
+                if extra and isinstance(value, (int, float)) and not isinstance(value, bool):
+                    if not value > 0:
+                        raise ValueError(f'must be a note value or positive seconds, got {value!r}')
+                elif value is not None:
+                    pyxelwidgets.rate.parse_rate(value if isinstance(value, str) else None)
         except (ValueError, TypeError) as error:
             raise LayoutError(f'{where}.options.{key}: {error}') from None
         kwargs[key] = value
@@ -289,13 +355,32 @@ class Parser():
                 raise LayoutError(f'{path}: x, y, width and height must be integers') from None
             if geometry[2] < 1 or geometry[3] < 1:
                 raise LayoutError(f'{path}: width and height must be at least 1')
-            widget = cls(*geometry, name = name, **_options(cls, item.get('options'), path))
+            try:
+                widget = cls(*geometry, name = name, **_options(cls, item.get('options'), path))
+            except (ValueError, TypeError) as error:
+                if isinstance(error, LayoutError):
+                    raise
+                raise LayoutError(f'{path}.options: {error}') from None
+            if item.get('animation') is not None:
+                widget.animation = self._animation(item['animation'], f'{path}.animation')
             self.widgets[name] = widget
             parent.add(widget)
             if item.get('widgets'):
                 if not isinstance(widget, pyxelwidgets.group.Group):
                     raise LayoutError(f'{path}.widgets: only a Group can contain widgets')
                 self._add_widgets(widget, item['widgets'], f'{path}.widgets')
+
+    def _animation(self, entry, where: str):
+        if not isinstance(entry, dict) or entry.get('type') not in ANIMATIONS:
+            kind = entry.get('type') if isinstance(entry, dict) else entry
+            raise LayoutError(f'{where}.type: unknown animation {kind!r} (animations: {", ".join(ANIMATIONS)})')
+        cls = ANIMATIONS[entry['type']]
+        try:
+            return cls(**_options(cls, entry.get('options'), where))
+        except (ValueError, TypeError) as error:
+            if isinstance(error, LayoutError):
+                raise
+            raise LayoutError(f'{where}.options: {error}') from None
 
     def transport_settings(self) -> dict:
         """Keyword arguments for a Transport (or App) from the layout's ``transport``."""
@@ -377,8 +462,17 @@ def upgrade(layout: dict) -> dict:
         return layout
     layout = _from_version_1(layout) if version == 1 else copy.deepcopy(layout)
     # Version 3 added the optional "bindings"; nothing to convert
+    _from_version_3(layout.get('widgets'))
     layout['version'] = VERSION
     return layout
+
+def _from_version_3(widgets) -> None:
+    """Version 4 timed Sprites with a ``rate``: their frame counting options are gone (and added ``animation``)."""
+    for widget in widgets or []:
+        if widget.get('type') == 'Sprite' and widget.get('options'):
+            for key in ('animate', 'target', 'tick'):
+                widget['options'].pop(key, None)
+        _from_version_3(widget.get('widgets'))
 
 def _from_version_1(layout: dict) -> dict:
     """Version 1 had a tick based clock; Sequencer/Tracker timing was set in ticks per quarter note."""
