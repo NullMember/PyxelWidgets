@@ -4,7 +4,7 @@ play notes 36-51 on channel 10, the top row sends program changes, and four
 faders send CC 21-24 and follow them back.
 
     python MidiDrums.py                               # play it
-    pyxelwidgets-designer layout.json --hardware      # change it
+    pyxelwidgets-designer layout.json                 # change it
 
 Pick "PyxelWidgets Drums" as a MIDI input in your DAW or synth.
 """
