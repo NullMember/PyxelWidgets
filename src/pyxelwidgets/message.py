@@ -24,7 +24,7 @@ import re
 import typing
 
 __all__ = ['Source', 'Message', 'MidiMessage', 'NoteOn', 'NoteOff', 'ControlChange', 'ProgramChange',
-           'PitchBend', 'PolyPressure', 'ChannelPressure', 'OscMessage', 'Command', 'INTEGER_SOURCES',
+           'PitchBend', 'PolyPressure', 'ChannelPressure', 'OscMessage', 'Command', 'PluginParameter', 'INTEGER_SOURCES',
            'Hotkey', 'Key', 'TypeText', 'MouseMove', 'MouseButton', 'MouseClick', 'Scroll', 'KEY_NAMES', 'parse_keys']
 
 #: Sources that are whole numbers; the others are 0.0-1.0 (``text`` is a string)
@@ -326,6 +326,23 @@ class Command(Message):
     @property
     def sources(self) -> list:
         return _placeholders(self.name) + ([self.value] if isinstance(self.value, Source) else [])
+
+@dataclasses.dataclass(frozen = True)
+class PluginParameter(Message):
+    """
+    A plug-in parameter, through a control surface's plug-in mode (Mackie
+    Control): ``track``, ``plugin`` and ``parameter`` are names as the
+    surface scanned them from the DAW (``scan_tracks``, ``scan_plugins``,
+    ``scan_parameters``). ``value`` is V-Pot steps (a knob's or fader's
+    ``delta``); received, it is the parameter's position 0.0-1.0.
+    """
+    track: str = ''
+    plugin: str = ''
+    parameter: str = ''
+    value: typing.Any = Source('delta')
+
+    #: Fields named from a scan of the DAW, for editors
+    scanned: typing.ClassVar[tuple] = ('track', 'plugin', 'parameter')
 
 # Keyboard and mouse (see pyxelwidgets.devices.desktop)
 
