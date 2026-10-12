@@ -130,13 +130,42 @@ RATES = ['1/1', '1/2', '1/4', '1/8', '1/16', '1/32', '1/4.', '1/8.', '1/16.', '1
 class LayoutError(ValueError):
     """A layout that doesn't describe a valid surface; the message names where."""
 
+# Widget and device classes of your own, made usable in layouts with register()
+_WIDGETS = {}
+_DEVICES = {}
+
+def register(cls: type) -> type:
+    """
+    Make a widget or device class of your own usable in layouts and in the
+    designer (start it with ``--import your_module``): widgets by their class
+    name, devices and outputs as ``"your_module.YourClass"``. Returns ``cls``,
+    so it works as a class decorator.
+    """
+    if isinstance(cls, type) and issubclass(cls, pyxelwidgets.widgets.Widget):
+        _WIDGETS[cls.__name__] = cls
+    elif isinstance(cls, type) and callable(getattr(cls, 'describe', None)) and callable(getattr(cls, 'show', None)):
+        _DEVICES[device_type(cls)] = cls
+    else:
+        raise TypeError(f'{cls!r} is neither a Widget nor a Device class')
+    return cls
+
+def device_type(cls: type) -> str:
+    """A device class's ``type`` in layouts: ``"novation.LaunchpadX"`` for the package's, ``"module.Class"`` for others."""
+    module = cls.__module__.removeprefix('pyxelwidgets.devices.')
+    return f'{module}.{cls.__name__}'
+
+def registered_devices() -> dict:
+    """Device and output classes added with ``register``, by type."""
+    return dict(_DEVICES)
+
 def widget_types() -> dict:
-    """Widget classes usable in layouts, by name."""
+    """Widget classes usable in layouts, by name (registered ones included)."""
     types = {name: cls for name, cls in vars(pyxelwidgets.widgets).items()
              if isinstance(cls, type) and issubclass(cls, pyxelwidgets.widgets.Widget)
              and cls not in (pyxelwidgets.widgets.Widget, pyxelwidgets.widgets.ValueWidget)}
     types['Group'] = pyxelwidgets.group.Group
     types['Pages'] = pyxelwidgets.group.Pages
+    types.update(_WIDGETS)
     return dict(sorted(types.items()))
 
 # Arguments set by the layout itself, not by options
@@ -418,12 +447,15 @@ def _options(cls, options: dict, where: str) -> dict:
     return kwargs
 
 def device_class(device: dict, where: str = 'device') -> type:
-    """The class of a layout ``device`` entry, e.g. ``"novation.LaunchpadMiniMK3"``."""
-    module_name, _, class_name = device.get('type', '').rpartition('.')
+    """The class of a layout ``device`` entry, e.g. ``"novation.LaunchpadMiniMK3"`` (or a registered one)."""
+    kind = device.get('type', '')
+    if kind in _DEVICES:
+        return _DEVICES[kind]
+    module_name, _, class_name = kind.rpartition('.')
     try:
         return getattr(importlib.import_module(f'pyxelwidgets.devices.{module_name}'), class_name)
     except (ImportError, AttributeError, ValueError):
-        raise LayoutError(f'{where}.type: unknown device {device.get("type")!r}') from None
+        raise LayoutError(f'{where}.type: unknown device {kind!r} (devices of your own need parser.register)') from None
 
 def build_output(entry: dict, where: str = 'output'):
     """Create a layout ``outputs`` entry and connect it: to its ports, a ``virtual`` port, or (OSC) its address."""
