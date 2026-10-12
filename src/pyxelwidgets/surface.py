@@ -6,6 +6,7 @@ import pyxelwidgets.buffer
 import pyxelwidgets.color
 import pyxelwidgets.events
 import pyxelwidgets.group
+import pyxelwidgets.mapping
 import pyxelwidgets.rectangle
 import dataclasses
 import threading
@@ -41,6 +42,7 @@ class Surface(pyxelwidgets.events.Emitter):
         self.root = pyxelwidgets.group.Group(0, 0, width, height, name = f'{self.name}_root')
         self.devices = {}
         self.bindings = []
+        self.mappings = []
         #: Times animations: anything with bpm, beats, playing and signature (App sets its Transport)
         self.transport = None
         self.buffer = pyxelwidgets.buffer.new(width, height, pyxelwidgets.color.Colors.Black)
@@ -108,6 +110,24 @@ class Surface(pyxelwidgets.events.Emitter):
         with self.lock:
             binding.close()
             self.bindings.remove(binding)
+
+    # Mappings
+
+    def map(self, widget, output, message, *, on: type | None = None, feedback: bool = False) -> pyxelwidgets.mapping.Mapping:
+        """
+        Send ``message`` to ``output`` on each ``on`` event of ``widget``; with
+        ``feedback`` matching messages from the output update the widget. See
+        ``pyxelwidgets.mapping``.
+        """
+        with self.lock:
+            mapping = pyxelwidgets.mapping.Mapping(widget, output, message, on = on, feedback = feedback, lock = self.lock)
+            self.mappings.append(mapping)
+            return mapping
+
+    def unmap(self, mapping: pyxelwidgets.mapping.Mapping) -> None:
+        with self.lock:
+            mapping.close()
+            self.mappings.remove(mapping)
 
     def force_update(self) -> None:
         """Resend every pixel on the next update, e.g. after a device reconnected."""
