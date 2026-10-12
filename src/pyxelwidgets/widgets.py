@@ -105,6 +105,8 @@ class Widget(pyxelwidgets.events.Emitter):
         self._static = None
         # The Blink a received blinking state started
         self._flash = None
+        #: Options changed with ``configure`` since construction, by name
+        self.configured = {}
         self._resize(self.rect.w, self.rect.h)
 
     def _default_name(self) -> str:
@@ -122,6 +124,26 @@ class Widget(pyxelwidgets.events.Emitter):
         if value != self._visible:
             self._visible = value
             # Lets a parent Group notice the change and recompose
+            self.updated = True
+
+    @property
+    def x(self) -> int:
+        return self.rect.x
+
+    @x.setter
+    def x(self, value: int) -> None:
+        if value != self.rect.x:
+            self.rect.x = int(value)
+            self.updated = True
+
+    @property
+    def y(self) -> int:
+        return self.rect.y
+
+    @y.setter
+    def y(self, value: int) -> None:
+        if value != self.rect.y:
+            self.rect.y = int(value)
             self.updated = True
 
     @property
@@ -152,6 +174,34 @@ class Widget(pyxelwidgets.events.Emitter):
         self.buffer = pyxelwidgets.buffer.new(self.rect.w, self.rect.h, self.inactive_color)
         self.updated = True
         self.emit(pyxelwidgets.events.Resized(self, self.rect.w, self.rect.h))
+
+    # Options
+
+    #: Options whose change recalculates the widget's layout (``_resize``)
+    reshaping: tuple = ()
+
+    def configure(self, **options) -> None:
+        """
+        Change options after construction, given as the constructor takes them
+        (``fader.configure(active_color = Colors.Red, visible = False)``), plus
+        ``x``, ``y``, ``width`` and ``height``; the widget redraws. Changes are
+        kept in ``configured``. Raises AttributeError for unknown options.
+        """
+        for name in options:
+            if name.startswith('_') or not hasattr(self, name) or callable(getattr(self, name)):
+                raise AttributeError(f'{type(self).__name__} has no option {name!r}')
+        reshape = False
+        for name, value in options.items():
+            self._configure(name, value)
+            self.configured[name] = value
+            reshape = reshape or name in self.reshaping
+        if reshape:
+            self._resize(self.rect.w, self.rect.h)
+        self.updated = True
+
+    def _configure(self, name: str, value) -> None:
+        """Set one option; override for options stored differently."""
+        setattr(self, name, value)
 
     # Input: public methods emit the event, then call the matching handle_* hook
 
@@ -438,6 +488,11 @@ class Button(ValueWidget):
         # A switch turned on or off elsewhere toggles from there
         self.state = self._value > 0
 
+    def _configure(self, name: str, value) -> None:
+        super()._configure(name, value)
+        if name == 'value':
+            self.state = self._value > 0
+
     def save_state(self) -> dict:
         return {**super().save_state(), 'switch': self.state, 'hold': self.is_hold}
 
@@ -583,6 +638,8 @@ class Fader(ValueWidget):
         Magnitude   = enum.auto()
         Sensitive   = enum.auto()
         Relative    = enum.auto()
+
+    reshaping = ('direction', 'grid')
 
     def __init__(self, x: int, y: int, width: int, height: int, *,
                  direction: Direction = Direction.Vertical,
@@ -1196,6 +1253,8 @@ class Knob(ValueWidget):
         Spread      = enum.auto()
         Collapse    = enum.auto()
 
+    reshaping = ('type',)
+
     def __init__(self, x: int, y: int, width: int, height: int, *,
                  coefficient: float = 0.05,
                  type: Type = Type.Wrap,
@@ -1556,6 +1615,13 @@ class Sprite(Widget):
         self.frame %= len(fitted)
         return True
 
+    def _configure(self, name: str, value) -> None:
+        if name == 'frames':
+            self.frames = [pyxelwidgets.buffer.to_buffer(frame) for frame in value or []]
+            self._resize(self.rect.w, self.rect.h)
+        else:
+            super()._configure(name, value)
+
     def render(self, time: pyxelwidgets.animation.Time | None = None) -> bool:
         if self.rate is not None and len(self.frames) > 1:
             time = time if time is not None else pyxelwidgets.animation.now()
@@ -1581,6 +1647,8 @@ class Tracker(Widget):
     """
 
     emits = (pyxelwidgets.events.RowPlayed,)
+
+    reshaping = ('bars', 'pages')
 
     # class Scroll(enum.Enum):
     #     Continuous = enum.auto()
