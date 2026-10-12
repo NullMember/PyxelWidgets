@@ -1,9 +1,11 @@
 import pyxelwidgets.buffer
 import pyxelwidgets.events
+import pyxelwidgets.font
 import pyxelwidgets.color
 import pyxelwidgets.rectangle
 import numpy
 import enum
+import time
 import typing
 
 # A note value such as '1/16', '1/8.' or 'bar': how often a Transport plays a widget
@@ -1507,3 +1509,97 @@ class XY(ValueWidget):
     
     def _calc_xy_value_with_magnitude(self, val_x: int, val_y: int, mag_x: int, mag_y: int):
         return [self._calc_x_value(val_x, self._calc_x_magnitude(mag_x)), self._calc_y_value(val_y, self._calc_y_magnitude(mag_y))]
+
+# Text class
+class Text(Widget):
+    """
+    Text in a 3x5 pixel font (``pyxelwidgets.font``), e.g. a tempo or a track
+    name, vertically centered. Text that doesn't fit scrolls (``scroll``) at
+    ``speed`` columns per second. Display only: presses pass through.
+    """
+
+    class Align(enum.Enum):
+        Left    = enum.auto()
+        Center  = enum.auto()
+        Right   = enum.auto()
+
+    class Scroll(enum.Enum):
+        #: Scroll only when the text is wider than the widget
+        Auto    = enum.auto()
+        Always  = enum.auto()
+        Off     = enum.auto()
+
+    #: Empty columns between the end of scrolling text and its start
+    GAP = 3
+
+    def __init__(self, x: int, y: int, width: int, height: int, *,
+                 text: str = '',
+                 align: Align = Align.Left,
+                 scroll: Scroll = Scroll.Auto,
+                 speed: float = 8.0,
+                 inactive_color: pyxelwidgets.color.Color = pyxelwidgets.color.Colors.Invisible,
+                 propagation: Propagation = Propagation.Pass,
+                 clock: typing.Callable[[], float] = time.monotonic,
+                 **kwargs):
+        self._text = str(text)
+        self._bitmap = pyxelwidgets.font.text_bitmap(self._text)
+        self.align = align
+        self.scroll = scroll
+        self.speed = speed
+        self.clock = clock
+        self._start = clock()
+        self._offset = 0
+        super().__init__(x, y, width, height, inactive_color = inactive_color, propagation = propagation, **kwargs)
+
+    @property
+    def text(self) -> str:
+        return self._text
+
+    @text.setter
+    def text(self, value) -> None:
+        value = str(value)
+        if value != self._text:
+            self._text = value
+            self._bitmap = pyxelwidgets.font.text_bitmap(value)
+            # Scrolling starts over
+            self._start = self.clock()
+            self._offset = 0
+            self.updated = True
+
+    @property
+    def scrolling(self) -> bool:
+        if self.scroll == Text.Scroll.Off or self.speed <= 0 or not self._text:
+            return False
+        return self.scroll == Text.Scroll.Always or self._bitmap.shape[0] > self.rect.w
+
+    def render(self) -> bool:
+        if self.scrolling:
+            period = self._bitmap.shape[0] + Text.GAP
+            offset = int((self.clock() - self._start) * self.speed) % period
+            if offset != self._offset:
+                self._offset = offset
+                self.updated = True
+        return super().render()
+
+    def draw(self) -> None:
+        self.buffer[:] = self.inactive_color
+        bitmap = self._bitmap
+        if self.scrolling:
+            # The text followed by a gap, repeated, starting at the scroll offset
+            strip = numpy.zeros((bitmap.shape[0] + Text.GAP, bitmap.shape[1]), dtype = bool)
+            strip[:bitmap.shape[0]] = bitmap
+            columns = strip[(numpy.arange(self.rect.w) + self._offset) % strip.shape[0]]
+            left = 0
+        else:
+            columns = bitmap[:self.rect.w] if self.align != Text.Align.Right else bitmap[max(bitmap.shape[0] - self.rect.w, 0):]
+            free = self.rect.w - columns.shape[0]
+            left = {Text.Align.Left: 0, Text.Align.Center: free // 2, Text.Align.Right: free}[self.align]
+        # Vertically centered; rows that don't fit are cut from the top
+        bottom = (self.rect.h - pyxelwidgets.font.HEIGHT) // 2
+        for row in range(pyxelwidgets.font.HEIGHT):
+            y = bottom + row
+            if 0 <= y < self.rect.h:
+                lit = columns[:, row]
+                xs = numpy.flatnonzero(lit) + left
+                self.buffer[xs, y] = self.active_color
+
