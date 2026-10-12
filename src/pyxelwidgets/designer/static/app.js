@@ -213,6 +213,41 @@ function isGroup(widget) {
   return state.catalog.widgets[widget.type]?.container;
 }
 
+// ---------------------------------------------------------------- pages
+
+function currentPage(pages) {
+  return pages.options?.page ?? 0;
+}
+
+// The area pages fill: everything besides the selector strip
+function pagesContent(pages) {
+  const { width: w, height: h } = pages;
+  return {
+    Off: [0, 0, w, h], Top: [0, 0, w, h - 1], Bottom: [0, 1, w, h - 1], Left: [1, 0, w - 1, h], Right: [0, 0, w - 1, h],
+  }[pages.options?.selector ?? 'Top'];
+}
+
+// Pages along ``path`` that don't show it: [[pages path, page index], ...]
+function hiddenBy(path) {
+  const found = [];
+  for (let i = 1; i < path.length; i++) {
+    const parent = widgetAt(path.slice(0, i));
+    if (parent.type === 'Pages' && path[i] !== currentPage(parent)) found.push([path.slice(0, i), path[i]]);
+  }
+  return found;
+}
+
+function addPage(path) {
+  const pages = widgetAt(path);
+  const [x, y, width, height] = pagesContent(pages);
+  change(() => {
+    pages.widgets = pages.widgets || [];
+    pages.widgets.push({ type: 'Group', name: uniqueName('page'), x, y, width, height, options: {}, widgets: [] });
+    setOption(pages, 'page', pages.widgets.length - 1 || undefined);
+    state.selection = { kind: 'widget', path: [...path, pages.widgets.length - 1] };
+  });
+}
+
 function samePath(a, b) {
   return a && b && a.length === b.length && a.every((value, i) => value === b[i]);
 }
@@ -442,6 +477,8 @@ function renderOverlay() {
   for (const { widget, path } of allWidgets()) {
     const [x, y] = absolute(path);
     const selected = state.selection?.kind === 'widget' && samePath(state.selection.path, path);
+    // Widgets on other pages of a Pages aren't shown
+    if (hiddenBy(path).length && !selected) continue;
     const hidden = widget.options?.visible === false;
     const outline = el('div', {
       class: `outline widget${isGroup(widget) ? ' group' : ''}${selected ? ' selected' : ''}`,
@@ -504,8 +541,21 @@ function renderTree() {
     const path = [...prefix, index];
     const selected = state.selection?.kind === 'widget' && samePath(state.selection.path, path);
     const visible = widget.options?.visible !== false;
+    const offPage = widget.type !== undefined && prefix.length && widgetAt(prefix).type === 'Pages' && index !== currentPage(widgetAt(prefix));
     return el('li', {},
-      el('div', { class: `node${selected ? ' selected' : ''}`, onclick: () => select({ kind: 'widget', path }) },
+      el('div', {
+        class: `node${selected ? ' selected' : ''}${offPage ? ' off-page' : ''}`,
+        title: offPage ? 'Another page: selecting it shows that page' : null,
+        onclick: () => {
+          const hidden = hiddenBy(path);
+          if (!hidden.length) return select({ kind: 'widget', path });
+          // Show the page the widget is on
+          change(() => {
+            for (const [pagesPath, page] of hidden) setOption(widgetAt(pagesPath), 'page', page || undefined);
+            state.selection = { kind: 'widget', path };
+          });
+        },
+      },
         el('button', {
           class: `eye${visible ? '' : ' hidden'}`, title: visible ? 'Hide' : 'Show',
           onclick: (event) => {
@@ -665,13 +715,16 @@ function renderProperties() {
           },
         })),
         (info?.options || []).flatMap((option) => optionField(widget, option)),
-        bindingFields(widget)),
+        info?.bindable ? bindingFields(widget) : null),
       el('div', { class: 'actions' },
         el('button', { onclick: () => reorder(path, 1), title: 'Draw above the next widget' }, 'Raise'),
         el('button', { onclick: () => reorder(path, -1), title: 'Draw below the previous widget' }, 'Lower'),
         el('button', { onclick: () => duplicate(path), title: 'Ctrl+D' }, 'Duplicate'),
         el('button', { class: 'danger', onclick: () => removeSelection(), title: 'Delete' }, 'Delete')),
-      isGroup(widget) ? el('p', { class: 'hint' }, 'Widgets added from the palette go inside this group.') : null,
+      widget.type === 'Pages' ? [
+        el('p', { class: 'hint' }, `Page ${currentPage(widget) + 1} of ${widget.widgets?.length || 0} shown. Widgets added from the palette go on it; select a widget in Layers to show its page.`),
+        el('div', { class: 'actions' }, el('button', { onclick: () => addPage(path) }, 'Add page')),
+      ] : isGroup(widget) ? el('p', { class: 'hint' }, 'Widgets added from the palette go inside this group.') : null,
     );
     return;
   }
@@ -781,6 +834,11 @@ function targetGroup() {
   const selection = state.selection;
   if (selection?.kind !== 'widget') return null;
   const widget = widgetAt(selection.path);
+  if (widget.type === 'Pages') {
+    // Into the shown page when it's a group
+    const page = widget.widgets?.[currentPage(widget)];
+    return page && isGroup(page) ? [...selection.path, currentPage(widget)] : selection.path;
+  }
   if (isGroup(widget)) return selection.path;
   return selection.path.length > 1 ? selection.path.slice(0, -1) : null;
 }
