@@ -54,7 +54,9 @@ Links change a ``target`` widget's ``option`` (one of its options, or ``x``,
 ``Set`` (default), ``Add`` or ``Toggle``; ``value`` is a constant encoded like
 the option, or ``{"source": "value", "offset": 0}``; optional ``min``/``max``
 are the range a 0.0-1.0 source covers and clamp numbers (see
-``pyxelwidgets.link``). Instead of an option a link can call an ``action``:
+``pyxelwidgets.link``). A value can be a condition choosing between two:
+``{"if": {"source": "cell"}, "op": "==", "to": 3, "then": true, "else": false}``
+(``then``/``else`` encoded like the option; true/false by default for on/off options). Instead of an option a link can call an ``action``:
 one of the target widget's ``actions`` (``advance``, ``play`` with a step
 ``value``, ``next``...) or, without a target, a transport action
 (``ACTIONS``: ``transport.play``..., or ``VALUE_ACTIONS`` taking a
@@ -335,7 +337,8 @@ def schema() -> dict:
             'events': events, 'messages': message_schema(),
             'link': {'changes': {name: sorted(kinds) if kinds else None for name, kinds in LINK_CHANGES.items()},
                      'sources': sorted(LINK_SOURCES),
-                     'actions': {**{name: None for name in ACTIONS}, **{name: 'float' for name in VALUE_ACTIONS}, 'debug': 'text'}}}
+                     'actions': {**{name: None for name in ACTIONS}, **{name: 'float' for name in VALUE_ACTIONS}, 'debug': 'text'},
+                     'operators': list(pyxelwidgets.link.OPERATORS)}}
 
 def message_schema() -> dict:
     """Mapping message types with their fields: name, default (encoded) and range (whole numbers) or kind."""
@@ -796,10 +799,16 @@ class Parser():
             raise LayoutError(f'{where}.value: {action} needs a value')
         numbers = int if kind == 'int' else (int, float)
         what = 'a whole number' if kind == 'int' else 'a number'
-        if isinstance(value, dict):
+        def number(given, at):
+            if isinstance(given, bool) or not isinstance(given, numbers):
+                raise LayoutError(f'{at}: must be {what}, got {given!r}')
+            return given
+        if isinstance(value, dict) and 'if' in value:
+            value = self._link_condition(value, event, f'{where}.value', lambda given, at: number(given, at))
+        elif isinstance(value, dict):
             value = self._link_source(value, event, f'{where}.value')
-        elif isinstance(value, bool) or not isinstance(value, numbers):
-            raise LayoutError(f'{where}.value: must be {what}, got {value!r}')
+        else:
+            number(value, f'{where}.value')
         setting['value'] = value
         for key, name in (('min', 'minimum'), ('max', 'maximum')):
             bound = entry.get(key)
@@ -828,6 +837,14 @@ class Parser():
                 raise LayoutError(f'{where}.value: Toggle takes no value')
         elif value is None:
             raise LayoutError(f'{where}.value: needed to {change}')
+        elif isinstance(value, dict) and 'if' in value:
+            def decode(given, at):
+                if change == 'Add':
+                    if isinstance(given, bool) or not isinstance(given, (int, float)) or (kind != 'float' and not isinstance(given, int)):
+                        raise LayoutError(f'{at}: Add takes a {"number" if kind == "float" else "whole number"}, got {given!r}')
+                    return given
+                return self._link_constant(cls, option, kind, given, at)
+            value = self._link_condition(value, event, f'{where}.value', decode, on_off = kind == 'bool' and change == 'Set')
         elif isinstance(value, dict):
             value = self._link_source(value, event, f'{where}.value')
             if change == 'Set' and kind not in LINK_SOURCES:
@@ -852,6 +869,31 @@ class Parser():
                 else:
                     bound = self._link_constant(cls, option, kind, bound, f'{where}.{key}')
             setting[name] = bound
+
+    def _link_condition(self, value: dict, event: type, where: str, decode, on_off: bool = False) -> pyxelwidgets.link.Condition:
+        """
+        ``{"if": source, "op": "==", "to": constant, "then": value, "else": value}``:
+        ``then``/``else`` are decoded by ``decode(value, where)``; on/off options default to true/false.
+        """
+        unknown = set(value) - {'if', 'op', 'to', 'then', 'else'}
+        if unknown:
+            raise LayoutError(f'{where}: a condition is {{"if", "op", "to", "then", "else"}}, not {", ".join(sorted(unknown))}')
+        source = self._link_source(value['if'] if isinstance(value['if'], dict) else {'source': value['if']}, event, f'{where}.if')
+        op = value.get('op', '==')
+        if op not in pyxelwidgets.link.OPERATORS:
+            raise LayoutError(f'{where}.op: must be one of {", ".join(pyxelwidgets.link.OPERATORS)}, got {op!r}')
+        to = value.get('to', 0)
+        if isinstance(to, bool) or not isinstance(to, (int, float, str)):
+            raise LayoutError(f'{where}.to: must be a number or text, got {to!r}')
+        chosen = []
+        for key, default in (('then', True), ('else', False)):
+            if key in value:
+                chosen.append(decode(value[key], f'{where}.{key}'))
+            elif on_off:
+                chosen.append(default)
+            else:
+                raise LayoutError(f'{where}.{key}: needed (the value when the condition is {"true" if key == "then" else "false"})')
+        return pyxelwidgets.link.Condition(source, op, to, *chosen)
 
     @staticmethod
     def _link_source(value: dict, event: type, where: str) -> pyxelwidgets.message.Source:
