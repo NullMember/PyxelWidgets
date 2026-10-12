@@ -1,7 +1,7 @@
 """
 A grid in a web browser, e.g. on a tablet or a phone::
 
-    grid = WebGrid(columns = 8, rows = 8, port = 8765)
+    grid = WebGrid(columns = 8, rows = 8, port = 8800)
     grid.connect()
     print('Open', grid.url)           # on any device on the same network
     surface.add_device(grid)
@@ -98,11 +98,11 @@ class WebGrid(pyxelwidgets.devices.Device):
     grid = (8, 8)
     color_model = pyxelwidgets.devices.RGB(bits = 8, gamma = False)
 
-    def __init__(self, *, columns: int = 8, rows: int = 8, port: int = 8765, host: str = '0.0.0.0', title: str = 'PyxelWidgets', **kwargs):
+    def __init__(self, *, columns: int = 8, rows: int = 8, port: int = 8800, host: str = '0.0.0.0', title: str = 'PyxelWidgets', **kwargs):
         """
         columns, rows: int = 8, optional
             The grid's size.
-        port: int = 8765, optional
+        port: int = 8800, optional
             The HTTP port browsers open (0: any free one, see ``url``).
         host: str = '0.0.0.0', optional
             The address to listen on; '127.0.0.1' for this computer only.
