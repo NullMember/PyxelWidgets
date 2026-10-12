@@ -104,7 +104,7 @@ def _message_json(message) -> dict:
 class _OutputProxy(pyxelwidgets.events.Emitter):
     """
     Stands in for a layout output in the preview: logs what mappings send and,
-    with hardware on, forwards it to the real output and its replies back.
+    when the output is connected, forwards it there and its replies back.
     """
 
     def __init__(self, preview, name: str):
@@ -155,17 +155,43 @@ class _PreviewActions:
         if transport is not None:
             transport.locate(beats)
 
+def _entries(widgets, found = None) -> dict:
+    """Layout widget entries by name, nested ones included."""
+    found = {} if found is None else found
+    for entry in widgets or []:
+        found[entry.get('name')] = entry
+        _entries(entry.get('widgets'), found)
+    return found
+
+def _carry_state(old_ui, old_layout: dict, ui, layout: dict) -> None:
+    """Give the widgets of a rebuilt layout the state of the ones they replace (same name and type)."""
+    before, after = _entries(old_layout.get('widgets')), _entries(layout.get('widgets'))
+    for name, widget in ui.widgets.items():
+        old = old_ui.widgets.get(name)
+        if old is None or type(old) is not type(widget):
+            continue
+        state = old.save_state()
+        old_options, new_options = (before.get(name) or {}).get('options') or {}, (after.get(name) or {}).get('options') or {}
+        # An option set in the designer (e.g. a new value or page) wins over the old state
+        for key in list(state):
+            if old_options.get(key) != new_options.get(key):
+                del state[key]
+        widget.load_state(state)
+
 class Preview:
     """
     A layout built without hardware, with a preview device, an event log and a
-    transport to play it. With ``set_hardware(True)`` the layout's devices are
-    connected too: they mirror the preview and their pads work the widgets.
+    transport to play it. The layout's devices and outputs can be connected
+    one by one (``set_connected``), or all as they're added (``connect``):
+    devices mirror the preview and their pads work the widgets, outputs send
+    what the widgets' mappings send.
     """
 
     #: Frames per second sent to connected hardware
     fps = 30
 
-    def __init__(self, layout: dict | None = None):
+    def __init__(self, layout: dict | None = None, *, connect: bool = False):
+        """``connect``: connect the layout's devices and outputs as they are added (unless disconnected)."""
         self.lock = threading.RLock()
         # Separate from ``lock``: events arrive from device and transport threads holding the surface lock
         self._events_lock = threading.Lock()
@@ -175,17 +201,22 @@ class Preview:
         self.transport = None
         self.events = collections.deque(maxlen = 500)
         self.event_counter = 0
-        self.hardware_enabled = False
-        # One entry per layout device: {'key', 'device' (or None), 'error'}
+        self.connect = connect
+        # Connections switched on or off by hand, by connection key: True or False
+        self.choices = {}
+        # One entry per layout device and output: {'key', 'device' (or None), 'error'}
         self.hardware = []
-        # One entry per layout output: {'key', 'output' (or None), 'error'}
         self.outputs = []
         self.proxies = {}
         self._render_stop = None
         self.load(layout or new_layout())
 
     def load(self, layout: dict) -> None:
-        """Rebuild from ``layout`` (upgraded to the current version); raises LayoutError and keeps the previous layout if it is invalid."""
+        """
+        Rebuild from ``layout`` (upgraded to the current version); raises
+        LayoutError and keeps the previous layout if it is invalid. Widgets keep
+        what input changed (values, steps...) unless their options changed it.
+        """
         layout = pyxelwidgets.parser.upgrade(layout)
         ui = pyxelwidgets.parser.load(copy.deepcopy(layout), devices = False)
         device = PreviewDevice(width = ui.surface.rect.w, height = ui.surface.rect.h, held_time = 0.6)
@@ -194,18 +225,19 @@ class Preview:
         ui.surface.transport = self._idle(ui)
         for widget in ui.widgets.values():
             widget.on(pyxelwidgets.events.WidgetEvent, self._record)
-        # Mappings send to stand-ins that log, and forward to the real outputs with hardware on
+        # Mappings send to stand-ins that log, and forward to the connected outputs
         proxies = {entry['name']: _OutputProxy(self, entry['name']) for entry in ui.output_settings()}
         ui.mappings = ui.map(proxies)
         with self.lock:
             playing = self.transport is not None
             self.stop()
             old = self.ui
+            if old is not None:
+                _carry_state(old, self.layout, ui, layout)
             for proxy in self.proxies.values():
                 proxy.detach()
             self.layout, self.ui, self.device, self.proxies = copy.deepcopy(layout), ui, device, proxies
-            if self.hardware_enabled:
-                self._attach_hardware(old)
+            self._attach(old)
             if playing:
                 self.play()
 
@@ -220,38 +252,35 @@ class Preview:
             self.event_counter += 1
             self.events.append((self.event_counter, entry))
 
-    # Hardware
+    # Hardware: the layout's devices mirror the preview, its outputs send
+
+    def set_connected(self, kind: str, index: int, connected: bool) -> dict:
+        """Connect or disconnect layout ``devices[index]`` or ``outputs[index]`` (``kind``); returns the status."""
+        entries = self.layout.get(kind) or []
+        if kind not in ('devices', 'outputs') or not 0 <= index < len(entries):
+            raise ValueError(f'no {kind} entry {index}')
+        with self.lock:
+            self.choices[_device_key(entries[index])] = bool(connected)
+            self._attach(self.ui)
+            return self.hardware_status()
 
     def set_hardware(self, enabled: bool) -> dict:
-        """Connect (or close) the layout's devices and outputs; returns their status."""
+        """Connect (or close) every device and output of the layout, and the ones added later."""
         with self.lock:
-            if enabled and not self.hardware_enabled:
-                self.hardware_enabled = True
-                self._attach_hardware(None)
-                self._render_stop = threading.Event()
-                threading.Thread(target = self._render, args = (self._render_stop,), name = 'DesignerHardware', daemon = True).start()
-            elif not enabled and self.hardware_enabled:
-                self.hardware_enabled = False
-                self._render_stop.set()
-                for entry in self.hardware:
-                    if entry['device'] is not None:
-                        self.ui.surface.remove_device(entry['device'])
-                        entry['device'].close()
-                self.hardware = []
-                for proxy in self.proxies.values():
-                    proxy.detach()
-                for entry in self.outputs:
-                    if entry['device'] is not None:
-                        entry['device'].close()
-                self.outputs = []
+            self.connect = enabled
+            self.choices = {}
+            self._attach(self.ui)
             return self.hardware_status()
 
     def hardware_status(self) -> dict:
         status = lambda entries: [{'connected': entry['device'] is not None, 'error': entry['error']} for entry in entries]
-        return {'enabled': self.hardware_enabled, 'devices': status(self.hardware), 'outputs': status(self.outputs)}
+        return {'devices': status(self.hardware), 'outputs': status(self.outputs)}
 
-    def _attach_hardware(self, old_ui) -> None:
-        """Connect the current layout's devices, reusing the ones already open for unchanged entries."""
+    def _wanted(self, spec: dict) -> bool:
+        return self.choices.get(_device_key(spec), self.connect)
+
+    def _attach(self, old_ui) -> None:
+        """Connect the current layout's devices and outputs as wanted, reusing open ones for unchanged entries."""
         pool = {}
         for entry in self.hardware:
             if entry['device'] is not None:
@@ -260,52 +289,40 @@ class Preview:
                 pool.setdefault(entry['key'], []).append(entry['device'])
         self.hardware = []
         for index, spec in enumerate(self.layout.get('devices', [])):
-            key = _device_key(spec)
-            reused = pool.get(key)
-            device, error = (reused.pop(0) if reused else None), None
-            if device is None:
-                device, error = self._open(spec, index)
+            device, error = self._take(pool, spec, index, self._open)
             if device is not None:
                 self.ui.surface.add_device(device, spec.get('x', 0), spec.get('y', 0))
                 device.invalidate()
-            self.hardware.append({'key': key, 'device': device, 'error': error})
-        for devices in pool.values():
-            for device in devices:
-                device.close()
+            self.hardware.append({'key': _device_key(spec), 'device': device, 'error': error})
         # Removing devices from the old surface removed their bindings
         self.ui.bind([entry['device'] for entry in self.hardware], _PreviewActions(self))
-        self._attach_outputs()
-
-    def _attach_outputs(self) -> None:
-        """Connect the layout's outputs to their stand-ins, reusing open ones for unchanged entries."""
-        pool = {}
+        outputs = {}
         for entry in self.outputs:
             if entry['device'] is not None:
-                pool.setdefault(entry['key'], []).append(entry['device'])
+                outputs.setdefault(entry['key'], []).append(entry['device'])
         self.outputs = []
+        for proxy in self.proxies.values():
+            proxy.detach()
         for index, spec in enumerate(self.layout.get('outputs') or []):
-            key = _device_key(spec)
-            reused = pool.get(key)
-            output, error = (reused.pop(0) if reused else None), None
-            if output is None:
-                output, error = self._open_output(spec, index)
+            output, error = self._take(outputs, spec, index, self._open_output)
             if output is not None and spec['name'] in self.proxies:
                 self.proxies[spec['name']].attach(output)
-            self.outputs.append({'key': key, 'device': output, 'error': error})
-        for outputs in pool.values():
-            for output in outputs:
-                output.close()
+            self.outputs.append({'key': _device_key(spec), 'device': output, 'error': error})
+        for entries in (*pool.values(), *outputs.values()):
+            for entry in entries:
+                entry.close()
+        if any(entry['device'] is not None for entry in self.hardware) and self._render_stop is None:
+            self._render_stop = threading.Event()
+            threading.Thread(target = self._render, args = (self._render_stop,), name = 'DesignerHardware', daemon = True).start()
 
-    @staticmethod
-    def _open_output(spec: dict, index: int) -> tuple:
-        try:
-            output = pyxelwidgets.parser.build_output(spec, f'outputs[{index}]')
-        except Exception as error:
-            return None, str(error) or type(error).__name__
-        if not output.connected:
-            output.close()
-            return None, 'no port: give it a virtual port name, or input/output ports'
-        return output, None
+    def _take(self, pool: dict, spec: dict, index: int, open) -> tuple:
+        """(connection, None), (None, why not) or (None, None) when it's disconnected on purpose."""
+        if not self._wanted(spec):
+            return None, None
+        reused = pool.get(_device_key(spec))
+        if reused:
+            return reused.pop(0), None
+        return open(spec, index)
 
     @staticmethod
     def _open(spec: dict, index: int) -> tuple:
@@ -321,6 +338,17 @@ class Preview:
             return None, f'no MIDI port found (looked for {", ".join(cls.ports) or "nothing"})'
         return device, None
 
+    @staticmethod
+    def _open_output(spec: dict, index: int) -> tuple:
+        try:
+            output = pyxelwidgets.parser.build_output(spec, f'outputs[{index}]')
+        except Exception as error:
+            return None, str(error) or type(error).__name__
+        if not output.connected:
+            output.close()
+            return None, 'no port: give it a virtual port name, or input/output ports'
+        return output, None
+
     def _render(self, stop: threading.Event) -> None:
         """Send frames to the hardware (the browser only renders when it asks for a frame)."""
         while not stop.wait(1.0 / self.fps):
@@ -331,7 +359,13 @@ class Preview:
 
     def close(self) -> None:
         self.stop()
-        self.set_hardware(False)
+        with self.lock:
+            self.connect = False
+            self.choices = {}
+            self._attach(self.ui)
+            if self._render_stop is not None:
+                self._render_stop.set()
+                self._render_stop = None
 
     def frame(self, since: int = 0) -> dict:
         """Render; pixels are ``#rrggbb`` rows from the top, plus events after ``since``."""
@@ -381,13 +415,11 @@ class Preview:
 class Designer:
     """The designer's state: the preview and the file it saves to."""
 
-    def __init__(self, path: str | None = None, *, hardware: bool = False):
+    def __init__(self, path: str | None = None, *, connect: bool = True):
         self.path = pathlib.Path(path) if path else None
         layout = json.loads(self.path.read_text()) if self.path and self.path.exists() else new_layout()
-        self.preview = Preview(layout)
+        self.preview = Preview(layout, connect = connect)
         self.catalog = catalog()
-        if hardware:
-            self.preview.set_hardware(True)
 
     def close(self) -> None:
         """Stop the transport and close connected hardware."""
@@ -465,8 +497,8 @@ class Handler(http.server.BaseHTTPRequestHandler):
                 preview.play() if body.get('playing') else preview.stop()
             elif path == '/api/save':
                 self.designer.save(body)
-            elif path == '/api/hardware':
-                self._json({'ok': True, **preview.set_hardware(bool(body.get('enabled')))})
+            elif path == '/api/connect':
+                self._json({'ok': True, **preview.set_connected(str(body['kind']), int(body['index']), bool(body['connected']))})
                 return
             else:
                 self._send(404, b'Not found', 'text/plain')
@@ -476,10 +508,10 @@ class Handler(http.server.BaseHTTPRequestHandler):
             return
         self._json({'ok': True})
 
-def serve(path: str | None = None, port: int = 8765, host: str = '127.0.0.1', *, hardware: bool = False) -> http.server.ThreadingHTTPServer:
+def serve(path: str | None = None, port: int = 8765, host: str = '127.0.0.1', *, connect: bool = True) -> http.server.ThreadingHTTPServer:
     """
     Start the designer's web server (not yet serving: call ``serve_forever``).
-    With ``hardware``, the layout's devices mirror the preview from the start.
+    With ``connect`` (default), the layout's devices and outputs connect as they're added.
     """
-    handler = type('DesignerHandler', (Handler,), {'designer': Designer(path, hardware = hardware)})
+    handler = type('DesignerHandler', (Handler,), {'designer': Designer(path, connect = connect)})
     return http.server.ThreadingHTTPServer((host, port), handler)

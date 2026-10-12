@@ -27,7 +27,8 @@ const state = {
   future: [],
   lastEvent: 0,
   playing: false,
-  hardware: { enabled: false, devices: [], outputs: [] },
+  hardware: { devices: [], outputs: [] },
+  dragType: null, // a palette widget type being dragged onto the grid
   error: null,
   frameSize: [0, 0],
   spriteFrame: 0, // the Sprite frame being painted
@@ -349,9 +350,11 @@ function renderOutputs() {
     const count = (state.layout.mappings || []).filter((mapping) => mapping.output === output.name).length;
     return el('li', { class: selected ? 'selected' : '', onclick: () => select({ kind: 'output', index }) },
       el('span', { class: 'swatch-output' }),
-      el('span', { class: 'name' }, output.name),
+      el('span', { class: 'label' },
+        el('span', { class: 'name' }, output.name),
+        el('span', { class: 'type' }, `${outputInfo(output)?.model || output.type}${count ? ` · ${count} message${count > 1 ? 's' : ''}` : ''}`)),
       hardwareDot(index, 'outputs'),
-      el('span', { class: 'type' }, `${outputInfo(output)?.model || output.type}${count ? ` · ${count}` : ''}`));
+      connectButton('outputs', index));
   }));
   if (!outputsOf().length) list.append(el('li', { class: 'hint' }, 'MIDI ports, OSC, Mackie Control or HUI that widgets send to.'));
 }
@@ -1063,21 +1066,50 @@ function renderDevices() {
     const selected = state.selection?.kind === 'device' && state.selection.index === index;
     return el('li', { class: selected ? 'selected' : '', onclick: () => select({ kind: 'device', index }) },
       el('span', { class: 'swatch-device' }),
-      el('span', { class: 'name' }, deviceInfo(device)?.model || device.type),
+      el('span', { class: 'label' },
+        el('span', { class: 'name' }, deviceInfo(device)?.model || device.type),
+        el('span', { class: 'type' }, `at ${device.x || 0}, ${device.y || 0}`)),
       hardwareDot(index),
-      el('span', { class: 'type' }, `at ${device.x || 0}, ${device.y || 0}`));
+      connectButton('devices', index));
   }));
   if (!state.layout.devices.length) list.append(el('li', { class: 'hint' }, 'Preview only. Add the hardware the layout runs on.'));
 }
 
 function hardwareDot(index, list = 'devices') {
-  if (!state.hardware.enabled) return null;
   const status = state.hardware[list]?.[index];
   if (!status) return el('span', { class: 'dot', title: 'Connecting…' });
+  if (!status.connected && !status.error) return el('span', { class: 'dot idle', title: 'Not connected' });
   return el('span', {
     class: `dot ${status.connected ? 'on' : 'off'}`,
     title: status.connected ? (list === 'devices' ? 'Connected: mirrors the preview, pads work the widgets' : 'Connected: sends and receives messages') : status.error,
   });
+}
+
+// Connects or disconnects a layout device or output (an on-screen device can't be)
+function connectButton(kind, index) {
+  const entry = (kind === 'devices' ? state.layout.devices : outputsOf())[index];
+  if (entry?.type?.startsWith('virtual.')) return null;
+  const connected = !!state.hardware[kind]?.[index]?.connected;
+  return el('button', {
+    class: `connect${connected ? ' on' : ''}`,
+    title: connected ? 'Disconnect' : (state.hardware[kind]?.[index]?.error || 'Connect'),
+    onclick: (event) => {
+      event.stopPropagation();
+      setConnected(kind, index, !connected);
+    },
+  }, connected ? 'Disconnect' : 'Connect');
+}
+
+async function setConnected(kind, index, connected) {
+  // The server connects what's in the layout it has
+  await flushSync();
+  const reply = await api('POST', '/api/connect', { kind, index, connected });
+  if (!reply.ok) return setStatus(reply.error, 'error');
+  state.hardware = { devices: reply.devices, outputs: reply.outputs };
+  renderDevices();
+  renderOutputs();
+  const status = state.hardware[kind][index];
+  if (connected && !status?.connected) setStatus(`Couldn't connect: ${status?.error}`, 'error');
 }
 
 function select(selection) {
@@ -1469,11 +1501,6 @@ function renderToolbar() {
   play.textContent = state.playing ? '■ Stop' : '▶ Play';
   play.classList.toggle('on', state.playing);
   if (!state.playing) $('position').textContent = '';
-  const hardware = $('hardware');
-  const all = [...state.hardware.devices, ...(state.hardware.outputs || [])];
-  const connected = all.filter((d) => d.connected).length;
-  hardware.classList.toggle('on', state.hardware.enabled);
-  hardware.textContent = state.hardware.enabled ? `Hardware ${connected}/${all.length}` : 'Hardware';
   $('palette-hint').textContent = targetGroup() ? `Click to add to ${widgetAt(targetGroup()).name}.` : 'Click to add to the surface.';
 }
 
@@ -1501,17 +1528,73 @@ function targetGroup() {
   return selection.path.length > 1 ? selection.path.slice(0, -1) : null;
 }
 
-function addWidget(type) {
-  const group = targetGroup();
+// Adds a widget into ``group`` (a path, or null for the surface) at ``x``, ``y`` in it
+function addWidget(type, group = targetGroup(), x = 0, y = 0) {
   const [maxWidth, maxHeight] = group ? [widgetAt(group).width, widgetAt(group).height] : [state.layout.surface.width, state.layout.surface.height];
   const [width, height] = DEFAULT_SIZE[type] || [maxWidth, maxHeight];
-  const widget = { type, name: uniqueName(type), x: 0, y: 0, width: Math.min(width, maxWidth), height: Math.min(height, maxHeight), options: {} };
+  const widget = { type, name: uniqueName(type), x, y, width: Math.min(width, maxWidth - x), height: Math.min(height, maxHeight - y), options: {} };
   if (state.catalog.widgets[type].container) widget.widgets = [];
   change((layout) => {
     const list = group ? widgetAt(group).widgets : layout.widgets;
     list.push(widget);
     state.selection = widgetSelection([[...(group || []), list.length - 1]]);
   });
+}
+
+// ---------------------------------------------------------------- dragging widgets onto the grid
+
+// Where a dragged widget would go: the pad under the pointer is its top-left; inside the
+// innermost group (or shown page) it fits in, else on the surface
+function dropPlace(event, type) {
+  const bounds = $('overlay').getBoundingClientRect();
+  const size = step();
+  const { width: surfaceWidth, height: surfaceHeight } = state.layout.surface;
+  const column = Math.floor((event.clientX - bounds.left) / size);
+  const row = Math.floor((event.clientY - bounds.top) / size);
+  if (column < 0 || row < 0 || column >= surfaceWidth || row >= surfaceHeight) return null;
+  const [defaultWidth, defaultHeight] = DEFAULT_SIZE[type] || [surfaceWidth, surfaceHeight];
+  const width = Math.min(defaultWidth, surfaceWidth), height = Math.min(defaultHeight, surfaceHeight);
+  // Top-left at the pointer, moved back inside the surface
+  const x = clamp(column, 0, surfaceWidth - width);
+  const y = clamp(surfaceHeight - 1 - row - height + 1, 0, surfaceHeight - height);
+  let group = null;
+  for (const { widget, path } of allWidgets()) {
+    if (!isGroup(widget) || widget.type === 'Pages' || hiddenBy(path).length || widget.options?.visible === false) continue;
+    const [gx, gy] = absolute(path);
+    if (x >= gx && y >= gy && x + width <= gx + widget.width && y + height <= gy + widget.height && (!group || path.length > group.length)) group = path;
+  }
+  const [gx, gy] = group ? absolute(group) : [0, 0];
+  return { group, x: x - gx, y: y - gy, absolute: [x, y, width, height] };
+}
+
+function clearGhost() {
+  $('overlay').querySelector('.ghost')?.remove();
+}
+
+function dragOver(event) {
+  if (!state.dragType) return;
+  const spot = dropPlace(event, state.dragType);
+  if (!spot) return clearGhost();
+  event.preventDefault();
+  event.dataTransfer.dropEffect = 'copy';
+  let ghost = $('overlay').querySelector('.ghost');
+  if (!ghost) {
+    ghost = el('div', { class: 'outline ghost' });
+    $('overlay').append(ghost);
+  }
+  place(ghost, ...spot.absolute);
+}
+
+function drop(event) {
+  const type = state.dragType || event.dataTransfer.getData('text/plain');
+  clearGhost();
+  state.dragType = null;
+  if (!state.catalog.widgets[type]) return;
+  const spot = dropPlace(event, type);
+  if (!spot) return;
+  event.preventDefault();
+  if (state.mode !== 'edit') setMode('edit');
+  addWidget(type, spot.group, spot.x, spot.y);
 }
 
 function addDevice() {
@@ -1689,16 +1772,10 @@ function setMode(mode) {
 function bindToolbar() {
   $('mode-edit').onclick = () => setMode('edit');
   $('mode-try').onclick = () => setMode('try');
-  $('hardware').onclick = async () => {
-    const reply = await api('POST', '/api/hardware', { enabled: !state.hardware.enabled });
-    state.hardware = { enabled: !state.hardware.enabled, devices: reply.devices || [], outputs: reply.outputs || [] };
-    renderToolbar();
-    renderDevices();
-    renderOutputs();
-    const failed = [...state.hardware.devices, ...state.hardware.outputs].find((d) => !d.connected);
-    if (state.hardware.enabled && failed) setStatus(`Some devices aren't connected: ${failed.error}`, 'error');
-    else if (state.hardware.enabled) setStatus('Hardware connected: it mirrors the preview', 'ok');
-  };
+  const board = $('board');
+  board.addEventListener('dragover', dragOver);
+  board.addEventListener('drop', drop);
+  board.addEventListener('dragleave', (event) => { if (!board.contains(event.relatedTarget)) clearGhost(); });
   $('play').onclick = async () => {
     state.playing = !state.playing;
     renderToolbar();
@@ -1753,7 +1830,16 @@ function bindToolbar() {
 
 function buildCatalog() {
   $('palette').replaceChildren(...Object.entries(state.catalog.widgets).map(([type, info]) =>
-    el('button', { title: (info.doc || type).replace(/``/g, ''), onclick: () => addWidget(type), dataset: { type } },
+    el('button', {
+      title: `${(info.doc || type).replace(/``/g, '')} Click to add, or drag onto the grid.`, onclick: () => addWidget(type), dataset: { type },
+      draggable: 'true',
+      ondragstart: (event) => {
+        state.dragType = type;
+        event.dataTransfer.setData('text/plain', type);
+        event.dataTransfer.effectAllowed = 'copy';
+      },
+      ondragend: () => { state.dragType = null; clearGhost(); },
+    },
       el('span', { class: 'glyph' }, type === 'ButtonGroup' ? 'BG' : type.slice(0, 2)), el('span', { class: 'label' }, type))));
   const groups = {};
   for (const device of state.catalog.devices) (groups[device.vendor || 'Other'] ||= []).push(device);
