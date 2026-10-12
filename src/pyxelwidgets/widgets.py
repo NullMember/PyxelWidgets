@@ -3,6 +3,7 @@ import pyxelwidgets.buffer
 import pyxelwidgets.events
 import pyxelwidgets.font
 import pyxelwidgets.color
+import pyxelwidgets.rate
 import pyxelwidgets.rectangle
 import numpy
 import enum
@@ -11,7 +12,10 @@ import typing
 
 # A note value such as '1/16', '1/8.' or 'bar': how often a Transport plays a widget
 # (see pyxelwidgets.transport). Widgets only store it.
-Rate = typing.NewType('Rate', str)
+Rate = pyxelwidgets.rate.Rate
+
+# Sprite frames: a list of RGBA buffers, or of 2-d arrays/lists of Colors
+Frames = typing.NewType('Frames', list)
 
 class Propagation(enum.Enum):
     """
@@ -1359,38 +1363,52 @@ class Sequencer(Widget):
     
 # Sprite class
 class Sprite(Widget):
-    """Displays frames (optionally animated). Display-only: presses pass through by default."""
+    """
+    Shows a picture, or animates through ``frames`` changing every ``rate``
+    (a note value, or seconds). Display-only: presses pass through by default.
+    """
     def __init__(self, x: int, y: int, width: int, height: int, *,
-                 animate: bool = False,
-                 frames = None,
-                 target: int = 30,
-                 tick: int = 0,
+                 frames: Frames | None = None,
+                 rate: Rate | float | None = None,
                  propagation: Propagation = Propagation.Pass,
                  **kwargs):
+        if isinstance(rate, str):
+            pyxelwidgets.rate.parse_rate(rate)
+        elif rate is not None and not rate > 0:
+            raise ValueError(f'rate must be a note value or positive seconds, got {rate!r}')
+        self.rate = rate
+        self.frame = 0
+        self.frames = [pyxelwidgets.buffer.to_buffer(frame) for frame in frames or []]
         super().__init__(x=x, y=y, width=width, height=height, propagation = propagation, **kwargs)
-        self.animate = animate
-        # Sequence of frames, each an RGBA buffer or a 2-d array/list of Colors
-        self.target = target
-        self.tick = tick
-        self.current_frame = 0
-        self.next_frame = 0
-        if frames is None:
-            self.frames = [pyxelwidgets.buffer.new(self.rect.w, self.rect.h)]
-        else:
-            self.frames = [pyxelwidgets.buffer.to_buffer(frame) for frame in frames]
-        self.buffer = self.frames[0]
+        self.buffer = self.frames[0].copy()
+
+    def _resize(self, width, height):
+        # Frames of another size are cropped or padded from the bottom-left
+        fitted = []
+        for frame in self.frames or [pyxelwidgets.buffer.new(width, height)]:
+            buffer = pyxelwidgets.buffer.new(width, height)
+            w, h = min(width, frame.shape[0]), min(height, frame.shape[1])
+            buffer[:w, :h] = frame[:w, :h]
+            fitted.append(buffer)
+        self.frames = fitted
+        self.frame %= len(fitted)
+        return True
+
+    def render(self, time: pyxelwidgets.animation.Time | None = None) -> bool:
+        if self.rate is not None and len(self.frames) > 1:
+            time = time if time is not None else pyxelwidgets.animation.now()
+            if isinstance(self.rate, str):
+                position = time.beats / pyxelwidgets.rate.quarter_notes(self.rate, time.signature)
+            else:
+                position = time.seconds / self.rate
+            frame = int(position // 1) % len(self.frames)
+            if frame != self.frame:
+                self.frame = frame
+                self.updated = True
+        return super().render(time)
 
     def draw(self) -> None:
-        self.buffer = self.frames[self.next_frame]
-        if self.animate:
-            self.tick += 1
-            if self.tick == self.target:
-                self.tick = 0
-                self.current_frame = self.next_frame
-                self.next_frame += 1
-                if self.next_frame == len(self.frames):
-                    self.next_frame = 0
-            self.updated = True
+        self.buffer[:] = self.frames[self.frame]
 
 # Tracker class
 class Tracker(Widget):
