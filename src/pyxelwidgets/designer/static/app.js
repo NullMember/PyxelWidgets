@@ -5,15 +5,8 @@ const DEFAULT_SIZE = {
   Button: [1, 1], ButtonGroup: [4, 1], ClipLauncher: [8, 4], DrumPads: [4, 4], Fader: [1, 8], Keyboard: [8, 4], Knob: [3, 3],
   Meter: [1, 8], Sequencer: [8, 4], Sprite: [2, 2], Text: [8, 5], Tracker: [4, 8], XY: [4, 4],
 };
-const RHYTHMIC = new Set(['Sequencer', 'Tracker', 'ClipLauncher']);
 // Colors offered for painting Sprite frames (any color can be picked too)
 const SWATCHES = ['White', 'Gray', 'Red', 'OrangeRed', 'Orange', 'Yellow', 'Lime', 'Green', 'Cyan', 'DodgerBlue', 'Blue', 'Purple', 'Magenta', 'HotPink'];
-const EVENTS = {
-  Button: ['Changed', 'e.value'], Fader: ['Changed', 'e.value'], Knob: ['Changed', 'e.value'], XY: ['Changed', 'e.value'],
-  Keyboard: ['NoteOn', 'e.note, e.velocity'], DrumPads: ['NoteOn', 'e.note, e.velocity'], ButtonGroup: ['Toggled', 'e.x, e.y, e.state'],
-  ClipLauncher: ['ClipStarted', 'e.x, e.y'],
-  Sequencer: ['StepPlayed', 'e.step, e.active'], Tracker: ['RowPlayed', 'e.row, e.columns'],
-};
 
 const state = {
   catalog: null,
@@ -1270,7 +1263,7 @@ function linkCard(widget, link, index) {
 const CLOCK_EVENTS = new Set(['StepPlayed', 'RowPlayed', 'ClipQueued', 'ClipStarted', 'ClipStopped', 'PageChanged']);
 
 function drawerPrefs() {
-  prefs.drawer ||= { open: true, tab: 'events', height: 230, filter: 'all', handlers: false };
+  prefs.drawer ||= { open: true, tab: 'events', height: 230, filter: 'all', handlers: false, code: 'loader' };
   return prefs.drawer;
 }
 
@@ -1312,6 +1305,13 @@ function renderDrawer() {
       el('button', { id: 'clear-events', class: 'link', onclick: () => { state.eventLog = []; renderEvents(); } }, 'clear'));
   } else if (drawer.tab === 'python') {
     fill(tools,
+      el('div', { class: 'segmented', role: 'group', 'aria-label': 'Which code' },
+        [['loader', 'Layout file', 'Load the layout file and run it'],
+          ['standalone', 'Standalone', 'Build the same surface in code, without the layout file']].map(([value, label, title]) =>
+          el('button', {
+            id: `code-${value}`, class: (drawer.code || 'loader') === value ? 'active' : '', title,
+            onclick: () => { drawer.code = value; savePrefs(); renderDrawer(); },
+          }, label))),
       el('label', { title: 'Print each widget\'s main event' },
         el('input', { type: 'checkbox', id: 'code-handlers', checked: !!drawer.handlers, onchange: (e) => { drawer.handlers = e.target.checked; savePrefs(); renderCode(); } }),
         ' with handlers'),
@@ -1322,6 +1322,7 @@ function renderDrawer() {
           setStatus('Copied the Python snippet', 'ok');
         },
       }, 'copy'));
+    renderCode();
   } else {
     tools.replaceChildren();
   }
@@ -2736,26 +2737,31 @@ function renderProperties() {
   );
 }
 
+// The Python tab's code comes from the server (pyxelwidgets.codegen): both versions for the layout as it is
+const code = { key: null, data: null, timer: null };
+
 function renderCode() {
-  const used = new Set();
-  const handlers = drawerPrefs().handlers;
-  const lines = handlers ? allWidgets().filter(({ widget }) => EVENTS[widget.type]).map(({ widget }) => {
-    const [event, fields] = EVENTS[widget.type];
-    used.add(event);
-    return `ui[${JSON.stringify(widget.name)}].on(${event}, lambda e: print(${JSON.stringify(widget.name)}, ${fields}))`;
-  }) : [];
+  const drawer = drawerPrefs();
+  if (!drawer.open || drawer.tab !== 'python') return;
   const file = state.file ? state.file.split(/[\\/]/).pop() : 'layout.json';
-  $('code').textContent = [
-    'from pyxelwidgets import parser',
-    used.size ? `from pyxelwidgets.events import ${[...used].sort().join(', ')}` : null,
-    '',
-    `ui = parser.load(${JSON.stringify(file)})`,
-    ...(lines.length ? ['', ...lines] : []),
-    '',
-    ...(allWidgets().some(({ widget }) => RHYTHMIC.has(widget.type))
-      ? ['app = ui.app()  # Sequencers and Trackers follow app.transport', 'app.transport.play()', 'app.run()']
-      : ['ui.app().run()']),
-  ].filter((line) => line !== null).join('\n');
+  const key = JSON.stringify([state.layout, file, !!drawer.handlers]);
+  const show = () => {
+    const data = code.data;
+    if (!data) return;
+    $('code').textContent = data.ok ? data[drawer.code === 'standalone' ? 'standalone' : 'loader'] : `# The layout has a problem, so there's no code for it:\n# ${data.error}`;
+  };
+  if (key === code.key) {
+    show();
+    return;
+  }
+  code.key = key;
+  clearTimeout(code.timer);
+  code.timer = setTimeout(async () => {
+    const data = await api('POST', '/api/python', { layout: state.layout, file, handlers: !!drawer.handlers });
+    if (code.key !== key) return;
+    code.data = data;
+    show();
+  }, 150);
 }
 
 function renderToolbar() {

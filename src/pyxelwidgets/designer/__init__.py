@@ -21,6 +21,7 @@ import pathlib
 import threading
 import urllib.parse
 
+import pyxelwidgets.codegen
 import pyxelwidgets.color
 import pyxelwidgets.devices
 import pyxelwidgets.events
@@ -777,6 +778,13 @@ class Handler(http.server.BaseHTTPRequestHandler):
                     body = body if isinstance(body, dict) else {}
                     self.designer.new(body.get('template'), body.get('layout'))
                 self._json({'ok': True, 'file': str(self.designer.path) if self.designer.path else None, 'layout': preview.layout})
+                return
+            elif path == '/api/python':
+                # {"layout", "file", "handlers"}: the Python tab's code, loading the layout file and building it in code
+                layout, handlers = body['layout'], bool(body.get('handlers'))
+                file = str(body.get('file') or 'layout.json')
+                self._json({'ok': True, 'loader': pyxelwidgets.codegen.loader(layout, file, handlers = handlers),
+                            'standalone': pyxelwidgets.codegen.standalone(layout, handlers = handlers)})
                 return
             elif path == '/api/view':
                 preview.set_hidden([str(name) for name in body.get('hidden', [])])
