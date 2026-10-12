@@ -134,7 +134,7 @@ class Surface(pyxelwidgets.events.Emitter):
 
     # Links
 
-    def link(self, widget, target, option: str, value = None, *, on: type, **kwargs) -> pyxelwidgets.link.Link:
+    def link(self, widget, target, option: str | None = None, value = None, *, on: type, **kwargs) -> pyxelwidgets.link.Link:
         """
         Change ``option`` of ``target`` on each ``on`` event of ``widget``; see
         ``pyxelwidgets.link`` for ``value``, ``change``, ``minimum`` and ``maximum``.
