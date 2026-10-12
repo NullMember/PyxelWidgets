@@ -129,6 +129,25 @@ class RowPlayed(WidgetEvent):
     row: int
     columns: tuple
 
+@dataclasses.dataclass(frozen = True)
+class ClipQueued(WidgetEvent):
+    """A ClipLauncher clip waits for its clock to start (``launch``) or stop."""
+    x: int
+    y: int
+    launch: bool
+
+@dataclasses.dataclass(frozen = True)
+class ClipStarted(WidgetEvent):
+    """A ClipLauncher clip started playing."""
+    x: int
+    y: int
+
+@dataclasses.dataclass(frozen = True)
+class ClipStopped(WidgetEvent):
+    """A ClipLauncher clip stopped."""
+    x: int
+    y: int
+
 # Device events
 
 @dataclasses.dataclass(frozen = True)
