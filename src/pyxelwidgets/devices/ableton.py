@@ -194,6 +194,11 @@ class Push2(pyxelwidgets.devices.midi.MIDI):
         self.send_note_on(x + (y * 8) + 36, value)
     
     def decode(self, midi: list) -> None:
+        if len(midi) == 2 and midi[0] & 0xF0 == 0xD0:
+            # Channel pressure: two bytes
+            return self.set_channel_pressure(midi[1] / 127.0)
+        if len(midi) < 3:
+            return
         cmd, number, value = midi[0] & 0xF0, midi[1], midi[2]
         if cmd == 0x80 or cmd == 0x90:
             velocity = value / 127.0 if cmd == 0x90 else 0.0
@@ -207,6 +212,8 @@ class Push2(pyxelwidgets.devices.midi.MIDI):
                         self.emit(pyxelwidgets.events.ControlPressed(self, touch.name, velocity))
                     else:
                         self.emit(pyxelwidgets.events.ControlReleased(self, touch.name, 0.0))
+        elif cmd == 0xA0 and 36 <= number < 100:
+            self.set_pressure((number - 36) % 8, (number - 36) // 8, value / 127.0)
         elif cmd == 0xB0:
             control = Push2.Controls._value2member_map_.get(number)
             if control is None:

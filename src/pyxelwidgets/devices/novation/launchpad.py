@@ -67,6 +67,12 @@ class Launchpad(pyxelwidgets.devices.midi.MIDI):
             event = pyxelwidgets.events.ControlPressed if velocity > 0 else pyxelwidgets.events.ControlReleased
             self.emit(event(self, name, velocity))
 
+    def _pressure(self, x: int, y: int, pressure: float) -> None:
+        """Polyphonic aftertouch at physical grid position ``x``, ``y`` (side buttons have none)."""
+        if not self.side_buttons:
+            x, y = x - self.main[0], y - self.main[1]
+        self.set_pressure(x, y, pressure)
+
     def send_pixels(self, pixels: list) -> None:
         if not self.side_buttons:
             mx, my = self.main
@@ -133,6 +139,14 @@ class _ProgrammerLayout(Launchpad):
 
     def _decode_index(self, index: int, velocity: float) -> None:
         self._pad((index % 10) - self.origin[0], (index // 10) - self.origin[1], velocity)
+
+    def _decode_pressure(self, midi: list) -> None:
+        """Polyphonic (``A0 index pressure``) or channel (``D0 pressure``) aftertouch, on models with it."""
+        cmd = midi[0] & 0xF0
+        if cmd == 0xA0 and len(midi) == 3:
+            self._pressure((midi[1] % 10) - self.origin[0], (midi[1] // 10) - self.origin[1], midi[2] / 127.0)
+        elif cmd == 0xD0 and len(midi) >= 2:
+            self.set_channel_pressure(midi[1] / 127.0)
 
 class LaunchpadMK2(_ProgrammerLayout):
     """Launchpad MK2: RGB, 9x9 with the top row and right column."""
@@ -205,6 +219,8 @@ class LaunchpadPro(_ProgrammerLayout):
         cmd = midi[0] & 0xF0
         if cmd == 0x80 or cmd == 0x90 or cmd == 0xB0:
             self._decode_index(midi[1], midi[2] / 127.0)
+        else:
+            self._decode_pressure(midi)
 
 class _MK3(_ProgrammerLayout):
     """Launchpad X, Mini MK3 and Pro MK3 (programmer mode)."""
@@ -236,6 +252,9 @@ class _MK3(_ProgrammerLayout):
         cmd = midi[0] & 0xF0
         if cmd == 0x80 or cmd == 0x90 or cmd == 0xB0:
             self._decode_index(midi[1], midi[2] / 127.0)
+        else:
+            # Launchpad X and Pro MK3 (the Mini MK3 sends none)
+            self._decode_pressure(midi)
 
 class LaunchpadX(_MK3):
     """Launchpad X: RGB, 9x9 with the top row and right column."""

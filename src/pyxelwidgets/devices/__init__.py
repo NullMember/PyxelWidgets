@@ -124,6 +124,16 @@ class Device(pyxelwidgets.events.Emitter):
         events = self.pads.press(x, y, velocity) if velocity > 0.0 else self.pads.release(x, y, velocity)
         self._emit_pads(events)
 
+    def set_pressure(self, x: int, y: int, pressure: float) -> None:
+        """Report the pressure (polyphonic aftertouch) of a held grid pad, 0.0-1.0."""
+        if (x, y) in self.pads.pressed:
+            self.emit(pyxelwidgets.events.PadPressure(self, x, y, min(1.0, max(0.0, pressure))))
+
+    def set_channel_pressure(self, pressure: float) -> None:
+        """Report one pressure (channel aftertouch) for every held grid pad."""
+        for x, y in sorted(self.pads.pressed):
+            self.set_pressure(x, y, pressure)
+
     def poll_input(self) -> None:
         """Emit PadHeld for pads held long enough. ``show`` calls this every frame."""
         self._emit_pads(self.pads.poll())
