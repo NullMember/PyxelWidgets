@@ -4,6 +4,11 @@ import pyxelwidgets.color
 import pyxelwidgets.rectangle
 import numpy
 import enum
+import typing
+
+# A note value such as '1/16', '1/8.' or 'bar': how often a Transport plays a widget
+# (see pyxelwidgets.transport). Widgets only store it.
+Rate = typing.NewType('Rate', str)
 
 class Propagation(enum.Enum):
     """
@@ -1169,20 +1174,19 @@ class Knob(ValueWidget):
 # Sequencer class
 class Sequencer(Widget):
     """
-    Step sequencer. Drive it by calling ``tick(tick)`` with a clock tick count
-    at ``ppq`` ticks per quarter note, e.g. ``clock.add_target(sequencer.tick)``.
+    Step sequencer. Each step plays when ``play(step)`` or ``advance()`` is
+    called, e.g. every 16th note from a Transport:
+    ``transport.every(sequencer.rate, sequencer.play)``. Emits StepPlayed.
     """
     def __init__(self, x: int, y: int, width: int, height: int, *,
                  steps: int | None = None,
-                 note: float = 4.0,
-                 beat: float = 4.0,
-                 ppq: int = 24,
+                 rate: Rate = '1/16',
                  current_color: pyxelwidgets.color.Color = pyxelwidgets.color.Colors.Lime,
                  current_active_color: pyxelwidgets.color.Color = pyxelwidgets.color.Colors.Red,
                  **kwargs):
         self.state = numpy.ndarray((1, 1), dtype = numpy.bool_)
         self._steps = steps if steps is not None else width * height
-        self._tick = 0
+        self._step = 0
         self._page_count = 1
         super().__init__(x, y, width, height, **kwargs)
         self.state.fill(False)
@@ -1190,9 +1194,7 @@ class Sequencer(Widget):
         self._page = 0
         self.follow = True
         self.active = True
-        self.note = note
-        self.beat = beat
-        self.ppq = ppq
+        self.rate = rate
         self.current_color = current_color
         self.current_active_color = current_active_color
     
@@ -1211,11 +1213,11 @@ class Sequencer(Widget):
 
     @property
     def step(self) -> int:
-        return int(self._tick)
+        return self._step
     
     @step.setter
     def step(self, value: int) -> None:
-        self._tick = value % self._steps
+        self._step = value % self._steps
         self.updated = True
 
     @property
@@ -1227,8 +1229,8 @@ class Sequencer(Widget):
         self._steps = value
         self._page_count = int((self._steps - 1) / self.rect.area) + 1
         self.state = numpy.zeros((self.rect.w, self.rect.h * self._page_count), dtype = numpy.bool_)
-        self._tick %= self._steps
-        self.current_page = int(self._tick / self.rect.area)
+        self._step %= self._steps
+        self.current_page = self._step // self.rect.area
         self.updated = True
 
     @property
@@ -1240,18 +1242,21 @@ class Sequencer(Widget):
         self.state[self._tick_x(), self._tick_y()] = state
         self.updated = True
 
-    def tick(self, tick):
-        if self.active:
-            old_tick = self._tick
-            self._tick = tick / (self.ppq * ((4.0 / self.note) / self.beat))
-            self._tick %= self._steps
-            if int(old_tick) != int(self._tick):
-                page = int(self._tick / self.rect.area)
-                if page != self.current_page:
-                    self.current_page = page
-                    self.emit(pyxelwidgets.events.PageChanged(self, self.current_page))
-                self.emit(pyxelwidgets.events.StepPlayed(self, int(self._tick), bool(self._is_tick_active())))
-                self.updated = True
+    def play(self, step: int) -> None:
+        """Move to ``step`` (wrapped to ``steps``) and emit StepPlayed; does nothing while not ``active``."""
+        if not self.active:
+            return
+        self._step = step % self._steps
+        page = self._step // self.rect.area
+        if page != self.current_page:
+            self.current_page = page
+            self.emit(pyxelwidgets.events.PageChanged(self, self.current_page))
+        self.emit(pyxelwidgets.events.StepPlayed(self, self._step, bool(self._is_tick_active())))
+        self.updated = True
+
+    def advance(self) -> None:
+        """Play the next step."""
+        self.play(self._step + 1)
 
     def handle_press(self, x: int, y: int, value: float):
         if self._calc_tick_position(x, y) < self._steps:
@@ -1279,7 +1284,7 @@ class Sequencer(Widget):
     def _resize(self, width, height):
         self._page_count = int((self._steps - 1) / (width * height)) + 1
         self.state.resize((width, height * self._page_count), refcheck = False)
-        self._tick %= self._steps
+        self._step %= self._steps
         return True
     
     def _calc_tick_position(self, x, y):
@@ -1289,10 +1294,10 @@ class Sequencer(Widget):
         return self.current_page if self.follow else self._page
 
     def _tick_x(self):
-        return int(self._tick) % self.rect.w
+        return self._step % self.rect.w
     
     def _tick_y(self):
-        return int(self._tick // self.rect.w)
+        return self._step // self.rect.w
     
     def _is_tick_active(self):
         return self.state[self._tick_x()][self._tick_y()]
@@ -1334,7 +1339,11 @@ class Sprite(Widget):
 
 # Tracker class
 class Tracker(Widget):
-    """A scrolling step grid where rows are steps and columns are tracks; emits RowPlayed."""
+    """
+    A scrolling step grid where rows are steps and columns are tracks. Rows
+    play when ``play(row)`` or ``advance()`` is called, e.g. from a Transport:
+    ``transport.every(tracker.rate, tracker.play)``. Emits RowPlayed.
+    """
 
     # class Scroll(enum.Enum):
     #     Continuous = enum.auto()
@@ -1343,71 +1352,70 @@ class Tracker(Widget):
     def __init__(self, x: int = 0, y: int = 0, width: int = 1, height: int = 1, *,
                  bars: int = 64,
                  pages: int = 1,
-                 numerator: float = 1.0,
-                 denominator: float = 4.0,
-                 ppq: int = 24,
+                 rate: Rate = '1/16',
                  current_color: pyxelwidgets.color.Color = pyxelwidgets.color.Colors.Cyan,
                  current_active_color: pyxelwidgets.color.Color = pyxelwidgets.color.Colors.Magenta,
                  **kwargs):
-        """Drive it like a Sequencer: ``clock.add_target(tracker.tick)``."""
         self.bars = bars
         self.bars = self.bars if self.bars >= height else height
         self.pages = pages
         self.pages = self.pages if self.pages > 0 else 1
         self.states = numpy.ndarray((1, 1, 1), dtype = numpy.bool_)
         self.current_bar = 0
-        self.numerator = numerator
-        self.denominator = denominator
-        self.ppq = ppq
+        self.current_page = 0
+        self.rate = rate
         super().__init__(x, y, width, height, **kwargs)
         self.states.fill(False)
-        self.current_top = 0
-        self.current_bottom = self.current_top + self.height - 1
-        self.current_page = 0
         self.current_color = current_color
         self.current_active_color = current_active_color
+
+    @property
+    def step(self) -> int:
+        """Position over all pages: ``current_page * bars + current_bar``."""
+        return self.current_page * self.bars + self.current_bar
 
     def handle_press(self, x: int, y: int, value: float):
         self.states[self.current_page, x, self.rect.h - 1 - y + self.current_top] = not self.states[self.current_page, x, self.rect.h - 1 - y + self.current_top]
         self.updated = True
 
-    def scroll(self, bar):
-        self.tick(bar * (self.ppq * (self.numerator / self.denominator)))
+    def play(self, step: int) -> None:
+        """Move to ``step`` (wrapping through rows, then pages) and emit RowPlayed with the row's active columns."""
+        self.scroll(step)
+        row = self.states[self.current_page, :, self.current_bar]
+        self.emit(pyxelwidgets.events.RowPlayed(self, self.current_bar, tuple(int(i) for i in numpy.flatnonzero(row))))
 
-    def tick(self, tick):
-        old_bar = self.current_bar
-        self.current_bar = tick / (self.ppq * (self.numerator / self.denominator))
-        self.current_page = int(self.current_bar / self.bars)
-        self.current_page %= self.pages
-        self.current_bar %= self.bars
-        if int(old_bar) != int(self.current_bar):
-            self.updated = True
-            self.current_bar = self.current_bar
-            half_height = self.height // 2
-            # if self.scroll == Tracker.Scroll.Continuous:
-            corr = int(not (self.height % 2))
-            if self.current_bar < half_height:
-                self.current_top = 0
-                self.current_bottom = int(self.current_top + self.height - 1)
-            elif self.current_bar >= self.bars - half_height:
-                self.current_top = int(self.bars - self.height)
-                self.current_bottom = int(self.bars - corr)
-            else:
-                self.current_top = int(self.current_bar - (half_height - corr))
-                self.current_bottom = int(self.current_bar + half_height)
-            # elif self.scroll == Tracker.Scroll.Page:
-            #     pass
-            row = self.states[self.current_page, :, int(self.current_bar)]
-            self.emit(pyxelwidgets.events.RowPlayed(self, int(self.current_bar), tuple(int(i) for i in numpy.flatnonzero(row))))
+    def advance(self) -> None:
+        """Play the next row."""
+        self.play(self.step + 1)
+
+    def scroll(self, step: int) -> None:
+        """Move to ``step`` without playing it."""
+        self.current_page = (step // self.bars) % self.pages
+        self.current_bar = step % self.bars
+        half_height = self.height // 2
+        # if self.scroll == Tracker.Scroll.Continuous:
+        corr = int(not (self.height % 2))
+        if self.current_bar < half_height:
+            self.current_top = 0
+            self.current_bottom = self.current_top + self.height - 1
+        elif self.current_bar >= self.bars - half_height:
+            self.current_top = self.bars - self.height
+            self.current_bottom = self.bars - corr
+        else:
+            self.current_top = self.current_bar - (half_height - corr)
+            self.current_bottom = self.current_bar + half_height
+        # elif self.scroll == Tracker.Scroll.Page:
+        #     pass
+        self.updated = True
 
     def draw(self) -> None:
         area = self.rect.origin
         self.buffer[area.slice] = numpy.fliplr(numpy.where(self.states[self.current_page, :, self.current_top:(self.current_bottom + 1), None], self.active_color, self.inactive_color))
-        self.buffer[:, int(self.current_bottom - self.current_bar)] = numpy.where(self.states[self.current_page, :, int(self.current_bar), None], self.current_active_color, self.current_color)
+        self.buffer[:, self.current_bottom - self.current_bar] = numpy.where(self.states[self.current_page, :, self.current_bar, None], self.current_active_color, self.current_color)
 
     def _resize(self, width, height) -> bool:
         self.states.resize((self.pages, width, self.bars), refcheck = False)
-        self.tick(0)
+        self.scroll(self.step)
         return True
 
 # XY class
