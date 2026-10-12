@@ -54,7 +54,10 @@ Links change a ``target`` widget's ``option`` (one of its options, or ``x``,
 ``Set`` (default), ``Add`` or ``Toggle``; ``value`` is a constant encoded like
 the option, or ``{"source": "value", "offset": 0}``; optional ``min``/``max``
 are the range a 0.0-1.0 source covers and clamp numbers (see
-``pyxelwidgets.link``).
+``pyxelwidgets.link``). Instead of an option a link can call an ``action``:
+one of the target widget's ``actions`` (``advance``, ``play`` with a step
+``value``, ``next``...) or, without a target, a transport action
+(``ACTIONS``: ``transport.play``...).
 
 Load a layout and attach behaviour by widget name::
 
@@ -282,6 +285,8 @@ def schema() -> dict:
             'options': option_schema(cls),
             'events': [event.__name__ for event in cls.events()],
             'linkable': linkable(cls),
+            # Methods links can call: None, or the kind of their argument
+            'actions': dict(cls.actions),
         }
     events = {event.__name__: {'doc': _doc(event), 'sources': pyxelwidgets.mapping.available(event)}
               for cls in widget_types().values() for event in cls.events()}
@@ -290,7 +295,7 @@ def schema() -> dict:
             'binding': {'options': option_schema(pyxelwidgets.binding.Binding), 'actions': list(ACTIONS)},
             'events': events, 'messages': message_schema(),
             'link': {'changes': {name: sorted(kinds) if kinds else None for name, kinds in LINK_CHANGES.items()},
-                     'sources': sorted(LINK_SOURCES)}}
+                     'sources': sorted(LINK_SOURCES), 'actions': list(ACTIONS)}}
 
 def message_schema() -> dict:
     """Mapping message types with their fields: name, default (encoded) and range (whole numbers) or kind."""
@@ -545,9 +550,9 @@ class Parser():
         return {'bpm': bpm, 'signature': signature}
 
     def attach(self, transport) -> list:
-        """Subscribe every Sequencer and Tracker to ``transport`` at its ``rate``; returns the Subscriptions."""
+        """Subscribe every Sequencer and Tracker following the transport to ``transport`` at its ``rate``; returns the Subscriptions."""
         return [transport.every(widget.rate, widget.play) for widget in self.widgets.values()
-                if isinstance(widget, (pyxelwidgets.widgets.Sequencer, pyxelwidgets.widgets.Tracker))]
+                if isinstance(widget, (pyxelwidgets.widgets.Sequencer, pyxelwidgets.widgets.Tracker)) and widget.transport]
 
     def app(self, fps: float = 60.0):
         """An App running the surface, with Sequencers and Trackers following its transport."""
@@ -555,6 +560,7 @@ class Parser():
         app = pyxelwidgets.app.App(self.surface, fps, **self.transport_settings())
         self.attach(app.transport)
         self.bindings += self.bind(self.devices, app.transport, widgets = False)
+        self.links += self.link(app.transport, widgets = False)
         return app
 
     def output_settings(self) -> list:
@@ -626,7 +632,11 @@ class Parser():
                 for widget, on, output, message, feedback in self.mapping_settings() if output in outputs]
 
     def link_settings(self) -> list:
-        """The layout's links as (widget name, event class, target name, option, value, change, minimum, maximum)."""
+        """
+        The layout's links, checked, as dicts: ``widget`` and ``target`` names
+        (target None for transport actions), ``on`` (event class), ``option`` or
+        ``action``, ``value``, ``change`` (Link.Change), ``minimum``, ``maximum``.
+        """
         links = self.json.get('links') or []
         if not isinstance(links, list):
             raise LayoutError('links: must be a list')
@@ -635,59 +645,107 @@ class Parser():
             where = f'links[{index}]'
             if not isinstance(entry, dict):
                 raise LayoutError(f'{where}: must be an object')
-            unknown = set(entry) - {'widget', 'on', 'target', 'option', 'change', 'value', 'min', 'max'}
+            unknown = set(entry) - {'widget', 'on', 'target', 'option', 'action', 'change', 'value', 'min', 'max'}
             if unknown:
                 raise LayoutError(f'{where}: unknown keys {", ".join(sorted(unknown))}')
-            widget, on, target, option = entry.get('widget'), entry.get('on'), entry.get('target'), entry.get('option')
-            for key, name in (('widget', widget), ('target', target)):
-                if name not in self.widgets:
-                    raise LayoutError(f'{where}.{key}: no widget named {name!r}')
+            widget, on, target = entry.get('widget'), entry.get('on'), entry.get('target')
+            if widget not in self.widgets:
+                raise LayoutError(f'{where}.widget: no widget named {widget!r}')
             events = {cls.__name__: cls for cls in type(self.widgets[widget]).events()}
             if on not in events:
                 raise LayoutError(f'{where}.on: {widget} ({type(self.widgets[widget]).__name__}) has no event {on!r} (events: {", ".join(events)})')
-            cls = type(self.widgets[target])
-            options = {item['name']: item for item in linkable(cls)}
-            if option not in options:
-                raise LayoutError(f'{where}.option: {target} ({cls.__name__}) has no option {option!r} (options: {", ".join(options)})')
-            kind = options[option]['kind']
-            change = entry.get('change', 'Set')
-            if change not in LINK_CHANGES:
-                raise LayoutError(f'{where}.change: must be one of {", ".join(LINK_CHANGES)}, got {change!r}')
-            kinds = LINK_CHANGES[change]
-            if kinds is not None and kind not in kinds:
-                raise LayoutError(f'{where}.change: {change} works on {" and ".join(sorted(kinds))} options, {option!r} is {kind}')
-            value = entry.get('value')
-            if change == 'Toggle':
-                if value is not None:
-                    raise LayoutError(f'{where}.value: Toggle takes no value')
-            elif value is None:
-                raise LayoutError(f'{where}.value: needed to {change}')
-            elif isinstance(value, dict):
-                value = self._link_source(value, events[on], f'{where}.value')
-                if change == 'Set' and kind not in LINK_SOURCES:
-                    raise LayoutError(f'{where}.value: {option!r} ({kind}) takes a constant')
-                if kind == 'color' and value.integer:
-                    raise LayoutError(f'{where}.value: a color takes a 0.0-1.0 value, not {value.name!r}')
-            elif change == 'Add':
-                if isinstance(value, bool) or not isinstance(value, (int, float)) or (kind != 'float' and not isinstance(value, int)):
-                    raise LayoutError(f'{where}.value: Add takes a {"number" if kind == "float" else "whole number"}, got {value!r}')
+            if ('option' in entry) == ('action' in entry):
+                raise LayoutError(f'{where}: needs either "option" or "action"')
+            setting = {'widget': widget, 'on': events[on], 'target': target, 'option': entry.get('option'), 'action': entry.get('action'),
+                       'value': None, 'change': pyxelwidgets.link.Link.Change.Set, 'minimum': None, 'maximum': None}
+            if 'action' in entry:
+                self._link_action(entry, setting, events[on], where)
             else:
-                value = self._link_constant(cls, option, kind, value, f'{where}.value')
-            bounds = []
-            for key in ('min', 'max'):
-                bound = entry.get(key)
-                if bound is not None:
-                    if kind not in ('int', 'float', 'color', 'enum', 'str'):
-                        raise LayoutError(f'{where}.{key}: {option!r} ({kind}) has no range')
-                    if kind == 'str':
-                        # The numbers text shows a 0.0-1.0 value as
-                        if isinstance(bound, bool) or not isinstance(bound, (int, float)):
-                            raise LayoutError(f'{where}.{key}: must be a number, got {bound!r}')
-                    else:
-                        bound = self._link_constant(cls, option, kind, bound, f'{where}.{key}')
-                bounds.append(bound)
-            settings.append((widget, events[on], target, option, value, pyxelwidgets.link.Link.Change[change], *bounds))
+                self._link_option(entry, setting, events[on], where)
+            settings.append(setting)
         return settings
+
+    def _link_action(self, entry: dict, setting: dict, event: type, where: str) -> None:
+        action, target = entry['action'], entry.get('target')
+        if 'change' in entry:
+            raise LayoutError(f'{where}.change: an action is called, not changed')
+        if isinstance(action, str) and action.startswith('transport.'):
+            if target is not None:
+                raise LayoutError(f'{where}.target: transport actions have no target')
+            if action not in ACTIONS:
+                raise LayoutError(f'{where}.action: unknown action {action!r} (transport actions: {", ".join(ACTIONS)})')
+            kind = None
+        else:
+            if target not in self.widgets:
+                raise LayoutError(f'{where}.target: no widget named {target!r}')
+            actions = type(self.widgets[target]).actions
+            if action not in actions:
+                names = [*actions, *ACTIONS]
+                raise LayoutError(f'{where}.action: {target} ({type(self.widgets[target]).__name__}) has no action {action!r} (actions: {", ".join(names)})')
+            kind = actions[action]
+        value = entry.get('value')
+        if kind is None:
+            if value is not None or 'min' in entry or 'max' in entry:
+                raise LayoutError(f'{where}.value: {action} takes no value')
+            return
+        if value is None:
+            raise LayoutError(f'{where}.value: {action} needs a value')
+        if isinstance(value, dict):
+            value = self._link_source(value, event, f'{where}.value')
+        elif isinstance(value, bool) or not isinstance(value, int):
+            raise LayoutError(f'{where}.value: must be a whole number, got {value!r}')
+        setting['value'] = value
+        for key, name in (('min', 'minimum'), ('max', 'maximum')):
+            bound = entry.get(key)
+            if bound is not None and (isinstance(bound, bool) or not isinstance(bound, int)):
+                raise LayoutError(f'{where}.{key}: must be a whole number, got {bound!r}')
+            setting[name] = bound
+
+    def _link_option(self, entry: dict, setting: dict, event: type, where: str) -> None:
+        target, option = entry.get('target'), entry.get('option')
+        if target not in self.widgets:
+            raise LayoutError(f'{where}.target: no widget named {target!r}')
+        cls = type(self.widgets[target])
+        options = {item['name']: item for item in linkable(cls)}
+        if option not in options:
+            raise LayoutError(f'{where}.option: {target} ({cls.__name__}) has no option {option!r} (options: {", ".join(options)})')
+        kind = options[option]['kind']
+        change = entry.get('change', 'Set')
+        if change not in LINK_CHANGES:
+            raise LayoutError(f'{where}.change: must be one of {", ".join(LINK_CHANGES)}, got {change!r}')
+        kinds = LINK_CHANGES[change]
+        if kinds is not None and kind not in kinds:
+            raise LayoutError(f'{where}.change: {change} works on {" and ".join(sorted(kinds))} options, {option!r} is {kind}')
+        value = entry.get('value')
+        if change == 'Toggle':
+            if value is not None:
+                raise LayoutError(f'{where}.value: Toggle takes no value')
+        elif value is None:
+            raise LayoutError(f'{where}.value: needed to {change}')
+        elif isinstance(value, dict):
+            value = self._link_source(value, event, f'{where}.value')
+            if change == 'Set' and kind not in LINK_SOURCES:
+                raise LayoutError(f'{where}.value: {option!r} ({kind}) takes a constant')
+            if kind == 'color' and value.integer:
+                raise LayoutError(f'{where}.value: a color takes a 0.0-1.0 value, not {value.name!r}')
+        elif change == 'Add':
+            if isinstance(value, bool) or not isinstance(value, (int, float)) or (kind != 'float' and not isinstance(value, int)):
+                raise LayoutError(f'{where}.value: Add takes a {"number" if kind == "float" else "whole number"}, got {value!r}')
+        else:
+            value = self._link_constant(cls, option, kind, value, f'{where}.value')
+        setting.update(value = value, change = pyxelwidgets.link.Link.Change[change])
+        for key, name in (('min', 'minimum'), ('max', 'maximum')):
+            bound = entry.get(key)
+            if bound is not None:
+                if kind not in ('int', 'float', 'color', 'enum', 'str'):
+                    raise LayoutError(f'{where}.{key}: {option!r} ({kind}) has no range')
+                if kind == 'str':
+                    # The numbers text shows a 0.0-1.0 value as
+                    if isinstance(bound, bool) or not isinstance(bound, (int, float)):
+                        raise LayoutError(f'{where}.{key}: must be a number, got {bound!r}')
+                else:
+                    bound = self._link_constant(cls, option, kind, bound, f'{where}.{key}')
+            setting[name] = bound
 
     @staticmethod
     def _link_source(value: dict, event: type, where: str) -> pyxelwidgets.message.Source:
@@ -720,12 +778,26 @@ class Parser():
             # Name the value, not the option
             raise LayoutError(str(error).replace(f'{where}.options.{option}', where)) from None
 
-    def link(self) -> list:
-        """Create the layout's links on the surface; returns the Links."""
+    def link(self, transport = None, *, widgets: bool = True) -> list:
+        """
+        Create the layout's links on the surface: links to widgets (with
+        ``widgets``) and, given a ``transport``, transport actions. Returns the Links.
+        """
         created = []
-        for widget, on, target, option, value, change, minimum, maximum in self.link_settings():
-            created.append(self.surface.link(self.widgets[widget], self.widgets[target], option, value,
-                                             on = on, change = change, minimum = minimum, maximum = maximum))
+        for setting in self.link_settings():
+            action, target = setting['action'], setting['target']
+            if action is not None and action.startswith('transport.'):
+                if transport is None:
+                    continue
+                target, option = ACTIONS[action](transport), None
+            elif not widgets:
+                continue
+            elif action is not None:
+                target, option = getattr(self.widgets[target], action), None
+            else:
+                target, option = self.widgets[target], setting['option']
+            created.append(self.surface.link(self.widgets[setting['widget']], target, option, setting['value'], on = setting['on'],
+                                             change = setting['change'], minimum = setting['minimum'], maximum = setting['maximum']))
         return created
 
     def binding_settings(self) -> list:
