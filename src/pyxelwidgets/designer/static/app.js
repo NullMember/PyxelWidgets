@@ -3,7 +3,7 @@
 
 const DEFAULT_SIZE = {
   Button: [1, 1], ButtonGroup: [4, 1], Fader: [1, 8], Keyboard: [8, 4], Knob: [3, 3],
-  Sequencer: [8, 4], Sprite: [2, 2], Tracker: [4, 8], XY: [4, 4],
+  Sequencer: [8, 4], Sprite: [2, 2], Text: [8, 5], Tracker: [4, 8], XY: [4, 4],
 };
 const RHYTHMIC = new Set(['Sequencer', 'Tracker']);
 const EVENTS = {
