@@ -13,7 +13,11 @@ import importlib
 __version__ = '0.1.0'
 
 _exports = {
+    'Animation': 'animation',
     'App': 'app',
+    'Blink': 'animation',
+    'Fade': 'animation',
+    'Pulse': 'animation',
     'Binding': 'binding',
     'Takeover': 'binding',
     'Color': 'color',
