@@ -2,15 +2,16 @@
 // live preview rendered by the Python widgets through the designer server.
 
 const DEFAULT_SIZE = {
-  Button: [1, 1], ButtonGroup: [4, 1], Fader: [1, 8], Keyboard: [8, 4], Knob: [3, 3],
-  Sequencer: [8, 4], Sprite: [2, 2], Text: [8, 5], Tracker: [4, 8], XY: [4, 4],
+  Button: [1, 1], ButtonGroup: [4, 1], ClipLauncher: [8, 4], DrumPads: [4, 4], Fader: [1, 8], Keyboard: [8, 4], Knob: [3, 3],
+  Meter: [1, 8], Sequencer: [8, 4], Sprite: [2, 2], Text: [8, 5], Tracker: [4, 8], XY: [4, 4],
 };
-const RHYTHMIC = new Set(['Sequencer', 'Tracker']);
+const RHYTHMIC = new Set(['Sequencer', 'Tracker', 'ClipLauncher']);
 // Colors offered for painting Sprite frames (any color can be picked too)
 const SWATCHES = ['White', 'Gray', 'Red', 'OrangeRed', 'Orange', 'Yellow', 'Lime', 'Green', 'Cyan', 'DodgerBlue', 'Blue', 'Purple', 'Magenta', 'HotPink'];
 const EVENTS = {
   Button: ['Changed', 'e.value'], Fader: ['Changed', 'e.value'], Knob: ['Changed', 'e.value'], XY: ['Changed', 'e.value'],
-  Keyboard: ['NoteOn', 'e.note, e.velocity'], ButtonGroup: ['Toggled', 'e.x, e.y, e.state'],
+  Keyboard: ['NoteOn', 'e.note, e.velocity'], DrumPads: ['NoteOn', 'e.note, e.velocity'], ButtonGroup: ['Toggled', 'e.x, e.y, e.state'],
+  ClipLauncher: ['ClipStarted', 'e.x, e.y'],
   Sequencer: ['StepPlayed', 'e.step, e.active'], Tracker: ['RowPlayed', 'e.row, e.columns'],
 };
 
@@ -405,7 +406,7 @@ function outputProperties(panel, index) {
 // The event a new message is sent on: the widget's main one
 function defaultEvent(widget) {
   const events = state.catalog.widgets[widget.type]?.events || [];
-  return ['Changed', 'Toggled', 'NoteOn', 'StepPlayed', 'RowPlayed', 'PageChanged', 'Pressed'].find((name) => events.includes(name)) || events[0];
+  return ['Changed', 'Toggled', 'NoteOn', 'StepPlayed', 'RowPlayed', 'ClipStarted', 'PageChanged', 'Pressed'].find((name) => events.includes(name)) || events[0];
 }
 
 // A useful first message for an event on an output
