@@ -75,6 +75,8 @@ _exports = {
     'PadDoublePressed': 'events',
     'PadPressure': 'events',
     'MessageReceived': 'events',
+    'DeviceDisconnected': 'events',
+    'DeviceReconnected': 'events',
     'ControlEvent': 'events',
     'ControlPressed': 'events',
     'ControlReleased': 'events',
