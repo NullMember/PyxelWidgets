@@ -1509,9 +1509,9 @@ class Timed:
 class Sequencer(Timed, Widget):
     """
     Step sequencer. Each step plays when ``play(step)`` or ``advance()`` is
-    called, e.g. every 16th note from a Transport:
-    ``transport.every(sequencer.rate, sequencer.play)``. Emits StepPlayed.
-    Steps beyond one screen are on pages: ``page`` is the one shown and edited.
+    called; its ``clock`` (the transport, one of its own, or none) does every
+    ``rate``. Emits StepPlayed. Steps beyond one screen are on pages: ``page``
+    is the one shown and edited.
     """
 
     emits = (pyxelwidgets.events.StepPlayed,)
@@ -1735,9 +1735,9 @@ class Sprite(Widget):
 class Tracker(Timed, Widget):
     """
     A scrolling step grid where rows are steps and columns are tracks. Rows
-    play when ``play(row)`` or ``advance()`` is called, e.g. from a Transport:
-    ``transport.every(tracker.rate, tracker.play)``. Emits RowPlayed.
-    The rows shown and edited start at ``bar`` (top) on ``page``.
+    play when ``play(row)`` or ``advance()`` is called; its ``clock`` does
+    every ``rate``. Emits RowPlayed. The rows shown and edited start at
+    ``bar`` (top) on ``page``.
     """
 
     emits = (pyxelwidgets.events.RowPlayed,)
