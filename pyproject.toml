@@ -25,6 +25,7 @@ classifiers = [
 
 [project.optional-dependencies]
 osc = ["python-osc >= 1.8"]
+desktop = ["pynput >= 1.7"]
 test = ["pytest >= 7"]
 
 [project.scripts]
