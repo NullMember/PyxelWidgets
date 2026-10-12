@@ -17,6 +17,14 @@ Rate = pyxelwidgets.rate.Rate
 # Sprite frames: a list of RGBA buffers, or of 2-d arrays/lists of Colors
 Frames = typing.NewType('Frames', list)
 
+def _level(values: dict) -> float | None:
+    """The 0.0-1.0 state a received message carries, if any."""
+    for key in ('value', 'state', 'velocity', 'pressure', 'active'):
+        value = values.get(key)
+        if isinstance(value, (int, float)) and not isinstance(value, bool):
+            return float(value)
+    return None
+
 class Propagation(enum.Enum):
     """
     What happens to a press after a widget handles it, when widgets overlap.
@@ -74,6 +82,8 @@ class Widget(pyxelwidgets.events.Emitter):
         self.cell_animations = {}
         # The drawing before animations, while animated
         self._static = None
+        # The Blink a received blinking state started
+        self._flash = None
         self._resize(self.rect.w, self.rect.h)
 
     def _default_name(self) -> str:
@@ -141,6 +151,11 @@ class Widget(pyxelwidgets.events.Emitter):
         self.emit(pyxelwidgets.events.DoublePressed(self, x, y, velocity))
         self.handle_double_press(x, y, velocity)
 
+    def pressure(self, x: int, y: int, pressure: float) -> None:
+        """The pressure (aftertouch) of the held pad at ``x``, ``y`` changed."""
+        self.emit(pyxelwidgets.events.Pressure(self, x, y, pressure))
+        self.handle_pressure(x, y, pressure)
+
     def tap(self, x: int, y: int, velocity: float = 1.0) -> None:
         """Press and release the pad at ``x``, ``y``."""
         self.press(x, y, velocity)
@@ -158,6 +173,8 @@ class Widget(pyxelwidgets.events.Emitter):
             self.release(x, y, velocity)
         elif isinstance(event, pyxelwidgets.events.PadHeld):
             self.hold(x, y, velocity)
+        elif isinstance(event, pyxelwidgets.events.PadPressure):
+            self.pressure(x, y, velocity)
         elif isinstance(event, pyxelwidgets.events.PadDoublePressed):
             self.double_press(x, y, velocity)
         return self.propagation == Propagation.Stop
@@ -173,6 +190,9 @@ class Widget(pyxelwidgets.events.Emitter):
 
     def handle_double_press(self, x: int, y: int, velocity: float) -> None:
         """Override to react to a double press."""
+
+    def handle_pressure(self, x: int, y: int, pressure: float) -> None:
+        """Override to react to pad pressure (aftertouch) on pads that report it."""
 
     # Drawing
 
@@ -194,6 +214,27 @@ class Widget(pyxelwidgets.events.Emitter):
         self._static = self.buffer
         self.buffer = self._animate(time if time is not None else pyxelwidgets.animation.now())
         return True
+
+    # Feedback
+
+    #: How fast a received blinking state (e.g. a Mackie LED) blinks, in seconds
+    flash_rate = 0.5
+
+    def receive(self, values: dict) -> None:
+        """
+        Show state sent from elsewhere (e.g. a DAW, through a Mapping) without
+        emitting events. ``values`` are what the message carried: ``value``,
+        ``state``, ``velocity``, ``x``/``y``/``cell``, ``text``, ``flash``...
+        Subclasses override it; a blinking state (``flash``) blinks the widget.
+        """
+        flash = bool(values.get('flash')) and bool(_level(values))
+        blink = self._flash
+        if flash and (blink is None or self._animation is not blink):
+            self._flash = self.animation = pyxelwidgets.animation.Blink(self.flash_rate)
+        elif not flash and blink is not None:
+            if self._animation is blink:
+                self.animation = None
+            self._flash = None
 
     # Animations
 
@@ -278,6 +319,20 @@ class ValueWidget(Widget):
     def _delta(self, old, new):
         return new - old
     
+    def receive(self, values: dict) -> None:
+        """Take ``value`` (or ``value_x``/``value_y``, or another 0.0-1.0 state) without emitting ``Changed``."""
+        super().receive(values)
+        if isinstance(self._value, tuple):
+            current = list(self._value)
+            for axis, key in enumerate(('value_x', 'value_y')):
+                if isinstance(values.get(key), (int, float)):
+                    current[axis] = values[key]
+            self.value = tuple(current)
+            return
+        level = _level(values)
+        if level is not None:
+            self.value = level
+
     def set_value(self, value) -> None:
         """Set the value as input would: respects ``interactive`` and emits ``Changed``."""
         value = self._clamp(value)
@@ -332,6 +387,11 @@ class Button(ValueWidget):
         if self.mode == Button.Mode.Mixed:
             self.is_hold = not self.is_hold
 
+    def receive(self, values: dict) -> None:
+        super().receive(values)
+        # A switch turned on or off elsewhere toggles from there
+        self.state = self._value > 0
+
     def draw(self) -> None:
         area = self.rect.origin
         self.buffer[area.slice] = self.active_color * self._value if self._value else self.inactive_color
@@ -374,6 +434,23 @@ class ButtonGroup(Widget):
             before = self.state.copy()
             self.state[x, y] = False
             self._emit_toggled(before)
+
+    def receive(self, values: dict) -> None:
+        """Turn the cell at ``x``, ``y`` (or ``cell``) on or off without emitting Toggled."""
+        super().receive(values)
+        level = _level(values)
+        if 'cell' in values:
+            x, y = values['cell'] % self.rect.w, values['cell'] // self.rect.w
+        else:
+            x, y = values.get('x', 0), values.get('y', 0)
+        if level is None or not (0 <= x < self.rect.w and 0 <= y < self.rect.h):
+            return
+        on = level > 0
+        if self.mode == ButtonGroup.Mode.Switch and on:
+            self.state.fill(False)
+            self._old_button = [x, y]
+        self.state[x, y] = on
+        self.updated = True
 
     def _emit_toggled(self, before) -> None:
         for x, y in numpy.argwhere(before != self.state):
@@ -1625,6 +1702,13 @@ class Text(Widget):
     @property
     def text(self) -> str:
         return self._text
+
+    def receive(self, values: dict) -> None:
+        """Show received ``text`` (e.g. a DAW's track name or timecode)."""
+        super().receive(values)
+        text = values.get('text', values.get('state'))
+        if isinstance(text, str):
+            self.text = text
 
     @text.setter
     def text(self, value) -> None:
