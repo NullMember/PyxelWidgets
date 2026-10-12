@@ -6,6 +6,7 @@ import pyxelwidgets.buffer
 import pyxelwidgets.color
 import pyxelwidgets.events
 import pyxelwidgets.group
+import pyxelwidgets.link
 import pyxelwidgets.mapping
 import pyxelwidgets.rectangle
 import dataclasses
@@ -28,7 +29,8 @@ class Surface(pyxelwidgets.events.Emitter):
 
     Emits ``Frame`` before rendering each frame, and re-emits every device's
     control events (ControlPressed, ControlChanged, ...). ``bind`` connects a
-    device's controls to widgets or actions.
+    device's controls to widgets or actions, ``map`` sends widget events to
+    other software and ``link`` lets widgets change each other's options.
 
     ``lock`` is held while processing input and rendering. Hold it when changing
     widgets from another thread, e.g. a MIDI callback of your own.
@@ -43,6 +45,7 @@ class Surface(pyxelwidgets.events.Emitter):
         self.devices = {}
         self.bindings = []
         self.mappings = []
+        self.links = []
         #: Times animations: anything with bpm, beats, playing and signature (App sets its Transport)
         self.transport = None
         self.buffer = pyxelwidgets.buffer.new(width, height, pyxelwidgets.color.Colors.Black)
@@ -128,6 +131,23 @@ class Surface(pyxelwidgets.events.Emitter):
         with self.lock:
             mapping.close()
             self.mappings.remove(mapping)
+
+    # Links
+
+    def link(self, widget, target, option: str, value = None, *, on: type, **kwargs) -> pyxelwidgets.link.Link:
+        """
+        Change ``option`` of ``target`` on each ``on`` event of ``widget``; see
+        ``pyxelwidgets.link`` for ``value``, ``change``, ``minimum`` and ``maximum``.
+        """
+        with self.lock:
+            link = pyxelwidgets.link.Link(widget, target, option, value, on = on, **kwargs)
+            self.links.append(link)
+            return link
+
+    def unlink(self, link: pyxelwidgets.link.Link) -> None:
+        with self.lock:
+            link.close()
+            self.links.remove(link)
 
     def force_update(self) -> None:
         """Resend every pixel on the next update, e.g. after a device reconnected."""
