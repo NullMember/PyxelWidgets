@@ -14,6 +14,8 @@ __version__ = '0.1.0'
 
 _exports = {
     'App': 'app',
+    'Binding': 'binding',
+    'Takeover': 'binding',
     'Color': 'color',
     'Colors': 'color',
     'Device': 'devices',
