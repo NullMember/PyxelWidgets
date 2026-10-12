@@ -180,3 +180,28 @@ class Frame(Event):
     """Emitted by a Surface before rendering each frame."""
     surface: typing.Any
     frame: int
+
+# Transport events
+
+@dataclasses.dataclass(frozen = True)
+class TransportEvent(Event):
+    transport: typing.Any
+
+@dataclasses.dataclass(frozen = True)
+class TransportStarted(TransportEvent):
+    """Playback started at ``tick``."""
+    tick: int
+
+@dataclasses.dataclass(frozen = True)
+class TransportStopped(TransportEvent):
+    """Playback stopped at ``tick``."""
+    tick: int
+
+@dataclasses.dataclass(frozen = True)
+class TransportLocated(TransportEvent):
+    """The position was moved to ``tick``."""
+    tick: int
+
+@dataclasses.dataclass(frozen = True)
+class TempoChanged(TransportEvent):
+    bpm: float
