@@ -20,12 +20,11 @@ import pathlib
 import threading
 import urllib.parse
 
-import pyxelwidgets.clock
 import pyxelwidgets.color
 import pyxelwidgets.devices
 import pyxelwidgets.events
 import pyxelwidgets.parser
-import pyxelwidgets.widgets
+import pyxelwidgets.transport
 
 __all__ = ['Preview', 'Designer', 'new_layout', 'catalog']
 
@@ -36,7 +35,7 @@ def new_layout(width: int = 9, height: int = 9) -> dict:
         'format': pyxelwidgets.parser.FORMAT,
         'version': pyxelwidgets.parser.VERSION,
         'surface': {'width': width, 'height': height},
-        'clock': {'bpm': 120, 'ppq': 24},
+        'transport': {'bpm': 120, 'signature': [4, 4]},
         'devices': [],
         'widgets': [],
     }
@@ -81,20 +80,21 @@ def _event_json(event) -> dict:
     return data
 
 class Preview:
-    """A layout built without hardware, with a preview device, an event log and an optional running clock."""
+    """A layout built without hardware, with a preview device, an event log and a transport to play it."""
 
     def __init__(self, layout: dict | None = None):
         self.lock = threading.RLock()
         self.layout = None
         self.ui = None
         self.device = None
-        self.clock = None
+        self.transport = None
         self.events = collections.deque(maxlen = 500)
         self.event_counter = 0
         self.load(layout or new_layout())
 
     def load(self, layout: dict) -> None:
-        """Rebuild from ``layout``; raises LayoutError and keeps the previous layout if it is invalid."""
+        """Rebuild from ``layout`` (upgraded to the current version); raises LayoutError and keeps the previous layout if it is invalid."""
+        layout = pyxelwidgets.parser.upgrade(layout)
         ui = pyxelwidgets.parser.load(copy.deepcopy(layout), devices = False)
         device = PreviewDevice(width = ui.surface.rect.w, height = ui.surface.rect.h, held_time = 0.6)
         device.connect()
@@ -102,7 +102,7 @@ class Preview:
         for widget in ui.widgets.values():
             widget.on(pyxelwidgets.events.WidgetEvent, self._record)
         with self.lock:
-            playing = self.clock is not None
+            playing = self.transport is not None
             self.stop()
             self.layout, self.ui, self.device = copy.deepcopy(layout), ui, device
             if playing:
@@ -122,8 +122,10 @@ class Preview:
             rows = [[f'#{int(buffer[x, y, 0]):02x}{int(buffer[x, y, 1]):02x}{int(buffer[x, y, 2]):02x}' for x in range(buffer.shape[0])]
                     for y in reversed(range(buffer.shape[1]))]
             events = [dict(event, id = number) for number, event in self.events if number > since]
-            return {'width': buffer.shape[0], 'height': buffer.shape[1], 'pixels': rows,
-                    'events': events, 'playing': self.clock is not None}
+            transport = self.transport
+            return {'width': buffer.shape[0], 'height': buffer.shape[1], 'pixels': rows, 'events': events,
+                    'playing': transport is not None,
+                    'position': f'{transport.bar + 1}.{transport.beat + 1}' if transport is not None else None}
 
     def input(self, x: int, y: int, velocity: float) -> None:
         """Press (``velocity`` > 0) or release the surface pad at ``x``, ``y``."""
@@ -131,23 +133,19 @@ class Preview:
             self.device.set_button(x, y, velocity)
 
     def play(self) -> None:
-        """Run the layout's clock so Sequencers and Trackers play."""
+        """Play the layout's transport from the start so Sequencers and Trackers play."""
         with self.lock:
-            if self.clock is not None:
+            if self.transport is not None:
                 return
-            settings = self.layout.get('clock', {})
-            self.clock = pyxelwidgets.clock.Clock(settings.get('bpm', 120), settings.get('ppq', 24), lock = self.ui.surface.lock)
-            for widget in self.ui.widgets.values():
-                if isinstance(widget, (pyxelwidgets.widgets.Sequencer, pyxelwidgets.widgets.Tracker)):
-                    widget.ppq = self.clock.ppq
-                    self.clock.add_target(widget.tick)
-            self.clock.start()
+            self.transport = pyxelwidgets.transport.Transport(**self.ui.transport_settings(), lock = self.ui.surface.lock)
+            self.ui.attach(self.transport)
+            self.transport.play()
 
     def stop(self) -> None:
         with self.lock:
-            clock, self.clock = self.clock, None
-        if clock is not None:
-            clock.terminate()
+            transport, self.transport = self.transport, None
+        if transport is not None:
+            transport.close()
 
 class Designer:
     """The designer's state: the preview and the file it saves to."""
@@ -162,7 +160,7 @@ class Designer:
         if self.path is None:
             raise ValueError('The designer was started without a file; use Download instead')
         self.preview.load(layout)
-        self.path.write_text(json.dumps(layout, indent = 2) + '\n')
+        self.path.write_text(json.dumps(self.preview.layout, indent = 2) + '\n')
 
 class Handler(http.server.BaseHTTPRequestHandler):
     designer: Designer = None
@@ -216,7 +214,8 @@ class Handler(http.server.BaseHTTPRequestHandler):
         except (pyxelwidgets.parser.LayoutError, ValueError, TypeError, KeyError) as error:
             self._json({'ok': False, 'error': str(error)}, 400)
             return
-        self._json({'ok': True})
+        # The layout as loaded, e.g. upgraded from an older version
+        self._json({'ok': True, 'layout': self.designer.preview.layout})
 
     def do_POST(self) -> None:
         path = urllib.parse.urlparse(self.path).path

@@ -49,7 +49,8 @@ input:focus, select:focus, button:focus-visible { outline: 2px solid var(--accen
 .segmented { display: inline-flex; border: 1px solid var(--line); border-radius: 6px; overflow: hidden; }
 .segmented button { border: none; border-radius: 0; background: transparent; }
 .segmented button.active { background: var(--accent-soft); color: var(--accent); }
-#clock.on { color: var(--ok); border-color: var(--ok); }
+#play.on { color: var(--ok); border-color: var(--ok); }
+.position { color: var(--muted); font: 12px ui-monospace, Menlo, monospace; min-width: 64px; }
 
 main { flex: 1; display: grid; grid-template-columns: 250px 1fr 300px; min-height: 0; }
 .panel { background: var(--panel); display: flex; flex-direction: column; min-height: 0; overflow: auto; }
@@ -134,7 +135,8 @@ body.try .outline .tag, body.try .handle { display: none; }
 .fields .reset { visibility: hidden; }
 .fields .changed + .control .reset { visibility: visible; }
 .quad { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; margin-bottom: 12px; }
-.quad label { display: flex; flex-direction: column; gap: 2px; color: var(--muted); font-size: 11px; }
+.quad label { display: flex; flex-direction: column; gap: 2px; color: var(--muted); font-size: 11px; min-width: 0; }
+.quad input { width: 100%; }
 .color { display: flex; gap: 6px; align-items: center; flex: 1; min-width: 0; }
 .color input[type=color] { width: 32px; height: 24px; border: 1px solid var(--line); border-radius: 4px; padding: 0; background: none; flex: none; }
 .color input[type=range] { flex: 1; min-width: 0; width: 100%; }

@@ -5,6 +5,7 @@ const DEFAULT_SIZE = {
   Button: [1, 1], ButtonGroup: [4, 1], Fader: [1, 8], Keyboard: [8, 4], Knob: [3, 3],
   Sequencer: [8, 4], Sprite: [2, 2], Tracker: [4, 8], XY: [4, 4],
 };
+const RHYTHMIC = new Set(['Sequencer', 'Tracker']);
 const EVENTS = {
   Button: ['Changed', 'e.value'], Fader: ['Changed', 'e.value'], Knob: ['Changed', 'e.value'], XY: ['Changed', 'e.value'],
   Keyboard: ['NoteOn', 'e.note, e.velocity'], ButtonGroup: ['Toggled', 'e.x, e.y, e.state'],
@@ -208,6 +209,7 @@ async function poll() {
       state.playing = frame.playing;
       renderToolbar();
     }
+    $('position').textContent = frame.position ? `bar ${frame.position}` : '';
   } catch {
     setStatus('Lost connection to the designer server', 'error');
   }
@@ -431,7 +433,7 @@ function optionField(target, option) {
   const set = option.name in options;
   const value = set ? options[option.name] : option.default;
   const commit = (newValue) => change(() => setOption(target, option.name, newValue));
-  let control;
+  let control, suggestions;
   switch (option.kind) {
     case 'enum':
       control = el('select', { onchange: (e) => commit(e.target.value) },
@@ -468,6 +470,11 @@ function optionField(target, option) {
       control = el('div', { class: 'control' }, axis(0), axis(1));
       break;
     }
+    case 'rate':
+      // Any note value is accepted; the list only suggests common ones
+      control = el('input', { type: 'text', value: value ?? '', list: `rates-${option.name}`, onchange: (e) => commit(e.target.value.trim() || undefined) });
+      suggestions = el('datalist', { id: `rates-${option.name}` }, option.choices.map((choice) => el('option', { value: choice })));
+      break;
     default:
       control = el('input', { type: 'text', value: value ?? '', onchange: (e) => commit(e.target.value) });
   }
@@ -475,7 +482,7 @@ function optionField(target, option) {
   control.id = id;
   return [
     el('label', { for: id, class: set ? 'changed' : '', title: option.name }, option.name.replace(/_/g, ' ')),
-    el('div', { class: 'control' }, control,
+    el('div', { class: 'control' }, control, suggestions,
       el('button', { class: 'link reset', title: `Reset to ${JSON.stringify(option.default)}`, onclick: () => commit(undefined) }, 'reset')),
   ];
 }
@@ -563,15 +570,23 @@ function renderProperties() {
     return;
   }
   const { surface } = state.layout;
-  const clock = state.layout.clock || {};
+  const transport = state.layout.transport || {};
+  const signature = transport.signature || [4, 4];
   fill(panel,
     el('h3', {}, 'Surface'),
     el('p', { class: 'doc' }, 'The grid widgets are placed on. Devices show parts of it.'),
     el('div', { class: 'quad' },
       numberInput('width', surface.width, (v) => v > 0 && change(() => { surface.width = v; }), { min: 1 }),
       numberInput('height', surface.height, (v) => v > 0 && change(() => { surface.height = v; }), { min: 1 }),
-      numberInput('bpm', clock.bpm ?? 120, (v) => v > 0 && change((l) => { l.clock = { ...clock, bpm: v }; }), { min: 1 }),
-      numberInput('ppq', clock.ppq ?? 24, (v) => v > 0 && change((l) => { l.clock = { ...clock, ppq: v }; }), { min: 1 })),
+      numberInput('bpm', transport.bpm ?? 120, (v) => v > 0 && change((l) => { l.transport = { ...transport, bpm: v }; }), { min: 1 }),
+      el('label', {}, 'time sig.', el('input', {
+        type: 'text', value: signature.join('/'), title: 'Beats per bar / beat note value, e.g. 6/8',
+        onchange: (e) => {
+          const match = e.target.value.match(/^\s*(\d+)\s*\/\s*(\d+)\s*$/);
+          if (match && +match[1] > 0 && +match[2] > 0) change((l) => { l.transport = { ...transport, signature: [+match[1], +match[2]] }; });
+          else render();
+        },
+      }))),
     el('p', { class: 'hint' }, 'Select a widget to edit it. In Try mode, click pads to press them; hold for a Held event.'),
   );
 }
@@ -591,7 +606,9 @@ function renderCode() {
     `ui = parser.load(${JSON.stringify(file)})`,
     ...(lines.length ? ['', ...lines] : []),
     '',
-    'ui.app().run()',
+    ...(allWidgets().some(({ widget }) => RHYTHMIC.has(widget.type))
+      ? ['app = ui.app()  # Sequencers and Trackers follow app.transport', 'app.transport.play()', 'app.run()']
+      : ['ui.app().run()']),
   ].filter((line) => line !== null).join('\n');
 }
 
@@ -603,9 +620,10 @@ function renderToolbar() {
   $('redo').disabled = !state.future.length;
   $('save').disabled = !state.file;
   $('save').title = state.file ? `Save to ${state.file} (Ctrl+S)` : 'Started without a file: use Download';
-  const clock = $('clock');
-  clock.textContent = state.playing ? '■ Clock' : '▶ Clock';
-  clock.classList.toggle('on', state.playing);
+  const play = $('play');
+  play.textContent = state.playing ? '■ Stop' : '▶ Play';
+  play.classList.toggle('on', state.playing);
+  if (!state.playing) $('position').textContent = '';
   $('palette-hint').textContent = targetGroup() ? `Click to add to ${widgetAt(targetGroup()).name}.` : 'Click to add to the surface.';
 }
 
@@ -726,7 +744,8 @@ async function open(file) {
     const layout = JSON.parse(await file.text());
     const reply = await api('PUT', '/api/layout', layout);
     if (!reply.ok) throw new Error(reply.error);
-    replaceLayout(layout);
+    // Older versions come back upgraded
+    replaceLayout(reply.layout);
     setStatus(`Opened ${file.name}`, 'ok');
   } catch (error) {
     setStatus(`Can't open ${file.name}: ${error.message}`, 'error');
@@ -745,7 +764,7 @@ function setMode(mode) {
 function bindToolbar() {
   $('mode-edit').onclick = () => setMode('edit');
   $('mode-try').onclick = () => setMode('try');
-  $('clock').onclick = async () => {
+  $('play').onclick = async () => {
     state.playing = !state.playing;
     renderToolbar();
     await api('POST', '/api/play', { playing: state.playing });
@@ -781,6 +800,8 @@ function bindToolbar() {
     if (key === 'e') return setMode('edit');
     if (key === 't') return setMode('try');
     if (key === 'escape') return select(null);
+    // A focused button handles Space itself
+    if (key === ' ' && !event.target.closest('button')) { event.preventDefault(); return $('play').click(); }
     if (state.mode !== 'edit') return;
     if (key === 'delete' || key === 'backspace') { event.preventDefault(); return removeSelection(); }
     const arrows = { arrowleft: [-1, 0], arrowright: [1, 0], arrowup: [0, 1], arrowdown: [0, -1] };
