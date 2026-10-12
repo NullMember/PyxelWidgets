@@ -182,6 +182,24 @@ def _options(cls, options: dict, where: str) -> dict:
         kwargs[key] = value
     return kwargs
 
+def device_class(device: dict, where: str = 'device') -> type:
+    """The class of a layout ``device`` entry, e.g. ``"novation.LaunchpadMiniMK3"``."""
+    module_name, _, class_name = device.get('type', '').rpartition('.')
+    try:
+        return getattr(importlib.import_module(f'pyxelwidgets.devices.{module_name}'), class_name)
+    except (ImportError, AttributeError, ValueError):
+        raise LayoutError(f'{where}.type: unknown device {device.get("type")!r}') from None
+
+def build_device(device: dict, where: str = 'device'):
+    """Create a layout ``device`` entry and connect it to its ports (or the ports found by name)."""
+    cls = device_class(device, where)
+    instance = cls(**_options(cls, device.get('options'), where))
+    if device.get('input') or device.get('output'):
+        instance.connect(device.get('input'), device.get('output'))
+    else:
+        instance.connect()
+    return instance
+
 class Parser():
     """
     Builds a Surface from a layout (a path, JSON text or a dict). ``surface``,
@@ -221,17 +239,7 @@ class Parser():
 
     def get_devices(self):
         for index, device in enumerate(self.json.get('devices', [])):
-            where = f'devices[{index}]'
-            module_name, _, class_name = device.get('type', '').rpartition('.')
-            try:
-                cls = getattr(importlib.import_module(f'pyxelwidgets.devices.{module_name}'), class_name)
-            except (ImportError, AttributeError, ValueError):
-                raise LayoutError(f'{where}.type: unknown device {device.get("type")!r}') from None
-            instance = cls(**_options(cls, device.get('options'), where))
-            if device.get('input') or device.get('output'):
-                instance.connect(device.get('input'), device.get('output'))
-            else:
-                instance.connect()
+            instance = build_device(device, f'devices[{index}]')
             self.surface.add_device(instance, device.get('x', 0), device.get('y', 0))
             self.devices.append(instance)
 
