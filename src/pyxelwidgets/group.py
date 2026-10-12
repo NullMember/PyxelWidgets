@@ -157,6 +157,16 @@ class Pages(Group):
             self._show()
             self.emit(pyxelwidgets.events.PageChanged(self, value))
 
+    def save_state(self) -> dict:
+        return {'page': self._page}
+
+    def load_state(self, state: dict) -> None:
+        page = state.get('page')
+        if isinstance(page, int) and 0 <= page < self.pages and page != self._page:
+            # Without PageChanged, like the other widgets
+            self._page = page
+            self._show()
+
     @property
     def current(self):
         """The widget of the current page, or None without pages."""

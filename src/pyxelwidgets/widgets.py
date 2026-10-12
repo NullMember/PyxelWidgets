@@ -17,6 +17,14 @@ Rate = pyxelwidgets.rate.Rate
 # Sprite frames: a list of RGBA buffers, or of 2-d arrays/lists of Colors
 Frames = typing.NewType('Frames', list)
 
+def _copy_overlap(target: numpy.ndarray, source) -> None:
+    """Copy the part of ``source`` that fits into ``target`` (e.g. after a resize)."""
+    source = numpy.asarray(source)
+    if source.ndim != target.ndim:
+        return
+    area = tuple(slice(0, min(a, b)) for a, b in zip(target.shape, source.shape))
+    target[area] = source[area]
+
 def _level(values: dict) -> float | None:
     """The 0.0-1.0 state a received message carries, if any."""
     for key in ('value', 'state', 'velocity', 'pressure', 'active'):
@@ -228,6 +236,19 @@ class Widget(pyxelwidgets.events.Emitter):
         self.buffer = self._animate(time if time is not None else pyxelwidgets.animation.now())
         return True
 
+    # State
+
+    def save_state(self) -> dict:
+        """
+        What input changed in the widget (its value, pressed cells, steps...),
+        to restore on another instance with ``load_state``, e.g. after rebuilding
+        a layout. Options aren't included.
+        """
+        return {}
+
+    def load_state(self, state: dict) -> None:
+        """Restore ``save_state`` data without emitting events; parts that don't fit are skipped."""
+
     # Feedback
 
     #: How fast a received blinking state (e.g. a Mackie LED) blinks, in seconds
@@ -334,6 +355,16 @@ class ValueWidget(Widget):
     def _delta(self, old, new):
         return new - old
     
+    def save_state(self) -> dict:
+        return {'value': self._value}
+
+    def load_state(self, state: dict) -> None:
+        if 'value' in state:
+            value = state['value']
+            # A one-axis value doesn't fit a two-axis widget and the other way round
+            if isinstance(value, tuple) == isinstance(self._value, tuple):
+                self.value = value
+
     def receive(self, values: dict) -> None:
         """Take ``value`` (or ``value_x``/``value_y``, or another 0.0-1.0 state) without emitting ``Changed``."""
         super().receive(values)
@@ -407,6 +438,14 @@ class Button(ValueWidget):
         # A switch turned on or off elsewhere toggles from there
         self.state = self._value > 0
 
+    def save_state(self) -> dict:
+        return {**super().save_state(), 'switch': self.state, 'hold': self.is_hold}
+
+    def load_state(self, state: dict) -> None:
+        super().load_state(state)
+        self.state = bool(state.get('switch', self.state))
+        self.is_hold = bool(state.get('hold', self.is_hold))
+
     def draw(self) -> None:
         area = self.rect.origin
         self.buffer[area.slice] = self.active_color * self._value if self._value else self.inactive_color
@@ -451,6 +490,21 @@ class ButtonGroup(Widget):
             before = self.state.copy()
             self.state[x, y] = False
             self._emit_toggled(before)
+
+    def save_state(self) -> dict:
+        return {'cells': self.state.copy()}
+
+    def load_state(self, state: dict) -> None:
+        if 'cells' not in state:
+            return
+        _copy_overlap(self.state, state['cells'])
+        on = numpy.argwhere(self.state)
+        if self.mode == ButtonGroup.Mode.Switch and len(on):
+            # One cell at most
+            self.state.fill(False)
+            self.state[tuple(on[0])] = True
+            self._old_button = [int(on[0][0]), int(on[0][1])]
+        self.updated = True
 
     def receive(self, values: dict) -> None:
         """Turn the cell at ``x``, ``y`` (or ``cell``) on or off without emitting Toggled."""
@@ -1421,6 +1475,16 @@ class Sequencer(Widget):
             self.state[x, page_y] = not self.state[x, page_y]
             self.updated = True
 
+    def save_state(self) -> dict:
+        return {'cells': self.state.copy(), 'page': self._page}
+
+    def load_state(self, state: dict) -> None:
+        if 'cells' in state:
+            _copy_overlap(self.state, state['cells'])
+        if 'page' in state:
+            self.page = state['page']
+        self.updated = True
+
     def reset(self):
         self.state.fill(False)
         self.updated = True
@@ -1581,6 +1645,14 @@ class Tracker(Widget):
         #     pass
         self.updated = True
 
+    def save_state(self) -> dict:
+        return {'cells': self.states.copy()}
+
+    def load_state(self, state: dict) -> None:
+        if 'cells' in state:
+            _copy_overlap(self.states, state['cells'])
+            self.updated = True
+
     def draw(self) -> None:
         area = self.rect.origin
         self.buffer[area.slice] = numpy.fliplr(numpy.where(self.states[self.current_page, :, self.current_top:(self.current_bottom + 1), None], self.active_color, self.inactive_color))
@@ -1725,6 +1797,13 @@ class Text(Widget):
     @property
     def text(self) -> str:
         return self._text
+
+    def save_state(self) -> dict:
+        return {'text': self._text}
+
+    def load_state(self, state: dict) -> None:
+        if 'text' in state:
+            self.text = state['text']
 
     def receive(self, values: dict) -> None:
         """Show received ``text`` (e.g. a DAW's track name or timecode)."""
