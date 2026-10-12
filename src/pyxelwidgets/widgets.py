@@ -1,3 +1,4 @@
+import pyxelwidgets.animation
 import pyxelwidgets.buffer
 import pyxelwidgets.events
 import pyxelwidgets.font
@@ -65,6 +66,10 @@ class Widget(pyxelwidgets.events.Emitter):
         self._visible = visible
         self.updated = True
         self.buffer = pyxelwidgets.buffer.new(self.rect.w, self.rect.h, self.inactive_color)
+        self._animation = None
+        self.cell_animations = {}
+        # The drawing before animations, while animated
+        self._static = None
         self._resize(self.rect.w, self.rect.h)
 
     def _default_name(self) -> str:
@@ -167,13 +172,61 @@ class Widget(pyxelwidgets.events.Emitter):
 
     # Drawing
 
-    def render(self) -> bool:
-        """Redraw ``buffer`` if needed; returns True if it changed."""
-        if not self.updated:
-            return False
-        self.updated = False
-        self.draw()
+    def render(self, time: pyxelwidgets.animation.Time | None = None) -> bool:
+        """
+        Redraw ``buffer`` if needed, and apply animations at ``time`` (default:
+        now, at 120 bpm); returns True if it changed.
+        """
+        if self._static is not None:
+            # Draw on the drawing, not on the animated copy
+            self.buffer = self._static
+        drawn = self.updated
+        if drawn:
+            self.updated = False
+            self.draw()
+        if self._animation is None and not self.cell_animations:
+            self._static = None
+            return drawn
+        self._static = self.buffer
+        self.buffer = self._animate(time if time is not None else pyxelwidgets.animation.now())
         return True
+
+    # Animations
+
+    @property
+    def animation(self):
+        """An Animation of the whole widget (e.g. ``Blink('1/8')``), or None."""
+        return self._animation
+
+    @animation.setter
+    def animation(self, value) -> None:
+        self._animation = value
+        self.updated = True
+
+    def animate_cell(self, x: int, y: int, animation) -> None:
+        """Animate the cell at widget ``x``, ``y``; None stops animating it."""
+        if animation is None:
+            self.cell_animations.pop((x, y), None)
+        else:
+            self.cell_animations[(x, y)] = animation
+        self.updated = True
+
+    def _animate(self, time: pyxelwidgets.animation.Time) -> numpy.ndarray:
+        frame = self._static.copy()
+        for (x, y), animation in list(self.cell_animations.items()):
+            if 0 <= x < self.rect.w and 0 <= y < self.rect.h:
+                frame[x:x + 1, y:y + 1] = animation.apply(frame[x:x + 1, y:y + 1], time)
+            if animation.finished(time):
+                del self.cell_animations[(x, y)]
+        animation = self._animation
+        if animation is not None:
+            frame = animation.apply(frame, time)
+            if animation.finished(time):
+                self._animation = None
+                # A fade out ends hidden
+                if getattr(animation, 'out', False):
+                    self.visible = False
+        return frame
 
     def draw(self) -> None:
         """Override to draw the whole widget into ``self.buffer``. Set ``self.updated`` to keep animating."""
@@ -1572,14 +1625,14 @@ class Text(Widget):
             return False
         return self.scroll == Text.Scroll.Always or self._bitmap.shape[0] > self.rect.w
 
-    def render(self) -> bool:
+    def render(self, time = None) -> bool:
         if self.scrolling:
             period = self._bitmap.shape[0] + Text.GAP
             offset = int((self.clock() - self._start) * self.speed) % period
             if offset != self._offset:
                 self._offset = offset
                 self.updated = True
-        return super().render()
+        return super().render(time)
 
     def draw(self) -> None:
         self.buffer[:] = self.inactive_color
