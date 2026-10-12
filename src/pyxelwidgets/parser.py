@@ -3,9 +3,9 @@ Layout files: a JSON description of a Surface, the devices it is shown on and
 its widgets, as written by the designer (``python -m pyxelwidgets.designer``).
 
     {
-      "format": "pyxelwidgets.layout", "version": 1,
+      "format": "pyxelwidgets.layout", "version": 2,
       "surface": {"width": 9, "height": 9},
-      "clock": {"bpm": 120, "ppq": 24},
+      "transport": {"bpm": 120, "signature": [4, 4]},
       "devices": [{"type": "novation.LaunchpadMiniMK3", "x": 0, "y": 0, "options": {}}],
       "widgets": [
         {"type": "Fader", "name": "volume", "x": 0, "y": 0, "width": 1, "height": 8,
@@ -16,7 +16,8 @@ its widgets, as written by the designer (``python -m pyxelwidgets.designer``).
     }
 
 Widget options are the widget's constructor arguments: colors as ``#rrggbb``
-or ``#rrggbbaa``, enums by member name (``"Magnitude"`` for ``Fader.Mode``).
+or ``#rrggbbaa``, enums by member name (``"Magnitude"`` for ``Fader.Mode``),
+rates as note values (``"1/16"``). Version 1 layouts are upgraded on load.
 Device inputs/outputs are optional port names; without them devices are found
 by their port names.
 
@@ -24,10 +25,14 @@ Load a layout and attach behaviour by widget name::
 
     ui = pyxelwidgets.parser.load('layout.json')
     ui['volume'].on(Changed, lambda e: print(e.value))
-    ui.app().run()
+    app = ui.app()              # Sequencers and Trackers follow app.transport
+    app.transport.play()
+    app.run()
 """
 
+import copy
 import enum
+import fractions
 import importlib
 import inspect
 import json
@@ -38,10 +43,14 @@ import typing
 import pyxelwidgets.color
 import pyxelwidgets.group
 import pyxelwidgets.surface
+import pyxelwidgets.transport
 import pyxelwidgets.widgets
 
 FORMAT = 'pyxelwidgets.layout'
-VERSION = 1
+VERSION = 2
+
+# Suggested values for rate options; any note value is accepted
+RATES = ['1/1', '1/2', '1/4', '1/8', '1/16', '1/32', '1/4.', '1/8.', '1/16.', '1/4T', '1/8T', '1/16T', 'beat', 'bar']
 
 class LayoutError(ValueError):
     """A layout that doesn't describe a valid surface; the message names where."""
@@ -86,6 +95,8 @@ def _kind(parameter) -> tuple:
         arguments = [argument for argument in typing.get_args(annotation) if argument is not type(None)]
         if len(arguments) == 1:
             annotation = arguments[0]
+    if annotation is pyxelwidgets.widgets.Rate:
+        return 'rate', None
     if isinstance(annotation, type) and issubclass(annotation, enum.Enum):
         return 'enum', annotation
     if isinstance(default, enum.Enum):
@@ -131,6 +142,8 @@ def option_schema(cls) -> list:
             option['default'] = None if parameter.default is None else _encode(parameter.default, kind)
         if enum_type is not None:
             option['choices'] = [member.name for member in enum_type]
+        elif kind == 'rate':
+            option['choices'] = RATES
         options.append(option)
     return options
 
@@ -162,6 +175,8 @@ def _options(cls, options: dict, where: str) -> dict:
                 value = enum_type[value]
             elif kind == 'point':
                 value = tuple(value)
+            elif kind == 'rate':
+                pyxelwidgets.transport.parse_rate(value)
         except (ValueError, TypeError) as error:
             raise LayoutError(f'{where}.options.{key}: {error}') from None
         kwargs[key] = value
@@ -184,8 +199,8 @@ class Parser():
             self.json = json.loads(layout)
         else:
             self.json = json.loads(pathlib.Path(layout).read_text())
-        if self.json.get('format') != FORMAT or self.json.get('version') != VERSION:
-            raise LayoutError(f'not a {FORMAT} version {VERSION} layout')
+        self.json = upgrade(self.json)
+        self.transport_settings()
         self.devices = []
         self.widgets = {}
         self.surface = None
@@ -247,16 +262,73 @@ class Parser():
                     raise LayoutError(f'{path}.widgets: only a Group can contain widgets')
                 self._add_widgets(widget, item['widgets'], f'{path}.widgets')
 
+    def transport_settings(self) -> dict:
+        """Keyword arguments for a Transport (or App) from the layout's ``transport``."""
+        settings = self.json.get('transport') or {}
+        bpm = settings.get('bpm', 120)
+        if isinstance(bpm, bool) or not isinstance(bpm, (int, float)) or bpm <= 0:
+            raise LayoutError(f'transport.bpm: must be a positive number, got {bpm!r}')
+        try:
+            signature = pyxelwidgets.transport.parse_signature(settings.get('signature', (4, 4)))
+        except ValueError as error:
+            raise LayoutError(f'transport.signature: {error}') from None
+        return {'bpm': bpm, 'signature': signature}
+
+    def attach(self, transport) -> list:
+        """Subscribe every Sequencer and Tracker to ``transport`` at its ``rate``; returns the Subscriptions."""
+        return [transport.every(widget.rate, widget.play) for widget in self.widgets.values()
+                if isinstance(widget, (pyxelwidgets.widgets.Sequencer, pyxelwidgets.widgets.Tracker))]
+
     def app(self, fps: float = 60.0):
-        """An App running the surface, with Sequencers and Trackers driven by its clock."""
+        """An App running the surface, with Sequencers and Trackers following its transport."""
         import pyxelwidgets.app
-        clock = self.json.get('clock', {})
-        app = pyxelwidgets.app.App(self.surface, fps, bpm = clock.get('bpm', 120), ppq = clock.get('ppq', 24))
-        for widget in self.widgets.values():
-            if isinstance(widget, (pyxelwidgets.widgets.Sequencer, pyxelwidgets.widgets.Tracker)):
-                widget.ppq = app.clock.ppq
-                app.clock.add_target(widget.tick)
+        app = pyxelwidgets.app.App(self.surface, fps, **self.transport_settings())
+        self.attach(app.transport)
         return app
+
+def _fraction_text(value: fractions.Fraction) -> str:
+    return str(value.numerator) if value.denominator == 1 else f'{value.numerator}/{value.denominator}'
+
+def upgrade(layout: dict) -> dict:
+    """``layout`` converted to the current version (a copy if it changes); raises LayoutError if it isn't a layout."""
+    if not isinstance(layout, dict) or layout.get('format') != FORMAT:
+        raise LayoutError(f'not a {FORMAT} layout')
+    version = layout.get('version')
+    if version not in (1, VERSION):
+        raise LayoutError(f'unsupported {FORMAT} version {version!r} (supported: 1 to {VERSION})')
+    if version == VERSION:
+        return layout
+    # Version 1 had a tick based clock; Sequencer/Tracker timing was set in ticks per quarter note
+    clock = layout.get('clock') or {}
+    transport = {'bpm': clock.get('bpm', 120), 'signature': [4, 4]}
+    # Same key order, with the transport where the clock was
+    layout = {('transport' if key == 'clock' else key): (transport if key == 'clock' else copy.deepcopy(value))
+              for key, value in layout.items()}
+    layout['version'] = VERSION
+    layout.setdefault('transport', transport)
+    def convert(widgets, where):
+        for index, widget in enumerate(widgets or []):
+            options = widget.get('options') or {}
+            try:
+                if widget.get('type') == 'Sequencer':
+                    note, beat = options.pop('note', 4.0), options.pop('beat', 4.0)
+                    options.pop('ppq', None)
+                    rate = 1 / (fractions.Fraction(note) * fractions.Fraction(beat))
+                elif widget.get('type') == 'Tracker':
+                    numerator, denominator = options.pop('numerator', 1.0), options.pop('denominator', 4.0)
+                    options.pop('ppq', None)
+                    # Rows were numerator/denominator quarter notes long
+                    rate = fractions.Fraction(numerator) / (fractions.Fraction(denominator) * 4)
+                else:
+                    rate = None
+            except (TypeError, ValueError, ZeroDivisionError):
+                raise LayoutError(f'{where}[{index}].options: invalid version 1 timing options') from None
+            if rate is not None and rate != fractions.Fraction(1, 16):
+                options['rate'] = _fraction_text(rate.limit_denominator(1024))
+                widget['options'] = options
+            convert(widget.get('widgets'), f'{where}[{index}].widgets')
+    convert(layout.get('widgets'), 'widgets')
+    return layout
 
 def load(layout, **kwargs) -> Parser:
     """Build a Surface from a layout file (or JSON text, or a dict)."""
