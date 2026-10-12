@@ -12,12 +12,17 @@ class App():
     rendering. The transport doesn't play until ``app.transport.play()``, or
     with ``sync = True`` it follows an external clock (see
     ``pyxelwidgets.devices.midi_clock``).
+
+    Every ``check_interval`` seconds devices notice being unplugged and
+    reconnect when they're back (``Surface.check_devices``); None doesn't.
     """
 
     def __init__(self, surface: pyxelwidgets.surface.Surface, fps: float = 60.0, *,
-                 bpm: float = 120, signature: tuple = (4, 4), sync: bool = False):
+                 bpm: float = 120, signature: tuple = (4, 4), sync: bool = False,
+                 check_interval: float | None = 1.0):
         self.surface = surface
         self.fps = fps
+        self.check_interval = check_interval
         self.transport = pyxelwidgets.transport.Transport(bpm, signature = signature, sync = sync, lock = surface.lock)
         if surface.transport is None:
             # Animations follow the music
@@ -38,9 +43,12 @@ class App():
         """Run until stop(), Ctrl+C, or a device closes (e.g. the Virtual window); then close()."""
         self.running = True
         period = 1.0 / self.fps
-        next_frame = time.perf_counter()
+        next_frame = next_check = time.perf_counter()
         try:
             while self.running and not self._device_closed():
+                if self.check_interval is not None and time.perf_counter() >= next_check:
+                    next_check = time.perf_counter() + self.check_interval
+                    self.surface.check_devices()
                 self.step()
                 next_frame += period
                 delay = next_frame - time.perf_counter()
