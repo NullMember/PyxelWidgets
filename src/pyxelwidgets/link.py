@@ -31,6 +31,13 @@ a source is added as the event has it (``delta`` steps, or 0.0-1.0).
 Numbers end up clamped to ``minimum``/``maximum`` when given; a reversed
 range (``minimum = 8, maximum = 7``) turns a 0.0-1.0 value around.
 
+The value can also be a ``Condition``: an event value compared with a
+constant chooses between two values::
+
+    # Sequencer n shows only while cell n is chosen (16 links, one per sequencer)
+    Link(tabs, sequencers[n], 'visible', Condition(Source('cell'), '==', n), on = Toggled)
+    Link(tabs, pad, 'active_color', Condition(Source('x'), '<', 4, Colors.Red, Colors.Blue), on = Toggled)
+
 An action's value is a number: 0.0-1.0 sources cover ``minimum`` to
 ``maximum`` (whole numbers if both are), whole number sources add ``offset``.
 A text value is filled in from the event: ``'pad {x},{y} at {velocity}'``;
@@ -43,13 +50,51 @@ links don't trigger each other in loops (Pages emits PageChanged for a new
 page; a link doesn't run again while it is running).
 """
 
+import dataclasses
 import enum
+import operator
+import typing
 
 import pyxelwidgets.color
 import pyxelwidgets.mapping
 import pyxelwidgets.message
 
-__all__ = ['Link']
+__all__ = ['Link', 'Condition']
+
+#: Comparisons a Condition makes
+OPERATORS = {'==': operator.eq, '!=': operator.ne, '<': operator.lt, '<=': operator.le, '>': operator.gt, '>=': operator.ge}
+
+@dataclasses.dataclass(frozen = True)
+class Condition:
+    """
+    A link value chosen by a comparison: ``then`` if the event's ``source``
+    (whole numbers with their offset, 0.0-1.0 values as they are) compared
+    with ``op`` (==, !=, <, <=, >, >=) to ``to`` is true, else ``otherwise``.
+    """
+    source: pyxelwidgets.message.Source
+    op: str = '=='
+    to: typing.Any = 0
+    then: typing.Any = True
+    otherwise: typing.Any = False
+
+    def __post_init__(self):
+        if self.op not in OPERATORS:
+            raise ValueError(f'op must be one of {", ".join(OPERATORS)}, got {self.op!r}')
+
+    def test(self, sources: dict) -> bool:
+        value = self.source.get(sources)
+        if self.op in ('==', '!=') and isinstance(value, float) and isinstance(self.to, (int, float)):
+            # 0.1 + 0.2 equals 0.3
+            equal = abs(value - self.to) < 1e-6
+            return equal if self.op == '==' else not equal
+        try:
+            return bool(OPERATORS[self.op](value, self.to))
+        except TypeError:
+            # Text compared with a number: only "not equal" holds
+            return self.op == '!='
+
+    def choose(self, sources: dict):
+        return self.then if self.test(sources) else self.otherwise
 
 def _short(value):
     return round(value, 3) if isinstance(value, float) else value
@@ -113,6 +158,10 @@ class Link:
             raise ValueError(f'only numbers and choices can be added to, not {option!r}')
         if change != Link.Change.Toggle and value is None and kind != 'action':
             raise ValueError('a value is needed to set or add')
+        if isinstance(value, Condition):
+            names = pyxelwidgets.mapping.available(on)
+            if value.source.name not in names:
+                raise ValueError(f'{on.__name__} has no {value.source.name!r} (it has {", ".join(names)})')
         if isinstance(value, pyxelwidgets.message.Source):
             names = pyxelwidgets.mapping.available(on)
             if value.name not in names:
@@ -156,7 +205,7 @@ class Link:
 
     def argument(self, sources: dict):
         """An action's argument from the event's ``sources``."""
-        value = self.value
+        value = self.value.choose(sources) if isinstance(self.value, Condition) else self.value
         if isinstance(value, str):
             return fill_text(value, sources)
         if not isinstance(value, pyxelwidgets.message.Source):
@@ -179,22 +228,23 @@ class Link:
                 return not current
             members = list(type(current))
             return members[(members.index(current) + 1) % len(members)]
+        given = self.value.choose(sources) if isinstance(self.value, Condition) else self.value
         if self.change == Link.Change.Add:
-            if isinstance(self.value, pyxelwidgets.message.Source):
+            if isinstance(given, pyxelwidgets.message.Source):
                 # As the event has it: whole number steps (delta...) or 0.0-1.0
-                source = sources[self.value.name]
-                value = int(source) + self.value.offset if self.value.integer else float(source)
+                source = sources[given.name]
+                value = int(source) + given.offset if given.integer else float(source)
             else:
-                value = self.value
+                value = given
             if kind == 'enum':
                 members = list(type(current))
                 return members[(members.index(current) + int(value)) % len(members)]
             value = current + value
             value = int(round(value)) if kind == 'int' else float(value)
-        elif isinstance(self.value, pyxelwidgets.message.Source):
+        elif isinstance(given, pyxelwidgets.message.Source):
             value = self._source(sources, current)
         else:
-            value = self.value
+            value = given
         if kind in ('int', 'float') and not isinstance(value, bool):
             bounds = [bound for bound in (self.minimum, self.maximum) if bound is not None]
             if len(bounds) == 2:
