@@ -33,10 +33,11 @@ __all__ = ['Transport', 'Subscription', 'parse_rate', 'parse_signature']
 class Subscription:
     """A callback made every ``rate`` by a Transport; ``cancel()`` removes it."""
 
-    def __init__(self, transport, rate, callback: typing.Callable, offset) -> None:
+    def __init__(self, transport, rate, callback: typing.Callable, offset, divisions: int = 1) -> None:
         self.transport = transport
         self.rate = rate
         self.offset = offset
+        self.divisions = divisions
         self.callback = callback
         self.interval = fractions.Fraction(1)
         self.start = fractions.Fraction(0)
@@ -48,7 +49,8 @@ class Subscription:
 class Transport(pyxelwidgets.events.Emitter):
     """
     Tempo, time signature, play/stop and the position, counted in ``tick``
-    (``ppq`` ticks per quarter note). Emits TransportStarted, TransportStopped,
+    (``ppq`` ticks per quarter note: 96, so a 16th note's swing can move in
+    24ths of it). Emits TransportStarted, TransportStopped,
     TransportLocated and TempoChanged.
 
     ``lock`` (e.g. a Surface's lock) is held while calling subscribers and
@@ -59,7 +61,7 @@ class Transport(pyxelwidgets.events.Emitter):
 
     def __init__(self, bpm: float = 120.0, *,
                  signature: tuple = (4, 4),
-                 ppq: int = 24,
+                 ppq: int = 96,
                  sync: bool = False,
                  lock = None) -> None:
         if bpm <= 0:
@@ -142,7 +144,7 @@ class Transport(pyxelwidgets.events.Emitter):
         return int(self._tick // self._ticks(fractions.Fraction(1, self._signature[1]))) % self._signature[0]
 
     def ticks(self, rate) -> fractions.Fraction:
-        """Length of ``rate`` in ticks, e.g. ``'1/16'`` → 6 at 24 ppq."""
+        """Length of ``rate`` in ticks, e.g. ``'1/16'`` → 24 at 96 ppq."""
         return self._ticks(parse_rate(rate, self._signature))
 
     # Control
@@ -194,20 +196,25 @@ class Transport(pyxelwidgets.events.Emitter):
 
     # Subscriptions
 
-    def every(self, rate, callback: typing.Callable | None = None, *, offset = 0):
+    def every(self, rate, callback: typing.Callable | None = None, *, offset = 0, divisions: int = 1):
         """
         Call ``callback(count)`` every ``rate`` while playing, where ``count``
         is the number of ``rate`` lengths since the start (e.g. the 16th note
         number), so the callback follows ``locate`` too. ``offset`` (a rate,
-        e.g. ``'1/32'``) delays the calls. Returns a Subscription; usable as a
-        decorator, which returns the function.
+        e.g. ``'1/32'``) delays the calls. With ``divisions`` the callback is
+        called that many times per ``rate`` (as often as ticks allow; counts in
+        between may be skipped), counting divisions: a Sequencer times swing and
+        gates with them. Returns a Subscription; usable as a decorator, which
+        returns the function.
         """
+        if not isinstance(divisions, int) or divisions < 1:
+            raise ValueError(f'divisions must be a whole number of at least 1, got {divisions!r}')
         if callback is None:
             def decorator(callback):
-                self.every(rate, callback, offset = offset)
+                self.every(rate, callback, offset = offset, divisions = divisions)
                 return callback
             return decorator
-        subscription = Subscription(self, rate, callback, offset)
+        subscription = Subscription(self, rate, callback, offset, divisions)
         with self.lock:
             self._arm(subscription)
             self._subscriptions.append(subscription)
@@ -253,7 +260,7 @@ class Transport(pyxelwidgets.events.Emitter):
     def _arm(self, *subscriptions) -> None:
         """Make each subscription's next call the first boundary at or after the position."""
         for subscription in subscriptions:
-            subscription.interval = self.ticks(subscription.rate)
+            subscription.interval = self.ticks(subscription.rate) / subscription.divisions
             subscription.start = self.ticks(subscription.offset) if subscription.offset else fractions.Fraction(0)
             subscription.last = math.ceil((self._tick - subscription.start) / subscription.interval) - 1
 
