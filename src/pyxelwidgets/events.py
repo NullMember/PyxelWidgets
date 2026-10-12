@@ -209,6 +209,16 @@ class MessageReceived(Event):
     device: typing.Any
     message: typing.Any
 
+@dataclasses.dataclass(frozen = True)
+class DeviceDisconnected(Event):
+    """A device's ports went away (it was unplugged); it reconnects when they're back."""
+    device: typing.Any
+
+@dataclasses.dataclass(frozen = True)
+class DeviceReconnected(Event):
+    """An unplugged device is back and connected again."""
+    device: typing.Any
+
 # Surface events
 
 @dataclasses.dataclass(frozen = True)
