@@ -112,7 +112,9 @@ class Transport(pyxelwidgets.events.Emitter):
         self._subscriptions = []
         self._stopped = None
         self._thread = None
-        self._pulses = collections.deque(maxlen = self.MIDI_PPQ + 1)
+        # Times of the last 4 beats of external clock, for measuring the tempo
+        self._pulses = collections.deque(maxlen = 4 * self.MIDI_PPQ + 1)
+        self._pulse_count = 0
 
     # Settings
 
@@ -259,17 +261,21 @@ class Transport(pyxelwidgets.events.Emitter):
     # External clock
 
     def pulse(self) -> None:
-        """One MIDI Timing Clock (24 per quarter note): measures the tempo and, while playing, advances."""
+        """
+        One MIDI Timing Clock (24 per quarter note): advances while playing.
+        The tempo is measured once a beat, averaged over up to 4 beats.
+        """
         with self.lock:
             now = time.perf_counter()
-            self._pulses.append(now)
-            if len(self._pulses) == self._pulses.maxlen:
-                # The duration of the last quarter note
-                bpm = round(60.0 / (now - self._pulses[0]), 2)
+            if self._pulses and now - self._pulses[-1] > 1.0:
+                # The clock paused (slower than 2.5 bpm): start measuring again
                 self._pulses.clear()
-                self._pulses.append(now)
-                if bpm > 0:
-                    self.bpm = bpm
+                self._pulse_count = 0
+            self._pulses.append(now)
+            self._pulse_count += 1
+            if self._pulse_count % self.MIDI_PPQ == 0 and now > self._pulses[0]:
+                beats = (len(self._pulses) - 1) / self.MIDI_PPQ
+                self.bpm = round(60.0 * beats / (now - self._pulses[0]), 1)
             if self._playing:
                 for _ in range(self._ppq // self.MIDI_PPQ):
                     self._advance()
