@@ -27,6 +27,8 @@ class App():
         if surface.transport is None:
             # Animations follow the music
             surface.transport = self.transport
+        #: Other clocks to close with the App (e.g. widgets' own, see Parser.start_clocks)
+        self.clocks = []
         self.running = False
         self._closed = False
 
@@ -71,8 +73,10 @@ class App():
             return
         self._closed = True
         self.running = False
-        # Stop the transport first: its subscribers may be waiting for the lock
+        # Stop the clocks first: their subscribers may be waiting for the lock
         self.transport.close()
+        for clock in self.clocks:
+            clock.close()
         self.surface.close()
 
     def _device_closed(self) -> bool:
