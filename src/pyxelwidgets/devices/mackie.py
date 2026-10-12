@@ -35,6 +35,7 @@ class _ControlSurface(pyxelwidgets.devices.midi_port.MidiPort):
 
     #: Command name → kind: button, fader, relative, display, meter
     commands: dict = {}
+    messages = ('Command',) + pyxelwidgets.devices.midi_port.MidiPort.messages
 
     @classmethod
     def describe(cls) -> dict:

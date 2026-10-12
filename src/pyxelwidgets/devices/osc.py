@@ -25,6 +25,7 @@ class OSC(pyxelwidgets.devices.Device):
     """
 
     model = 'OSC'
+    messages: tuple = ('OscMessage',)
     addresses: tuple = ()
 
     def __init__(self, *, host: str = '127.0.0.1', send_port: int = 8000, receive_port: int | None = 9000, **kwargs):
@@ -39,6 +40,7 @@ class OSC(pyxelwidgets.devices.Device):
     def describe(cls) -> dict:
         info = super().describe()
         info['addresses'] = list(cls.addresses)
+        info['messages'] = list(cls.messages)
         return info
 
     def connect(self) -> None:

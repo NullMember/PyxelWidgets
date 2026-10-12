@@ -21,6 +21,14 @@ class MidiPort(pyxelwidgets.devices.midi.MIDI):
     """Sends MidiMessages with ``send``; received channel messages are emitted as MessageReceived."""
 
     model = 'MIDI Port'
+    #: Message classes ``send`` takes (by name, from pyxelwidgets.message)
+    messages: tuple = ('NoteOn', 'NoteOff', 'ControlChange', 'ProgramChange', 'PitchBend', 'PolyPressure', 'ChannelPressure')
+
+    @classmethod
+    def describe(cls) -> dict:
+        info = super().describe()
+        info['messages'] = list(cls.messages)
+        return info
 
     def send(self, message: pyxelwidgets.message.MidiMessage) -> None:
         if self._midi_output is not None:
