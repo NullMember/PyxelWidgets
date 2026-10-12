@@ -18,7 +18,9 @@ import time as _time
 
 import numpy
 
+import pyxelwidgets.color
 import pyxelwidgets.rate
+from pyxelwidgets.rate import Rate
 
 __all__ = ['Time', 'Animation', 'Blink', 'Pulse', 'Fade', 'now']
 
@@ -43,7 +45,7 @@ class Animation:
     ``cells``. ``finished(time)`` ends one-shot animations.
     """
 
-    def __init__(self, rate = '1/4'):
+    def __init__(self, rate: Rate | float = '1/4'):
         if isinstance(rate, str):
             pyxelwidgets.rate.parse_rate(rate)
         elif not rate > 0:
@@ -84,7 +86,7 @@ def _scaled(cells: numpy.ndarray, amount: float, alpha: bool = False) -> numpy.n
 class Blink(Animation):
     """On for ``duty`` of each period, off (transparent, or ``off_color``) for the rest."""
 
-    def __init__(self, rate = '1/4', *, duty: float = 0.5, off_color = None):
+    def __init__(self, rate: Rate | float = '1/4', *, duty: float = 0.5, off_color: pyxelwidgets.color.Color | None = None):
         super().__init__(rate)
         self.duty = duty
         self.off_color = off_color
@@ -99,7 +101,7 @@ class Blink(Animation):
 class Pulse(Animation):
     """Brightness breathes between ``minimum`` and full once per period."""
 
-    def __init__(self, rate = '1/2', *, minimum: float = 0.2):
+    def __init__(self, rate: Rate | float = '1/2', *, minimum: float = 0.2):
         super().__init__(rate)
         self.minimum = minimum
 
@@ -113,7 +115,7 @@ class Fade(Animation):
     drops a finished fade; after fading out it is hidden.
     """
 
-    def __init__(self, duration = 0.3, *, out: bool = False):
+    def __init__(self, duration: Rate | float = 0.3, *, out: bool = False):
         super().__init__(duration)
         self.out = out
 
