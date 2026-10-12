@@ -33,6 +33,10 @@ range (``minimum = 8, maximum = 7``) turns a 0.0-1.0 value around.
 
 An action's value is a number: 0.0-1.0 sources cover ``minimum`` to
 ``maximum`` (whole numbers if both are), whole number sources add ``offset``.
+A text value is filled in from the event: ``'pad {x},{y} at {velocity}'``;
+``{all}`` is every value (``x=1 y=0 velocity=0.5``)::
+
+    Link(pads, print, value = 'pressed {cell}', on = Pressed)
 
 Options change through ``target.configure``, which doesn't emit events, so
 links don't trigger each other in loops (Pages emits PageChanged for a new
@@ -46,6 +50,20 @@ import pyxelwidgets.mapping
 import pyxelwidgets.message
 
 __all__ = ['Link']
+
+def _short(value):
+    return round(value, 3) if isinstance(value, float) else value
+
+def fill_text(template: str, sources: dict) -> str:
+    """``template`` with ``{name}``/``{name+1}`` replaced by event values (unknown ones kept), ``{all}`` by every value."""
+    def replace(match) -> str:
+        if match.group(0) == '{all}':
+            return ' '.join(f'{name}={_short(value)}' for name, value in sources.items())
+        source = pyxelwidgets.message._placeholders(match.group(0))[0]
+        if source.name not in sources:
+            return match.group(0)
+        return str(_short(source.get(sources)))
+    return pyxelwidgets.message._PLACEHOLDER.sub(replace, template)
 
 def _kind(value) -> str:
     """What an option holds, from its current value."""
@@ -139,6 +157,8 @@ class Link:
     def argument(self, sources: dict):
         """An action's argument from the event's ``sources``."""
         value = self.value
+        if isinstance(value, str):
+            return fill_text(value, sources)
         if not isinstance(value, pyxelwidgets.message.Source):
             return value
         raw = sources[value.name]
