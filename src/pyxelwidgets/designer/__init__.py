@@ -233,6 +233,8 @@ class Preview:
         self.proxies = {}
         self._render_stop = None
         self.load(layout or new_layout())
+        self._watch_stop = threading.Event()
+        threading.Thread(target = self._watch, args = (self._watch_stop,), name = 'DesignerHotplug', daemon = True).start()
 
     def load(self, layout: dict) -> None:
         """
@@ -303,7 +305,16 @@ class Preview:
             return self.hardware_status()
 
     def hardware_status(self) -> dict:
-        status = lambda entries: [{'connected': entry['device'] is not None, 'error': entry['error']} for entry in entries]
+        def status(entries):
+            found = []
+            for entry in entries:
+                device = entry['device']
+                connected = device is not None and device.connected
+                error = entry['error']
+                if device is not None and not connected and getattr(device, 'lost', False):
+                    error = f'not plugged in: connects when it is (ports matching {", ".join(type(device).ports) or "its ports"})'
+                found.append({'connected': connected, 'error': error})
+            return found
         return {'devices': status(self.hardware), 'outputs': status(self.outputs)}
 
     def _wanted(self, spec: dict) -> bool:
@@ -363,9 +374,10 @@ class Preview:
             device = pyxelwidgets.parser.build_device(spec, f'devices[{index}]')
         except Exception as error:
             return None, str(error) or type(error).__name__
-        if not device.connected:
+        if not device.connected and not getattr(device, 'lost', False):
             cls = type(device)
             return None, f'no MIDI port found (looked for {", ".join(cls.ports) or "nothing"})'
+        # A device not plugged in yet is kept: it connects when it is (see _watch)
         return device, None
 
     @staticmethod
@@ -374,10 +386,25 @@ class Preview:
             output = pyxelwidgets.parser.build_output(spec, f'outputs[{index}]')
         except Exception as error:
             return None, str(error) or type(error).__name__
-        if not output.connected:
+        if not output.connected and not getattr(output, 'lost', False):
             output.close()
             return None, 'no port: give it a virtual port name, or input/output ports'
         return output, None
+
+    #: Seconds between checks for unplugged and plugged in hardware
+    check_interval = 1.0
+
+    def _watch(self, stop: threading.Event) -> None:
+        """Let connected (and waiting) devices and outputs notice being unplugged or plugged in."""
+        while not stop.wait(self.check_interval):
+            with self.lock:
+                ui = self.ui
+                devices = [entry['device'] for entry in (*self.hardware, *self.outputs) if entry['device'] is not None]
+            if ui is None or not devices:
+                continue
+            for device in ui.surface.check_devices(devices):
+                state = 'reconnected' if device.connected else 'unplugged'
+                self._log(device.name, f'device {state}', {})
 
     def _render(self, stop: threading.Event) -> None:
         """Send frames to the hardware (the browser only renders when it asks for a frame)."""
@@ -388,6 +415,7 @@ class Preview:
                 self.ui.surface.update()
 
     def close(self) -> None:
+        self._watch_stop.set()
         self.stop()
         with self.lock:
             self.ui.close_clocks()
