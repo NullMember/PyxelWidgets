@@ -6,8 +6,14 @@ time signature. Used by the transport, widgets' ``rate`` and animations.
 
 import fractions
 import re
+import typing
 
-__all__ = ['parse_rate', 'parse_signature', 'quarter_notes']
+__all__ = ['Rate', 'parse_rate', 'parse_signature', 'quarter_notes']
+
+# A note value such as '1/16', '1/8.' or 'bar'. Annotating an argument with it
+# (``Rate`` or ``Rate | float`` for note values or seconds) lets layouts and
+# the designer treat it as a rate.
+Rate = typing.NewType('Rate', str)
 
 _RATE = re.compile(r'^\s*(\d+)\s*(?:/\s*(\d+))?\s*([.tT])?\s*$')
 
