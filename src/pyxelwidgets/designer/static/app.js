@@ -818,7 +818,7 @@ function linkValueEditor(link, option, id, edit) {
         onchange: (e) => edit(() => { link.value = option.kind === 'float' ? Number(e.target.value) : parseInt(e.target.value || '0', 10); }),
       });
     } else {
-      [detail] = optionControl(option, link.value, (value) => edit(() => { link.value = value ?? constant; }), id('constant'));
+      [detail] = optionControl(option, link.value, (value) => edit(() => { link.value = Number.isNaN(value) ? constant : value ?? constant; }), id('constant'));
     }
   } else if (INTEGER_SOURCES.has(link.value.source)) {
     detail = el('input', {
@@ -849,15 +849,24 @@ function linkValueEditor(link, option, id, edit) {
 
 // Actions a link can call on a target: a widget's methods, or the transport's (target '')
 function linkActions(target) {
-  if (!target) return Object.fromEntries(state.catalog.link.actions.map((name) => [name, null]));
+  if (!target) return state.catalog.link.actions;
   return state.catalog.widgets[target.type]?.actions || {};
 }
 
-// An action's first value: the pad's cell or the event's step where there is one
+// An action's first value: the pad's cell or the event's step where there is one; a tempo from a fader
 function defaultActionValue(link) {
   for (const key of ['value', 'min', 'max', 'change']) delete link[key];
   if (linkActions(widgetNamed(link.target))[link.action] === null) return;
   const sources = sourceNames(link.on);
+  if (link.action === 'transport.tempo') {
+    if (sources.includes('value')) Object.assign(link, { value: { source: 'value' }, min: 60, max: 180 });
+    else link.value = 120;
+    return;
+  }
+  if (link.action === 'transport.tempo_add') {
+    link.value = 1;
+    return;
+  }
   const source = ['step', 'row', 'cell', 'note'].find((name) => sources.includes(name));
   link.value = source ? { source } : 0;
 }
@@ -881,7 +890,8 @@ function linkCard(widget, link, index) {
   const valueFields = () => {
     if (isAction) {
       if (!(link.action in actions)) return el('p', { class: 'hint' }, `${link.target || 'The transport'} has no action ${link.action}`);
-      return option ? [el('label', { for: id('value') }, link.action === 'play' ? 'step' : 'with'), linkValueEditor(link, option, id, edit)] : null;
+      const label = { play: 'step', 'transport.tempo': 'bpm', 'transport.tempo_add': 'by' }[link.action] || 'with';
+      return option ? [el('label', { for: id('value') }, label), linkValueEditor(link, option, id, edit)] : null;
     }
     if (!option) return el('p', { class: 'hint' }, `${link.target} has no option ${link.option}`);
     return [

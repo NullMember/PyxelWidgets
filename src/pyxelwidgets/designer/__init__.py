@@ -155,6 +155,14 @@ class _PreviewActions:
         if transport is not None:
             transport.locate(beats)
 
+    @property
+    def bpm(self) -> float:
+        return self.preview.bpm
+
+    @bpm.setter
+    def bpm(self, value: float) -> None:
+        self.preview.set_tempo(value)
+
 def _entries(widgets, found = None) -> dict:
     """Layout widget entries by name, nested ones included."""
     found = {} if found is None else found
@@ -214,6 +222,8 @@ class Preview:
         self.transport = None
         self.events = collections.deque(maxlen = 500)
         self.event_counter = 0
+        # A tempo set by a link, until the layout's tempo changes
+        self.tempo = None
         self.connect = connect
         # Connections switched on or off by hand, by connection key: True or False
         self.choices = {}
@@ -235,7 +245,6 @@ class Preview:
         device = PreviewDevice(width = ui.surface.rect.w, height = ui.surface.rect.h, held_time = 0.6)
         device.connect()
         ui.surface.add_device(device)
-        ui.surface.transport = self._idle(ui)
         for widget in ui.widgets.values():
             widget.on(pyxelwidgets.events.WidgetEvent, self._record)
         # Mappings send to stand-ins that log, and forward to the connected outputs
@@ -249,10 +258,16 @@ class Preview:
             old = self.ui
             if old is not None:
                 _carry_state(old, self.layout, ui, layout)
+                old.close_clocks()
+                if (self.layout.get('transport') or {}).get('bpm') != (layout.get('transport') or {}).get('bpm'):
+                    self.tempo = None
             for proxy in self.proxies.values():
                 proxy.detach()
             self.layout, self.ui, self.device, self.proxies = copy.deepcopy(layout), ui, device, proxies
             self._attach(old)
+            ui.surface.transport = self._idle(ui)
+            # Widgets with clocks of their own run while editing
+            ui.start_clocks(lock = ui.surface.lock)
             if playing:
                 self.play()
 
@@ -375,6 +390,7 @@ class Preview:
     def close(self) -> None:
         self.stop()
         with self.lock:
+            self.ui.close_clocks()
             self.connect = False
             self.choices = {}
             self._attach(self.ui)
@@ -408,16 +424,33 @@ class Preview:
         with self.lock:
             if self.transport is not None:
                 return
-            self.transport = pyxelwidgets.transport.Transport(**self.ui.transport_settings(), lock = self.ui.surface.lock)
+            self.transport = pyxelwidgets.transport.Transport(**self._settings(self.ui), lock = self.ui.surface.lock)
             self.ui.attach(self.transport)
             # Animations follow the music while playing
             self.ui.surface.transport = self.transport
             self.transport.play()
 
-    @staticmethod
-    def _idle(ui):
+    def _settings(self, ui) -> dict:
+        settings = ui.transport_settings()
+        if self.tempo is not None:
+            settings['bpm'] = self.tempo
+        return settings
+
+    def _idle(self, ui):
         # A stopped transport: animations run at the layout's tempo while not playing
-        return pyxelwidgets.transport.Transport(**ui.transport_settings())
+        return pyxelwidgets.transport.Transport(**self._settings(ui))
+
+    @property
+    def bpm(self) -> float:
+        """The tempo: the layout's, or one a link set."""
+        return self.tempo if self.tempo is not None else self.ui.transport_settings()['bpm']
+
+    def set_tempo(self, bpm: float) -> None:
+        """Change the tempo (from a link) until the layout's tempo changes."""
+        self.tempo = float(bpm)
+        transport = self.transport if self.transport is not None else self.ui.surface.transport
+        if transport is not None:
+            transport.bpm = self.tempo
 
     def stop(self) -> None:
         with self.lock:
