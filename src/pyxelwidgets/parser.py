@@ -36,6 +36,11 @@ Sprite frames as lists of rows from the top, each a list of colors (``null``
 is transparent). A widget's optional ``animation`` is one of ``ANIMATIONS``
 with its options. Older versions are upgraded on load.
 
+``transport.sync`` makes the transport follow another program's MIDI clock
+(a DAW sending MIDI clock to a port): ``{"input": "IAC Driver Bus 1"}`` or a
+virtual port it can send to, ``{"virtual": "PyxelWidgets Clock"}``. Its
+tempo, start, stop and position (song position) then come from there.
+
 Bindings connect a device's named controls (by the device's index in
 ``devices``) to a widget, with Binding options (``takeover``, ``glide_time``,
 ``step``, ``axis``), or to an action (see ``ACTIONS``).
@@ -522,6 +527,9 @@ class Parser():
             self.json = json.loads(pathlib.Path(layout).read_text())
         self.json = upgrade(self.json)
         self.transport_settings()
+        self.sync_settings()
+        #: The MidiClockInput following the DAW (``app()`` with ``transport.sync``)
+        self.clock_input = None
         # Clocks of widgets with their own (start_clocks)
         self.clocks = []
         #: Where debug links write: debug(widget name, text); prints by default (the designer logs them)
@@ -605,8 +613,37 @@ class Parser():
                 raise
             raise LayoutError(f'{where}.options: {error}') from None
 
+    def sync_settings(self) -> dict | None:
+        """
+        The layout's ``transport.sync``: ``{"input": port}`` or ``{"virtual": port}``,
+        the MIDI port a DAW's clock comes in through; None if the transport keeps its own time.
+        """
+        sync = (self.json.get('transport') or {}).get('sync')
+        if sync is None:
+            return None
+        if not isinstance(sync, dict) or len(sync) != 1 or not set(sync) <= {'input', 'virtual'}:
+            raise LayoutError(f'transport.sync: must be {{"input": port name}} or {{"virtual": port name}}, got {sync!r}')
+        (key, port), = sync.items()
+        if not isinstance(port, str) or not port:
+            raise LayoutError(f'transport.sync.{key}: must be a port name, got {port!r}')
+        return dict(sync)
+
+    def sync_input(self, transport):
+        """A MidiClockInput driving ``transport`` (created with ``sync = True``) from the ``sync`` port, connected; None without sync."""
+        sync = self.sync_settings()
+        if sync is None:
+            return None
+        import pyxelwidgets.devices.midi_clock
+        clock = pyxelwidgets.devices.midi_clock.MidiClockInput(transport)
+        if 'virtual' in sync:
+            clock.connect_virtual(sync['virtual'])
+        else:
+            # Waits for the port if it isn't there yet
+            clock.connect(sync['input'], None)
+        return clock
+
     def transport_settings(self) -> dict:
-        """Keyword arguments for a Transport (or App) from the layout's ``transport``."""
+        """Keyword arguments for a Transport (or App) from the layout's ``transport`` (bpm and signature)."""
         settings = self.json.get('transport') or {}
         bpm = settings.get('bpm', 120)
         if isinstance(bpm, bool) or not isinstance(bpm, (int, float)) or bpm <= 0:
@@ -615,6 +652,9 @@ class Parser():
             signature = pyxelwidgets.transport.parse_signature(settings.get('signature', (4, 4)))
         except ValueError as error:
             raise LayoutError(f'transport.signature: {error}') from None
+        unknown = set(settings) - {'bpm', 'signature', 'sync'}
+        if unknown:
+            raise LayoutError(f'transport: unknown keys {", ".join(sorted(unknown))}')
         return {'bpm': bpm, 'signature': signature}
 
     def timed(self, clock: pyxelwidgets.widgets.Clock) -> list:
@@ -623,8 +663,16 @@ class Parser():
                 if isinstance(widget, pyxelwidgets.widgets.Timed) and widget.clock == clock]
 
     def attach(self, transport) -> list:
-        """Subscribe the widgets the transport plays (``clock = Clock.Transport``) to ``transport`` at their ``rate``; returns the Subscriptions."""
-        return [transport.every(widget.rate, widget.tick) for widget in self.timed(pyxelwidgets.widgets.Clock.Transport)]
+        """
+        Subscribe the widgets the transport plays (``clock = Clock.Transport``) to
+        ``transport`` at their ``rate``; a Sequencer's sounding step ends when it
+        stops. Returns the Subscriptions.
+        """
+        subscriptions = []
+        for widget in self.timed(pyxelwidgets.widgets.Clock.Transport):
+            transport.on(pyxelwidgets.events.TransportStopped, lambda event, widget = widget: widget.silence())
+            subscriptions.append(transport.every(widget.rate, widget.tick, divisions = widget.divisions))
+        return subscriptions
 
     def start_clocks(self, *, lock = None) -> list:
         """
@@ -639,7 +687,8 @@ class Parser():
                 # The widget's tempo may change (e.g. from a link)
                 clock.bpm = widget.bpm
                 widget.tick(count)
-            clock.every(widget.rate, tick)
+            clock.every(widget.rate, tick, divisions = widget.divisions)
+            clock.on(pyxelwidgets.events.TransportStopped, lambda event, widget = widget: widget.silence())
             clock.play()
             self.clocks.append(clock)
         return list(self.clocks)
@@ -650,9 +699,17 @@ class Parser():
         self.clocks = []
 
     def app(self, fps: float = 60.0):
-        """An App running the surface, with the widgets following its transport, and their own clocks started."""
+        """
+        An App running the surface, with the widgets following its transport,
+        and their own clocks started. With ``transport.sync`` the transport
+        follows the DAW's MIDI clock (``ui.clock_input``, closed with the App).
+        """
         import pyxelwidgets.app
-        app = pyxelwidgets.app.App(self.surface, fps, **self.transport_settings())
+        sync = self.sync_settings() is not None
+        app = pyxelwidgets.app.App(self.surface, fps, **self.transport_settings(), sync = sync)
+        if sync:
+            self.clock_input = self.sync_input(app.transport)
+            app.clocks.append(self.clock_input)
         self.attach(app.transport)
         app.clocks += self.start_clocks(lock = app.lock)
         self.bindings += self.bind(self.devices, app.transport, widgets = False)
