@@ -390,7 +390,7 @@ function uniqueOutputName(base) {
 function addOutput() {
   const type = $('output-type').value;
   const info = state.catalog.outputs.find((output) => output.type === type);
-  const base = { 'mackie.MackieControl': 'mackie', 'mackie.HUI': 'hui', 'osc.REAPER': 'reaper', 'osc.OSC': 'osc' }[type] || 'midi';
+  const base = { 'mackie.MackieControl': 'mackie', 'mackie.HUI': 'hui', 'osc.REAPER': 'reaper', 'osc.OSC': 'osc', 'desktop.Desktop': 'desktop' }[type] || 'midi';
   change((layout) => {
     const name = uniqueOutputName(base);
     // MIDI outputs start as a virtual port other software can pick
@@ -440,7 +440,9 @@ function outputProperties(panel, index) {
     el('h3', {}, info?.model || output.type),
     el('p', { class: 'doc' }, info?.midi
       ? 'Other software (a DAW, a synth) picks the virtual port, or set existing input/output ports instead.'
-      : 'Sends OSC to host:send port and listens on the receive port.'),
+      : output.type.startsWith('osc.') ? 'Sends OSC to host:send port and listens on the receive port.' : (info?.doc || '').replace(/``/g, '')),
+    info && info.auto_connect === false ? el('p', { class: 'hint' },
+      'Not connected by itself in the designer: press Connect in Outputs when its actions should happen for real. The event log shows them either way.') : null,
     el('div', { class: 'fields' },
       el('label', { for: 'output-name' }, 'name'),
       el('div', { class: 'control' }, el('input', {
@@ -477,6 +479,14 @@ function defaultMessage(widget, on, info) {
   const accepts = info?.messages || [];
   const source = (name, extra = {}) => ({ source: name, ...extra });
   const xy = widget.type === 'XY';
+  if (accepts.includes('Hotkey')) {
+    if (on === 'Changed' && xy) return { type: 'MouseMove', x: source('value_x'), y: source('value_y'), relative: false };
+    if (on === 'Changed' && widget.type === 'Knob') return { type: 'Scroll', dx: 0, dy: source('delta') };
+    if (on === 'Changed' && widget.type === 'Button') return { type: 'Key', keys: 'shift', state: source('value') };
+    if (on === 'Changed') return { type: 'Scroll', dx: 0, dy: source('delta') };
+    if (on === 'Toggled') return { type: 'Hotkey', keys: 'f{x+1}' };
+    return { type: 'Hotkey', keys: 'ctrl+c' };
+  }
   if (accepts.includes('Command')) {
     if (on === 'Changed') return { type: 'Command', name: 'Fader 1', value: source(xy ? 'value_x' : 'value') };
     if (on === 'Toggled') return { type: 'Command', name: 'Mute {x+1}', value: source('state') };
@@ -504,9 +514,12 @@ function defaultMessage(widget, on, info) {
 
 function addMapping(widget) {
   const output = outputsOf()[0];
-  const on = defaultEvent(widget);
+  const info = outputInfo(output);
+  // Macro buttons: a momentary button fires a shortcut on presses (it changes on releases too)
+  const momentary = widget.type === 'Button' && (widget.options?.mode || 'Button') !== 'Switch';
+  const on = momentary && info?.messages.includes('Hotkey') ? 'Pressed' : defaultEvent(widget);
   change((layout) => {
-    setMappings(layout, [...(layout.mappings || []), { widget: widget.name, on, output: output.name, message: defaultMessage(widget, on, outputInfo(output)) }]);
+    setMappings(layout, [...(layout.mappings || []), { widget: widget.name, on, output: output.name, message: defaultMessage(widget, on, info) }]);
   });
 }
 
@@ -635,6 +648,81 @@ function pickName(widget, mapping, field, item) {
   });
 }
 
+// Browser key names → the keyboard output's ('KeyA' → 'a', 'ArrowUp' → 'up')
+const KEY_CODES = {
+  ArrowUp: 'up', ArrowDown: 'down', ArrowLeft: 'left', ArrowRight: 'right', Enter: 'enter', NumpadEnter: 'enter',
+  Space: 'space', Tab: 'tab', Escape: 'esc', Backspace: 'backspace', Delete: 'delete', CapsLock: 'caps_lock',
+  Home: 'home', End: 'end', PageUp: 'page_up', PageDown: 'page_down',
+  MediaPlayPause: 'media_play_pause', MediaTrackNext: 'media_next', MediaTrackPrevious: 'media_previous',
+  AudioVolumeUp: 'media_volume_up', AudioVolumeDown: 'media_volume_down', AudioVolumeMute: 'media_volume_mute',
+};
+const MODIFIERS = { Control: 'ctrl', Shift: 'shift', Alt: 'alt', Meta: 'cmd' };
+
+function keyName(event) {
+  if (KEY_CODES[event.code]) return KEY_CODES[event.code];
+  if (/^F\d+$/.test(event.code)) return event.code.toLowerCase();
+  if (/^Key[A-Z]$/.test(event.code)) return event.code.slice(3).toLowerCase();
+  if (/^Digit\d$/.test(event.code)) return event.code.slice(5);
+  return event.key.length === 1 ? (event.key === '+' ? 'plus' : event.key.toLowerCase()) : null;
+}
+
+// Wait for a key combination; resolves with 'ctrl+shift+s' (or modifiers alone, released), or null on Escape
+function recordKeys() {
+  return new Promise((resolve) => {
+    const held = [];
+    const finish = (keys) => {
+      window.removeEventListener('keydown', down, true);
+      window.removeEventListener('keyup', up, true);
+      resolve(keys);
+    };
+    const down = (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      const modifier = MODIFIERS[event.key];
+      if (modifier) {
+        if (!held.includes(modifier)) held.push(modifier);
+        return;
+      }
+      if (event.key === 'Escape' && !held.length) return finish(null);
+      const key = keyName(event);
+      if (key) finish([...held, key].join('+'));
+    };
+    const up = (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      // Only modifiers pressed (e.g. Shift to hold)
+      if (MODIFIERS[event.key] && held.length) finish(held.join('+'));
+    };
+    window.addEventListener('keydown', down, true);
+    window.addEventListener('keyup', up, true);
+  });
+}
+
+// A keys field: typed ('ctrl+shift+s', 'f{x+1}') or recorded by pressing them
+function keysField(id, value, info, commit) {
+  const input = el('input', {
+    type: 'text', id, value: value ?? '', list: `${id}-names`, placeholder: 'ctrl+shift+s',
+    title: 'Keys joined with +: ctrl, shift, alt, cmd, enter, f1-f20, up, media_play_pause... or single characters',
+    onchange: (e) => commit(e.target.value.trim()),
+  });
+  const record = el('button', {
+    id: `${id}-record`, title: 'Press the keys to use (Escape cancels)',
+    onclick: async () => {
+      record.textContent = 'Press keys…';
+      record.classList.add('active');
+      const keys = await recordKeys();
+      record.classList.remove('active');
+      record.textContent = 'Record';
+      if (keys) commit(keys);
+    },
+  }, 'Record');
+  return [
+    el('label', { for: id }, 'keys'),
+    el('div', { class: 'control' }, input, record,
+      el('datalist', { id: `${id}-names` }, (info?.keys || []).map((name) => el('option', { value: name })))),
+  ];
+}
+
 function mappingCard(widget, mapping, index) {
   const events = state.catalog.widgets[widget.type]?.events || [];
   const output = outputsOf().find((candidate) => candidate.name === mapping.output);
@@ -659,6 +747,17 @@ function mappingCard(widget, mapping, index) {
       ];
     }
     const value = field.name in message ? message[field.name] : field.default;
+    if (field.kind === 'choice') {
+      return [el('label', { for: id(field.name) }, field.name), el('div', { class: 'control' }, el('select', {
+        id: id(field.name), onchange: (e) => setField(field.name)(e.target.value),
+      }, field.choices.map((choice) => el('option', { value: choice, selected: choice === value }, choice))))];
+    }
+    if (field.kind === 'bool') {
+      return [el('label', { for: id(field.name) }, field.name), el('div', { class: 'control' }, el('input', {
+        type: 'checkbox', id: id(field.name), checked: !!value, onchange: (e) => setField(field.name)(e.target.checked),
+      }))];
+    }
+    if (field.kind === 'keys') return keysField(id(field.name), value, info, setField(field.name));
     if (field.kind === 'text') {
       const groups = message.type === 'Command' ? commandChoices(info) : message.type === 'OscMessage' ? addressChoices(info) : [];
       const known = groups.some((group) => group.items.some((item) => item.value === value));
@@ -736,11 +835,13 @@ function mappingCard(widget, mapping, index) {
         }),
       }, (info?.messages || Object.keys(state.catalog.messages)).map((type) => el('option', { value: type, selected: type === message.type }, type)))),
       fieldEditors,
-      el('label', { for: id('feedback'), title: 'Matching messages from the output update the widget' }, 'feedback'),
-      el('div', { class: 'control' }, el('input', {
-        type: 'checkbox', id: id('feedback'), checked: !!mapping.feedback, disabled: !mapping.on,
-        onchange: (e) => edit(() => { if (e.target.checked) mapping.feedback = true; else delete mapping.feedback; }),
-      }))),
+      // Outputs that send nothing back (the keyboard and mouse) have no feedback
+      info?.receives === false ? null : [
+        el('label', { for: id('feedback'), title: 'Matching messages from the output update the widget' }, 'feedback'),
+        el('div', { class: 'control' }, el('input', {
+          type: 'checkbox', id: id('feedback'), checked: !!mapping.feedback, disabled: !mapping.on,
+          onchange: (e) => edit(() => { if (e.target.checked) mapping.feedback = true; else delete mapping.feedback; }),
+        }))]),
   );
 }
 
@@ -1175,6 +1276,7 @@ function findProblems() {
     }
     const status = state.hardware.outputs?.[index];
     if (status && !status.connected && status.error) problems.push(['warning', `Output ${output.name}: ${status.error}`, () => select({ kind: 'output', index })]);
+    if (status?.warning) problems.push(['warning', `Output ${output.name}: ${status.warning}`, () => select({ kind: 'output', index })]);
   });
   state.layout.devices.forEach((device, index) => {
     const status = state.hardware.devices?.[index];

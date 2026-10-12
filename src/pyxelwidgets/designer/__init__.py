@@ -32,7 +32,7 @@ import pyxelwidgets.widgets
 __all__ = ['Preview', 'Designer', 'new_layout', 'catalog']
 
 DEVICE_MODULES = ['novation', 'akai', 'ableton', 'presonus', 'virtual', 'web']
-OUTPUT_MODULES = ['midi_port', 'mackie', 'osc']
+OUTPUT_MODULES = ['midi_port', 'mackie', 'osc', 'desktop']
 
 def new_layout(width: int = 9, height: int = 9) -> dict:
     return {
@@ -60,7 +60,10 @@ def _describe_classes(modules: list, outputs: bool) -> list:
 def _describe(cls, kind: str, outputs: bool) -> dict:
     info = cls.describe()
     info['type'] = kind
+    info['doc'] = pyxelwidgets.parser._doc(cls)
     info['options'] = pyxelwidgets.parser.option_schema(cls)
+    # Connected in the designer only when asked (the keyboard and mouse)
+    info['auto_connect'] = getattr(cls, 'auto_connect', True)
     # MIDI outputs connect to ports or a virtual port; OSC by its options
     info['midi'] = hasattr(cls, 'connect_virtual') if outputs else None
     return info
@@ -394,6 +397,8 @@ class Preview:
                 if device is not None and not connected and getattr(device, 'lost', False):
                     error = f'not plugged in: connects when it is (ports matching {", ".join(type(device).ports) or "its ports"})'
                 status = {'connected': connected, 'error': error}
+                if connected and getattr(device, 'warning', None):
+                    status['warning'] = device.warning
                 # A browser grid's address
                 if connected and getattr(device, 'url', None):
                     status['url'] = device.url
@@ -402,7 +407,14 @@ class Preview:
         return {'devices': status(self.hardware), 'outputs': status(self.outputs)}
 
     def _wanted(self, spec: dict) -> bool:
-        return self.choices.get(_device_key(spec), self.connect)
+        automatic = self.connect
+        if automatic:
+            try:
+                # Some outputs (the keyboard and mouse) wait for Connect
+                automatic = getattr(pyxelwidgets.parser.device_class(spec), 'auto_connect', True)
+            except pyxelwidgets.parser.LayoutError:
+                pass
+        return self.choices.get(_device_key(spec), automatic)
 
     def _attach(self, old_ui) -> None:
         """Connect the current layout's devices and outputs as wanted, reusing open ones for unchanged entries."""
@@ -634,6 +646,7 @@ _TEMPLATE_INFO = {
     'keyboard': ('MIDI keyboard', 'Scales, octaves and a mod wheel, rearranged by links'),
     'mixer': ('DAW mixer', 'Eight faders, mutes and transport for Mackie Control (REAPER, Logic...)'),
     'performance': ('Performance', 'Clip launcher, drum pads, a beat sequencer and a meter'),
+    'macros': ('Macro board', 'Shortcuts, media keys, typing, scrolling and the mouse pointer'),
 }
 
 def templates() -> list:
