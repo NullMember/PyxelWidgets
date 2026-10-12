@@ -628,7 +628,7 @@ class Parser():
         import pyxelwidgets.app
         app = pyxelwidgets.app.App(self.surface, fps, **self.transport_settings())
         self.attach(app.transport)
-        self.start_clocks(lock = app.lock)
+        app.clocks += self.start_clocks(lock = app.lock)
         self.bindings += self.bind(self.devices, app.transport, widgets = False)
         self.links += self.link(app.transport, widgets = False)
         return app
