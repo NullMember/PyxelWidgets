@@ -37,6 +37,7 @@ _exports = {
     'ValueWidget': 'widgets',
     'Widget': 'widgets',
     'XY': 'widgets',
+    'Text': 'widgets',
     'Event': 'events',
     'WidgetEvent': 'events',
     'Pressed': 'events',
