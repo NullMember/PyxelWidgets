@@ -9,8 +9,9 @@ def main() -> None:
     parser.add_argument('layout', nargs = '?', help = 'layout file to open and save (created on first save)')
     parser.add_argument('--port', type = int, default = 8765)
     parser.add_argument('--no-browser', action = 'store_true', help = "don't open a browser")
+    parser.add_argument('--hardware', action = 'store_true', help = "connect the layout's devices to mirror the preview")
     args = parser.parse_args()
-    server = pyxelwidgets.designer.serve(args.layout, args.port)
+    server = pyxelwidgets.designer.serve(args.layout, args.port, hardware = args.hardware)
     url = f'http://{server.server_address[0]}:{server.server_address[1]}/'
     print(f'PyxelWidgets designer on {url} (Ctrl+C to stop)')
     if not args.no_browser:
@@ -20,7 +21,7 @@ def main() -> None:
     except KeyboardInterrupt:
         pass
     finally:
-        server.RequestHandlerClass.designer.preview.stop()
+        server.RequestHandlerClass.designer.close()
         server.server_close()
 
 if __name__ == '__main__':

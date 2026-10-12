@@ -79,17 +79,34 @@ def _event_json(event) -> dict:
             data[field.name] = str(value)
     return data
 
+def _device_key(device: dict) -> str:
+    """What makes two layout device entries the same connection (position aside)."""
+    return json.dumps({key: device.get(key) for key in ('type', 'options', 'input', 'output')}, sort_keys = True)
+
 class Preview:
-    """A layout built without hardware, with a preview device, an event log and a transport to play it."""
+    """
+    A layout built without hardware, with a preview device, an event log and a
+    transport to play it. With ``set_hardware(True)`` the layout's devices are
+    connected too: they mirror the preview and their pads work the widgets.
+    """
+
+    #: Frames per second sent to connected hardware
+    fps = 30
 
     def __init__(self, layout: dict | None = None):
         self.lock = threading.RLock()
+        # Separate from ``lock``: events arrive from device and transport threads holding the surface lock
+        self._events_lock = threading.Lock()
         self.layout = None
         self.ui = None
         self.device = None
         self.transport = None
         self.events = collections.deque(maxlen = 500)
         self.event_counter = 0
+        self.hardware_enabled = False
+        # One entry per layout device: {'key', 'device' (or None), 'error'}
+        self.hardware = []
+        self._render_stop = None
         self.load(layout or new_layout())
 
     def load(self, layout: dict) -> None:
@@ -104,14 +121,89 @@ class Preview:
         with self.lock:
             playing = self.transport is not None
             self.stop()
+            old = self.ui
             self.layout, self.ui, self.device = copy.deepcopy(layout), ui, device
+            if self.hardware_enabled:
+                self._attach_hardware(old)
             if playing:
                 self.play()
 
     def _record(self, event) -> None:
-        with self.lock:
+        with self._events_lock:
             self.event_counter += 1
             self.events.append((self.event_counter, _event_json(event)))
+
+    # Hardware
+
+    def set_hardware(self, enabled: bool) -> list:
+        """Connect (or close) the layout's devices; returns their status."""
+        with self.lock:
+            if enabled and not self.hardware_enabled:
+                self.hardware_enabled = True
+                self._attach_hardware(None)
+                self._render_stop = threading.Event()
+                threading.Thread(target = self._render, args = (self._render_stop,), name = 'DesignerHardware', daemon = True).start()
+            elif not enabled and self.hardware_enabled:
+                self.hardware_enabled = False
+                self._render_stop.set()
+                for entry in self.hardware:
+                    if entry['device'] is not None:
+                        self.ui.surface.remove_device(entry['device'])
+                        entry['device'].close()
+                self.hardware = []
+            return self.hardware_status()
+
+    def hardware_status(self) -> list:
+        return [{'connected': entry['device'] is not None, 'error': entry['error']} for entry in self.hardware]
+
+    def _attach_hardware(self, old_ui) -> None:
+        """Connect the current layout's devices, reusing the ones already open for unchanged entries."""
+        pool = {}
+        for entry in self.hardware:
+            if entry['device'] is not None:
+                if old_ui is not None:
+                    old_ui.surface.remove_device(entry['device'])
+                pool.setdefault(entry['key'], []).append(entry['device'])
+        self.hardware = []
+        for index, spec in enumerate(self.layout.get('devices', [])):
+            key = _device_key(spec)
+            reused = pool.get(key)
+            device, error = (reused.pop(0) if reused else None), None
+            if device is None:
+                device, error = self._open(spec, index)
+            if device is not None:
+                self.ui.surface.add_device(device, spec.get('x', 0), spec.get('y', 0))
+                device.invalidate()
+            self.hardware.append({'key': key, 'device': device, 'error': error})
+        for devices in pool.values():
+            for device in devices:
+                device.close()
+
+    @staticmethod
+    def _open(spec: dict, index: int) -> tuple:
+        """(device, None) or (None, why it couldn't be connected)."""
+        if spec.get('type', '').startswith('virtual.'):
+            return None, 'on-screen device: shown in the browser only'
+        try:
+            device = pyxelwidgets.parser.build_device(spec, f'devices[{index}]')
+        except Exception as error:
+            return None, str(error) or type(error).__name__
+        if not device.connected:
+            cls = type(device)
+            return None, f'no MIDI port found (looked for {", ".join(cls.ports) or "nothing"})'
+        return device, None
+
+    def _render(self, stop: threading.Event) -> None:
+        """Send frames to the hardware (the browser only renders when it asks for a frame)."""
+        while not stop.wait(1.0 / self.fps):
+            with self.lock:
+                if stop.is_set():
+                    return
+                self.ui.surface.update()
+
+    def close(self) -> None:
+        self.stop()
+        self.set_hardware(False)
 
     def frame(self, since: int = 0) -> dict:
         """Render; pixels are ``#rrggbb`` rows from the top, plus events after ``since``."""
@@ -121,11 +213,13 @@ class Preview:
             buffer = surface.buffer
             rows = [[f'#{int(buffer[x, y, 0]):02x}{int(buffer[x, y, 1]):02x}{int(buffer[x, y, 2]):02x}' for x in range(buffer.shape[0])]
                     for y in reversed(range(buffer.shape[1]))]
-            events = [dict(event, id = number) for number, event in self.events if number > since]
+            with self._events_lock:
+                events = [dict(event, id = number) for number, event in self.events if number > since]
             transport = self.transport
             return {'width': buffer.shape[0], 'height': buffer.shape[1], 'pixels': rows, 'events': events,
                     'playing': transport is not None,
-                    'position': f'{transport.bar + 1}.{transport.beat + 1}' if transport is not None else None}
+                    'position': f'{transport.bar + 1}.{transport.beat + 1}' if transport is not None else None,
+                    'hardware': {'enabled': self.hardware_enabled, 'devices': self.hardware_status()}}
 
     def input(self, x: int, y: int, velocity: float) -> None:
         """Press (``velocity`` > 0) or release the surface pad at ``x``, ``y``."""
@@ -150,11 +244,17 @@ class Preview:
 class Designer:
     """The designer's state: the preview and the file it saves to."""
 
-    def __init__(self, path: str | None = None):
+    def __init__(self, path: str | None = None, *, hardware: bool = False):
         self.path = pathlib.Path(path) if path else None
         layout = json.loads(self.path.read_text()) if self.path and self.path.exists() else new_layout()
         self.preview = Preview(layout)
         self.catalog = catalog()
+        if hardware:
+            self.preview.set_hardware(True)
+
+    def close(self) -> None:
+        """Stop the transport and close connected hardware."""
+        self.preview.close()
 
     def save(self, layout: dict) -> None:
         if self.path is None:
@@ -228,6 +328,9 @@ class Handler(http.server.BaseHTTPRequestHandler):
                 preview.play() if body.get('playing') else preview.stop()
             elif path == '/api/save':
                 self.designer.save(body)
+            elif path == '/api/hardware':
+                self._json({'ok': True, 'devices': preview.set_hardware(bool(body.get('enabled')))})
+                return
             else:
                 self._send(404, b'Not found', 'text/plain')
                 return
@@ -236,7 +339,10 @@ class Handler(http.server.BaseHTTPRequestHandler):
             return
         self._json({'ok': True})
 
-def serve(path: str | None = None, port: int = 8765, host: str = '127.0.0.1') -> http.server.ThreadingHTTPServer:
-    """Start the designer's web server (not yet serving: call ``serve_forever``)."""
-    handler = type('DesignerHandler', (Handler,), {'designer': Designer(path)})
+def serve(path: str | None = None, port: int = 8765, host: str = '127.0.0.1', *, hardware: bool = False) -> http.server.ThreadingHTTPServer:
+    """
+    Start the designer's web server (not yet serving: call ``serve_forever``).
+    With ``hardware``, the layout's devices mirror the preview from the start.
+    """
+    handler = type('DesignerHandler', (Handler,), {'designer': Designer(path, hardware = hardware)})
     return http.server.ThreadingHTTPServer((host, port), handler)

@@ -23,6 +23,7 @@ const state = {
   future: [],
   lastEvent: 0,
   playing: false,
+  hardware: { enabled: false, devices: [] },
   error: null,
   frameSize: [0, 0],
 };
@@ -224,6 +225,11 @@ async function poll() {
       renderToolbar();
     }
     $('position').textContent = frame.position ? `bar ${frame.position}` : '';
+    if (JSON.stringify(frame.hardware) !== JSON.stringify(state.hardware)) {
+      state.hardware = frame.hardware;
+      renderToolbar();
+      renderDevices();
+    }
   } catch {
     setStatus('Lost connection to the designer server', 'error');
   }
@@ -431,9 +437,20 @@ function renderDevices() {
     return el('li', { class: selected ? 'selected' : '', onclick: () => select({ kind: 'device', index }) },
       el('span', { class: 'swatch-device' }),
       el('span', { class: 'name' }, deviceInfo(device)?.model || device.type),
+      hardwareDot(index),
       el('span', { class: 'type' }, `at ${device.x || 0}, ${device.y || 0}`));
   }));
   if (!state.layout.devices.length) list.append(el('li', { class: 'hint' }, 'Preview only. Add the hardware the layout runs on.'));
+}
+
+function hardwareDot(index) {
+  if (!state.hardware.enabled) return null;
+  const status = state.hardware.devices[index];
+  if (!status) return el('span', { class: 'dot', title: 'Connecting…' });
+  return el('span', {
+    class: `dot ${status.connected ? 'on' : 'off'}`,
+    title: status.connected ? 'Connected: mirrors the preview, pads work the widgets' : status.error,
+  });
 }
 
 function select(selection) {
@@ -644,6 +661,10 @@ function renderToolbar() {
   play.textContent = state.playing ? '■ Stop' : '▶ Play';
   play.classList.toggle('on', state.playing);
   if (!state.playing) $('position').textContent = '';
+  const hardware = $('hardware');
+  const connected = state.hardware.devices.filter((d) => d.connected).length;
+  hardware.classList.toggle('on', state.hardware.enabled);
+  hardware.textContent = state.hardware.enabled ? `Hardware ${connected}/${state.hardware.devices.length}` : 'Hardware';
   $('palette-hint').textContent = targetGroup() ? `Click to add to ${widgetAt(targetGroup()).name}.` : 'Click to add to the surface.';
 }
 
@@ -784,6 +805,15 @@ function setMode(mode) {
 function bindToolbar() {
   $('mode-edit').onclick = () => setMode('edit');
   $('mode-try').onclick = () => setMode('try');
+  $('hardware').onclick = async () => {
+    const reply = await api('POST', '/api/hardware', { enabled: !state.hardware.enabled });
+    state.hardware = { enabled: !state.hardware.enabled, devices: reply.devices || [] };
+    renderToolbar();
+    renderDevices();
+    const failed = state.hardware.devices.find((d) => !d.connected);
+    if (state.hardware.enabled && failed) setStatus(`Some devices aren't connected: ${failed.error}`, 'error');
+    else if (state.hardware.enabled) setStatus('Hardware connected: it mirrors the preview', 'ok');
+  };
   $('play').onclick = async () => {
     state.playing = !state.playing;
     renderToolbar();
