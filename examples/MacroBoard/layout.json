@@ -1,0 +1,465 @@
+{
+  "format": "pyxelwidgets.layout",
+  "version": 6,
+  "surface": {
+    "width": 9,
+    "height": 9
+  },
+  "transport": {
+    "bpm": 120,
+    "signature": [
+      4,
+      4
+    ]
+  },
+  "devices": [
+    {
+      "type": "novation.LaunchpadMiniMK3",
+      "x": 0,
+      "y": 0,
+      "options": {}
+    }
+  ],
+  "outputs": [
+    {
+      "name": "desktop",
+      "type": "desktop.Desktop",
+      "options": {}
+    }
+  ],
+  "widgets": [
+    {
+      "type": "Button",
+      "name": "copy",
+      "x": 0,
+      "y": 7,
+      "width": 1,
+      "height": 1,
+      "options": {
+        "active_color": "#00c8ff",
+        "inactive_color": "#002833"
+      }
+    },
+    {
+      "type": "Button",
+      "name": "paste",
+      "x": 1,
+      "y": 7,
+      "width": 1,
+      "height": 1,
+      "options": {
+        "active_color": "#00c8ff",
+        "inactive_color": "#002833"
+      }
+    },
+    {
+      "type": "Button",
+      "name": "cut",
+      "x": 2,
+      "y": 7,
+      "width": 1,
+      "height": 1,
+      "options": {
+        "active_color": "#00c8ff",
+        "inactive_color": "#002833"
+      }
+    },
+    {
+      "type": "Button",
+      "name": "undo",
+      "x": 3,
+      "y": 7,
+      "width": 1,
+      "height": 1,
+      "options": {
+        "active_color": "#00c8ff",
+        "inactive_color": "#002833"
+      }
+    },
+    {
+      "type": "Button",
+      "name": "redo",
+      "x": 4,
+      "y": 7,
+      "width": 1,
+      "height": 1,
+      "options": {
+        "active_color": "#00c8ff",
+        "inactive_color": "#002833"
+      }
+    },
+    {
+      "type": "Button",
+      "name": "save",
+      "x": 5,
+      "y": 7,
+      "width": 1,
+      "height": 1,
+      "options": {
+        "active_color": "#00c8ff",
+        "inactive_color": "#002833"
+      }
+    },
+    {
+      "type": "Button",
+      "name": "find",
+      "x": 6,
+      "y": 7,
+      "width": 1,
+      "height": 1,
+      "options": {
+        "active_color": "#00c8ff",
+        "inactive_color": "#002833"
+      }
+    },
+    {
+      "type": "Button",
+      "name": "select_all",
+      "x": 7,
+      "y": 7,
+      "width": 1,
+      "height": 1,
+      "options": {
+        "active_color": "#00c8ff",
+        "inactive_color": "#002833"
+      }
+    },
+    {
+      "type": "Button",
+      "name": "previous",
+      "x": 0,
+      "y": 6,
+      "width": 1,
+      "height": 1,
+      "options": {
+        "active_color": "#00ff60",
+        "inactive_color": "#003313"
+      }
+    },
+    {
+      "type": "Button",
+      "name": "play_pause",
+      "x": 1,
+      "y": 6,
+      "width": 1,
+      "height": 1,
+      "options": {
+        "active_color": "#00ff60",
+        "inactive_color": "#003313"
+      }
+    },
+    {
+      "type": "Button",
+      "name": "next",
+      "x": 2,
+      "y": 6,
+      "width": 1,
+      "height": 1,
+      "options": {
+        "active_color": "#00ff60",
+        "inactive_color": "#003313"
+      }
+    },
+    {
+      "type": "Button",
+      "name": "mute",
+      "x": 3,
+      "y": 6,
+      "width": 1,
+      "height": 1,
+      "options": {
+        "active_color": "#00ff60",
+        "inactive_color": "#003313"
+      }
+    },
+    {
+      "type": "Button",
+      "name": "volume_down",
+      "x": 4,
+      "y": 6,
+      "width": 1,
+      "height": 1,
+      "options": {
+        "active_color": "#00ff60",
+        "inactive_color": "#003313"
+      }
+    },
+    {
+      "type": "Button",
+      "name": "volume_up",
+      "x": 5,
+      "y": 6,
+      "width": 1,
+      "height": 1,
+      "options": {
+        "active_color": "#00ff60",
+        "inactive_color": "#003313"
+      }
+    },
+    {
+      "type": "Button",
+      "name": "type_thanks",
+      "x": 0,
+      "y": 5,
+      "width": 1,
+      "height": 1,
+      "options": {
+        "active_color": "#ffb000",
+        "inactive_color": "#332300"
+      }
+    },
+    {
+      "type": "Button",
+      "name": "hold_shift",
+      "x": 7,
+      "y": 5,
+      "width": 1,
+      "height": 1,
+      "options": {
+        "active_color": "#ff00ff",
+        "inactive_color": "#330033",
+        "mode": "Switch"
+      }
+    },
+    {
+      "type": "Knob",
+      "name": "scroll",
+      "x": 0,
+      "y": 0,
+      "width": 3,
+      "height": 3,
+      "options": {
+        "value": 0.5,
+        "active_color": "#ff6020"
+      }
+    },
+    {
+      "type": "Button",
+      "name": "left_click",
+      "x": 3,
+      "y": 1,
+      "width": 1,
+      "height": 1,
+      "options": {
+        "active_color": "#ffffff",
+        "inactive_color": "#333333"
+      }
+    },
+    {
+      "type": "Button",
+      "name": "right_click",
+      "x": 3,
+      "y": 0,
+      "width": 1,
+      "height": 1,
+      "options": {
+        "active_color": "#a0a0a0",
+        "inactive_color": "#202020"
+      }
+    },
+    {
+      "type": "XY",
+      "name": "pointer",
+      "x": 4,
+      "y": 0,
+      "width": 4,
+      "height": 4
+    }
+  ],
+  "mappings": [
+    {
+      "widget": "copy",
+      "on": "Pressed",
+      "output": "desktop",
+      "message": {
+        "type": "Hotkey",
+        "keys": "cmd+c"
+      }
+    },
+    {
+      "widget": "paste",
+      "on": "Pressed",
+      "output": "desktop",
+      "message": {
+        "type": "Hotkey",
+        "keys": "cmd+v"
+      }
+    },
+    {
+      "widget": "cut",
+      "on": "Pressed",
+      "output": "desktop",
+      "message": {
+        "type": "Hotkey",
+        "keys": "cmd+x"
+      }
+    },
+    {
+      "widget": "undo",
+      "on": "Pressed",
+      "output": "desktop",
+      "message": {
+        "type": "Hotkey",
+        "keys": "cmd+z"
+      }
+    },
+    {
+      "widget": "redo",
+      "on": "Pressed",
+      "output": "desktop",
+      "message": {
+        "type": "Hotkey",
+        "keys": "cmd+shift+z"
+      }
+    },
+    {
+      "widget": "save",
+      "on": "Pressed",
+      "output": "desktop",
+      "message": {
+        "type": "Hotkey",
+        "keys": "cmd+s"
+      }
+    },
+    {
+      "widget": "find",
+      "on": "Pressed",
+      "output": "desktop",
+      "message": {
+        "type": "Hotkey",
+        "keys": "cmd+f"
+      }
+    },
+    {
+      "widget": "select_all",
+      "on": "Pressed",
+      "output": "desktop",
+      "message": {
+        "type": "Hotkey",
+        "keys": "cmd+a"
+      }
+    },
+    {
+      "widget": "previous",
+      "on": "Pressed",
+      "output": "desktop",
+      "message": {
+        "type": "Hotkey",
+        "keys": "media_previous"
+      }
+    },
+    {
+      "widget": "play_pause",
+      "on": "Pressed",
+      "output": "desktop",
+      "message": {
+        "type": "Hotkey",
+        "keys": "media_play_pause"
+      }
+    },
+    {
+      "widget": "next",
+      "on": "Pressed",
+      "output": "desktop",
+      "message": {
+        "type": "Hotkey",
+        "keys": "media_next"
+      }
+    },
+    {
+      "widget": "mute",
+      "on": "Pressed",
+      "output": "desktop",
+      "message": {
+        "type": "Hotkey",
+        "keys": "media_volume_mute"
+      }
+    },
+    {
+      "widget": "volume_down",
+      "on": "Pressed",
+      "output": "desktop",
+      "message": {
+        "type": "Hotkey",
+        "keys": "media_volume_down"
+      }
+    },
+    {
+      "widget": "volume_up",
+      "on": "Pressed",
+      "output": "desktop",
+      "message": {
+        "type": "Hotkey",
+        "keys": "media_volume_up"
+      }
+    },
+    {
+      "widget": "type_thanks",
+      "on": "Pressed",
+      "output": "desktop",
+      "message": {
+        "type": "TypeText",
+        "text": "Thanks, talk soon!"
+      }
+    },
+    {
+      "widget": "hold_shift",
+      "on": "Changed",
+      "output": "desktop",
+      "message": {
+        "type": "Key",
+        "keys": "shift",
+        "state": {
+          "source": "value"
+        }
+      }
+    },
+    {
+      "widget": "scroll",
+      "on": "Changed",
+      "output": "desktop",
+      "message": {
+        "type": "Scroll",
+        "dx": 0,
+        "dy": {
+          "source": "delta"
+        }
+      }
+    },
+    {
+      "widget": "left_click",
+      "on": "Pressed",
+      "output": "desktop",
+      "message": {
+        "type": "MouseClick",
+        "button": "left",
+        "count": 1
+      }
+    },
+    {
+      "widget": "right_click",
+      "on": "Pressed",
+      "output": "desktop",
+      "message": {
+        "type": "MouseClick",
+        "button": "right",
+        "count": 1
+      }
+    },
+    {
+      "widget": "pointer",
+      "on": "Changed",
+      "output": "desktop",
+      "message": {
+        "type": "MouseMove",
+        "x": {
+          "source": "value_x"
+        },
+        "y": {
+          "source": "value_y"
+        },
+        "relative": false
+      }
+    }
+  ]
+}
