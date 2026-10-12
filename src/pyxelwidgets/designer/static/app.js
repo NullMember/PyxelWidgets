@@ -30,6 +30,7 @@ const state = {
   hardware: { devices: [], outputs: [] },
   dragType: null, // a palette widget type being dragged onto the grid
   zoom: 1, // pad size relative to the size that fits the window
+  layerDrag: null, // paths of the layers being dragged in the Layers panel
   error: null,
   frameSize: [0, 0],
   spriteFrame: 0, // the Sprite frame being painted
@@ -1120,7 +1121,18 @@ function renderTree() {
     return el('li', {},
       el('div', {
         class: `node${selected ? ' selected' : ''}${offPage ? ' off-page' : ''}`,
-        title: offPage ? 'Another page: selecting it shows that page' : null,
+        title: offPage ? 'Another page: selecting it shows that page' : 'Drag to reorder, or onto a group to move it inside',
+        draggable: 'true',
+        dataset: { path: path.join('.') },
+        ondragstart: (event) => {
+          // Dragging a selected layer moves the whole selection
+          state.layerDrag = isSelected(path) ? topSelected() : [path];
+          event.dataTransfer.setData('text/plain', widget.name);
+          event.dataTransfer.effectAllowed = 'move';
+        },
+        ondragend: () => { state.layerDrag = null; clearDropMarks(); },
+        ondragover: (event) => layerDragOver(event, path),
+        ondrop: (event) => layerDrop(event, path),
         onclick: (event) => {
           if (event.shiftKey || event.ctrlKey || event.metaKey) return toggleSelected(path);
           const hidden = hiddenBy(path);
@@ -1146,6 +1158,122 @@ function renderTree() {
   const tree = $('tree');
   tree.replaceChildren(...build(state.layout.widgets, []).children);
   if (!state.layout.widgets.length) tree.append(el('li', { class: 'hint' }, 'No widgets yet.'));
+}
+
+// ---------------------------------------------------------------- reordering layers
+
+function clearDropMarks() {
+  for (const node of $('tree').querySelectorAll('.drop-above, .drop-below, .drop-into')) {
+    node.classList.remove('drop-above', 'drop-below', 'drop-into');
+  }
+}
+
+// The group a layer dropped into ``path`` goes in: a group, or the shown page of a Pages
+function dropContainer(path) {
+  const widget = widgetAt(path);
+  if (widget.type === 'Pages') {
+    const page = widget.widgets?.[currentPage(widget)];
+    return page && isGroup(page) ? [...path, currentPage(widget)] : null;
+  }
+  return isGroup(widget) ? path : null;
+}
+
+// Where a drop on the layer at ``path`` puts the dragged ones: above or below it (the
+// tree lists the topmost first), or into it when it's a group and the pointer is in the middle
+function layerZone(event, path) {
+  const dragged = state.layerDrag || [];
+  // Not onto itself or inside itself
+  if (dragged.some((from) => samePath(from, path) || isInside(path, from))) return null;
+  const bounds = event.currentTarget.getBoundingClientRect();
+  const at = (event.clientY - bounds.top) / bounds.height;
+  const container = dropContainer(path);
+  if (container && !dragged.some((from) => samePath(from, container) || isInside(container, from)) && at > 0.25 && at < 0.75) return 'into';
+  return at < 0.5 ? 'above' : 'below';
+}
+
+function layerDragOver(event, path) {
+  if (!state.layerDrag) return;
+  const zone = layerZone(event, path);
+  clearDropMarks();
+  if (!zone) return;
+  event.preventDefault();
+  event.stopPropagation();
+  event.dataTransfer.dropEffect = 'move';
+  event.currentTarget.classList.add(`drop-${zone}`);
+}
+
+function layerDrop(event, path) {
+  const paths = state.layerDrag;
+  const zone = paths && layerZone(event, path);
+  clearDropMarks();
+  state.layerDrag = null;
+  if (!zone) return;
+  event.preventDefault();
+  event.stopPropagation();
+  moveLayers(paths, path, zone);
+}
+
+// Move the widgets at ``paths`` above or below the one at ``target``, or into it. They
+// keep their place on the grid when they fit in the new group, else move inside it.
+function moveLayers(paths, target, zone) {
+  // In drawing order, so they stay in it
+  const widgets = [...paths].sort(comparePaths).map(widgetAt);
+  const placed = new Map(widgets.map((widget, i) => [widget, absolute(pathsOf([widget])[0])]));
+  const anchor = widgetAt(target);
+  const container = zone === 'into' ? widgetAt(dropContainer(target)) : null;
+  change((layout) => {
+    for (const widget of widgets) {
+      const list = childrenOf(pathsOf([widget])[0]);
+      list.splice(list.indexOf(widget), 1);
+    }
+    let parent, list, index;
+    if (container) {
+      parent = pathsOf([container])[0];
+      container.widgets = container.widgets || [];
+      list = container.widgets;
+      // On top of what's in it
+      index = list.length;
+    } else {
+      const at = pathsOf([anchor])[0];
+      parent = at.slice(0, -1);
+      list = childrenOf(at);
+      index = list.indexOf(anchor) + (zone === 'above' ? 1 : 0);
+    }
+    const [ox, oy] = parent.length ? absolute(parent) : [0, 0];
+    const [width, height] = parent.length ? [widgetAt(parent).width, widgetAt(parent).height] : [layout.surface.width, layout.surface.height];
+    for (const widget of widgets) {
+      const [ax, ay] = placed.get(widget);
+      widget.width = Math.min(widget.width, width);
+      widget.height = Math.min(widget.height, height);
+      widget.x = clamp(ax - ox, 0, width - widget.width);
+      widget.y = clamp(ay - oy, 0, height - widget.height);
+    }
+    list.splice(index, 0, ...widgets);
+    state.selection = widgetSelection(pathsOf(widgets));
+  });
+}
+
+function comparePaths(a, b) {
+  for (let i = 0; i < Math.min(a.length, b.length); i++) if (a[i] !== b[i]) return a[i] - b[i];
+  return a.length - b.length;
+}
+
+// Dropped below the last layer: topmost on the surface
+function treeDragOver(event) {
+  if (!state.layerDrag || event.target.closest('.node')) return;
+  event.preventDefault();
+  clearDropMarks();
+}
+
+function treeDrop(event) {
+  if (!state.layerDrag || event.target.closest('.node')) return;
+  event.preventDefault();
+  const paths = state.layerDrag;
+  state.layerDrag = null;
+  // Above the topmost surface widget that isn't being dragged
+  const roots = state.layout.widgets.map((_, index) => index).reverse();
+  const top = roots.find((index) => !paths.some((path) => samePath(path, [index])));
+  if (top !== undefined) moveLayers(paths, [top], 'above');
 }
 
 function renderDevices() {
@@ -1869,6 +1997,8 @@ function bindToolbar() {
     renderToolbar();
     await api('POST', '/api/play', { playing: state.playing });
   };
+  $('tree').addEventListener('dragover', treeDragOver);
+  $('tree').addEventListener('drop', treeDrop);
   $('zoom-in').onclick = () => setZoom(state.zoom * 1.25);
   $('zoom-out').onclick = () => setZoom(state.zoom / 1.25);
   $('zoom-fit').onclick = () => setZoom(1);

@@ -100,6 +100,9 @@ h2 {
 .node .name { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .node .type { color: var(--muted); font-size: 11px; }
 .node.off-page .name { color: var(--muted); font-style: italic; }
+.tree .node.drop-above { box-shadow: inset 0 2px 0 var(--accent); }
+.tree .node.drop-below { box-shadow: inset 0 -2px 0 var(--accent); }
+.tree .node.drop-into { background: var(--accent-soft); outline: 1px dashed var(--accent); }
 .node .eye { opacity: 0.8; padding: 0 4px; border: none; background: none; }
 .node .eye.hidden { opacity: 0.3; }
 .swatch-device { width: 10px; height: 10px; border: 2px dashed var(--device); border-radius: 2px; flex: none; }
