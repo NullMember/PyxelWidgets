@@ -1,7 +1,7 @@
 from pyxelwidgets.devices.virtual import Virtual
 from pyxelwidgets.devices.midi import MIDI
 from pyxelwidgets import (App, Button, ButtonGroup, Changed, Color, Colors, Fader, Group, Held, Keyboard, Knob,
-                          NoteOff, NoteOn, Pressed, Released, Sequencer, StepPlayed, Surface)
+                          NoteOff, NoteOn, Pages, Pressed, Released, Sequencer, StepPlayed, Surface)
 import random
 
 def random_color():
@@ -17,20 +17,15 @@ surface = Surface(9, 9)
 surface.add_device(controller)
 app = App(surface, bpm = 60)
 
-# Pages share the 9x8 area under the top row; only one is visible at a time
-fader_page = surface.add(Group(0, 0, 9, 8))
-knob_page = surface.add(Group(0, 0, 9, 8, visible = False))
-keyboard_page = surface.add(Group(0, 0, 9, 8, visible = False))
-keyboard_config_page = surface.add(Group(0, 0, 9, 8, visible = False))
-sequencer_page = surface.add(Group(0, 0, 9, 8, visible = False))
-pages = [fader_page, knob_page, keyboard_page, sequencer_page]
-
-def show(page):
-    for group in pages + [keyboard_config_page]:
-        group.visible = group is page
-
-page_selector = surface.add(ButtonGroup(0, 8, len(pages), 1, inactive_color = Colors.Blue))
-page_selector.on(Pressed, lambda e: show(pages[e.x]))
+# Pages share the 9x8 area under the top row, which selects them
+pages = surface.add(Pages(0, 0, 9, 9, selector = Pages.Selector.Top, selector_color = Colors.Blue))
+fader_page = pages.add(Group(0, 0, 9, 8))
+knob_page = pages.add(Group(0, 0, 9, 8))
+# The keyboard page has its own pages: the keyboard and its settings, switched with the red button
+keyboard_pages = pages.add(Pages(0, 0, 9, 8, selector = Pages.Selector.Off))
+keyboard_page = keyboard_pages.add(Group(0, 0, 9, 8))
+keyboard_config_page = keyboard_pages.add(Group(0, 0, 9, 8))
+sequencer_page = pages.add(Group(0, 0, 9, 8))
 
 # Faders and knobs send control changes
 for i in range(8):
@@ -48,13 +43,13 @@ notes = keyboard_page.add(Keyboard(
     fold = 4, octave = 4))
 notes.on(NoteOn, lambda e: keyboard.send_note_on(e.note, int(e.velocity * 127.0)))
 notes.on(NoteOff, lambda e: keyboard.send_note_off(e.note))
-keyboard_page.add(Button(8, 0, 1, 1, inactive_color = Colors.Red)).on(Released, lambda e: show(keyboard_config_page))
+keyboard_page.add(Button(8, 0, 1, 1, inactive_color = Colors.Red)).on(Released, lambda e: keyboard_pages.next())
 
 type_selector = keyboard_config_page.add(ButtonGroup(0, 7, len(Keyboard.Type), 1))
 root_selector = keyboard_config_page.add(Keyboard(0, 5, 8, 2, type = Keyboard.Type.Keyboard))
 octave_selector = keyboard_config_page.add(ButtonGroup(0, 4, 8, 1, inactive_color = Colors.PaleVioletRed))
 scale_selector = keyboard_config_page.add(ButtonGroup(0, 0, 8, 2, inactive_color = Colors.SkyBlue))
-keyboard_config_page.add(Button(8, 0, 1, 1, inactive_color = Colors.Red)).on(Released, lambda e: show(keyboard_page))
+keyboard_config_page.add(Button(8, 0, 1, 1, inactive_color = Colors.Red)).on(Released, lambda e: keyboard_pages.next())
 
 @type_selector.on(Pressed)
 def select_type(e):
