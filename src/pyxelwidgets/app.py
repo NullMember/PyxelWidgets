@@ -1,20 +1,22 @@
-import pyxelwidgets.clock
 import pyxelwidgets.surface
+import pyxelwidgets.transport
 import time
 
 class App():
     """
-    Runs a Surface: renders at a fixed frame rate, owns a Clock whose targets
-    run under the Surface's lock, and closes everything on exit.
+    Runs a Surface: renders at a fixed frame rate, owns a Transport whose
+    subscribers run under the Surface's lock, and closes everything on exit.
 
-    Input from devices and clock ticks are handled immediately on their
-    own threads; the shared lock keeps them from interleaving with rendering.
+    Input from devices and transport subscribers are handled immediately on
+    their own threads; the shared lock keeps them from interleaving with
+    rendering. The transport doesn't play until ``app.transport.play()``.
     """
 
-    def __init__(self, surface: pyxelwidgets.surface.Surface, fps: float = 60.0, *, bpm: float = 120, ppq: int = 24):
+    def __init__(self, surface: pyxelwidgets.surface.Surface, fps: float = 60.0, *,
+                 bpm: float = 120, signature: tuple = (4, 4)):
         self.surface = surface
         self.fps = fps
-        self.clock = pyxelwidgets.clock.Clock(bpm, ppq, lock = surface.lock)
+        self.transport = pyxelwidgets.transport.Transport(bpm, signature = signature, lock = surface.lock)
         self.running = False
         self._closed = False
 
@@ -30,8 +32,6 @@ class App():
     def run(self) -> None:
         """Run until stop(), Ctrl+C, or a device closes (e.g. the Virtual window); then close()."""
         self.running = True
-        if not self.clock.is_alive():
-            self.clock.start()
         period = 1.0 / self.fps
         next_frame = time.perf_counter()
         try:
@@ -58,8 +58,8 @@ class App():
             return
         self._closed = True
         self.running = False
-        # Stop the clock first: its targets may be waiting for the lock
-        self.clock.terminate()
+        # Stop the transport first: its subscribers may be waiting for the lock
+        self.transport.close()
         self.surface.close()
 
     def _device_closed(self) -> bool:
