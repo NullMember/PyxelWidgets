@@ -1014,7 +1014,7 @@ function linkValueEditor(link, option, id, edit) {
 
 // Actions a link can call on a target: a widget's methods, or the transport's (target '')
 function linkActions(target) {
-  if (!target) return state.catalog.link.actions;
+  if (!target) return Object.fromEntries(Object.entries(state.catalog.link.actions).filter(([name]) => name !== 'debug'));
   return state.catalog.widgets[target.type]?.actions || {};
 }
 
@@ -1036,8 +1036,53 @@ function defaultActionValue(link) {
   link.value = source ? { source } : 0;
 }
 
+// A link writing to the debug log (the event log in the designer, printed when running)
+function debugCard(widget, link, index, events) {
+  const id = (name) => `link-${index}-${name}`;
+  const edit = (mutate) => change(() => mutate(link));
+  const sources = sourceNames(link.on);
+  return el('div', { class: 'mapping link' },
+    el('div', { class: 'mapping-head' },
+      el('select', {
+        id: id('on'), title: 'The event of this widget that writes',
+        onchange: (e) => edit(() => { link.on = e.target.value; }),
+      }, events.map((name) => el('option', { value: name, selected: name === link.on }, name))),
+      el('span', { class: 'arrow' }, '→'),
+      el('select', {
+        id: id('target'), title: 'Where it goes',
+        onchange: (e) => edit(() => {
+          delete link.action;
+          delete link.value;
+          if (!e.target.value) {
+            link.action = 'transport.toggle';
+          } else {
+            link.target = e.target.value;
+            link.option = 'visible';
+            defaultLinkValue(link);
+          }
+        }),
+      },
+      el('option', { value: '' }, 'Transport'),
+      el('option', { value: '\u0000debug', selected: true }, 'Debug log'),
+      allWidgets().map(({ widget: candidate }) => el('option', { value: candidate.name }, candidate === widget ? `${candidate.name} (itself)` : candidate.name))),
+      el('button', {
+        class: 'link remove', title: 'Remove this link',
+        onclick: () => change((layout) => setLinks(layout, layout.links.filter((_, i) => i !== index))),
+      }, '×')),
+    el('div', { class: 'fields' },
+      el('label', { for: id('value') }, 'text'),
+      el('div', { class: 'control' }, el('input', {
+        type: 'text', id: id('value'), value: link.value ?? '', placeholder: `${link.on} {all}`,
+        title: `Placeholders take the event's values: ${sources.map((name) => `{${name}}`).join(' ')}; {all} is every value. Empty: the event and every value.`,
+        onchange: (e) => edit(() => { if (e.target.value.trim()) link.value = e.target.value; else delete link.value; }),
+      })),
+      el('p', { class: 'hint', style: 'grid-column: 1 / -1' },
+        `Shows in Events (filter: Only debug); printed when the layout runs. Values: ${sources.map((name) => `{${name}}`).join(' ')} {all}`)));
+}
+
 function linkCard(widget, link, index) {
   const events = state.catalog.widgets[widget.type]?.events || [];
+  if (link.action === 'debug') return debugCard(widget, link, index, events);
   const transport = !link.target;
   const target = transport ? null : widgetNamed(link.target);
   const options = transport ? [] : linkOptions(target);
@@ -1109,11 +1154,11 @@ function linkCard(widget, link, index) {
         id: id('target'), title: 'The widget whose option changes, or the transport',
         onchange: (e) => edit(() => {
           for (const key of ['value', 'min', 'max', 'change']) delete link[key];
-          if (!e.target.value) {
-            // Transport actions have no target
+          if (!e.target.value || e.target.value === '\u0000debug') {
+            // Transport actions and the debug log have no target
             delete link.target;
             delete link.option;
-            link.action = 'transport.toggle';
+            link.action = e.target.value ? 'debug' : 'transport.toggle';
             return;
           }
           link.target = e.target.value;
@@ -1125,6 +1170,7 @@ function linkCard(widget, link, index) {
         }),
       },
       el('option', { value: '', selected: transport }, 'Transport'),
+      el('option', { value: '\u0000debug' }, 'Debug log'),
       allWidgets().map(({ widget: candidate }) => el('option', { value: candidate.name, selected: candidate.name === link.target },
         candidate === widget ? `${candidate.name} (itself)` : candidate.name))),
       el('button', {
@@ -1196,7 +1242,7 @@ function renderDrawer() {
       el('select', {
         id: 'event-filter', title: 'Which events to show',
         onchange: (e) => { drawer.filter = e.target.value; savePrefs(); renderEvents(); },
-      }, [['all', 'All events'], ['selected', 'Selected widget'], ['quiet', 'Without clock events']].map(([value, label]) =>
+      }, [['all', 'All events'], ['selected', 'Selected widget'], ['quiet', 'Without clock events'], ['debug', 'Only debug']].map(([value, label]) =>
         el('option', { value, selected: drawer.filter === value }, label))),
       el('button', {
         id: 'pause-events', class: state.eventsPaused ? 'active' : '', title: 'Pause the list (events are still kept)',
@@ -1226,7 +1272,7 @@ function renderDrawer() {
 function connectionRows() {
   const rows = [];
   for (const link of state.layout.links || []) {
-    const to = link.target || 'Transport';
+    const to = link.target || (link.action === 'debug' ? 'Debug log' : 'Transport');
     const what = link.action ? `${link.on} → ${link.action.replace(/^transport\./, '')}` : `${link.on} → ${(link.change || 'set').toLowerCase()} ${link.option}`;
     rows.push(['link', link.widget, to, what, () => selectWidgetNamed(link.widget)]);
   }
@@ -1310,13 +1356,15 @@ function renderEvents() {
   const selected = state.selection?.kind === 'widget' ? new Set(selectedPaths().map((path) => widgetAt(path)?.name)) : new Set();
   const shown = state.eventLog.filter((event) => filter === 'all'
     || (filter === 'quiet' && !CLOCK_EVENTS.has(event.event))
+    || (filter === 'debug' && event.event === 'Debug')
     || (filter === 'selected' && selected.has(event.widget)));
   fill($('events'), shown.slice(-200).reverse().map((event) => {
-    const fields = Object.entries(event)
+    const debug = event.event === 'Debug';
+    const fields = debug ? event.text : Object.entries(event)
       .filter(([key]) => !['id', 'widget', 'event'].includes(key))
       .map(([key, value]) => `${key}=${Array.isArray(value) ? `[${value}]` : value}`)
       .join(' ');
-    return el('li', { title: `${event.widget} ${event.event} ${fields}` },
+    return el('li', { class: debug ? 'debug' : null, title: `${event.widget} ${event.event} ${fields}` },
       el('b', {}, event.widget), ' ', el('span', { class: 'kind' }, event.event), ' ', fields);
   }));
 }

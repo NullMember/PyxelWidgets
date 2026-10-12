@@ -318,6 +318,8 @@ class Preview:
         ui.mappings = ui.map(proxies)
         # Transport actions play and stop the preview
         ui.links += ui.link(_PreviewActions(self), widgets = False)
+        # Debug links write to the event log
+        ui.debug = lambda widget, text: self._log(widget, 'Debug', {'text': text})
         with self.lock:
             playing = self.transport is not None
             self.stop()

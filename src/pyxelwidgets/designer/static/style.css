@@ -367,3 +367,5 @@ dialog .recent-list { list-style: none; margin: 8px 0 0; padding: 0; max-height:
 dialog .recent-list li { padding: 4px 6px; border-radius: 5px; cursor: pointer; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 dialog .recent-list li:hover { background: var(--accent-soft); }
 body.dragging .welcome { display: none; }
+.events li.debug { color: var(--text); }
+.events li.debug .kind { color: var(--device); }
