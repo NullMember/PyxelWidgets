@@ -1,0 +1,319 @@
+"""
+DAW control surface protocols over MIDI: Mackie Control (also Logic Control)
+and HUI. Widgets send and receive ``Command``s by name (see ``commands``)::
+
+    mackie = MackieControl()
+    mackie.connect_virtual('PyxelWidgets MCU')   # pick it in the DAW (REAPER: Preferences >
+                                                # Control/OSC/web > Add > Mackie Control Universal)
+    surface.map(play, mackie, Command('Play'), on = Pressed, feedback = True)
+    surface.map(play, mackie, Command('Play', 0.0), on = Released)
+    surface.map(volume, mackie, Command('Fader 1', Source('value')), on = Changed, feedback = True)
+    surface.map(pan, mackie, Command('V-Pot 1', Source('delta')), on = Changed, feedback = True)
+    surface.map(clock, mackie, Command('Timecode', Source('text')), feedback = True)
+
+Buttons are pressed while the value is above 0; received LEDs come back as 1.0
+or 0.0 (``flash`` when blinking). Faders are 0.0-1.0. V-Pots and the jog wheel
+send steps (negative turns left) and receive their LED ring position 0.0-1.0.
+Received displays (``Timecode``, ``Name 1``, ``Display``...) carry text and
+meters (``Meter 1``) 0.0-1.0.
+"""
+
+import enum
+
+import pyxelwidgets.devices.midi_port
+import pyxelwidgets.events
+import pyxelwidgets.message
+
+__all__ = ['MackieControl', 'HUI']
+
+def _steps(value) -> int:
+    """V-Pot/jog steps from a command value, at most 63 either way."""
+    return max(-63, min(63, int(round(float(value)))))
+
+class _ControlSurface(pyxelwidgets.devices.midi_port.MidiPort):
+    """Shared by the protocols: ``commands`` maps names to kinds for editors."""
+
+    #: Command name → kind: button, fader, relative, display, meter
+    commands: dict = {}
+
+    @classmethod
+    def describe(cls) -> dict:
+        info = super().describe()
+        info['commands'] = [{'name': name, 'kind': kind} for name, kind in cls.commands.items()]
+        return info
+
+    def _received(self, name: str, value, flash: bool = False) -> None:
+        self.emit(pyxelwidgets.events.MessageReceived(self, pyxelwidgets.message.Command(name, value, flash)))
+
+# Mackie Control
+
+_MCU_STRIP = [('Rec', 0x00), ('Solo', 0x08), ('Mute', 0x10), ('Select', 0x18), ('V-Select', 0x20), ('Fader Touch', 0x68)]
+_MCU_BUTTONS = {f'{name} {i + 1}': base + i for name, base in _MCU_STRIP for i in range(8)}
+_MCU_BUTTONS.update({
+    'Track': 0x28, 'Send': 0x29, 'Pan': 0x2A, 'Plug-in': 0x2B, 'EQ': 0x2C, 'Instrument': 0x2D,
+    'Bank Left': 0x2E, 'Bank Right': 0x2F, 'Channel Left': 0x30, 'Channel Right': 0x31,
+    'Flip': 0x32, 'Global View': 0x33, 'Name/Value': 0x34, 'SMPTE/Beats': 0x35,
+    **{f'F{i + 1}': 0x36 + i for i in range(8)},
+    'MIDI Tracks': 0x3E, 'Inputs': 0x3F, 'Audio Tracks': 0x40, 'Audio Instruments': 0x41, 'Aux': 0x42,
+    'Busses': 0x43, 'Outputs': 0x44, 'User': 0x45,
+    'Shift': 0x46, 'Option': 0x47, 'Control': 0x48, 'Alt': 0x49,
+    'Read': 0x4A, 'Write': 0x4B, 'Trim': 0x4C, 'Touch': 0x4D, 'Latch': 0x4E, 'Group': 0x4F,
+    'Save': 0x50, 'Undo': 0x51, 'Cancel': 0x52, 'Enter': 0x53,
+    'Markers': 0x54, 'Nudge': 0x55, 'Cycle': 0x56, 'Drop': 0x57, 'Replace': 0x58, 'Click': 0x59, 'Solo': 0x5A,
+    'Rewind': 0x5B, 'Fast Forward': 0x5C, 'Stop': 0x5D, 'Play': 0x5E, 'Record': 0x5F,
+    'Up': 0x60, 'Down': 0x61, 'Left': 0x62, 'Right': 0x63, 'Zoom': 0x64, 'Scrub': 0x65,
+    'User A': 0x66, 'User B': 0x67, 'Master Fader Touch': 0x70,
+    'SMPTE LED': 0x71, 'Beats LED': 0x72, 'Rude Solo LED': 0x73,
+})
+_MCU_NOTES = {note: name for name, note in _MCU_BUTTONS.items()}
+_MCU_FADERS = {**{f'Fader {i + 1}': i for i in range(8)}, 'Master Fader': 8}
+_MCU_RELATIVE = {**{f'V-Pot {i + 1}': 0x10 + i for i in range(8)}, 'Jog': 0x3C}
+
+class MackieControl(_ControlSurface):
+    """
+    Mackie Control Universal (or Logic Control, or an extender, by ``mode``):
+    8 channel strips, transport and function buttons, the jog wheel, and
+    feedback for LEDs, faders, V-Pot rings, meters, the timecode and
+    assignment displays and the 2x56 character LCD (``Name 1``-``8``,
+    ``Value 1``-``8`` for the strips' top and bottom lines, ``Display`` for
+    both). Answers the Logic Control connection handshake.
+    """
+
+    class Mode(enum.Enum):
+        """The model it presents itself as (its SysEx device ID)."""
+        MackieControl = 0x14
+        MackieControlExtender = 0x15
+        LogicControl = 0x10
+        LogicControlExtender = 0x11
+
+    model = 'Mackie Control'
+    vendor = 'Control surface'
+    commands = {
+        **{name: 'button' for name in _MCU_BUTTONS},
+        **{name: 'fader' for name in _MCU_FADERS},
+        **{name: 'relative' for name in _MCU_RELATIVE},
+        **{f'Meter {i + 1}': 'meter' for i in range(8)},
+        'Timecode': 'display', 'Assignment': 'display', 'Display': 'display',
+        **{f'Name {i + 1}': 'display' for i in range(8)},
+        **{f'Value {i + 1}': 'display' for i in range(8)},
+    }
+    #: Answered to the connection query
+    serial = [0x50, 0x57, 0x30, 0x30, 0x30, 0x30, 0x31]
+
+    def __init__(self, *, mode: Mode = Mode.MackieControl, **kwargs):
+        super().__init__(**kwargs)
+        self.mode = mode
+        self.lcd = [' '] * 112
+        self.timecode = [' '] * 10
+        self.assignment = [' ', ' ']
+
+    @property
+    def header(self) -> list:
+        return [0x00, 0x00, 0x66, self.mode.value]
+
+    def send(self, message) -> None:
+        if not isinstance(message, pyxelwidgets.message.Command):
+            return super().send(message)
+        if self._midi_output is None:
+            return
+        name, value = message.name, message.value
+        if name in _MCU_BUTTONS:
+            self.send_note_on(_MCU_BUTTONS[name], 0x7F if value > 0 else 0)
+        elif name in _MCU_FADERS:
+            position = int(round(min(1.0, max(0.0, float(value))) * 16383))
+            self.send_pitch_bend(position, _MCU_FADERS[name])
+        elif name in _MCU_RELATIVE:
+            steps = _steps(value)
+            if steps:
+                self.send_control_change(_MCU_RELATIVE[name], steps if steps > 0 else 0x40 | -steps)
+
+    def decode(self, midi: list) -> None:
+        if not midi:
+            return
+        status = midi[0] & 0xF0
+        if midi[0] == 0xF0:
+            self._sysex(midi[1:-1] if midi[-1] == 0xF7 else midi[1:])
+        elif status in (0x80, 0x90) and len(midi) == 3:
+            name = _MCU_NOTES.get(midi[1])
+            if name is not None:
+                velocity = midi[2] if status == 0x90 else 0
+                self._received(name, 1.0 if velocity else 0.0, velocity == 1)
+        elif status == 0xE0 and len(midi) == 3:
+            channel = midi[0] & 0x0F
+            name = 'Master Fader' if channel == 8 else f'Fader {channel + 1}'
+            self._received(name, (midi[1] | (midi[2] << 7)) / 16383)
+        elif status == 0xB0 and len(midi) == 3:
+            self._control(midi[1], midi[2])
+        elif status == 0xD0 and len(midi) >= 2:
+            strip, level = midi[1] >> 4, midi[1] & 0x0F
+            if strip < 8 and level <= 0x0C:
+                self._received(f'Meter {strip + 1}', level / 12)
+
+    def _control(self, number: int, value: int) -> None:
+        if 0x30 <= number < 0x38:
+            # LED ring: position 1-11, 0 is off
+            position = value & 0x0F
+            self._received(f'V-Pot {number - 0x30 + 1}', (position - 1) / 10 if position else 0.0)
+        elif 0x40 <= number < 0x4A:
+            # Timecode digits, right to left
+            self.timecode[9 - (number - 0x40)] = self._character(value)
+            self._received('Timecode', ''.join(self.timecode).strip())
+        elif number in (0x4A, 0x4B):
+            self.assignment[0x4B - number] = self._character(value)
+            self._received('Assignment', ''.join(self.assignment).strip())
+
+    @staticmethod
+    def _character(value: int) -> str:
+        """A 7-segment display character: 0x40 adds a dot."""
+        code = value & 0x3F
+        text = chr(code + 0x40) if code < 0x20 else chr(code)
+        return text + '.' if value & 0x40 else text
+
+    def _sysex(self, data: list) -> None:
+        if data[:3] != [0x00, 0x00, 0x66] or len(data) < 5 or data[3] != self.mode.value:
+            return
+        command, body = data[4], data[5:]
+        if command == 0x00:
+            # Connection query: answer with the serial number and a challenge
+            self.send_sysex(self.header + [0x01] + self.serial + [0x00, 0x00, 0x00, 0x00])
+        elif command == 0x02:
+            self.send_sysex(self.header + [0x03] + self.serial)
+        elif command == 0x13:
+            self.send_sysex(self.header + [0x14] + [ord(c) for c in 'V1.0'])
+        elif command == 0x12 and body:
+            offset = body[0]
+            for i, code in enumerate(body[1:]):
+                if 0 <= offset + i < len(self.lcd):
+                    self.lcd[offset + i] = chr(code) if 0x20 <= code < 0x7F else ' '
+            top, bottom = ''.join(self.lcd[:56]), ''.join(self.lcd[56:])
+            # Each strip has 7 characters per line
+            for strip in range(8):
+                self._received(f'Name {strip + 1}', top[strip * 7:strip * 7 + 7].strip())
+                self._received(f'Value {strip + 1}', bottom[strip * 7:strip * 7 + 7].strip())
+            self._received('Display', f'{top.rstrip()}\n{bottom.rstrip()}')
+
+# HUI: switches are (zone, port) pairs
+
+_HUI_STRIP = ['Fader Touch', 'Select', 'Mute', 'Solo', 'Auto', 'V-Select', 'Insert', 'Rec']
+_HUI_ZONES = [
+    (0x08, ['Ctrl', 'Shift', 'Edit Mode', 'Undo', 'Alt', 'Option', 'Edit Tool', 'Save']),
+    (0x09, ['Mix', 'Edit', 'Transport Window', 'Mem-Loc', 'Status', 'Alt Window']),
+    (0x0A, ['Channel Left', 'Bank Left', 'Channel Right', 'Bank Right']),
+    (0x0B, ['Output', 'Input', 'Pan', 'Send E', 'Send D', 'Send C', 'Send B', 'Send A']),
+    (0x0C, ['Assign', 'Default', 'Suspend', 'Assign Shift', 'Assign Mute', 'Bypass', 'Rec Ready All']),
+    (0x0D, ['Down', 'Left', 'Mode', 'Right', 'Up', 'Scrub', 'Shuttle']),
+    (0x0E, ['Talkback', 'Rewind', 'Fast Forward', 'Stop', 'Play', 'Record']),
+    (0x0F, ['Return to Zero', 'To End', 'Online', 'Loop', 'Quick Punch']),
+    (0x10, ['Audition', 'Pre', 'In', 'Out', 'Post']),
+    (0x16, ['Timecode LED', 'Feet LED', 'Beats LED', 'Rude Solo LED']),
+    (0x17, ['Auto Plug-in', 'Auto Pan', 'Auto Fader', 'Auto Send Mute', 'Auto Send', 'Auto Mute']),
+    (0x18, ['Trim', 'Latch', 'Read', 'Off', 'Write', 'Touch']),
+    (0x19, ['Phase', 'Monitor', 'Auto Status', 'Suspend Status', 'Create', 'Group']),
+    (0x1A, ['Paste', 'Cut', 'Capture', 'Delete', 'Copy', 'Separate']),
+    (0x1B, [f'F{i + 1}' for i in range(8)]),
+    (0x1C, ['Param Insert', 'Param Assign', 'Param Select 1', 'Param Select 2', 'Param Select 3', 'Param Select 4', 'Param Bypass', 'Param Compare']),
+]
+_HUI_SWITCHES = {f'{name} {strip + 1}': (strip, port) for strip in range(8) for port, name in enumerate(_HUI_STRIP)}
+_HUI_SWITCHES.update({name: (zone, port) for zone, names in _HUI_ZONES for port, name in enumerate(names)})
+_HUI_PORTS = {place: name for name, place in _HUI_SWITCHES.items()}
+_HUI_RELATIVE = {**{f'V-Pot {i + 1}': 0x40 + i for i in range(8)}, 'Jog': 0x0D}
+
+class HUI(_ControlSurface):
+    """
+    HUI (Pro Tools, REAPER, Logic): 8 channel strips, transport and edit
+    switches, the jog wheel, and feedback for LEDs, faders, V-Pot rings,
+    meters, the timecode, the strips' 4 character names (``Name 1``-``8``)
+    and the main display (``Display``). Answers the host's pings.
+    """
+
+    model = 'HUI'
+    vendor = 'Control surface'
+    commands = {
+        **{name: 'button' for name in _HUI_SWITCHES},
+        **{f'Fader {i + 1}': 'fader' for i in range(8)},
+        **{name: 'relative' for name in _HUI_RELATIVE},
+        **{f'Meter {i + 1}': 'meter' for i in range(8)},
+        'Timecode': 'display', 'Display': 'display',
+        **{f'Name {i + 1}': 'display' for i in range(8)},
+    }
+    header = [0x00, 0x00, 0x66, 0x05, 0x00]
+
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+        self._zone = None
+        self._fader_high = [0] * 8
+        self.display = [' '] * 80
+        self.timecode = [' '] * 8
+
+    def send(self, message) -> None:
+        if not isinstance(message, pyxelwidgets.message.Command):
+            return super().send(message)
+        if self._midi_output is None:
+            return
+        name, value = message.name, message.value
+        if name in _HUI_SWITCHES:
+            zone, port = _HUI_SWITCHES[name]
+            self.send_control_change(0x0F, zone)
+            self.send_control_change(0x2F, (0x40 if value > 0 else 0x00) | port)
+        elif name.startswith('Fader ') and name[6:].isdigit() and 1 <= int(name[6:]) <= 8:
+            strip = int(name[6:]) - 1
+            position = int(round(min(1.0, max(0.0, float(value))) * 16383))
+            self.send_control_change(strip, position >> 7)
+            self.send_control_change(0x20 + strip, position & 0x7F)
+        elif name in _HUI_RELATIVE:
+            steps = _steps(value)
+            if steps:
+                self.send_control_change(_HUI_RELATIVE[name], 0x40 | steps if steps > 0 else -steps)
+
+    def decode(self, midi: list) -> None:
+        if not midi:
+            return
+        status = midi[0] & 0xF0
+        if midi[0] == 0xF0:
+            self._sysex(midi[1:-1] if midi[-1] == 0xF7 else midi[1:])
+        elif status == 0x90 and midi[1:] == [0x00, 0x00]:
+            # Ping: answer to stay online
+            self.send_note_on(0x00, 0x7F)
+        elif status == 0xB0 and len(midi) == 3:
+            self._control(midi[1], midi[2])
+        elif status == 0xA0 and len(midi) == 3:
+            strip, side, level = midi[1], midi[2] >> 4, midi[2] & 0x0F
+            if strip < 8 and side == 0 and level <= 0x0C:
+                self._received(f'Meter {strip + 1}', level / 12)
+
+    def _control(self, number: int, value: int) -> None:
+        if number == 0x0C:
+            self._zone = value
+        elif number == 0x2C and self._zone is not None:
+            name = _HUI_PORTS.get((self._zone, value & 0x0F))
+            if name is not None:
+                self._received(name, 1.0 if value & 0x40 else 0.0)
+        elif number < 0x08:
+            self._fader_high[number] = value
+        elif 0x20 <= number < 0x28:
+            strip = number - 0x20
+            self._received(f'Fader {strip + 1}', ((self._fader_high[strip] << 7) | value) / 16383)
+        elif 0x10 <= number < 0x18:
+            position = value & 0x0F
+            self._received(f'V-Pot {number - 0x10 + 1}', (position - 1) / 10 if position else 0.0)
+
+    def _sysex(self, data: list) -> None:
+        if data[:5] != self.header or len(data) < 6:
+            return
+        command, body = data[5], data[6:]
+        if command == 0x10 and len(body) >= 5 and body[0] < 8:
+            self._received(f'Name {body[0] + 1}', ''.join(chr(c) if 0x20 <= c < 0x7F else ' ' for c in body[1:5]).strip())
+        elif command == 0x11:
+            # Timecode digits, right to left; 0x10 adds a dot
+            for i, code in enumerate(body[:8]):
+                self.timecode[7 - i] = str(code & 0x0F) + ('.' if code & 0x10 else '')
+            self._received('Timecode', ''.join(self.timecode).strip())
+        elif command == 0x12:
+            # 10 characters per zone: zones 0-3 are the top line, 4-7 the bottom
+            for start in range(0, len(body) - 10, 11):
+                zone = body[start]
+                if zone < 8:
+                    for i, code in enumerate(body[start + 1:start + 11]):
+                        self.display[zone * 10 + i] = chr(code) if 0x20 <= code < 0x7F else ' '
+            text = ''.join(self.display)
+            self._received('Display', f'{text[:40].rstrip()}\n{text[40:].rstrip()}')
