@@ -23,6 +23,7 @@ Generated from the docstrings by `docs/build_api.py`; see the [guides](README.md
   - [`pyxelwidgets.surface`](#pyxelwidgetssurface)
   - [`pyxelwidgets.app`](#pyxelwidgetsapp)
   - [`pyxelwidgets.parser`](#pyxelwidgetsparser)
+  - [`pyxelwidgets.codegen`](#pyxelwidgetscodegen)
 - Devices
   - [`pyxelwidgets.devices`](#pyxelwidgetsdevices)
   - [`pyxelwidgets.devices.colors`](#pyxelwidgetsdevicescolors)
@@ -1068,7 +1069,7 @@ Timed(*args, clock: Clock = Clock.Transport, bpm: float = 120.0, running: bool =
 ```
 
 Mixin for widgets a clock plays every `rate`. Widgets don't know about
-clocks: glue (`Parser.attach`, `Parser.start_clocks`) calls `tick`
+clocks: glue (`App.attach`, `Parser.attach`, `Parser.start_clocks`) calls `tick`
 from the transport or from a clock of the widget's own.
 
 - `clock: Clock = Clock.Transport, optional`: What plays it every `rate`: the transport, its own clock at `bpm`, or nothing (links only).
@@ -1645,6 +1646,7 @@ Every `check_interval` seconds devices notice being unplugged and
 reconnect when they're back (`Surface.check_devices`); None doesn't.
 
 - **`lock`**: Hold this when changing widgets from a thread the App doesn't manage.
+- **`attach(widget)`**: Play `widget` (a Sequencer, Tracker or ClipLauncher) on its clock: the app's transport (`clock = Clock.Transport`) or a clock of its own following its `bpm` (`Clock.Own`, closed with the App). Returns the Subscription, or None for `Clock.Off`.
 - **`step()`**: Render one frame; use this to drive the App from your own loop.
 - **`run()`**: Run until stop(), Ctrl+C, or a device closes (e.g. the Virtual window); then close().
 - **`stop()`**: Make run() return after the current frame; safe to call from any thread.
@@ -1833,6 +1835,26 @@ e.g. to validate or preview a layout.
 ### `load(layout, **kwargs)`
 
 Build a Surface from a layout file (or JSON text, or a dict).
+
+## `pyxelwidgets.codegen`
+
+Python code for a layout, as the designer's Python tab shows it: a program
+loading the layout file (`loader`), or one building the same surface in
+code without it (`standalone`), to start from when a layout outgrows the
+designer.
+
+    print(pyxelwidgets.codegen.standalone(json.load(open('layout.json'))))
+
+### `loader(layout: dict, file: str = 'layout.json', *, handlers: bool = False)`
+
+A program loading `file` (holding `layout`) and running it; `handlers` prints each widget's main event.
+
+### `standalone(layout: dict, *, handlers: bool = False, run: bool = True)`
+
+A program building `layout` in code: the surface, devices, widgets,
+outputs, mappings, bindings and links, then running it (without `run`
+it stops before creating the App's loop). Raises LayoutError for an
+invalid layout.
 
 # Devices
 
