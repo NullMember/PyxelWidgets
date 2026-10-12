@@ -118,7 +118,8 @@ ANIMATIONS = {cls.__name__: cls for cls in (pyxelwidgets.animation.Blink, pyxelw
 
 # Messages mappings send, by class name
 MESSAGES = {name: getattr(pyxelwidgets.message, name) for name in (
-    'NoteOn', 'NoteOff', 'ControlChange', 'ProgramChange', 'PitchBend', 'PolyPressure', 'ChannelPressure', 'OscMessage', 'Command')}
+    'NoteOn', 'NoteOff', 'ControlChange', 'ProgramChange', 'PitchBend', 'PolyPressure', 'ChannelPressure', 'OscMessage', 'Command',
+    'Hotkey', 'Key', 'TypeText', 'MouseMove', 'MouseButton', 'MouseClick', 'Scroll')}
 
 # Option kinds a link can take an event value for, and the ones it can add to or toggle
 LINK_SOURCES = {'bool', 'int', 'float', 'color', 'enum', 'str'}
@@ -346,8 +347,16 @@ def message_schema() -> dict:
                 if field.name == 'flash':
                     continue
                 entry = {'name': field.name, 'default': _encode_field(field.default)}
+                choices = getattr(cls, 'choices', {}).get(field.name)
                 if field.name in cls.ranges:
                     entry['range'] = list(cls.ranges[field.name])
+                elif choices:
+                    entry.update(kind = 'choice', choices = list(choices))
+                elif isinstance(field.default, bool):
+                    entry['kind'] = 'bool'
+                elif field.name == 'keys':
+                    # Key names: 'ctrl+shift+s'
+                    entry['kind'] = 'keys'
                 else:
                     entry['kind'] = 'text' if isinstance(field.default, str) else 'value'
                 fields.append(entry)
@@ -412,10 +421,20 @@ def message_from_json(data, where: str = 'message') -> pyxelwidgets.message.Mess
             continue
         if key not in names:
             raise LayoutError(f'{where}: {cls.__name__} has no field {key!r} (fields: {", ".join(names)})')
+        default = next(field.default for field in dataclasses.fields(cls) if field.name == key)
+        if isinstance(default, bool):
+            # On/off fields (MouseMove's relative)
+            if not isinstance(value, bool):
+                raise LayoutError(f'{where}.{key}: must be true or false, got {value!r}')
+            fields[key] = value
+            continue
         fields[key] = _decode_field(value, f'{where}.{key}', cls.ranges.get(key))
     if cls is pyxelwidgets.message.Command and not isinstance(fields.get('name', 'Play'), str):
         raise LayoutError(f'{where}.name: must be a command name')
-    return cls(**fields)
+    try:
+        return cls(**fields)
+    except ValueError as error:
+        raise LayoutError(f'{where}: {error}') from None
 
 def _options(cls, options: dict, where: str) -> dict:
     parameters = {parameter.name: parameter for parameter in _parameters(cls)}
