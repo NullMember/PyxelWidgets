@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import pyxelwidgets.animation
 import pyxelwidgets.binding
 import pyxelwidgets.buffer
 import pyxelwidgets.color
@@ -40,6 +41,8 @@ class Surface(pyxelwidgets.events.Emitter):
         self.root = pyxelwidgets.group.Group(0, 0, width, height, name = f'{self.name}_root')
         self.devices = {}
         self.bindings = []
+        #: Times animations: anything with bpm, beats, playing and signature (App sets its Transport)
+        self.transport = None
         self.buffer = pyxelwidgets.buffer.new(width, height, pyxelwidgets.color.Colors.Black)
         self.frame_counter = 0
         self.lock = threading.RLock()
@@ -127,7 +130,7 @@ class Surface(pyxelwidgets.events.Emitter):
             self.frame_counter += 1
             for binding in self.bindings:
                 binding.update()
-            if self.root.render():
+            if self.root.render(pyxelwidgets.animation.now(self.transport)):
                 # Transparent areas show as black on the devices
                 self.buffer[:] = pyxelwidgets.color.Colors.Black
                 pyxelwidgets.buffer.composite(self.buffer, self.root.buffer)
