@@ -16,9 +16,21 @@ or 0.0 (``flash`` when blinking). Faders are 0.0-1.0. V-Pots and the jog wheel
 send steps (negative turns left) and receive their LED ring position 0.0-1.0.
 Received displays (``Timecode``, ``Name 1``, ``Display``...) carry text and
 meters (``Meter 1``) 0.0-1.0.
+
+Mackie Control also reaches plug-in parameters through the DAW's plug-in
+mode, by name: ``scan_tracks()``, ``scan_plugins(track)`` and
+``scan_parameters(track, plugin)`` press its buttons and read its display,
+and ``PluginParameter`` messages turn a parameter's V-Pot::
+
+    mackie.scan_tracks()                       # ['Drums', 'Bass', ...] (7 characters at most)
+    mackie.scan_plugins('Bass')                # ['ReaEQ', 'ReaComp']
+    mackie.scan_parameters('Bass', 'ReaComp')  # ['Thresh', 'Ratio', ...]
+    surface.map(knob, mackie, PluginParameter('Bass', 'ReaComp', 'Ratio'), on = Changed, feedback = True)
 """
 
 import enum
+import threading
+import time
 
 import pyxelwidgets.devices.midi_port
 import pyxelwidgets.events
@@ -101,18 +113,75 @@ class MackieControl(_ControlSurface):
     #: Answered to the connection query
     serial = [0x50, 0x57, 0x30, 0x30, 0x30, 0x30, 0x31]
 
-    def __init__(self, *, mode: Mode = Mode.MackieControl, **kwargs):
+    messages = _ControlSurface.messages + ('PluginParameter',)
+
+    #: Seconds without display changes after which the DAW has answered a button
+    settle = 0.15
+    #: Seconds to wait for the DAW to answer a button at all
+    timeout = 0.8
+    #: The most banks of tracks, or pages of parameters, a scan goes through
+    most_pages = 64
+
+    def __init__(self, *, mode: Mode = Mode.MackieControl,
+                 plugin_button: str = 'Plug-in',
+                 channel_button: str = 'Pan',
+                 next_page: str = 'Bank Right',
+                 previous_page: str = 'Bank Left',
+                 **kwargs):
+        """
+        plugin_button: str = 'Plug-in', optional
+            The button showing the selected track's plug-ins on the strips (a
+            V-Pot press opens one's parameters).
+        channel_button: str = 'Pan', optional
+            The button going back to the tracks on the strips.
+        next_page: str = 'Bank Right', optional
+            The button showing a plug-in's next 8 parameters.
+        previous_page: str = 'Bank Left', optional
+            The button showing a plug-in's previous 8 parameters.
+        """
+        for name in (plugin_button, channel_button, next_page, previous_page):
+            if name not in _MCU_BUTTONS:
+                raise ValueError(f'{name!r} is not a Mackie Control button')
         super().__init__(**kwargs)
         self.mode = mode
+        self.plugin_button = plugin_button
+        self.channel_button = channel_button
+        self.next_page = next_page
+        self.previous_page = previous_page
         self.lcd = [' '] * 112
         self.timecode = [' '] * 10
         self.assignment = [' ', ' ']
+        #: What went wrong reaching a plug-in parameter last, if anything
+        self.warning = None
+        # Scans: track names (as the display shows them) and labels (made unique), plug-ins as
+        # (label, strip) by track, parameters as (label, page, strip) by (track, plugin)
+        self._track_names = []
+        self.tracks = []
+        self._plugins = {}
+        self._parameters = {}
+        # What the DAW shows: 'channels', 'plugins', 'parameters' or None (not known), the bank
+        # of tracks in the channels view, and (track, plugin, page) in the parameters view
+        self._view = None
+        self._bank = None
+        self._focus = None
+        self._display = threading.Condition()
+        self._display_changes = 0
+        self._display_time = 0.0
+        self._navigation = threading.RLock()
+        # Parameter turns waiting for the DAW to get there: (track, plugin, parameter) → steps
+        self._turns = {}
+        self._turns_lock = threading.Lock()
+        self._turned = threading.Event()
+        self._worker = None
+        self._closing = False
 
     @property
     def header(self) -> list:
         return [0x00, 0x00, 0x66, self.mode.value]
 
     def send(self, message) -> None:
+        if isinstance(message, pyxelwidgets.message.PluginParameter):
+            return self._turn_later(message)
         if not isinstance(message, pyxelwidgets.message.Command):
             return super().send(message)
         if self._midi_output is None:
@@ -154,7 +223,12 @@ class MackieControl(_ControlSurface):
         if 0x30 <= number < 0x38:
             # LED ring: position 1-11, 0 is off
             position = value & 0x0F
-            self._received(f'V-Pot {number - 0x30 + 1}', (position - 1) / 10 if position else 0.0)
+            strip = number - 0x30
+            self._received(f'V-Pot {strip + 1}', (position - 1) / 10 if position else 0.0)
+            parameter = self._shown_parameter(strip)
+            if parameter is not None:
+                message = pyxelwidgets.message.PluginParameter(*parameter, (position - 1) / 10 if position else 0.0)
+                self.emit(pyxelwidgets.events.MessageReceived(self, message))
         elif 0x40 <= number < 0x4A:
             # Timecode digits, right to left
             self.timecode[9 - (number - 0x40)] = self._character(value)
@@ -183,15 +257,269 @@ class MackieControl(_ControlSurface):
             self.send_sysex(self.header + [0x14] + [ord(c) for c in 'V1.0'])
         elif command == 0x12 and body:
             offset = body[0]
+            before = list(self.lcd)
             for i, code in enumerate(body[1:]):
                 if 0 <= offset + i < len(self.lcd):
                     self.lcd[offset + i] = chr(code) if 0x20 <= code < 0x7F else ' '
+            if self.lcd != before:
+                with self._display:
+                    self._display_changes += 1
+                    self._display_time = time.monotonic()
+                    self._display.notify_all()
             top, bottom = ''.join(self.lcd[:56]), ''.join(self.lcd[56:])
             # Each strip has 7 characters per line
             for strip in range(8):
                 self._received(f'Name {strip + 1}', top[strip * 7:strip * 7 + 7].strip())
                 self._received(f'Value {strip + 1}', bottom[strip * 7:strip * 7 + 7].strip())
             self._received('Display', f'{top.rstrip()}\n{bottom.rstrip()}')
+
+    # Plug-in parameters: the DAW's plug-in mode, driven by buttons and read from the display
+
+    def close(self) -> None:
+        self._closing = True
+        self._turned.set()
+        super().close()
+
+    def row(self, line: int = 0) -> list:
+        """The 8 strips' texts on the display's top (0) or bottom (1) line."""
+        text = ''.join(self.lcd[56 * line:56 * line + 56])
+        return [text[strip * 7:strip * 7 + 7].strip() for strip in range(8)]
+
+    def scanned(self) -> dict:
+        """What the scans found: ``tracks``, ``plugins`` by track and ``parameters`` by track and plug-in."""
+        with self._navigation:
+            return {'tracks': list(self.tracks),
+                    'plugins': {track: [label for label, _ in plugins] for track, plugins in self._plugins.items()},
+                    'parameters': {f'{track}/{plugin}': [label for label, _, _ in parameters]
+                                   for (track, plugin), parameters in self._parameters.items()}}
+
+    def scan_tracks(self) -> list:
+        """
+        The DAW's track names: banks through the strips from the first, reading
+        the display (a DAW shows at most 7 characters; repeated names get " (2)").
+        Blocks for a while; don't call it from a MIDI or widget event handler.
+        """
+        with self._navigation:
+            self._require()
+            self._to_channels()
+            self._first_bank()
+            names = []
+            for bank in range(self.most_pages):
+                shown = self.row(0)
+                names += shown
+                if not any(shown) or not self._tap('Bank Right', lambda: self.row(0) != shown):
+                    break
+                self._bank = bank + 1
+            while names and not names[-1]:
+                names.pop()
+            self._track_names = [name or f'Track {index + 1}' for index, name in enumerate(names)]
+            self.tracks = _labels(self._track_names)
+            self._plugins, self._parameters = {}, {}
+            return list(self.tracks)
+
+    def scan_plugins(self, track: str) -> list:
+        """The plug-ins on ``track`` (a name from ``scan_tracks``), as the DAW's plug-in mode shows them."""
+        with self._navigation:
+            self._select(track)
+            shown = (self.row(0), self.row(1))
+            if not self._tap(self.plugin_button, lambda: (self.row(0), self.row(1)) != shown):
+                self._view = None
+                raise LookupError(f'the DAW showed no plug-ins after {self.plugin_button} (it may have no plug-in mode for '
+                                  'Mackie Control: REAPER\'s own support has none, its CSI or Klinke extensions do)')
+            self._view = 'plugins'
+            names = self.row(0)
+            strips = [strip for strip, name in enumerate(names) if name]
+            self._plugins[track] = list(zip(_labels([names[strip] for strip in strips]), strips))
+            return [label for label, _ in self._plugins[track]]
+
+    def scan_parameters(self, track: str, plugin: str) -> list:
+        """The parameters of ``plugin`` on ``track``: opens it and pages through its parameters, 8 at a time."""
+        with self._navigation:
+            self._open(track, plugin)
+            found = []
+            for page in range(self.most_pages):
+                shown = self.row(0)
+                found += [(name, page, strip) for strip, name in enumerate(shown) if name]
+                if not self._tap(self.next_page, lambda: self.row(0) != shown):
+                    break
+                self._focus = (track, plugin, page + 1)
+            labels = _labels([name for name, _, _ in found])
+            self._parameters[(track, plugin)] = [(label, page, strip) for label, (_, page, strip) in zip(labels, found)]
+            self._to_page(0)
+            return labels
+
+    def _require(self) -> None:
+        if self._midi_output is None or self._midi_input is None:
+            raise ConnectionError('Mackie Control is not connected to the DAW')
+
+    def _tap(self, name: str, changed = None) -> bool:
+        """
+        Press and release ``name``; True once the DAW changed its display and
+        settled (and ``changed()`` says it changed what matters), False if it didn't answer.
+        """
+        with self._display:
+            before = self._display_changes
+        self.send(pyxelwidgets.message.Command(name, 1.0))
+        self.send(pyxelwidgets.message.Command(name, 0.0))
+        start = time.monotonic()
+        with self._display:
+            while True:
+                now = time.monotonic()
+                if self._display_changes != before:
+                    quiet = self._display_time + self.settle - now
+                    # A display that keeps changing (e.g. values moving) counts as settled after a while
+                    if quiet <= 0 or now - start > 3 * self.timeout:
+                        break
+                    self._display.wait(quiet)
+                elif now - start >= self.timeout:
+                    return False
+                else:
+                    self._display.wait(self.timeout - (now - start))
+        return changed() if changed is not None else True
+
+    def _press(self, name: str) -> None:
+        """Press and release a button that may not change the display (e.g. Select), then give the DAW a moment."""
+        self.send(pyxelwidgets.message.Command(name, 1.0))
+        self.send(pyxelwidgets.message.Command(name, 0.0))
+        time.sleep(self.settle)
+
+    def _to_channels(self) -> None:
+        if self._view != 'channels':
+            shown = self.row(0)
+            self._tap(self.channel_button, lambda: self.row(0) != shown)
+            self._view, self._focus = 'channels', None
+
+    def _first_bank(self) -> None:
+        for _ in range(self.most_pages):
+            shown = self.row(0)
+            if not self._tap('Bank Left', lambda: self.row(0) != shown):
+                break
+        self._bank = 0
+
+    def _track_index(self, track: str) -> int:
+        if track not in self.tracks:
+            self.scan_tracks()
+        if track not in self.tracks:
+            raise LookupError(f'no track {track!r} (tracks: {", ".join(self.tracks) or "none found"})')
+        return self.tracks.index(track)
+
+    def _select(self, track: str) -> None:
+        """Show ``track`` in the channels view and press its Select."""
+        self._require()
+        index = self._track_index(track)
+        self._to_channels()
+        for attempt in range(2):
+            bank, strip = divmod(index, 8)
+            if self._bank is None:
+                self._first_bank()
+            while self._bank < bank:
+                self._tap('Bank Right')
+                self._bank += 1
+            while self._bank > bank:
+                self._tap('Bank Left')
+                self._bank -= 1
+            if self.row(0)[strip] == self._track_names[index] or attempt:
+                break
+            # The tracks changed in the DAW: scan them again
+            self.scan_tracks()
+            index = self._track_index(track)
+        self._press(f'Select {strip + 1}')
+
+    def _open(self, track: str, plugin: str) -> None:
+        """Show the parameters of ``plugin`` on ``track`` (first page)."""
+        if self._view == 'parameters' and self._focus is not None and self._focus[:2] == (track, plugin):
+            return
+        plugins = dict(self._plugins.get(track) or [])
+        if plugin not in plugins:
+            self.scan_plugins(track)
+            plugins = dict(self._plugins[track])
+            if plugin not in plugins:
+                raise LookupError(f'no plug-in {plugin!r} on {track!r} (plug-ins: {", ".join(plugins) or "none found"})')
+        else:
+            self._select(track)
+            shown = self.row(0)
+            self._tap(self.plugin_button, lambda: self.row(0) != shown)
+            self._view = 'plugins'
+        shown = self.row(0)
+        if not self._tap(f'V-Select {plugins[plugin] + 1}', lambda: self.row(0) != shown):
+            self._view = None
+            raise LookupError(f'the DAW didn\'t show the parameters of {plugin!r} when its V-Pot was pressed')
+        self._view, self._focus = 'parameters', (track, plugin, 0)
+
+    def _to_page(self, page: int) -> None:
+        track, plugin, shown = self._focus
+        while shown < page:
+            self._tap(self.next_page)
+            shown += 1
+        while shown > page:
+            self._tap(self.previous_page)
+            shown -= 1
+        self._focus = (track, plugin, page)
+
+    def _shown_parameter(self, strip: int):
+        """(track, plugin, parameter) on ``strip`` in the parameters view, else None."""
+        focus = self._focus
+        if self._view != 'parameters' or focus is None:
+            return None
+        track, plugin, page = focus
+        for label, on_page, on_strip in self._parameters.get((track, plugin), ()):
+            if on_page == page and on_strip == strip:
+                return track, plugin, label
+        return None
+
+    def _turn_later(self, message) -> None:
+        """Queue a parameter turn: the DAW is driven there on a thread of its own (it takes a while)."""
+        if isinstance(message.value, str) or self._closing:
+            return
+        steps = int(round(float(message.value)))
+        if not steps:
+            return
+        key = (message.track, message.plugin, message.parameter)
+        with self._turns_lock:
+            self._turns[key] = self._turns.get(key, 0) + steps
+            if self._worker is None:
+                self._worker = threading.Thread(target = self._work, name = 'MackiePlugins', daemon = True)
+                self._worker.start()
+        self._turned.set()
+
+    def _work(self) -> None:
+        while True:
+            self._turned.wait()
+            if self._closing:
+                return
+            with self._turns_lock:
+                turns, self._turns = self._turns, {}
+                self._turned.clear()
+            for (track, plugin, parameter), steps in turns.items():
+                try:
+                    self._turn(track, plugin, parameter, steps)
+                except Exception as error:
+                    self.warning = f'{track} / {plugin} / {parameter}: {error}'
+
+    def _turn(self, track: str, plugin: str, parameter: str, steps: int) -> None:
+        with self._navigation:
+            self._require()
+            if (track, plugin) not in self._parameters:
+                self.scan_parameters(track, plugin)
+            found = {label: (page, strip) for label, page, strip in self._parameters[(track, plugin)]}
+            if parameter not in found:
+                raise LookupError(f'no parameter {parameter!r} (parameters: {", ".join(found) or "none found"})')
+            page, strip = found[parameter]
+            self._open(track, plugin)
+            self._to_page(page)
+            while steps:
+                step = max(-63, min(63, steps))
+                self.send(pyxelwidgets.message.Command(f'V-Pot {strip + 1}', step))
+                steps -= step
+            self.warning = None
+
+def _labels(names: list) -> list:
+    """Names made unique: a repeated one gets " (2)", " (3)"..."""
+    counts, labels = {}, []
+    for name in names:
+        counts[name] = counts.get(name, 0) + 1
+        labels.append(name if counts[name] == 1 else f'{name} ({counts[name]})')
+    return labels
 
 # HUI: switches are (zone, port) pairs
 
