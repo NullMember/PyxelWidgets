@@ -214,7 +214,8 @@ function transportControls() {
 function deviceSize(device) {
   const info = deviceInfo(device);
   const options = device.options || {};
-  if (device.type === 'virtual.Virtual') return [options.columns ?? 8, options.rows ?? 8];
+  // On-screen and browser grids are as big as their options say
+  if (device.type === 'virtual.Virtual' || device.type === 'web.WebGrid') return [options.columns ?? 8, options.rows ?? 8];
   if (options.side_buttons === false && info?.main) return [info.main.width, info.main.height];
   return info ? [info.grid.width, info.grid.height] : [1, 1];
 }
@@ -1598,7 +1599,12 @@ function renderDevices() {
       el('span', { class: 'swatch-device' }),
       el('span', { class: 'label' },
         el('span', { class: 'name' }, deviceInfo(device)?.model || device.type),
-        el('span', { class: 'type' }, `at ${device.x || 0}, ${device.y || 0}`)),
+        el('span', { class: 'type' }, `at ${device.x || 0}, ${device.y || 0}`),
+        // A browser grid: where to open it
+        state.hardware.devices?.[index]?.url ? el('a', {
+          class: 'type url', href: state.hardware.devices[index].url, target: '_blank', title: 'Open it in a browser on this network',
+          onclick: (e) => e.stopPropagation(),
+        }, state.hardware.devices[index].url) : null),
       hardwareDot(index),
       connectButton('devices', index));
   }));

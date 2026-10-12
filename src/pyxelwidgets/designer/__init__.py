@@ -29,7 +29,7 @@ import pyxelwidgets.transport
 
 __all__ = ['Preview', 'Designer', 'new_layout', 'catalog']
 
-DEVICE_MODULES = ['novation', 'akai', 'ableton', 'presonus', 'virtual']
+DEVICE_MODULES = ['novation', 'akai', 'ableton', 'presonus', 'virtual', 'web']
 OUTPUT_MODULES = ['midi_port', 'mackie', 'osc']
 
 def new_layout(width: int = 9, height: int = 9) -> dict:
@@ -313,7 +313,11 @@ class Preview:
                 error = entry['error']
                 if device is not None and not connected and getattr(device, 'lost', False):
                     error = f'not plugged in: connects when it is (ports matching {", ".join(type(device).ports) or "its ports"})'
-                found.append({'connected': connected, 'error': error})
+                status = {'connected': connected, 'error': error}
+                # A browser grid's address
+                if connected and getattr(device, 'url', None):
+                    status['url'] = device.url
+                found.append(status)
             return found
         return {'devices': status(self.hardware), 'outputs': status(self.outputs)}
 

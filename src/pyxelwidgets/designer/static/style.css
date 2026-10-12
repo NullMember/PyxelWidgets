@@ -217,3 +217,4 @@ pre#code {
   .panel { border: none; border-top: 1px solid var(--line); overflow: visible; }
   .panel section.grow { flex: none; min-height: 0; max-height: 320px; }
 }
+.label .url { color: var(--accent); text-decoration: none; overflow: hidden; text-overflow: ellipsis; }
