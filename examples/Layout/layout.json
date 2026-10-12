@@ -1,13 +1,16 @@
 {
   "format": "pyxelwidgets.layout",
-  "version": 1,
+  "version": 2,
   "surface": {
     "width": 9,
     "height": 9
   },
-  "clock": {
+  "transport": {
     "bpm": 120,
-    "ppq": 24
+    "signature": [
+      4,
+      4
+    ]
   },
   "devices": [
     {

@@ -77,8 +77,8 @@ def select_scale(e):
 # 16 step sequencers playing drums on channel 2; the selected one is shown
 sequencers = []
 for i in range(16):
-    sequencer = sequencer_page.add(Sequencer(0, 4, 8, 4, ppq = app.clock.ppq, visible = i == 0))
-    app.clock.add_target(sequencer.tick)
+    sequencer = sequencer_page.add(Sequencer(0, 4, 8, 4, visible = i == 0))
+    app.transport.every(sequencer.rate, sequencer.play)
 
     @sequencer.on(StepPlayed)
     def play(e, note = 36 + i):
@@ -110,5 +110,6 @@ def select_length(e):
 
 if __name__ == "__main__":
     # Runs until Ctrl+C or the grid window is closed
+    app.transport.play()
     app.run()
     keyboard.close()
