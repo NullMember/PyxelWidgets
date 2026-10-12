@@ -128,7 +128,7 @@ ANIMATIONS = {cls.__name__: cls for cls in (pyxelwidgets.animation.Blink, pyxelw
 # Messages mappings send, by class name
 MESSAGES = {name: getattr(pyxelwidgets.message, name) for name in (
     'NoteOn', 'NoteOff', 'ControlChange', 'ProgramChange', 'PitchBend', 'PolyPressure', 'ChannelPressure', 'OscMessage', 'Command',
-    'Hotkey', 'Key', 'TypeText', 'MouseMove', 'MouseButton', 'MouseClick', 'Scroll')}
+    'Hotkey', 'Key', 'TypeText', 'MouseMove', 'MouseButton', 'MouseClick', 'Scroll', 'PluginParameter')}
 
 # Option kinds a link can take an event value for, and the ones it can add to or toggle
 LINK_SOURCES = {'bool', 'int', 'float', 'color', 'enum', 'str'}
@@ -364,6 +364,9 @@ def message_schema() -> dict:
                     entry.update(kind = 'choice', choices = list(choices))
                 elif isinstance(field.default, bool):
                     entry['kind'] = 'bool'
+                elif field.name in getattr(cls, 'scanned', ()):
+                    # A name scanned from the DAW (PluginParameter's track, plugin and parameter)
+                    entry['kind'] = 'scan'
                 elif field.name == 'keys':
                     # Key names: 'ctrl+shift+s'
                     entry['kind'] = 'keys'
