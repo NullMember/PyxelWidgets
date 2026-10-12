@@ -46,6 +46,19 @@ class Widget(pyxelwidgets.events.Emitter):
     # Per class counters for default names (Button_0, Fader_0, ...)
     _counts = {}
 
+    #: Events the widget emits besides its base classes' (e.g. for editors offering them)
+    emits: tuple = (pyxelwidgets.events.Pressed, pyxelwidgets.events.Released, pyxelwidgets.events.Held, pyxelwidgets.events.DoublePressed, pyxelwidgets.events.Pressure)
+
+    @classmethod
+    def events(cls) -> list:
+        """Every event class the widget emits, its base classes' included."""
+        found = []
+        for klass in reversed(cls.__mro__):
+            for event in klass.__dict__.get('emits', ()):
+                if event not in found:
+                    found.append(event)
+        return found
+
     def __init__(self, x: int = 0, y: int = 0, width: int = 1, height: int = 1, *,
                  name: str | None = None,
                  active_color: pyxelwidgets.color.Color = pyxelwidgets.color.Colors.White,
@@ -285,6 +298,8 @@ class ValueWidget(Widget):
     Input emits ``Changed``; setting ``value`` from code doesn't.
     """
 
+    emits = (pyxelwidgets.events.Changed,)
+
     def __init__(self, x: int = 0, y: int = 0, width: int = 1, height: int = 1, *,
                  value = 0.0,
                  interactive: bool = True,
@@ -399,6 +414,8 @@ class Button(ValueWidget):
 # ButtonGroup class
 class ButtonGroup(Widget):
     """A grid of buttons: one selected at a time (Switch), toggles (Multi) or momentary (Button); emits Toggled."""
+
+    emits = (pyxelwidgets.events.Toggled,)
 
     class Mode(enum.Enum):
         Button = enum.auto()
@@ -862,6 +879,8 @@ class Fader(ValueWidget):
 class Keyboard(Widget):
     """A playable note layout (piano, chromatic or in-scale) emitting NoteOn and NoteOff."""
 
+    emits = (pyxelwidgets.events.NoteOn, pyxelwidgets.events.NoteOff)
+
     class Type(enum.Enum):
         Keyboard            = 0
         ChromaticVertical   = 1
@@ -1314,6 +1333,8 @@ class Sequencer(Widget):
     called, e.g. every 16th note from a Transport:
     ``transport.every(sequencer.rate, sequencer.play)``. Emits StepPlayed.
     """
+
+    emits = (pyxelwidgets.events.StepPlayed,)
     def __init__(self, x: int, y: int, width: int, height: int, *,
                  steps: int | None = None,
                  rate: Rate = '1/16',
@@ -1494,6 +1515,8 @@ class Tracker(Widget):
     play when ``play(row)`` or ``advance()`` is called, e.g. from a Transport:
     ``transport.every(tracker.rate, tracker.play)``. Emits RowPlayed.
     """
+
+    emits = (pyxelwidgets.events.RowPlayed,)
 
     # class Scroll(enum.Enum):
     #     Continuous = enum.auto()

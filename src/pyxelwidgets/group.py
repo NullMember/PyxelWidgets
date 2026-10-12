@@ -118,6 +118,8 @@ class Pages(Group):
     Pages usually fill ``content``, the area besides the selector.
     """
 
+    emits = (pyxelwidgets.events.PageChanged,)
+
     class Selector(enum.Enum):
         Off     = enum.auto()
         Top     = enum.auto()
