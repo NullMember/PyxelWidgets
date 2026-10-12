@@ -73,7 +73,7 @@ def select_scale(e):
 sequencers = []
 for i in range(16):
     sequencer = sequencer_page.add(Sequencer(0, 4, 8, 4, visible = i == 0))
-    app.transport.every(sequencer.rate, sequencer.play)
+    app.attach(sequencer)
 
     @sequencer.on(StepPlayed)
     def play(e, note = 36 + i):

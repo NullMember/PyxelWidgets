@@ -19,7 +19,7 @@ surface.add_device(launchpad)
 app = App(surface, bpm = 110)
 
 sequencer = surface.add(Sequencer(0, 0, 8, 8, rate = '1/16'))
-app.transport.every(sequencer.rate, sequencer.play)
+app.attach(sequencer)
 accent = Button(0, 0, 1, 1, mode = Button.Mode.Switch)   # not on the surface: only the binding changes it
 
 surface.bind(launchpad, 'Top1', app.transport.toggle)
