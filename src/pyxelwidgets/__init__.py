@@ -19,6 +19,7 @@ _exports = {
     'Fade': 'animation',
     'Pulse': 'animation',
     'Binding': 'binding',
+    'Link': 'link',
     'Mapping': 'mapping',
     'Source': 'message',
     'Takeover': 'binding',
