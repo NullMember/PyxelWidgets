@@ -38,6 +38,7 @@ Generated from the docstrings by `docs/build_api.py`; see the [guides](README.md
   - [`pyxelwidgets.devices.midi_port`](#pyxelwidgetsdevicesmidi_port)
   - [`pyxelwidgets.devices.mackie`](#pyxelwidgetsdevicesmackie)
   - [`pyxelwidgets.devices.osc`](#pyxelwidgetsdevicesosc)
+  - [`pyxelwidgets.devices.desktop`](#pyxelwidgetsdevicesdesktop)
 - Designer
   - [`pyxelwidgets.designer`](#pyxelwidgetsdesigner)
 
@@ -721,6 +722,77 @@ a display (`'Timecode'`, value a string). Buttons are pressed while
 - **`resolve(sources: dict)`**
 - **`match(message)`**
 - **`sources`**
+
+### `Hotkey` (Message)
+
+```python
+Hotkey(keys: str = 'ctrl+c')
+```
+
+Press `keys` together, then let go: `'ctrl+c'`, `'cmd+shift+4'`, `'f{x+1}'` (one per column).
+
+- **`resolve(sources: dict)`**
+- **`sources`**
+
+### `Key` (Message)
+
+```python
+Key(keys: str = 'shift', state: Any = Source(name='value', min=None, max=None, offset=0))
+```
+
+Hold `keys` down while `state` is above 0, let go at 0 (e.g. push to talk, a held Shift).
+
+- **`resolve(sources: dict)`**
+- **`sources`**
+
+### `TypeText` (Message)
+
+```python
+TypeText(text: str = 'Hello')
+```
+
+Type `text` (placeholders such as `{x+1}` take a value from the event).
+
+- **`resolve(sources: dict)`**
+- **`sources`**
+
+### `MouseMove` (Message)
+
+```python
+MouseMove(x: Any = Source(name='value_x', min=None, max=None, offset=0), y: Any = Source(name='value_y', min=None, max=None, offset=0), relative: bool = False)
+```
+
+Move the pointer: to `x`, `y` on the main screen (0.0-1.0 from the
+bottom-left, e.g. an XY's `value_x`/`value_y`), or with `relative`
+by `x`, `y` pixels (positive y is up).
+
+### `MouseButton` (Message)
+
+```python
+MouseButton(button: str = 'left', state: Any = Source(name='value', min=None, max=None, offset=0))
+```
+
+Hold a mouse `button` (left, right, middle) down while `state` is above 0, let go at 0 (dragging).
+
+### `MouseClick` (Message)
+
+```python
+MouseClick(button: str = 'left', count: Any = 1)
+```
+
+Click a mouse `button` (left, right, middle) `count` times (2: a double click).
+
+### `Scroll` (Message)
+
+```python
+Scroll(dx: Any = 0, dy: Any = Source(name='delta', min=None, max=None, offset=0))
+```
+
+Scroll by `dx`, `dy` steps (positive dy is up), e.g. a knob's `delta`.
+
+### `parse_keys(keys: str)`
+
+`'ctrl+shift+s'` → `('ctrl', 'shift', 's')`; raises ValueError for unknown keys.
 
 # Widgets
 
@@ -2338,8 +2410,9 @@ A grid in a web browser, e.g. on a tablet or a phone:
     surface.add_device(grid)
 
 Every browser that opens the page shows the grid and plays it: several
-fingers at once, sliding across pads, or the mouse. Standard library only: a
-small HTTP server that talks WebSocket to the page.
+fingers at once, sliding across pads, or the mouse. The corner button goes
+fullscreen; "Add to Home Screen" makes it an app that opens fullscreen.
+Standard library only: a small HTTP server that talks WebSocket to the page.
 
 ### `WebGrid` (Device)
 
@@ -2504,6 +2577,42 @@ editors.
 
 REAPER's default OSC pattern (Default.ReaperOSC): tracks are `{x+1}`-style placeholders for `@`.
 
+## `pyxelwidgets.devices.desktop`
+
+This computer's keyboard and mouse as an output, for macro boards and
+automation: widgets press keys and shortcuts, type text, move and click the
+mouse, and scroll:
+
+    desktop = Desktop()
+    desktop.connect()
+    surface.map(save, desktop, Hotkey('ctrl+s'), on = Pressed)
+    surface.map(talk, desktop, Key('f13', Source('value')), on = Changed)     # held while pressed
+    surface.map(pad, desktop, MouseMove(Source('value_x'), Source('value_y')), on = Changed)
+    surface.map(knob, desktop, Scroll(0, Source('delta')), on = Changed)
+
+Needs pynput (`pip install "pyxelwidgets[desktop]"`). On macOS, allow the
+app that runs it (Terminal, your editor) under System Settings > Privacy &
+Security > Accessibility; without that the keys and clicks go nowhere.
+
+### `Desktop` (Device)
+
+```python
+Desktop(*, type_delay: float = 0.0, backend = None, **kwargs)
+```
+
+The keyboard and mouse of this computer: sends Hotkey, Key, TypeText,
+MouseMove, MouseButton, MouseClick and Scroll. Actions run in order on a
+thread of their own; keys and buttons still held are let go on disconnect.
+
+- `type_delay: float = 0.0, optional`: Seconds between typed characters, for programs that miss fast typing.
+- `backend: optional`: Does the pressing (default: pynput); tests pass a recorder.
+
+- classmethod **`describe()`**
+- **`connect()`**
+- **`disconnect()`**
+- **`send(message)`**: Queue a message's action; returns at once.
+- **`perform(message)`**: Do what `message` says, now (`send` queues it instead).
+
 # Designer
 
 ## `pyxelwidgets.designer`
@@ -2531,6 +2640,7 @@ what the widgets' mappings send.
 `connect`: connect the layout's devices and outputs as they are added (unless disconnected).
 
 - **`load(layout: dict)`**: Rebuild from `layout` (upgraded to the current version); raises LayoutError and keeps the previous layout if it is invalid. Widgets keep what input changed (values, steps...) unless their options changed it.
+- **`set_hidden(names)`**: Hide widgets (by name) in the preview only, e.g. to see what's underneath; the layout is unchanged.
 - **`set_connected(kind: str, index: int, connected: bool)`**: Connect or disconnect layout `devices[index]` or `outputs[index]` (`kind`); returns the status.
 - **`set_hardware(enabled: bool)`**: Connect (or close) every device and output of the layout, and the ones added later.
 - **`hardware_status()`**
@@ -2551,7 +2661,9 @@ Designer(path: str | None = None, *, connect: bool = True)
 The designer's state: the preview and the file it saves to.
 
 - **`close()`**: Stop the transport and close connected hardware.
-- **`save(layout: dict)`**
+- **`save(layout: dict, path: str | None = None)`**: Save to the layout file, or to `path`, which becomes the layout file (Save As).
+- **`open(path: str)`**: Open the layout file at `path`; it becomes the layout file.
+- **`new(template: str | None = None, layout: dict | None = None)`**: Start a layout: empty, from one of `templates()`, or `layout` (imported); it has no file until saved.
 
 ### `new_layout(width: int = 9, height: int = 9)`
 
