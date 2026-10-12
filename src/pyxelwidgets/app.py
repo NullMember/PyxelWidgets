@@ -19,6 +19,9 @@ class App():
         self.surface = surface
         self.fps = fps
         self.transport = pyxelwidgets.transport.Transport(bpm, signature = signature, sync = sync, lock = surface.lock)
+        if surface.transport is None:
+            # Animations follow the music
+            surface.transport = self.transport
         self.running = False
         self._closed = False
 
