@@ -582,7 +582,9 @@ class ButtonGroup(Widget):
         self.updated = True
 
     def _emit_toggled(self, before) -> None:
-        for x, y in numpy.argwhere(before != self.state):
+        # Cells turned off first, so the last event is the one turned on (a Switch's new choice)
+        changed = sorted((tuple(cell) for cell in numpy.argwhere(before != self.state)), key = lambda cell: bool(self.state[cell]))
+        for x, y in changed:
             self.updated = True
             self.emit(pyxelwidgets.events.Toggled(self, int(x), int(y), bool(self.state[x, y])))
 
