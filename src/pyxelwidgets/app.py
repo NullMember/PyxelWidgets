@@ -1,3 +1,4 @@
+import pyxelwidgets.events
 import pyxelwidgets.surface
 import pyxelwidgets.transport
 import pyxelwidgets.widgets
@@ -45,8 +46,11 @@ class App():
         following its ``bpm`` (``Clock.Own``, closed with the App). Returns the
         Subscription, or None for ``Clock.Off``.
         """
+        divisions = getattr(widget, 'divisions', 1)
         if widget.clock == pyxelwidgets.widgets.Clock.Transport:
-            return self.transport.every(widget.rate, widget.tick)
+            # A Sequencer's sounding step ends when the transport stops
+            self.transport.on(pyxelwidgets.events.TransportStopped, lambda event: widget.silence())
+            return self.transport.every(widget.rate, widget.tick, divisions = divisions)
         if widget.clock != pyxelwidgets.widgets.Clock.Own:
             return None
         clock = pyxelwidgets.transport.Transport(widget.bpm, signature = self.transport.signature, lock = self.lock)
@@ -54,7 +58,8 @@ class App():
             # The widget's tempo may change (e.g. from a link)
             clock.bpm = widget.bpm
             widget.tick(count)
-        subscription = clock.every(widget.rate, tick)
+        subscription = clock.every(widget.rate, tick, divisions = divisions)
+        clock.on(pyxelwidgets.events.TransportStopped, lambda event: widget.silence())
         clock.play()
         self.clocks.append(clock)
         return subscription
@@ -73,6 +78,10 @@ class App():
                 if self.check_interval is not None and time.perf_counter() >= next_check:
                     next_check = time.perf_counter() + self.check_interval
                     self.surface.check_devices()
+                    # A DAW's clock input (Parser.app with sync)
+                    inputs = [clock for clock in self.clocks if callable(getattr(clock, 'check', None))]
+                    if inputs:
+                        self.surface.check_devices(inputs)
                 self.step()
                 next_frame += period
                 delay = next_frame - time.perf_counter()
