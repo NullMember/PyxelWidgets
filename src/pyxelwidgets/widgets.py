@@ -1443,7 +1443,70 @@ class Knob(ValueWidget):
         return ((width - 1) * 2) + ((height - 1) * 2)
 
 # Sequencer class
-class Sequencer(Widget):
+class Clock(enum.Enum):
+    """
+    What plays a timed widget (Sequencer, Tracker, ClipLauncher) every ``rate``.
+
+    Transport: the transport, at its tempo, only while it plays (default).
+    Own: a clock of its own at the widget's ``bpm``, running whether the transport plays or not.
+    Off: nothing; only ``play``/``advance`` calls (e.g. from links) play it.
+    """
+    Transport   = enum.auto()
+    Own         = enum.auto()
+    Off         = enum.auto()
+
+class Timed:
+    """
+    Mixin for widgets a clock plays every ``rate``. Widgets don't know about
+    clocks: glue (``Parser.attach``, ``Parser.start_clocks``) calls ``tick``
+    from the transport or from a clock of the widget's own.
+    """
+
+    #: Link actions to pause and resume the widget on its clock
+    clock_actions = {'start': None, 'stop': None, 'toggle': None}
+
+    def __init__(self, *args,
+                 clock: Clock = Clock.Transport,
+                 bpm: float = 120.0,
+                 running: bool = True,
+                 **kwargs):
+        """
+        clock: Clock = Clock.Transport, optional
+            What plays it every ``rate``: the transport, its own clock at ``bpm``, or nothing (links only).
+        bpm: float = 120.0, optional
+            The tempo of its own clock (``clock = Clock.Own``).
+        running: bool = True, optional
+            Played by its clock; False pauses it (``start``/``stop``/``toggle``).
+        """
+        if not bpm > 0:
+            raise ValueError(f'bpm must be positive, got {bpm!r}')
+        self.clock = clock
+        self.bpm = bpm
+        self.running = running
+        super().__init__(*args, **kwargs)
+
+    def tick(self, count: int) -> None:
+        """
+        Called by its clock with the number of ``rate`` lengths since it started:
+        while ``running``, the transport places it at ``count``, its own clock
+        moves it one on (so it resumes where it paused).
+        """
+        if self.running:
+            if self.clock == Clock.Transport:
+                self.play(count)
+            else:
+                self.advance()
+
+    def start(self) -> None:
+        self.running = True
+
+    def stop(self) -> None:
+        self.running = False
+
+    def toggle(self) -> None:
+        self.running = not self.running
+
+class Sequencer(Timed, Widget):
     """
     Step sequencer. Each step plays when ``play(step)`` or ``advance()`` is
     called, e.g. every 16th note from a Transport:
@@ -1453,7 +1516,7 @@ class Sequencer(Widget):
 
     emits = (pyxelwidgets.events.StepPlayed,)
 
-    actions = {'advance': None, 'play': 'int', 'reset': None}
+    actions = {'advance': None, 'play': 'int', 'reset': None, **Timed.clock_actions}
 
     def __init__(self, x: int, y: int, width: int, height: int, *,
                  steps: int | None = None,
@@ -1461,7 +1524,6 @@ class Sequencer(Widget):
                  step: int = 0,
                  page: int = 0,
                  follow: bool = True,
-                 transport: bool = True,
                  current_color: pyxelwidgets.color.Color = pyxelwidgets.color.Colors.Lime,
                  current_active_color: pyxelwidgets.color.Color = pyxelwidgets.color.Colors.Red,
                  **kwargs):
@@ -1472,8 +1534,6 @@ class Sequencer(Widget):
             The page shown and edited.
         follow: bool = True, optional
             Show the page of the playing step when it plays.
-        transport: bool = True, optional
-            Played by the transport at ``rate``; if False only ``play``/``advance`` (e.g. from a link) play it.
         """
         self.state = numpy.ndarray((1, 1), dtype = numpy.bool_)
         self._steps = steps if steps is not None else width * height
@@ -1484,8 +1544,6 @@ class Sequencer(Widget):
         super().__init__(x, y, width, height, **kwargs)
         self.state.fill(False)
         self.follow = follow
-        self.transport = transport
-        self.active = True
         self.rate = rate
         self.current_color = current_color
         self.current_active_color = current_active_color
@@ -1542,9 +1600,7 @@ class Sequencer(Widget):
         self.updated = True
 
     def play(self, step: int) -> None:
-        """Move to ``step`` (wrapped to ``steps``) and emit StepPlayed; does nothing while not ``active``."""
-        if not self.active:
-            return
+        """Move to ``step`` (wrapped to ``steps``) and emit StepPlayed."""
         self._step = int(step) % self._steps
         page = self._step // self.rect.area
         if page != self.current_page:
@@ -1676,7 +1732,7 @@ class Sprite(Widget):
         self.buffer[:] = self.frames[self.frame]
 
 # Tracker class
-class Tracker(Widget):
+class Tracker(Timed, Widget):
     """
     A scrolling step grid where rows are steps and columns are tracks. Rows
     play when ``play(row)`` or ``advance()`` is called, e.g. from a Transport:
@@ -1688,7 +1744,7 @@ class Tracker(Widget):
 
     reshaping = ('bars', 'pages')
 
-    actions = {'advance': None, 'play': 'int'}
+    actions = {'advance': None, 'play': 'int', **Timed.clock_actions}
 
     # class Scroll(enum.Enum):
     #     Continuous = enum.auto()
@@ -1702,7 +1758,6 @@ class Tracker(Widget):
                  page: int = 0,
                  bar: int = 0,
                  follow: bool = True,
-                 transport: bool = True,
                  current_color: pyxelwidgets.color.Color = pyxelwidgets.color.Colors.Cyan,
                  current_active_color: pyxelwidgets.color.Color = pyxelwidgets.color.Colors.Magenta,
                  **kwargs):
@@ -1715,8 +1770,6 @@ class Tracker(Widget):
             The first row shown, at the top.
         follow: bool = True, optional
             Scroll to the playing row when it plays.
-        transport: bool = True, optional
-            Played by the transport at ``rate``; if False only ``play``/``advance`` (e.g. from a link) play it.
         """
         self.bars = bars
         self.bars = self.bars if self.bars >= height else height
@@ -1728,7 +1781,6 @@ class Tracker(Widget):
         self._page = 0
         self._bar = 0
         self.follow = follow
-        self.transport = transport
         self.rate = rate
         super().__init__(x, y, width, height, **kwargs)
         self.states.fill(False)
