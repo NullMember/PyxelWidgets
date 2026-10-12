@@ -115,9 +115,18 @@ class NoteOff(WidgetEvent):
 
 @dataclasses.dataclass(frozen = True)
 class StepPlayed(WidgetEvent):
-    """The Sequencer playhead moved to ``step``; ``active`` if that step is on."""
+    """
+    The Sequencer playhead moved to ``step``; ``active`` if that step is on.
+    ``gate`` is how long an active step sounds, in steps (StepEnded follows).
+    """
     step: int
     active: bool
+    gate: float = 1.0
+
+@dataclasses.dataclass(frozen = True)
+class StepEnded(WidgetEvent):
+    """The gate of an active Sequencer ``step`` ended: send a NoteOff on it."""
+    step: int
 
 @dataclasses.dataclass(frozen = True)
 class PageChanged(WidgetEvent):
