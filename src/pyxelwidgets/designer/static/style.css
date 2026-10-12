@@ -379,3 +379,7 @@ body.dragging .welcome { display: none; }
 .cond-row select.op { flex: none; width: 56px; }
 .cond-row .color { flex: 1; }
 .control.value.condition > select { flex: none; }
+
+/* PluginParameter names picked from a scan of the DAW */
+.control.scan > select, .control.scan > input { min-width: 0; }
+.control.scan > button { flex: none; }

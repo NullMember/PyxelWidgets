@@ -10,6 +10,8 @@ const SWATCHES = ['White', 'Gray', 'Red', 'OrangeRed', 'Orange', 'Yellow', 'Lime
 
 const state = {
   catalog: null,
+  // What outputs scanned in the DAW, by output name: {tracks, plugins: {track: [...]}, parameters: {'track/plugin': [...]}}
+  scans: {},
   layout: null,
   file: null,
   saved: '',
@@ -453,7 +455,8 @@ function outputProperties(panel, index) {
         },
       })),
       info?.midi ? [port('virtual', 'virtual port', 'none'), port('input', 'input port', 'none'), port('output', 'output port', 'none')] : null,
-      (info?.options || []).flatMap((option) => optionField(output, option))),
+      (info?.options || []).filter((option) => !ADVANCED.has(option.name)).flatMap((option) => optionField(output, option))),
+    optionFields(output, (info?.options || []).filter((option) => ADVANCED.has(option.name))),
     el('p', { class: 'hint note' }, used.length
       ? `${used.length} message${used.length > 1 ? 's' : ''} from ${[...new Set(used.map((m) => m.widget))].join(', ')}.`
       : 'Select a widget and add a message to send its events here.'),
@@ -722,6 +725,82 @@ function keysField(id, value, info, commit) {
   ];
 }
 
+const SCANS = { track: 'tracks', plugin: 'plugins', parameter: 'parameters' };
+const SCAN_HINTS = {
+  track: 'A track of the DAW: Scan reads them from the Mackie Control display (7 characters at most)',
+  plugin: 'A plug-in on the track: Scan opens the DAW\'s plug-in mode for the track',
+  parameter: 'A parameter of the plug-in: Scan opens it and pages through its parameters',
+};
+
+// What an output scanned for PluginParameter's track, plugin or parameter (null: not scanned)
+function scannedNames(output, name, message) {
+  const scans = state.scans[output?.name];
+  if (!scans) return null;
+  if (name === 'track') return scans.tracks?.length ? scans.tracks : null;
+  if (name === 'plugin') return scans.plugins?.[message.track] || null;
+  return scans.parameters?.[`${message.track}/${message.plugin}`] || null;
+}
+
+async function scanDaw(output, what, message, button) {
+  const index = outputsOf().indexOf(output);
+  button.textContent = 'Scanning…';
+  button.disabled = true;
+  setStatus(what === 'tracks' ? 'Scanning the DAW\'s tracks…' : `Scanning ${what === 'plugins' ? `the plug-ins on ${message.track}` : `the parameters of ${message.plugin}`}…`, '');
+  const result = await api('POST', '/api/scan', { output: index, what, track: message.track, plugin: message.plugin });
+  if (!result.ok) {
+    setStatus(result.error, 'error');
+  } else {
+    state.scans[output.name] = result.scanned;
+    setStatus(result.names.length ? `Found ${result.names.length} ${what}` : `No ${what} found`, result.names.length ? 'ok' : 'error');
+  }
+  render();
+}
+
+// PluginParameter's track, plugin and parameter: picked from a scan of the DAW, or typed
+function scanField(id, name, mapping, output, commit) {
+  const message = mapping.message;
+  if (output && !(output.name in state.scans)) {
+    // What earlier scans found (the output keeps them while connected)
+    state.scans[output.name] = null;
+    api('POST', '/api/scan', { output: outputsOf().indexOf(output), what: 'known' }).then((result) => {
+      if (result.ok && result.scanned) {
+        state.scans[output.name] = result.scanned;
+        render();
+      }
+    });
+  }
+  const value = message[name] ?? '';
+  const names = scannedNames(output, name, message);
+  const known = names?.includes(value);
+  const input = el('input', {
+    type: 'text', id, value, hidden: !!(names && (known || !value)), placeholder: { track: 'Track name', plugin: 'Plug-in name', parameter: 'Parameter name' }[name],
+    title: SCAN_HINTS[name], onchange: (e) => commit(e.target.value.trim()),
+  });
+  const picker = names ? el('select', {
+    id: `${id}-pick`, title: SCAN_HINTS[name],
+    onchange: (e) => {
+      if (e.target.value === '\u0000') {
+        input.hidden = false;
+        return input.focus();
+      }
+      commit(e.target.value);
+    },
+  },
+  value && !known ? null : el('option', { value: '', selected: !value, disabled: true }, `Pick a ${name}`),
+  names.map((item) => el('option', { value: item, selected: item === value }, item)),
+  el('option', { value: '\u0000', selected: !!(value && !known) }, 'Type a name…')) : null;
+  const missing = name === 'plugin' ? !message.track : name === 'parameter' ? !(message.track && message.plugin) : false;
+  const scan = el('button', {
+    id: `${id}-scan`, disabled: missing,
+    title: missing ? `Pick the ${name === 'plugin' ? 'track' : 'track and plug-in'} first` : `${SCAN_HINTS[name].split(': ')[1]} (connect the output first)`,
+    onclick: () => scanDaw(output, SCANS[name], message, scan),
+  }, 'Scan');
+  return [
+    el('label', { for: names ? `${id}-pick` : id }, name),
+    el('div', { class: 'control scan' }, picker, input, scan),
+  ];
+}
+
 function mappingCard(widget, mapping, index) {
   const events = state.catalog.widgets[widget.type]?.events || [];
   const output = outputsOf().find((candidate) => candidate.name === mapping.output);
@@ -757,6 +836,7 @@ function mappingCard(widget, mapping, index) {
       }))];
     }
     if (field.kind === 'keys') return keysField(id(field.name), value, info, setField(field.name));
+    if (field.kind === 'scan') return scanField(id(field.name), field.name, mapping, output, setField(field.name));
     if (field.kind === 'text') {
       const groups = message.type === 'Command' ? commandChoices(info) : message.type === 'OscMessage' ? addressChoices(info) : [];
       const known = groups.some((group) => group.items.some((item) => item.value === value));
@@ -830,6 +910,8 @@ function mappingCard(widget, mapping, index) {
           const next = { type };
           for (const field of fields) if (field.name in mapping.message && field.kind !== 'list') next[field.name] = mapping.message[field.name];
           if (type === 'OscMessage') Object.assign(next, { address: mapping.message.address || '/', args: mapping.message.args || [] });
+          // A knob or fader turns a plug-in parameter by its steps
+          if (type === 'PluginParameter' && sourceNames(mapping.on).includes('delta')) next.value = { source: 'delta' };
           mapping.message = next;
         }),
       }, (info?.messages || Object.keys(state.catalog.messages)).map((type) => el('option', { value: type, selected: type === message.type }, type)))),
@@ -1372,6 +1454,12 @@ function renderConnections() {
 function findProblems() {
   const problems = [];
   if (state.error) problems.push(['error', state.error, null]);
+  for (const mapping of state.layout.mappings || []) {
+    const message = mapping.message || {};
+    if (message.type === 'PluginParameter' && !(message.track && message.plugin && message.parameter)) {
+      problems.push(['warning', `${mapping.widget}: pick the track, plug-in and parameter it controls`, () => selectWidgetNamed(mapping.widget)]);
+    }
+  }
   if (state.hardware.sync?.error) problems.push(['warning', `Sync to a DAW: ${state.hardware.sync.error}`, () => select(null)]);
   const names = new Map(allWidgets().map(({ widget, path }) => [widget.name, { widget, path }]));
   const outputs = new Set(outputsOf().map((output) => output.name));
@@ -2554,7 +2642,9 @@ function numberInput(label, value, onchange, attrs = {}) {
 }
 
 // Options most layouts leave alone: shown under "More options"
-const ADVANCED = new Set(['visible', 'propagation', 'interactive', 'held_time', 'double_press_time']);
+// Mackie Control's plug-in mode buttons too
+const ADVANCED = new Set(['visible', 'propagation', 'interactive', 'held_time', 'double_press_time',
+  'plugin_button', 'channel_button', 'next_page', 'previous_page']);
 
 // A collapsible group of the properties panel; open or closed is remembered in this browser
 function group(key, title, children, { count = null, open = true } = {}) {

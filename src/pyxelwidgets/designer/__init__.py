@@ -426,6 +426,32 @@ class Preview:
             found['sync'] = sync
         return found
 
+    def scan(self, index: int, what: str, track: str | None = None, plugin: str | None = None) -> dict:
+        """
+        Scan the DAW through connected output ``index`` (Mackie Control): ``what``
+        is ``tracks``, ``plugins`` (of ``track``), ``parameters`` (of ``plugin``
+        on ``track``) or ``known`` (what earlier scans found). Returns the names
+        found and everything scanned so far. Takes seconds: the DAW is driven.
+        """
+        with self.lock:
+            entry = self.outputs[index] if 0 <= index < len(self.outputs) else None
+            output = entry['device'] if entry is not None else None
+        if output is None or not callable(getattr(output, 'scan_tracks', None)):
+            if what == 'known':
+                return {'names': [], 'scanned': None}
+            raise ValueError('Connect the output first (Connect on its row), so the DAW can be scanned')
+        if what == 'tracks':
+            names = output.scan_tracks()
+        elif what == 'plugins':
+            names = output.scan_plugins(str(track))
+        elif what == 'parameters':
+            names = output.scan_parameters(str(track), str(plugin))
+        elif what == 'known':
+            names = []
+        else:
+            raise ValueError(f'nothing to scan called {what!r}')
+        return {'names': names, 'scanned': output.scanned()}
+
     def _wanted(self, spec: dict) -> bool:
         automatic = self.connect
         if automatic:
@@ -872,6 +898,16 @@ class Handler(http.server.BaseHTTPRequestHandler):
                 file = str(body.get('file') or 'layout.json')
                 self._json({'ok': True, 'loader': pyxelwidgets.codegen.loader(layout, file, handlers = handlers),
                             'standalone': pyxelwidgets.codegen.standalone(layout, handlers = handlers)})
+                return
+            elif path == '/api/scan':
+                # {"output": index, "what", "track", "plugin"}: names from the DAW (Mackie Control's plug-in mode)
+                try:
+                    found = preview.scan(int(body['output']), str(body['what']), body.get('track'), body.get('plugin'))
+                except (LookupError, ConnectionError, ValueError) as error:
+                    # The DAW's answer, not a bad request
+                    self._json({'ok': False, 'error': str(error).strip("'")})
+                    return
+                self._json({'ok': True, **found})
                 return
             elif path == '/api/view':
                 preview.set_hidden([str(name) for name in body.get('hidden', [])])
