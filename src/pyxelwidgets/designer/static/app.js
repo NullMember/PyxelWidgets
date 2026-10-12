@@ -501,6 +501,7 @@ function defaultMessage(widget, on, info) {
     case 'NoteOff': return { type: 'NoteOff', note: source('note'), velocity: 0, channel: 1 };
     case 'Pressure': return { type: 'PolyPressure', note, pressure: source('pressure'), channel: 1 };
     case 'StepPlayed': return { type: 'NoteOn', note: 36, velocity: source('active'), channel: 1 };
+    case 'StepEnded': return { type: 'NoteOff', note: 36, velocity: 0, channel: 1 };
     default: return { type: 'NoteOn', note: 60, velocity: 127, channel: 1 };
   }
 }
@@ -511,8 +512,13 @@ function addMapping(widget) {
   // Macro buttons: a momentary button fires a shortcut on presses (it changes on releases too)
   const momentary = widget.type === 'Button' && (widget.options?.mode || 'Button') !== 'Switch';
   const on = momentary && info?.messages.includes('Hotkey') ? 'Pressed' : defaultEvent(widget);
+  const rules = [{ widget: widget.name, on, output: output.name, message: defaultMessage(widget, on, info) }];
+  // A Sequencer's notes end with their gates
+  if (on === 'StepPlayed' && rules[0].message.type === 'NoteOn' && info?.messages.includes('NoteOff')) {
+    rules.push({ widget: widget.name, on: 'StepEnded', output: output.name, message: defaultMessage(widget, 'StepEnded', info) });
+  }
   change((layout) => {
-    setMappings(layout, [...(layout.mappings || []), { widget: widget.name, on, output: output.name, message: defaultMessage(widget, on, info) }]);
+    setMappings(layout, [...(layout.mappings || []), ...rules]);
   });
 }
 
@@ -1260,7 +1266,7 @@ function linkCard(widget, link, index) {
 
 // ---------------------------------------------------------------- the drawer: events, connections, Python, problems
 
-const CLOCK_EVENTS = new Set(['StepPlayed', 'RowPlayed', 'ClipQueued', 'ClipStarted', 'ClipStopped', 'PageChanged']);
+const CLOCK_EVENTS = new Set(['StepPlayed', 'StepEnded', 'RowPlayed', 'ClipQueued', 'ClipStarted', 'ClipStopped', 'PageChanged']);
 
 function drawerPrefs() {
   prefs.drawer ||= { open: true, tab: 'events', height: 230, filter: 'all', handlers: false, code: 'loader' };
@@ -1366,6 +1372,7 @@ function renderConnections() {
 function findProblems() {
   const problems = [];
   if (state.error) problems.push(['error', state.error, null]);
+  if (state.hardware.sync?.error) problems.push(['warning', `Sync to a DAW: ${state.hardware.sync.error}`, () => select(null)]);
   const names = new Map(allWidgets().map(({ widget, path }) => [widget.name, { widget, path }]));
   const outputs = new Set(outputsOf().map((output) => output.name));
   for (const link of state.layout.links || []) {
@@ -1659,10 +1666,13 @@ async function poll() {
     const frame = await api('GET', `/api/frame?since=${state.lastEvent}`);
     paint(frame);
     addEvents(frame.events);
-    if (frame.playing !== state.playing) {
+    if (frame.playing !== state.playing || frame.synced !== state.synced) {
       state.playing = frame.playing;
+      state.synced = !!frame.synced;
       renderToolbar();
     }
+    state.bpm = frame.bpm;
+    if ($('sync-status')) $('sync-status').textContent = syncStatus();
     $('position').textContent = frame.position ? `bar ${frame.position}` : '';
     if (JSON.stringify(frame.hardware) !== JSON.stringify(state.hardware)) {
       state.hardware = frame.hardware;
@@ -2732,9 +2742,56 @@ function renderProperties() {
         },
       }))),
     el('p', { class: 'hint' }, 'Select a widget to edit it; Shift+click or drag on empty pads to select several. Drag a device by its name. In Try mode, click pads to press them; hold for a Held event.'),
+    syncFields(),
     el('h4', {}, 'Transport controls'),
     transportControls(),
   );
+}
+
+// The transport following a DAW's MIDI clock (transport.sync): a virtual port or an input port
+function syncFields() {
+  const transport = state.layout.transport || {};
+  const sync = transport.sync || null;
+  const kind = sync ? ('virtual' in sync ? 'virtual' : 'input') : 'off';
+  const setSync = (value) => change((layout) => {
+    const next = { ...(layout.transport || {}) };
+    if (value) next.sync = value;
+    else delete next.sync;
+    layout.transport = next;
+  });
+  if (kind === 'input' && !state.ports) {
+    state.ports = { inputs: [], outputs: [] };
+    api('GET', '/api/ports').then((ports) => { state.ports = ports; if (!state.selection) renderProperties(); });
+  }
+  return el('div', { class: 'sync' },
+    el('h4', {}, 'Sync to a DAW'),
+    el('div', { class: 'row' },
+      el('select', {
+        id: 'sync-kind', 'aria-label': 'Sync',
+        onchange: (e) => setSync(e.target.value === 'off' ? null
+          : e.target.value === 'virtual' ? { virtual: 'PyxelWidgets Clock' } : { input: state.ports?.inputs?.[0] || 'IAC Driver Bus 1' }),
+      }, [['off', 'Off: its own tempo'], ['virtual', 'Virtual port'], ['input', 'MIDI input port']].map(([value, label]) =>
+        el('option', { value, selected: kind === value }, label))),
+      kind === 'off' ? null : el('input', {
+        id: 'sync-port', type: 'text', value: sync[kind], 'aria-label': 'Port name', list: kind === 'input' ? 'sync-ports' : null,
+        title: kind === 'virtual' ? 'The name of the port the DAW sends its clock to' : 'The MIDI input the DAW\'s clock comes in through',
+        onchange: (e) => { const name = e.target.value.trim(); if (name) setSync({ [kind]: name }); else render(); },
+      })),
+    kind === 'input' ? el('datalist', { id: 'sync-ports' }, (state.ports?.inputs || []).map((name) => el('option', { value: name }))) : null,
+    kind === 'off' ? null : el('p', { id: 'sync-status', class: 'hint sync-status' }, syncStatus()),
+    el('p', { class: 'hint' }, kind === 'off'
+      ? 'Follow a DAW\'s MIDI clock: its tempo, play, stop and position. Sequencers and Trackers then play with the DAW.'
+      : kind === 'virtual'
+        ? 'In the DAW, send MIDI clock (and song position) to this port, then play from the DAW. The tempo above is used until the clock arrives.'
+        : 'Route the DAW\'s MIDI clock to this input (on macOS the IAC Driver, on Windows loopMIDI), then play from the DAW.'));
+}
+
+function syncStatus() {
+  const status = state.hardware.sync;
+  if (!status) return '';
+  if (!status.connected) return status.error || 'Not connected';
+  if (!state.playing) return `Connected${state.bpm ? ` · ${state.bpm} bpm` : ''} · waiting for the DAW to play`;
+  return `Following the DAW · ${state.bpm} bpm`;
 }
 
 // The Python tab's code comes from the server (pyxelwidgets.codegen): both versions for the layout as it is
@@ -2774,6 +2831,9 @@ function renderToolbar() {
   const play = $('play');
   play.textContent = state.playing ? '■ Stop' : '▶ Play';
   play.classList.toggle('on', state.playing);
+  // Following a DAW: it plays and stops
+  play.disabled = !!state.synced;
+  play.title = state.synced ? 'The DAW plays and stops it (Sync on the Surface panel)' : 'Play the transport so Sequencers and Trackers play (Space)';
   if (!state.playing) $('position').textContent = '';
   $('palette-hint').textContent = targetGroup() ? `into ${widgetAt(targetGroup()).name}` : '';
   $('device-count').textContent = state.layout.devices.length || '';
@@ -3384,6 +3444,7 @@ function bindToolbar() {
   board.addEventListener('drop', drop);
   board.addEventListener('dragleave', (event) => { if (!board.contains(event.relatedTarget)) clearGhost(); });
   $('play').onclick = async () => {
+    if (state.synced) return;
     state.playing = !state.playing;
     renderToolbar();
     await api('POST', '/api/play', { playing: state.playing });

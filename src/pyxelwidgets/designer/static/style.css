@@ -270,6 +270,9 @@ details.more > .fields { margin-top: 6px; }
 .actions .danger { color: var(--danger); }
 button.active { background: var(--accent-soft); border-color: var(--accent); color: var(--accent); }
 .hint.note { margin: 10px 0 0; }
+.sync .row { margin-bottom: 6px; }
+.sync .row input { flex: 1; min-width: 0; }
+.hint.sync-status { color: var(--text); }
 
 .mapping { border: 1px solid var(--line); border-radius: 8px; padding: 8px; margin-bottom: 8px; background: var(--panel-2); }
 .mapping .fields { grid-template-columns: 70px 1fr; }

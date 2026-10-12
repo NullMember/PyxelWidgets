@@ -211,7 +211,7 @@ class _PreviewActions:
         self._later(self.preview.stop)
 
     def toggle(self) -> None:
-        self._later(lambda: self.preview.stop() if self.preview.transport is not None else self.preview.play())
+        self._later(lambda: self.preview.stop() if self.preview.playing else self.preview.play())
 
     def locate(self, beats: float) -> None:
         transport = self.preview.transport
@@ -296,6 +296,8 @@ class Preview:
         self.hardware = []
         self.outputs = []
         self.proxies = {}
+        # Following a DAW's clock (the layout's transport.sync): {'key', 'input' (a MidiClockInput or None), 'error'}
+        self.sync = None
         self._render_stop = None
         self.load(layout or new_layout())
         self._watch_stop = threading.Event()
@@ -322,8 +324,11 @@ class Preview:
         # Debug links write to the event log
         ui.debug = lambda widget, text: self._log(widget, 'Debug', {'text': text})
         with self.lock:
-            playing = self.transport is not None
-            self.stop()
+            # A DAW's clock keeps playing across edits; the preview's own transport restarts
+            followed = self.transport if self.synced else None
+            playing = self.transport is not None and not self.synced
+            if followed is None:
+                self.stop()
             old = self.ui
             if old is not None:
                 _carry_state(old, self.layout, ui, layout)
@@ -338,6 +343,7 @@ class Preview:
             ui.surface.transport = self._idle(ui)
             # Widgets with clocks of their own run while editing
             ui.start_clocks(lock = ui.surface.lock)
+            self._follow(ui, followed)
             if playing:
                 self.play()
 
@@ -407,7 +413,18 @@ class Preview:
                     status['url'] = device.url
                 found.append(status)
             return found
-        return {'devices': status(self.hardware), 'outputs': status(self.outputs)}
+        sync = None
+        if self.sync is not None:
+            clock = self.sync['input']
+            connected = clock is not None and clock.connected
+            error = self.sync['error']
+            if clock is not None and not connected and getattr(clock, 'lost', False):
+                error = f'waiting for the port {self.ui.sync_settings().get("input")!r}'
+            sync = {'connected': connected, 'error': error}
+        found = {'devices': status(self.hardware), 'outputs': status(self.outputs)}
+        if sync is not None:
+            found['sync'] = sync
+        return found
 
     def _wanted(self, spec: dict) -> bool:
         automatic = self.connect
@@ -499,6 +516,8 @@ class Preview:
             with self.lock:
                 ui = self.ui
                 devices = [entry['device'] for entry in (*self.hardware, *self.outputs) if entry['device'] is not None]
+                if self.sync is not None and self.sync['input'] is not None:
+                    devices.append(self.sync['input'])
             if ui is None or not devices:
                 continue
             for device in ui.surface.check_devices(devices):
@@ -517,6 +536,7 @@ class Preview:
         self._watch_stop.set()
         self.stop()
         with self.lock:
+            self._unfollow()
             self.ui.close_clocks()
             self.connect = False
             self.choices = {}
@@ -535,10 +555,13 @@ class Preview:
                     for y in reversed(range(buffer.shape[1]))]
             with self._events_lock:
                 events = [dict(event, id = number) for number, event in self.events if number > since]
+            playing = self.playing
             transport = self.transport
             return {'width': buffer.shape[0], 'height': buffer.shape[1], 'pixels': rows, 'events': events,
-                    'playing': transport is not None,
-                    'position': f'{transport.bar + 1}.{transport.beat + 1}' if transport is not None else None,
+                    'playing': playing, 'synced': self.synced,
+                    # The tempo measured from the DAW's clock
+                    'bpm': round(transport.bpm, 1) if self.synced and transport is not None else None,
+                    'position': f'{transport.bar + 1}.{transport.beat + 1}' if playing else None,
                     'hardware': self.hardware_status()}
 
     def input(self, x: int, y: int, velocity: float) -> None:
@@ -547,7 +570,7 @@ class Preview:
             self.device.set_button(x, y, velocity)
 
     def play(self) -> None:
-        """Play the layout's transport from the start so Sequencers and Trackers play."""
+        """Play the layout's transport from the start so Sequencers and Trackers play (not while a DAW plays it)."""
         with self.lock:
             if self.transport is not None:
                 return
@@ -579,8 +602,65 @@ class Preview:
         if transport is not None:
             transport.bpm = self.tempo
 
+    @property
+    def synced(self) -> bool:
+        """Following a DAW's clock: the DAW plays and stops the transport."""
+        return self.sync is not None and self.sync['input'] is not None
+
+    @property
+    def playing(self) -> bool:
+        return self.transport is not None and self.transport.playing
+
+    def _follow(self, ui, followed) -> None:
+        """Follow the layout's ``transport.sync`` (keeping the open port), with a new transport for ``ui`` carrying on from ``followed``."""
+        spec = ui.sync_settings()
+        key = json.dumps(spec, sort_keys = True) if spec is not None else None
+        wanted = spec is not None and self.connect
+        if self.sync is not None and (self.sync['key'] != key or not wanted):
+            self._unfollow()
+        if followed is not None and (not wanted or self.sync is None):
+            followed.close()
+            followed = None
+        if not wanted:
+            self.sync = None if spec is None else {'key': key, 'input': None, 'error': 'not connected (the designer is offline)'}
+            return
+        settings = self._settings(ui)
+        transport = pyxelwidgets.transport.Transport(followed.bpm if followed is not None else settings['bpm'], signature = settings['signature'],
+                                                     sync = True, lock = ui.surface.lock)
+        ui.attach(transport)
+        ui.surface.transport = transport
+        if followed is not None:
+            transport.locate(followed.beats)
+            if followed.playing:
+                transport.play()
+            followed.close()
+        if self.sync is not None and self.sync['input'] is not None:
+            self.sync['input'].transport = transport
+        else:
+            try:
+                self.sync = {'key': key, 'input': ui.sync_input(transport), 'error': None}
+            except Exception as error:
+                self.sync = {'key': key, 'input': None, 'error': str(error) or type(error).__name__}
+                transport.close()
+                ui.surface.transport = self._idle(ui)
+                return
+        self.transport = transport
+
+    def _unfollow(self) -> None:
+        if self.sync is not None and self.sync['input'] is not None:
+            self.sync['input'].close()
+        self.sync = None
+        if self.transport is not None and self.transport.sync:
+            transport, self.transport = self.transport, None
+            transport.close()
+            if self.ui is not None:
+                self.ui.surface.transport = self._idle(self.ui)
+
     def stop(self) -> None:
         with self.lock:
+            if self.synced:
+                # The DAW stops it
+                return
             transport, self.transport = self.transport, None
             if self.ui is not None:
                 self.ui.surface.transport = self._idle(self.ui)
@@ -726,6 +806,13 @@ class Handler(http.server.BaseHTTPRequestHandler):
             self._json({'templates': templates()})
         elif url.path == '/api/detect':
             self._json({'devices': detect_devices()})
+        elif url.path == '/api/ports':
+            try:
+                import pyxelwidgets.devices.midi
+                inputs, outputs = pyxelwidgets.devices.midi.MIDI.available_ports()
+            except Exception:
+                inputs, outputs = [], []
+            self._json({'inputs': list(inputs), 'outputs': list(outputs)})
         elif url.path == '/api/layout':
             self._json({'layout': preview.layout, 'file': str(self.designer.path) if self.designer.path else None})
         elif url.path == '/api/frame':
