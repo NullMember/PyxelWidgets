@@ -8,6 +8,13 @@ the way mappings send messages::
     Link(level, pad, 'active_color', Source('value'), on = Changed)       # a fader dims a color
     Link(mode, fader, 'mode', on = Pressed, change = Link.Change.Toggle)  # next Fader.Mode
 
+Without an option the target is an action, called on each event, with the
+value as its argument if there is one::
+
+    Link(play, transport.toggle, on = Pressed)
+    Link(step, sequencer.advance, on = Pressed)
+    Link(pads, sequencer.play, value = Source('cell'), on = Pressed)     # jump to a step
+
 The value is a constant or a ``Source`` from the event (see
 ``pyxelwidgets.mapping.sources``), turned into what the option holds:
 
@@ -23,6 +30,9 @@ a source is added as the event has it (``delta`` steps, or 0.0-1.0).
 ``Change.Toggle`` flips on/off options and steps enums to the next member.
 Numbers end up clamped to ``minimum``/``maximum`` when given; a reversed
 range (``minimum = 8, maximum = 7``) turns a 0.0-1.0 value around.
+
+An action's value is a number: 0.0-1.0 sources cover ``minimum`` to
+``maximum`` (whole numbers if both are), whole number sources add ``offset``.
 
 Options change through ``target.configure``, which doesn't emit events, so
 links don't trigger each other in loops (Pages emits PageChanged for a new
@@ -57,7 +67,8 @@ class Link:
     """
     On each ``on`` event of ``widget``, changes ``option`` of ``target`` to
     ``value`` (``Change.Set``), by ``value`` (``Change.Add``) or to the next
-    state (``Change.Toggle``, which takes no value). See the module docs.
+    state (``Change.Toggle``, which takes no value). Without ``option``,
+    ``target`` is called (with ``value`` if given). See the module docs.
     """
 
     class Change(enum.Enum):
@@ -65,17 +76,24 @@ class Link:
         Add     = enum.auto()
         Toggle  = enum.auto()
 
-    def __init__(self, widget, target, option: str, value = None, *, on: type,
+    def __init__(self, widget, target, option: str | None = None, value = None, *, on: type,
                  change: Change = Change.Set, minimum = None, maximum = None) -> None:
-        if option.startswith('_') or not hasattr(target, option):
+        if option is None:
+            if not callable(target):
+                raise ValueError('without an option the target must be an action (a callable)')
+            if change != Link.Change.Set:
+                raise ValueError('an action is called, not changed')
+            current, kind = None, 'action'
+        elif option.startswith('_') or not hasattr(target, option):
             raise ValueError(f'{type(target).__name__} has no option {option!r}')
-        current = getattr(target, option)
-        kind = _kind(current)
+        else:
+            current = getattr(target, option)
+            kind = _kind(current)
         if change == Link.Change.Toggle and kind not in ('bool', 'enum'):
             raise ValueError(f'only on/off and choice options toggle, not {option!r}')
         if change == Link.Change.Add and kind not in ('int', 'float', 'enum'):
             raise ValueError(f'only numbers and choices can be added to, not {option!r}')
-        if change != Link.Change.Toggle and value is None:
+        if change != Link.Change.Toggle and value is None and kind != 'action':
             raise ValueError('a value is needed to set or add')
         if isinstance(value, pyxelwidgets.message.Source):
             names = pyxelwidgets.mapping.available(on)
@@ -105,12 +123,33 @@ class Link:
             return
         self._running = True
         try:
+            if self._kind == 'action':
+                if self.value is None:
+                    self.target()
+                else:
+                    self.target(self.argument(pyxelwidgets.mapping.sources(event, self.widget)))
+                return
             current = getattr(self.target, self.option)
             new = self.apply(current, pyxelwidgets.mapping.sources(event, self.widget))
             if new != current:
                 self.target.configure(**{self.option: new})
         finally:
             self._running = False
+
+    def argument(self, sources: dict):
+        """An action's argument from the event's ``sources``."""
+        value = self.value
+        if not isinstance(value, pyxelwidgets.message.Source):
+            return value
+        raw = sources[value.name]
+        if isinstance(raw, str):
+            return raw
+        if value.integer:
+            return int(raw) + value.offset
+        low = self.minimum if self.minimum is not None else 0
+        high = self.maximum if self.maximum is not None else 1
+        number = low + (high - low) * float(raw)
+        return int(round(number)) if isinstance(low, int) and isinstance(high, int) and (low, high) != (0, 1) else number
 
     def apply(self, current, sources: dict):
         """The option's new value, from ``current`` and the event's ``sources``."""
