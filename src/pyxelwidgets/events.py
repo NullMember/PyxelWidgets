@@ -80,6 +80,13 @@ class DoublePressed(WidgetEvent):
     velocity: float
 
 @dataclasses.dataclass(frozen = True)
+class Pressure(WidgetEvent):
+    """The pressure (aftertouch) of a held pad changed, from 0.0 to 1.0."""
+    x: int
+    y: int
+    pressure: float
+
+@dataclasses.dataclass(frozen = True)
 class Changed(WidgetEvent):
     """Input changed the widget's value: a float, or a tuple for multi-axis widgets (XY)."""
     value: typing.Any
@@ -149,6 +156,10 @@ class PadDoublePressed(PadEvent):
     """Emitted right after PadPressed when the previous press was within ``double_press_time``."""
 
 @dataclasses.dataclass(frozen = True)
+class PadPressure(PadEvent):
+    """The pressure (aftertouch) of a held pad changed; ``velocity`` is the pressure from 0.0 to 1.0."""
+
+@dataclasses.dataclass(frozen = True)
 class ControlEvent(Event):
     """Input from a named non-grid control of a device (button, knob, fader, encoder, touch strip)."""
     device: typing.Any
@@ -172,6 +183,12 @@ class ControlChanged(ControlEvent):
 class ControlTurned(ControlEvent):
     """A relative control (endless encoder) turned by ``delta`` steps; negative is counter-clockwise."""
     delta: int
+
+@dataclasses.dataclass(frozen = True)
+class MessageReceived(Event):
+    """An output (MIDI port, OSC, Mackie Control, ...) received ``message`` (see ``pyxelwidgets.message``)."""
+    device: typing.Any
+    message: typing.Any
 
 # Surface events
 
