@@ -162,11 +162,15 @@ class Surface(pyxelwidgets.events.Emitter):
                     entry['device'].show(self.buffer[area.slice], area.x - entry['rect'].x, area.y - entry['rect'].y)
 
     def close(self) -> None:
-        """Close all devices."""
+        """Close all devices, and the outputs of the mappings."""
         with self.lock:
             devices = [entry['device'] for entry in self.devices.values()]
             for name in list(self.devices):
                 self.remove_device(name)
+            for mapping in list(self.mappings):
+                if mapping.output not in devices:
+                    devices.append(mapping.output)
+                self.unmap(mapping)
         # Closed outside the lock: closing may wait for threads that need it
         for device in devices:
             device.close()
