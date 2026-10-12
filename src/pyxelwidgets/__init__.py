@@ -20,6 +20,7 @@ _exports = {
     'Colors': 'color',
     'Device': 'devices',
     'Group': 'group',
+    'Pages': 'group',
     'Parser': 'parser',
     'Rectangle2D': 'rectangle',
     'Surface': 'surface',
