@@ -338,9 +338,12 @@ kbd { background: var(--panel-2); border: 1px solid var(--line); border-bottom-w
   /* Stacked: the page scrolls instead of each panel */
   html, body { height: auto; }
   main { display: flex; flex-direction: column; }
-  #stage { order: -1; min-height: 60vh; }
+  #center { order: -1; min-height: 75vh; }
   .panel { border: none; border-top: 1px solid var(--line); overflow: visible; }
   .panel section.grow { flex: none; min-height: 0; max-height: 320px; }
+  #left > section:not(.grow) { max-height: none; }
+  .splitter, #toggle-left, #toggle-right, #toggle-right + .divider { display: none; }
+  body.no-left #left, body.no-right #right { visibility: visible; }
 }
 .label .url { color: var(--accent); text-decoration: none; overflow: hidden; text-overflow: ellipsis; }
 .svg { display: inline-flex; align-items: center; }
