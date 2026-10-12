@@ -14,8 +14,6 @@ __version__ = '0.1.0'
 
 _exports = {
     'App': 'app',
-    'Clock': 'clock',
-    'Target': 'clock',
     'Color': 'color',
     'Colors': 'color',
     'Device': 'devices',
@@ -23,6 +21,7 @@ _exports = {
     'Parser': 'parser',
     'Rectangle2D': 'rectangle',
     'Surface': 'surface',
+    'Transport': 'transport',
     'Button': 'widgets',
     'ButtonGroup': 'widgets',
     'Fader': 'widgets',
@@ -60,6 +59,11 @@ _exports = {
     'ControlReleased': 'events',
     'ControlChanged': 'events',
     'ControlTurned': 'events',
+    'TransportEvent': 'events',
+    'TransportStarted': 'events',
+    'TransportStopped': 'events',
+    'TransportLocated': 'events',
+    'TempoChanged': 'events',
 }
 
 __all__ = sorted(_exports)
