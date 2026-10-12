@@ -1,5 +1,5 @@
 """
-A four track drum sequencer that plays in time with a DAW.
+A four track drum sequencer that plays in time with a DAW, showing its tempo.
 
     python ClockSync.py              # on-screen grid
     python ClockSync.py launchpad    # Launchpad Mini MK3
@@ -12,7 +12,7 @@ sequencer from the DAW's position.
 
 import sys
 
-from pyxelwidgets import App, Sequencer, StepPlayed, Surface, TempoChanged
+from pyxelwidgets import App, Colors, Sequencer, StepPlayed, Surface, TempoChanged, Text
 from pyxelwidgets.devices.midi_clock import MidiClockInput
 
 if len(sys.argv) > 1 and sys.argv[1] == 'launchpad':
@@ -41,7 +41,13 @@ for row, (name, note) in enumerate(DRUMS.items()):
             clock.send_note_on(note, 100, 9)
             clock.send_note_off(note, 0, 9)
 
-app.transport.on(TempoChanged, lambda e: print(f'{e.bpm:.1f} bpm'))
+# The measured tempo on the top rows (scrolls when wider than the grid)
+tempo = surface.add(Text(0, 4, 9, 5, text = '--', align = Text.Align.Center, active_color = Colors.Cyan))
+
+@app.transport.on(TempoChanged)
+def show_tempo(e):
+    tempo.text = f'{e.bpm:.0f}'
+    print(f'{e.bpm:.1f} bpm')
 
 if __name__ == '__main__':
     print('Send MIDI clock to "PyxelWidgets Clock" and press play in your DAW')
