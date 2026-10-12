@@ -85,17 +85,15 @@ class Group(pyxelwidgets.widgets.Widget):
                     return True
         return self.propagation == pyxelwidgets.widgets.Propagation.Stop
 
-    def render(self) -> bool:
-        changed = self._dirty or self.updated
+    def render(self, time = None) -> bool:
+        changed = self._dirty
         # Render every child, even after one already changed
         for child in self._children:
-            changed = child.render() or changed
-        if not changed:
-            return False
-        self._dirty = False
-        self.updated = False
-        self.draw()
-        return True
+            changed = child.render(time) or changed
+        if changed:
+            self._dirty = False
+            self.updated = True
+        return super().render(time)
 
     def draw(self) -> None:
         self.buffer[:] = self.inactive_color
