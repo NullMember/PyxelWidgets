@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import pyxelwidgets.binding
 import pyxelwidgets.buffer
 import pyxelwidgets.color
 import pyxelwidgets.events
@@ -24,7 +25,8 @@ class Surface(pyxelwidgets.events.Emitter):
     offset, so several devices can form one larger surface.
 
     Emits ``Frame`` before rendering each frame, and re-emits every device's
-    control events (ControlPressed, ControlChanged, ...).
+    control events (ControlPressed, ControlChanged, ...). ``bind`` connects a
+    device's controls to widgets or actions.
 
     ``lock`` is held while processing input and rendering. Hold it when changing
     widgets from another thread, e.g. a MIDI callback of your own.
@@ -37,6 +39,7 @@ class Surface(pyxelwidgets.events.Emitter):
         self.rect = pyxelwidgets.rectangle.Rectangle2D(0, 0, width, height)
         self.root = pyxelwidgets.group.Group(0, 0, width, height, name = f'{self.name}_root')
         self.devices = {}
+        self.bindings = []
         self.buffer = pyxelwidgets.buffer.new(width, height, pyxelwidgets.color.Colors.Black)
         self.frame_counter = 0
         self.lock = threading.RLock()
@@ -83,6 +86,25 @@ class Surface(pyxelwidgets.events.Emitter):
             entry = self.devices.pop(name)
             for event_type, handler in entry['handlers']:
                 entry['device'].off(event_type, handler)
+            for binding in [b for b in self.bindings if b.device is entry['device']]:
+                self.unbind(binding)
+
+    # Bindings
+
+    def bind(self, device, control: str, target, **kwargs) -> pyxelwidgets.binding.Binding:
+        """
+        Connect ``device``'s ``control`` (e.g. ``'Knob1'``) to a widget or an
+        action; see ``pyxelwidgets.binding`` for the options. Glides move every frame.
+        """
+        with self.lock:
+            binding = pyxelwidgets.binding.Binding(self, control, target, device = device, **kwargs)
+            self.bindings.append(binding)
+            return binding
+
+    def unbind(self, binding: pyxelwidgets.binding.Binding) -> None:
+        with self.lock:
+            binding.close()
+            self.bindings.remove(binding)
 
     def force_update(self) -> None:
         """Resend every pixel on the next update, e.g. after a device reconnected."""
@@ -103,6 +125,8 @@ class Surface(pyxelwidgets.events.Emitter):
         with self.lock:
             self.emit(pyxelwidgets.events.Frame(self, self.frame_counter))
             self.frame_counter += 1
+            for binding in self.bindings:
+                binding.update()
             if self.root.render():
                 # Transparent areas show as black on the devices
                 self.buffer[:] = pyxelwidgets.color.Colors.Black
