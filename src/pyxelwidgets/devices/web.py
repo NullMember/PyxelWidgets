@@ -7,12 +7,14 @@ A grid in a web browser, e.g. on a tablet or a phone::
     surface.add_device(grid)
 
 Every browser that opens the page shows the grid and plays it: several
-fingers at once, sliding across pads, or the mouse. Standard library only: a
-small HTTP server that talks WebSocket to the page.
+fingers at once, sliding across pads, or the mouse. The corner button goes
+fullscreen; "Add to Home Screen" makes it an app that opens fullscreen.
+Standard library only: a small HTTP server that talks WebSocket to the page.
 """
 
 import base64
 import hashlib
+import html
 import http.server
 import json
 import socket
@@ -136,10 +138,16 @@ class WebGrid(pyxelwidgets.devices.Device):
             def do_GET(self) -> None:
                 if self.path.split('?')[0] == '/ws' and self.headers.get('Upgrade', '').lower() == 'websocket':
                     device._serve_socket(self)
-                elif self.path.split('?')[0] == '/':
-                    body = _PAGE.replace('{{title}}', device.title).encode()
+                elif self.path.split('?')[0] in ('/', '/manifest.json'):
+                    page = self.path.split('?')[0] == '/'
+                    if page:
+                        body = _PAGE.replace('{{title}}', html.escape(device.title)).encode()
+                    else:
+                        # Opened from the home screen: fullscreen, landscape or portrait
+                        body = json.dumps({'name': device.title, 'short_name': device.title, 'start_url': '/',
+                                           'display': 'fullscreen', 'background_color': '#111111', 'theme_color': '#111111'}).encode()
                     self.send_response(200)
-                    self.send_header('Content-Type', 'text/html; charset=utf-8')
+                    self.send_header('Content-Type', 'text/html; charset=utf-8' if page else 'application/manifest+json')
                     self.send_header('Content-Length', str(len(body)))
                     self.end_headers()
                     self.wfile.write(body)
@@ -189,9 +197,12 @@ class WebGrid(pyxelwidgets.devices.Device):
         request.end_headers()
         request.wfile.flush()
         client = _Client(request.connection)
-        client.send(self._everything())
-        with self._clients_lock:
-            self.clients.append(client)
+        # Registered first, so no update is missed; updates wait for the client's lock until it has everything
+        with client.lock:
+            with self._clients_lock:
+                self.clients.append(client)
+            frame = _frame(_TEXT, json.dumps(self._everything(), separators = (',', ':')).encode())
+            request.connection.sendall(frame)
         try:
             while True:
                 frame = _read_frame(request.rfile)
@@ -232,35 +243,69 @@ class WebGrid(pyxelwidgets.devices.Device):
 _PAGE = r'''<!doctype html>
 <html><head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="theme-color" content="#111111">
+<link rel="manifest" href="/manifest.json">
 <title>{{title}}</title>
 <style>
   html, body { margin: 0; height: 100%; background: #111; overflow: hidden; touch-action: none;
                -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; }
   #grid { position: absolute; display: grid; gap: var(--gap); }
   .pad { border-radius: 12%; background: #000; box-shadow: inset 0 0 0 1px #2a2a2a; }
-  #status { position: absolute; top: 6px; left: 8px; font: 12px system-ui, sans-serif; color: #888; }
+  #status { position: absolute; top: calc(6px + env(safe-area-inset-top)); left: calc(8px + env(safe-area-inset-left));
+            font: 12px system-ui, sans-serif; color: #888; }
+  #fullscreen { position: absolute; top: calc(6px + env(safe-area-inset-top)); right: calc(6px + env(safe-area-inset-right));
+                width: 36px; height: 36px; border: 0; border-radius: 8px; background: rgba(255, 255, 255, 0.08);
+                color: #aaa; font-size: 20px; line-height: 36px; padding: 0; }
+  #fullscreen[hidden] { display: none; }
 </style>
 </head><body>
 <div id="grid"></div><div id="status">connecting…</div>
+<button id="fullscreen" title="Fullscreen" aria-label="Fullscreen" hidden>⛶</button>
 <script>
 const grid = document.getElementById('grid'), status = document.getElementById('status');
 let size = [0, 0], pads = new Map(), socket = null;
 const pointers = new Map();   // pointer id → "x,y" of the pad it holds
 
+// The screen's safe area (notches, rounded corners), from CSS
+const probe = document.createElement('div');
+probe.style.cssText = 'position:fixed;visibility:hidden;padding:env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left)';
+document.body.appendChild(probe);
+
 function layout() {
   const [w, h] = size;
   if (!w) return;
+  const inset = getComputedStyle(probe);
+  const [top, right, bottom, left] = ['paddingTop', 'paddingRight', 'paddingBottom', 'paddingLeft'].map((key) => parseFloat(inset[key]) || 0);
+  const width = innerWidth - left - right, height = innerHeight - top - bottom;
   const gapRatio = 0.12, margin = 12;
-  const pad = Math.floor(Math.min((innerWidth - 2 * margin) / (w + (w - 1) * gapRatio), (innerHeight - 2 * margin) / (h + (h - 1) * gapRatio)));
+  const pad = Math.floor(Math.min((width - 2 * margin) / (w + (w - 1) * gapRatio), (height - 2 * margin) / (h + (h - 1) * gapRatio)));
   const gap = Math.max(2, Math.round(pad * gapRatio));
   grid.style.setProperty('--gap', gap + 'px');
   grid.style.gridTemplateColumns = `repeat(${w}, ${pad}px)`;
   grid.style.gridAutoRows = pad + 'px';
-  grid.style.left = Math.round((innerWidth - (w * pad + (w - 1) * gap)) / 2) + 'px';
-  grid.style.top = Math.round((innerHeight - (h * pad + (h - 1) * gap)) / 2) + 'px';
+  grid.style.left = Math.round(left + (width - (w * pad + (w - 1) * gap)) / 2) + 'px';
+  grid.style.top = Math.round(top + (height - (h * pad + (h - 1) * gap)) / 2) + 'px';
 }
+
+// Fullscreen where the browser can (not on iPhones: use "Add to Home Screen" there)
+const fullscreenButton = document.getElementById('fullscreen');
+const root = document.documentElement;
+const requestFullscreen = root.requestFullscreen || root.webkitRequestFullscreen;
+const fullscreenElement = () => document.fullscreenElement || document.webkitFullscreenElement;
+const standalone = matchMedia('(display-mode: fullscreen), (display-mode: standalone)').matches || navigator.standalone;
+function showFullscreenButton() {
+  fullscreenButton.hidden = !requestFullscreen || standalone || !!fullscreenElement();
+}
+fullscreenButton.addEventListener('click', () => {
+  Promise.resolve(requestFullscreen.call(root, { navigationUI: 'hide' })).catch(() => {});
+});
+document.addEventListener('fullscreenchange', () => { showFullscreenButton(); layout(); });
+document.addEventListener('webkitfullscreenchange', () => { showFullscreenButton(); layout(); });
+showFullscreenButton();
 
 function build(w, h) {
   size = [w, h];
