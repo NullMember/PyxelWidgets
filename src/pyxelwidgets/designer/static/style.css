@@ -130,6 +130,8 @@ body.try .outline .tag, body.try .handle { display: none; }
 
 #properties h3 { margin: 0 0 2px; font-size: 15px; }
 #properties .doc { color: var(--muted); margin: 0 0 10px; font-size: 12px; }
+#properties h4 { margin: 14px 0 8px; font-size: 11px; text-transform: uppercase; letter-spacing: 0.8px; color: var(--muted); font-weight: 600; }
+.fields .hint { margin: 0; }
 .fields { display: grid; grid-template-columns: 92px 1fr; gap: 6px 8px; align-items: center; }
 .fields label { color: var(--muted); font-size: 12px; overflow: hidden; text-overflow: ellipsis; }
 .fields label.changed { color: var(--text); }

@@ -41,7 +41,7 @@ def new_layout(width: int = 9, height: int = 9) -> dict:
     }
 
 def catalog() -> dict:
-    """Everything the designer UI offers: widget options, devices and named colors."""
+    """Everything the designer UI offers: widget and binding options, devices and named colors."""
     devices = []
     for module_name in DEVICE_MODULES:
         try:
@@ -57,7 +57,8 @@ def catalog() -> dict:
                 devices.append(info)
     colors = {name: pyxelwidgets.parser.color_to_text(value) for name, value in vars(pyxelwidgets.color.Colors).items()
               if isinstance(value, pyxelwidgets.color.Color)}
-    return {'widgets': pyxelwidgets.parser.schema()['widgets'], 'devices': devices, 'colors': colors}
+    schema = pyxelwidgets.parser.schema()
+    return {'widgets': schema['widgets'], 'binding': schema['binding'], 'devices': devices, 'colors': colors}
 
 class PreviewDevice(pyxelwidgets.devices.Device):
     """Covers the whole surface so clicks in the browser reach widgets like real pad presses."""
@@ -82,6 +83,30 @@ def _event_json(event) -> dict:
 def _device_key(device: dict) -> str:
     """What makes two layout device entries the same connection (position aside)."""
     return json.dumps({key: device.get(key) for key in ('type', 'options', 'input', 'output')}, sort_keys = True)
+
+class _PreviewActions:
+    """Binding actions for the preview: its transport only exists while playing."""
+
+    def __init__(self, preview):
+        self.preview = preview
+
+    # Called from device threads holding the surface lock; play/stop take the preview lock first
+    def _later(self, action) -> None:
+        threading.Thread(target = action, daemon = True).start()
+
+    def play(self) -> None:
+        self._later(self.preview.play)
+
+    def stop(self) -> None:
+        self._later(self.preview.stop)
+
+    def toggle(self) -> None:
+        self._later(lambda: self.preview.stop() if self.preview.transport is not None else self.preview.play())
+
+    def locate(self, beats: float) -> None:
+        transport = self.preview.transport
+        if transport is not None:
+            transport.locate(beats)
 
 class Preview:
     """
@@ -178,6 +203,8 @@ class Preview:
         for devices in pool.values():
             for device in devices:
                 device.close()
+        # Removing devices from the old surface removed their bindings
+        self.ui.bind([entry['device'] for entry in self.hardware], _PreviewActions(self))
 
     @staticmethod
     def _open(spec: dict, index: int) -> tuple:

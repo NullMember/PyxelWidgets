@@ -31,7 +31,7 @@ const state = {
 const $ = (id) => document.getElementById(id);
 
 function fill(node, ...children) {
-  node.replaceChildren(...children.flat().filter((child) => child != null));
+  node.replaceChildren(...children.flat(Infinity).filter((child) => child != null));
 }
 
 function el(tag, attrs = {}, ...children) {
@@ -43,7 +43,7 @@ function el(tag, attrs = {}, ...children) {
     else if (value === true) node.setAttribute(key, '');
     else if (value !== false && value != null) node.setAttribute(key, value);
   }
-  for (const child of children.flat()) {
+  for (const child of children.flat(Infinity)) {
     if (child != null) node.append(child.nodeType ? child : document.createTextNode(String(child)));
   }
   return node;
@@ -107,6 +107,98 @@ function uniqueName(type, reserved = new Set()) {
 
 function deviceInfo(device) {
   return state.catalog.devices.find((info) => info.type === device.type);
+}
+
+// Named controls of a layout device; a Launchpad's side buttons are controls with side_buttons off
+function deviceControls(device) {
+  const info = deviceInfo(device);
+  const controls = [...(info?.controls || [])];
+  if (info?.side_buttons && device.options?.side_buttons === false) {
+    controls.push(...info.side_buttons.map((button) => ({ name: button.name, kind: 'button' })));
+  }
+  return controls;
+}
+
+function controlKind(binding) {
+  const device = state.layout.devices[binding.device];
+  return device ? deviceControls(device).find((control) => control.name === binding.control)?.kind : undefined;
+}
+
+// A select of every device control; calls choose(deviceIndex, control) or choose(null)
+function controlSelect(id, binding, choose) {
+  const current = binding ? `${binding.device}:${binding.control}` : '';
+  let found = !binding;
+  const groups = state.layout.devices.map((device, index) => {
+    const controls = deviceControls(device);
+    if (!controls.length) return null;
+    return el('optgroup', { label: `${index + 1}. ${deviceInfo(device)?.model || device.type}` }, controls.map((control) => {
+      const value = `${index}:${control.name}`;
+      if (value === current) found = true;
+      return el('option', { value, selected: value === current }, `${control.name} (${control.kind})`);
+    }));
+  });
+  return el('select', {
+    id,
+    onchange: (e) => {
+      const value = e.target.value;
+      const split = value.indexOf(':');
+      if (value) choose(Number(value.slice(0, split)), value.slice(split + 1));
+      else choose(null);
+    },
+  },
+  el('option', { value: '' }, '—'),
+  groups,
+  // Bound to a control the device doesn't list any more (e.g. side buttons turned back on)
+  found ? null : el('option', { value: current, selected: true }, `${binding.control} (not available)`));
+}
+
+function hasControls() {
+  return state.layout.devices.some((device) => deviceControls(device).length);
+}
+
+const NO_CONTROLS = 'Add a device with knobs, faders or buttons to bind its controls (on a Launchpad, turn side buttons off).';
+
+function setBinding(match, entry) {
+  change((layout) => {
+    const bindings = (layout.bindings || []).filter((binding) => !match(binding));
+    if (entry) bindings.push(entry);
+    if (bindings.length) layout.bindings = bindings;
+    else delete layout.bindings;
+  });
+}
+
+function bindingFields(widget) {
+  const binding = (state.layout.bindings || []).find((b) => b.widget === widget.name);
+  if (!binding && !hasControls()) return [el('label', {}, 'control'), el('p', { class: 'hint' }, NO_CONTROLS)];
+  const select = controlSelect('widget-control', binding, (device, control) => setBinding(
+    (b) => b.widget === widget.name,
+    device === null ? null : { device, control, widget: widget.name, ...(binding?.options ? { options: binding.options } : {}) }));
+  const kind = binding && controlKind(binding);
+  const takeover = binding?.options?.takeover ?? 'Glide';
+  const shown = {
+    takeover: kind === 'absolute',
+    glide_time: kind === 'absolute' && takeover === 'Glide',
+    step: kind === 'relative',
+    axis: widget.type === 'XY' && kind !== 'button',
+  };
+  return [
+    el('label', { for: 'widget-control', title: 'A device control that drives this widget' }, 'control'),
+    el('div', { class: 'control' }, select),
+    binding ? state.catalog.binding.options.filter((option) => shown[option.name]).flatMap((option) => optionField(binding, option)) : null,
+  ];
+}
+
+function transportControls() {
+  if (!hasControls()) return el('p', { class: 'hint' }, NO_CONTROLS);
+  return el('div', { class: 'fields' }, state.catalog.binding.actions.flatMap((action) => {
+    const binding = (state.layout.bindings || []).find((b) => b.action === action);
+    const id = `action-${action.replace('.', '-')}`;
+    return [
+      el('label', { for: id }, action.replace('transport.', '')),
+      el('div', { class: 'control' }, controlSelect(id, binding, (device, control) => setBinding(
+        (b) => b.action === action, device === null ? null : { device, control, action }))),
+    ];
+  }));
 }
 
 function deviceSize(device) {
@@ -566,10 +658,14 @@ function renderProperties() {
               setStatus(`Widget name "${name}" is empty or already used`, 'error');
               return render();
             }
-            change(() => { widget.name = name; });
+            change((layout) => {
+              for (const binding of layout.bindings || []) if (binding.widget === widget.name) binding.widget = name;
+              widget.name = name;
+            });
           },
         })),
-        (info?.options || []).flatMap((option) => optionField(widget, option))),
+        (info?.options || []).flatMap((option) => optionField(widget, option)),
+        bindingFields(widget)),
       el('div', { class: 'actions' },
         el('button', { onclick: () => reorder(path, 1), title: 'Draw above the next widget' }, 'Raise'),
         el('button', { onclick: () => reorder(path, -1), title: 'Draw below the previous widget' }, 'Lower'),
@@ -625,6 +721,8 @@ function renderProperties() {
         },
       }))),
     el('p', { class: 'hint' }, 'Select a widget to edit it. In Try mode, click pads to press them; hold for a Held event.'),
+    el('h4', {}, 'Transport controls'),
+    transportControls(),
   );
 }
 
@@ -712,8 +810,18 @@ function removeSelection() {
   const selection = state.selection;
   if (!selection) return;
   change((layout) => {
-    if (selection.kind === 'widget') childrenOf(selection.path).splice(selection.path[selection.path.length - 1], 1);
-    else layout.devices.splice(selection.index, 1);
+    let bindings = layout.bindings || [];
+    if (selection.kind === 'widget') {
+      childrenOf(selection.path).splice(selection.path[selection.path.length - 1], 1);
+      const names = new Set(allWidgets().map(({ widget }) => widget.name));
+      bindings = bindings.filter((binding) => binding.widget === undefined || names.has(binding.widget));
+    } else {
+      layout.devices.splice(selection.index, 1);
+      bindings = bindings.filter((binding) => binding.device !== selection.index)
+        .map((binding) => (binding.device > selection.index ? { ...binding, device: binding.device - 1 } : binding));
+    }
+    if (bindings.length) layout.bindings = bindings;
+    else delete layout.bindings;
     state.selection = null;
   });
 }
