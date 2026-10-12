@@ -172,13 +172,27 @@ function checkSelection() {
 }
 
 let syncTimer = null;
+let syncing = Promise.resolve();
 function scheduleSync() {
   clearTimeout(syncTimer);
   syncTimer = setTimeout(sync, 120);
   renderDirty();
 }
 
-async function sync() {
+// Send a pending layout change now; resolves once the preview has it
+function flushSync() {
+  if (syncTimer !== null) sync();
+  return syncing;
+}
+
+function sync() {
+  clearTimeout(syncTimer);
+  syncTimer = null;
+  syncing = syncing.then(putLayout, putLayout);
+  return syncing;
+}
+
+async function putLayout() {
   const reply = await api('PUT', '/api/layout', state.layout);
   if (reply.ok) {
     if (state.error) setStatus('');
@@ -243,6 +257,12 @@ function addEvents(events) {
   while (list.children.length > 200) list.lastChild.remove();
 }
 
+// Input goes in order, and after any pending layout change: rebuilding the preview resets widget state
+let inputs = Promise.resolve();
+function sendInput(x, y, velocity) {
+  inputs = inputs.then(flushSync).then(() => api('POST', '/api/input', { x, y, velocity })).catch(() => {});
+}
+
 const held = new Map();
 function padDown(event) {
   if (state.mode !== 'try') {
@@ -253,14 +273,14 @@ function padDown(event) {
   const { x, y } = event.currentTarget.dataset;
   event.currentTarget.setPointerCapture(event.pointerId);
   held.set(event.pointerId, [Number(x), Number(y)]);
-  api('POST', '/api/input', { x: Number(x), y: Number(y), velocity: 1.0 });
+  sendInput(Number(x), Number(y), 1.0);
 }
 
 function padUp(event) {
   const pad = held.get(event.pointerId);
   if (!pad) return;
   held.delete(event.pointerId);
-  api('POST', '/api/input', { x: pad[0], y: pad[1], velocity: 0.0 });
+  sendInput(pad[0], pad[1], 0.0);
 }
 
 // ---------------------------------------------------------------- rendering
