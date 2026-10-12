@@ -52,18 +52,25 @@ def _describe_classes(modules: list, outputs: bool) -> list:
         for name in getattr(module, '__all__', []):
             cls = getattr(module, name)
             if isinstance(cls, type) and issubclass(cls, pyxelwidgets.devices.Device) and bool(getattr(cls, 'messages', None)) == outputs:
-                info = cls.describe()
-                info['type'] = f'{module_name}.{name}'
-                info['options'] = pyxelwidgets.parser.option_schema(cls)
-                # MIDI outputs connect to ports or a virtual port; OSC by its options
-                info['midi'] = hasattr(cls, 'connect_virtual') if outputs else None
-                found.append(info)
+                found.append(_describe(cls, f'{module_name}.{name}', outputs))
     return found
+
+def _describe(cls, kind: str, outputs: bool) -> dict:
+    info = cls.describe()
+    info['type'] = kind
+    info['options'] = pyxelwidgets.parser.option_schema(cls)
+    # MIDI outputs connect to ports or a virtual port; OSC by its options
+    info['midi'] = hasattr(cls, 'connect_virtual') if outputs else None
+    return info
 
 def catalog() -> dict:
     """Everything the designer UI offers: widget and binding options, devices, outputs, messages, links and named colors."""
     devices = _describe_classes(DEVICE_MODULES, False)
     outputs = _describe_classes(OUTPUT_MODULES, True)
+    # Devices of your own (parser.register)
+    for kind, cls in pyxelwidgets.parser.registered_devices().items():
+        is_output = bool(getattr(cls, 'messages', None))
+        (outputs if is_output else devices).append(_describe(cls, kind, is_output))
     colors = {name: pyxelwidgets.parser.color_to_text(value) for name, value in vars(pyxelwidgets.color.Colors).items()
               if isinstance(value, pyxelwidgets.color.Color)}
     schema = pyxelwidgets.parser.schema()

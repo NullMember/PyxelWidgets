@@ -2078,7 +2078,8 @@ function targetGroup() {
 // Adds a widget into ``group`` (a path, or null for the surface) at ``x``, ``y`` in it
 function addWidget(type, group = targetGroup(), x = 0, y = 0) {
   const [maxWidth, maxHeight] = group ? [widgetAt(group).width, widgetAt(group).height] : [state.layout.surface.width, state.layout.surface.height];
-  const [width, height] = DEFAULT_SIZE[type] || [maxWidth, maxHeight];
+  // Containers fill the space; widgets of your own (parser.register) start at 2x2
+  const [width, height] = DEFAULT_SIZE[type] || (state.catalog.widgets[type]?.container ? [maxWidth, maxHeight] : [2, 2]);
   const widget = { type, name: uniqueName(type), x, y, width: Math.min(width, maxWidth - x), height: Math.min(height, maxHeight - y), options: {} };
   if (state.catalog.widgets[type].container) widget.widgets = [];
   change((layout) => {
@@ -2099,7 +2100,7 @@ function dropPlace(event, type) {
   const column = Math.floor((event.clientX - bounds.left) / size);
   const row = Math.floor((event.clientY - bounds.top) / size);
   if (column < 0 || row < 0 || column >= surfaceWidth || row >= surfaceHeight) return null;
-  const [defaultWidth, defaultHeight] = DEFAULT_SIZE[type] || [surfaceWidth, surfaceHeight];
+  const [defaultWidth, defaultHeight] = DEFAULT_SIZE[type] || (state.catalog.widgets[type]?.container ? [surfaceWidth, surfaceHeight] : [2, 2]);
   const width = Math.min(defaultWidth, surfaceWidth), height = Math.min(defaultHeight, surfaceHeight);
   // Top-left at the pointer, moved back inside the surface
   const x = clamp(column, 0, surfaceWidth - width);
