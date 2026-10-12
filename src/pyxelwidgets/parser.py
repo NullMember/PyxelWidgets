@@ -57,7 +57,8 @@ are the range a 0.0-1.0 source covers and clamp numbers (see
 ``pyxelwidgets.link``). Instead of an option a link can call an ``action``:
 one of the target widget's ``actions`` (``advance``, ``play`` with a step
 ``value``, ``next``...) or, without a target, a transport action
-(``ACTIONS``: ``transport.play``...).
+(``ACTIONS``: ``transport.play``..., or ``VALUE_ACTIONS`` taking a
+number: ``transport.tempo``, ``transport.tempo_add``).
 
 Load a layout and attach behaviour by widget name::
 
@@ -104,6 +105,12 @@ ACTIONS = {
     'transport.stop': lambda transport: transport.stop,
     'transport.toggle': lambda transport: transport.toggle,
     'transport.rewind': lambda transport: (lambda: transport.locate(0)),
+}
+
+# Transport actions links can call with a number (tempo in bpm, or bpm to add)
+VALUE_ACTIONS = {
+    'transport.tempo': lambda transport: (lambda bpm: setattr(transport, 'bpm', max(1.0, float(bpm)))),
+    'transport.tempo_add': lambda transport: (lambda amount: setattr(transport, 'bpm', max(1.0, transport.bpm + amount))),
 }
 
 # Animations a widget entry can have, by name
@@ -295,7 +302,8 @@ def schema() -> dict:
             'binding': {'options': option_schema(pyxelwidgets.binding.Binding), 'actions': list(ACTIONS)},
             'events': events, 'messages': message_schema(),
             'link': {'changes': {name: sorted(kinds) if kinds else None for name, kinds in LINK_CHANGES.items()},
-                     'sources': sorted(LINK_SOURCES), 'actions': list(ACTIONS)}}
+                     'sources': sorted(LINK_SOURCES),
+                     'actions': {**{name: None for name in ACTIONS}, **{name: 'float' for name in VALUE_ACTIONS}}}}
 
 def message_schema() -> dict:
     """Mapping message types with their fields: name, default (encoded) and range (whole numbers) or kind."""
@@ -458,6 +466,8 @@ class Parser():
             self.json = json.loads(pathlib.Path(layout).read_text())
         self.json = upgrade(self.json)
         self.transport_settings()
+        # Clocks of widgets with their own (start_clocks)
+        self.clocks = []
         self.devices = []
         self.widgets = {}
         self.surface = None
@@ -549,16 +559,44 @@ class Parser():
             raise LayoutError(f'transport.signature: {error}') from None
         return {'bpm': bpm, 'signature': signature}
 
+    def timed(self, clock: pyxelwidgets.widgets.Clock) -> list:
+        """The widgets (Sequencers, Trackers...) played by ``clock``."""
+        return [widget for widget in self.widgets.values()
+                if isinstance(widget, pyxelwidgets.widgets.Timed) and widget.clock == clock]
+
     def attach(self, transport) -> list:
-        """Subscribe every Sequencer and Tracker following the transport to ``transport`` at its ``rate``; returns the Subscriptions."""
-        return [transport.every(widget.rate, widget.play) for widget in self.widgets.values()
-                if isinstance(widget, (pyxelwidgets.widgets.Sequencer, pyxelwidgets.widgets.Tracker)) and widget.transport]
+        """Subscribe the widgets the transport plays (``clock = Clock.Transport``) to ``transport`` at their ``rate``; returns the Subscriptions."""
+        return [transport.every(widget.rate, widget.tick) for widget in self.timed(pyxelwidgets.widgets.Clock.Transport)]
+
+    def start_clocks(self, *, lock = None) -> list:
+        """
+        Start a clock (a Transport, holding ``lock``) for each widget with a
+        clock of its own (``clock = Clock.Own``), following its ``bpm``; returns
+        them, to ``close()`` when done (``close_clocks``).
+        """
+        signature = self.transport_settings()['signature']
+        for widget in self.timed(pyxelwidgets.widgets.Clock.Own):
+            clock = pyxelwidgets.transport.Transport(widget.bpm, signature = signature, lock = lock)
+            def tick(count, widget = widget, clock = clock):
+                # The widget's tempo may change (e.g. from a link)
+                clock.bpm = widget.bpm
+                widget.tick(count)
+            clock.every(widget.rate, tick)
+            clock.play()
+            self.clocks.append(clock)
+        return list(self.clocks)
+
+    def close_clocks(self) -> None:
+        for clock in self.clocks:
+            clock.close()
+        self.clocks = []
 
     def app(self, fps: float = 60.0):
-        """An App running the surface, with Sequencers and Trackers following its transport."""
+        """An App running the surface, with the widgets following its transport, and their own clocks started."""
         import pyxelwidgets.app
         app = pyxelwidgets.app.App(self.surface, fps, **self.transport_settings())
         self.attach(app.transport)
+        self.start_clocks(lock = app.lock)
         self.bindings += self.bind(self.devices, app.transport, widgets = False)
         self.links += self.link(app.transport, widgets = False)
         return app
@@ -672,9 +710,9 @@ class Parser():
         if isinstance(action, str) and action.startswith('transport.'):
             if target is not None:
                 raise LayoutError(f'{where}.target: transport actions have no target')
-            if action not in ACTIONS:
-                raise LayoutError(f'{where}.action: unknown action {action!r} (transport actions: {", ".join(ACTIONS)})')
-            kind = None
+            if action not in ACTIONS and action not in VALUE_ACTIONS:
+                raise LayoutError(f'{where}.action: unknown action {action!r} (transport actions: {", ".join([*ACTIONS, *VALUE_ACTIONS])})')
+            kind = 'float' if action in VALUE_ACTIONS else None
         else:
             if target not in self.widgets:
                 raise LayoutError(f'{where}.target: no widget named {target!r}')
@@ -690,15 +728,17 @@ class Parser():
             return
         if value is None:
             raise LayoutError(f'{where}.value: {action} needs a value')
+        numbers = int if kind == 'int' else (int, float)
+        what = 'a whole number' if kind == 'int' else 'a number'
         if isinstance(value, dict):
             value = self._link_source(value, event, f'{where}.value')
-        elif isinstance(value, bool) or not isinstance(value, int):
-            raise LayoutError(f'{where}.value: must be a whole number, got {value!r}')
+        elif isinstance(value, bool) or not isinstance(value, numbers):
+            raise LayoutError(f'{where}.value: must be {what}, got {value!r}')
         setting['value'] = value
         for key, name in (('min', 'minimum'), ('max', 'maximum')):
             bound = entry.get(key)
-            if bound is not None and (isinstance(bound, bool) or not isinstance(bound, int)):
-                raise LayoutError(f'{where}.{key}: must be a whole number, got {bound!r}')
+            if bound is not None and (isinstance(bound, bool) or not isinstance(bound, numbers)):
+                raise LayoutError(f'{where}.{key}: must be {what}, got {bound!r}')
             setting[name] = bound
 
     def _link_option(self, entry: dict, setting: dict, event: type, where: str) -> None:
@@ -789,7 +829,7 @@ class Parser():
             if action is not None and action.startswith('transport.'):
                 if transport is None:
                     continue
-                target, option = ACTIONS[action](transport), None
+                target, option = (ACTIONS.get(action) or VALUE_ACTIONS[action])(transport), None
             elif not widgets:
                 continue
             elif action is not None:
