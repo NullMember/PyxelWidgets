@@ -20,6 +20,7 @@ _exports = {
     'Pulse': 'animation',
     'Binding': 'binding',
     'Link': 'link',
+    'Condition': 'link',
     'Mapping': 'mapping',
     'Source': 'message',
     'Takeover': 'binding',
