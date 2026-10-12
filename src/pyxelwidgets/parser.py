@@ -3,7 +3,7 @@ Layout files: a JSON description of a Surface, the devices it is shown on and
 its widgets, as written by the designer (``python -m pyxelwidgets.designer``).
 
     {
-      "format": "pyxelwidgets.layout", "version": 5,
+      "format": "pyxelwidgets.layout", "version": 6,
       "surface": {"width": 9, "height": 9},
       "transport": {"bpm": 120, "signature": [4, 4]},
       "devices": [{"type": "novation.LaunchpadMiniMK3", "x": 0, "y": 0, "options": {}}],
@@ -15,6 +15,10 @@ its widgets, as written by the designer (``python -m pyxelwidgets.designer``).
       "mappings": [
         {"widget": "volume", "on": "Changed", "output": "daw", "feedback": true,
          "message": {"type": "Command", "name": "Fader 1", "value": {"source": "value"}}}
+      ],
+      "links": [
+        {"widget": "show", "on": "Changed", "target": "page", "option": "visible", "value": {"source": "value"}},
+        {"widget": "up", "on": "Pressed", "target": "keys", "option": "octave", "change": "Add", "value": 1, "max": 4}
       ],
       "widgets": [
         {"type": "Fader", "name": "volume", "x": 0, "y": 0, "width": 1, "height": 8,
@@ -45,6 +49,13 @@ Control, HUI (``devices`` modules, with ``input``/``output`` port names or a
 constant or ``{"source": "velocity", "min": 0, "max": 127, "offset": 0}``);
 with ``feedback`` what the output receives updates the widget.
 
+Links change a ``target`` widget's ``option`` (one of its options, or ``x``,
+``y``, ``width``, ``height``) on a widget's ``on`` event: ``change`` is
+``Set`` (default), ``Add`` or ``Toggle``; ``value`` is a constant encoded like
+the option, or ``{"source": "value", "offset": 0}``; optional ``min``/``max``
+are the range a 0.0-1.0 source covers and clamp numbers (see
+``pyxelwidgets.link``).
+
 Load a layout and attach behaviour by widget name::
 
     ui = pyxelwidgets.parser.load('layout.json')
@@ -73,6 +84,7 @@ import pyxelwidgets.buffer
 import pyxelwidgets.color
 import pyxelwidgets.events
 import pyxelwidgets.group
+import pyxelwidgets.link
 import pyxelwidgets.mapping
 import pyxelwidgets.message
 import pyxelwidgets.rate
@@ -81,7 +93,7 @@ import pyxelwidgets.transport
 import pyxelwidgets.widgets
 
 FORMAT = 'pyxelwidgets.layout'
-VERSION = 5
+VERSION = 6
 
 # Actions a binding can trigger, on the transport given to Parser.bind
 ACTIONS = {
@@ -97,6 +109,10 @@ ANIMATIONS = {cls.__name__: cls for cls in (pyxelwidgets.animation.Blink, pyxelw
 # Messages mappings send, by class name
 MESSAGES = {name: getattr(pyxelwidgets.message, name) for name in (
     'NoteOn', 'NoteOff', 'ControlChange', 'ProgramChange', 'PitchBend', 'PolyPressure', 'ChannelPressure', 'OscMessage', 'Command')}
+
+# Option kinds a link can take an event value for, and the ones it can add to or toggle
+LINK_SOURCES = {'bool', 'int', 'float', 'color', 'enum', 'str'}
+LINK_CHANGES = {'Set': None, 'Add': {'int', 'float', 'enum'}, 'Toggle': {'bool', 'enum'}}
 
 # Suggested values for rate options; any note value is accepted
 RATES = ['1/1', '1/2', '1/4', '1/8', '1/16', '1/32', '1/4.', '1/8.', '1/16.', '1/4T', '1/8T', '1/16T', 'beat', 'bar']
@@ -249,6 +265,11 @@ def _doc(cls) -> str:
     # Only the class's own docstring: an inherited one describes the base class
     return inspect.cleandoc(cls.__dict__['__doc__']).split('\n\n')[0].replace('\n', ' ') if cls.__dict__.get('__doc__') else ''
 
+def linkable(cls) -> list:
+    """Options of a widget class a link can change: its position and size, then its options (not Sprite frames)."""
+    geometry = [{'name': name, 'kind': 'int'} for name in ('x', 'y', 'width', 'height')]
+    return geometry + [option for option in option_schema(cls) if option['kind'] != 'frames']
+
 def schema() -> dict:
     """Widget types with their options (kind, default, enum choices), for building editors."""
     widgets = {}
@@ -260,13 +281,16 @@ def schema() -> dict:
             'bindable': issubclass(cls, pyxelwidgets.widgets.ValueWidget),
             'options': option_schema(cls),
             'events': [event.__name__ for event in cls.events()],
+            'linkable': linkable(cls),
         }
     events = {event.__name__: {'doc': _doc(event), 'sources': pyxelwidgets.mapping.available(event)}
               for cls in widget_types().values() for event in cls.events()}
     return {'format': FORMAT, 'version': VERSION, 'widgets': widgets,
             'animations': {name: {'doc': _doc(cls), 'options': option_schema(cls)} for name, cls in ANIMATIONS.items()},
             'binding': {'options': option_schema(pyxelwidgets.binding.Binding), 'actions': list(ACTIONS)},
-            'events': events, 'messages': message_schema()}
+            'events': events, 'messages': message_schema(),
+            'link': {'changes': {name: sorted(kinds) if kinds else None for name, kinds in LINK_CHANGES.items()},
+                     'sources': sorted(LINK_SOURCES)}}
 
 def message_schema() -> dict:
     """Mapping message types with their fields: name, default (encoded) and range (whole numbers) or kind."""
@@ -444,6 +468,7 @@ class Parser():
             for index, entry in enumerate(self.output_settings()):
                 self.outputs[entry['name']] = build_output(entry, f'outputs[{index}]')
         self.mappings = self.map(self.outputs) if devices else []
+        self.links = self.link()
 
     def __getitem__(self, name: str):
         return self.widgets[name]
@@ -600,6 +625,109 @@ class Parser():
         return [self.surface.map(self.widgets[widget], outputs[output], message, on = on, feedback = feedback)
                 for widget, on, output, message, feedback in self.mapping_settings() if output in outputs]
 
+    def link_settings(self) -> list:
+        """The layout's links as (widget name, event class, target name, option, value, change, minimum, maximum)."""
+        links = self.json.get('links') or []
+        if not isinstance(links, list):
+            raise LayoutError('links: must be a list')
+        settings = []
+        for index, entry in enumerate(links):
+            where = f'links[{index}]'
+            if not isinstance(entry, dict):
+                raise LayoutError(f'{where}: must be an object')
+            unknown = set(entry) - {'widget', 'on', 'target', 'option', 'change', 'value', 'min', 'max'}
+            if unknown:
+                raise LayoutError(f'{where}: unknown keys {", ".join(sorted(unknown))}')
+            widget, on, target, option = entry.get('widget'), entry.get('on'), entry.get('target'), entry.get('option')
+            for key, name in (('widget', widget), ('target', target)):
+                if name not in self.widgets:
+                    raise LayoutError(f'{where}.{key}: no widget named {name!r}')
+            events = {cls.__name__: cls for cls in type(self.widgets[widget]).events()}
+            if on not in events:
+                raise LayoutError(f'{where}.on: {widget} ({type(self.widgets[widget]).__name__}) has no event {on!r} (events: {", ".join(events)})')
+            cls = type(self.widgets[target])
+            options = {item['name']: item for item in linkable(cls)}
+            if option not in options:
+                raise LayoutError(f'{where}.option: {target} ({cls.__name__}) has no option {option!r} (options: {", ".join(options)})')
+            kind = options[option]['kind']
+            change = entry.get('change', 'Set')
+            if change not in LINK_CHANGES:
+                raise LayoutError(f'{where}.change: must be one of {", ".join(LINK_CHANGES)}, got {change!r}')
+            kinds = LINK_CHANGES[change]
+            if kinds is not None and kind not in kinds:
+                raise LayoutError(f'{where}.change: {change} works on {" and ".join(sorted(kinds))} options, {option!r} is {kind}')
+            value = entry.get('value')
+            if change == 'Toggle':
+                if value is not None:
+                    raise LayoutError(f'{where}.value: Toggle takes no value')
+            elif value is None:
+                raise LayoutError(f'{where}.value: needed to {change}')
+            elif isinstance(value, dict):
+                value = self._link_source(value, events[on], f'{where}.value')
+                if change == 'Set' and kind not in LINK_SOURCES:
+                    raise LayoutError(f'{where}.value: {option!r} ({kind}) takes a constant')
+                if kind == 'color' and value.integer:
+                    raise LayoutError(f'{where}.value: a color takes a 0.0-1.0 value, not {value.name!r}')
+            elif change == 'Add':
+                if isinstance(value, bool) or not isinstance(value, (int, float)) or (kind != 'float' and not isinstance(value, int)):
+                    raise LayoutError(f'{where}.value: Add takes a {"number" if kind == "float" else "whole number"}, got {value!r}')
+            else:
+                value = self._link_constant(cls, option, kind, value, f'{where}.value')
+            bounds = []
+            for key in ('min', 'max'):
+                bound = entry.get(key)
+                if bound is not None:
+                    if kind not in ('int', 'float', 'color', 'enum', 'str'):
+                        raise LayoutError(f'{where}.{key}: {option!r} ({kind}) has no range')
+                    if kind == 'str':
+                        # The numbers text shows a 0.0-1.0 value as
+                        if isinstance(bound, bool) or not isinstance(bound, (int, float)):
+                            raise LayoutError(f'{where}.{key}: must be a number, got {bound!r}')
+                    else:
+                        bound = self._link_constant(cls, option, kind, bound, f'{where}.{key}')
+                bounds.append(bound)
+            settings.append((widget, events[on], target, option, value, pyxelwidgets.link.Link.Change[change], *bounds))
+        return settings
+
+    @staticmethod
+    def _link_source(value: dict, event: type, where: str) -> pyxelwidgets.message.Source:
+        name, offset = value.get('source'), value.get('offset', 0)
+        if set(value) - {'source', 'offset'} or not isinstance(name, str):
+            raise LayoutError(f'{where}: a source is {{"source": name, "offset": n}} (the range is the link\'s "min" and "max"), got {value!r}')
+        names = pyxelwidgets.mapping.available(event)
+        if name not in names:
+            raise LayoutError(f'{where}.source: {event.__name__} has no {name!r} (it has {", ".join(names)})')
+        if isinstance(offset, bool) or not isinstance(offset, int):
+            raise LayoutError(f'{where}.offset: must be a whole number, got {offset!r}')
+        return pyxelwidgets.message.Source(name, offset = offset)
+
+    @staticmethod
+    def _link_constant(cls, option: str, kind: str, value, where: str):
+        """A link value or bound encoded like the option (geometry: whole numbers)."""
+        if option in ('x', 'y', 'width', 'height') or kind == 'int':
+            if isinstance(value, bool) or not isinstance(value, int):
+                raise LayoutError(f'{where}: must be a whole number, got {value!r}')
+            return value
+        if kind == 'float':
+            if isinstance(value, bool) or not isinstance(value, (int, float)):
+                raise LayoutError(f'{where}: must be a number, got {value!r}')
+            return float(value)
+        if kind == 'bool' and not isinstance(value, bool):
+            raise LayoutError(f'{where}: must be true or false, got {value!r}')
+        try:
+            return _options(cls, {option: value}, where)[option]
+        except LayoutError as error:
+            # Name the value, not the option
+            raise LayoutError(str(error).replace(f'{where}.options.{option}', where)) from None
+
+    def link(self) -> list:
+        """Create the layout's links on the surface; returns the Links."""
+        created = []
+        for widget, on, target, option, value, change, minimum, maximum in self.link_settings():
+            created.append(self.surface.link(self.widgets[widget], self.widgets[target], option, value,
+                                             on = on, change = change, minimum = minimum, maximum = maximum))
+        return created
+
     def binding_settings(self) -> list:
         """The layout's bindings as (device index, control, widget or None, action or None, Binding options)."""
         bindings = self.json.get('bindings') or []
@@ -654,7 +782,7 @@ def upgrade(layout: dict) -> dict:
     if version == VERSION:
         return layout
     layout = _from_version_1(layout) if version == 1 else copy.deepcopy(layout)
-    # Version 3 added the optional "bindings" and version 5 "outputs" and "mappings"; nothing to convert
+    # Version 3 added the optional "bindings", version 5 "outputs" and "mappings", version 6 "links"; nothing to convert
     _from_version_3(layout.get('widgets'))
     layout['version'] = VERSION
     return layout
