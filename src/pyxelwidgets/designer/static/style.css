@@ -369,3 +369,10 @@ dialog .recent-list li:hover { background: var(--accent-soft); }
 body.dragging .welcome { display: none; }
 .events li.debug { color: var(--text); }
 .events li.debug .kind { color: var(--device); }
+.control.value.condition { flex-direction: column; align-items: stretch; }
+.cond-row { display: flex; gap: 6px; align-items: center; min-width: 0; }
+.cond-row .word { color: var(--muted); font-size: 12px; width: 30px; flex: none; }
+.cond-row select { flex: 1; min-width: 0; }
+.cond-row select.op { flex: none; width: 56px; }
+.cond-row .color { flex: 1; }
+.control.value.condition > select { flex: none; }

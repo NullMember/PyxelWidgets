@@ -950,21 +950,79 @@ function linkFields(widget) {
 }
 
 // The value a link sets or adds: a constant, or an event value with its range (or offset)
+// "if <event value> <op> <constant> then <value> else <value>"
+function conditionEditor(link, option, id, edit, change) {
+  const condition = link.value;
+  const sources = sourceNames(link.on).filter((name) => name !== 'text');
+  const source = condition.if?.source;
+  const choose = (key) => {
+    const commit = (value) => edit(() => { link.value[key] = value; });
+    if (change === 'Add' || option.action) {
+      return el('input', {
+        type: 'number', class: 'small', id: id(key), value: condition[key] ?? 0, step: option.kind === 'float' || option.action ? 'any' : 1,
+        onchange: (e) => commit(Number(e.target.value)),
+      });
+    }
+    return optionControl(option, condition[key], (value) => { if (value !== undefined) commit(value); }, id(key))[0];
+  };
+  return [
+    el('div', { class: 'cond-row' },
+      el('span', { class: 'word' }, 'if'),
+      el('select', {
+        id: id('if'), title: 'The event value to compare',
+        onchange: (e) => edit(() => { link.value.if = { source: e.target.value }; }),
+      }, sources.map((name) => el('option', { value: name, selected: name === source }, name)),
+      source && !sources.includes(source) ? el('option', { value: source, selected: true }, `${source} (not available)`) : null),
+      el('select', {
+        id: id('op'), class: 'op',
+        onchange: (e) => edit(() => { link.value.op = e.target.value; }),
+      }, state.catalog.link.operators.map((op) => el('option', { value: op, selected: op === (condition.op || '==') }, op))),
+      el('input', {
+        type: 'text', class: 'small', id: id('to'), value: condition.to ?? 0,
+        title: INTEGER_SOURCES.has(source) ? 'A whole number (cell 0 is the bottom-left pad)' : '0.0-1.0 values are compared as they are',
+        onchange: (e) => edit(() => {
+          const text = e.target.value.trim();
+          link.value.to = /^-?\d*\.?\d+$/.test(text) ? Number(text) : text;
+        }),
+      })),
+    el('div', { class: 'cond-row' }, el('span', { class: 'word' }, 'then'), choose('then')),
+    el('div', { class: 'cond-row' }, el('span', { class: 'word' }, 'else'), choose('else')),
+  ];
+}
+
+// A link's value in words: "cell == 3 ? true : false", "{value}", "1"
+function describeValue(link) {
+  const value = link.value;
+  if (value && typeof value === 'object' && 'if' in value) return `${value.if.source} ${value.op || '=='} ${value.to} ? ${value.then} : ${value.else}`;
+  if (value && typeof value === 'object') return `{${value.source}}`;
+  return value === undefined ? '' : String(value);
+}
+
 function linkValueEditor(link, option, id, edit) {
   const change = link.change || 'Set';
   const sources = linkSources(link.on, option.kind, change);
-  const isSource = link.value && typeof link.value === 'object' && !Array.isArray(link.value);
+  const isCondition = !!(link.value && typeof link.value === 'object' && 'if' in link.value);
+  const isSource = !isCondition && link.value && typeof link.value === 'object' && !Array.isArray(link.value);
   const constant = change === 'Add' ? 1 : option.action ? 0 : layoutValue(widgetNamed(link.target), option);
   const mode = el('select', {
-    id: id('value'), title: 'A constant, or a value from the event',
+    id: id('value'), title: 'A constant, a value from the event, or a condition choosing between two values',
     onchange: (e) => edit(() => {
       delete link.min;
       delete link.max;
+      if (e.target.value === '\u0000if') {
+        // Compares an event value (a whole number one first: cell, x...) with a constant
+        const all = sourceNames(link.on).filter((name) => name !== 'text');
+        const first = all.includes('cell') ? 'cell' : all.find((name) => INTEGER_SOURCES.has(name)) || all[0];
+        const onOff = option.kind === 'bool' && change === 'Set';
+        link.value = { if: { source: first }, op: '==', to: 0, then: onOff ? true : constant, else: onOff ? false : (option.action ? 0 : option.default ?? constant) };
+        return;
+      }
       link.value = e.target.value === '' ? constant : { source: e.target.value };
       if (change === 'Set' && option.kind === 'str' && !INTEGER_SOURCES.has(e.target.value)) Object.assign(link, { min: 0, max: 100 });
     }),
   },
-  el('option', { value: '', selected: !isSource }, 'constant'),
+  el('option', { value: '', selected: !isSource && !isCondition }, 'constant'),
+  el('option', { value: '\u0000if', selected: isCondition }, 'condition…'),
   sources.map((name) => el('option', { value: name, selected: isSource && link.value.source === name }, name)),
   isSource && !sources.includes(link.value.source) ? el('option', { value: link.value.source, selected: true }, `${link.value.source} (not available)`) : null);
   const number = (key, placeholder, attrs = {}) => el('input', {
@@ -975,6 +1033,9 @@ function linkValueEditor(link, option, id, edit) {
     }),
   });
   let detail = null;
+  if (isCondition) {
+    return el('div', { class: 'control value condition' }, mode, conditionEditor(link, option, id, edit, change));
+  }
   if (!isSource) {
     if (change === 'Add') {
       detail = el('input', {
@@ -1274,7 +1335,8 @@ function connectionRows() {
   for (const link of state.layout.links || []) {
     const to = link.target || (link.action === 'debug' ? 'Debug log' : 'Transport');
     const what = link.action ? `${link.on} → ${link.action.replace(/^transport\./, '')}` : `${link.on} → ${(link.change || 'set').toLowerCase()} ${link.option}`;
-    rows.push(['link', link.widget, to, what, () => selectWidgetNamed(link.widget)]);
+    const value = describeValue(link);
+    rows.push(['link', link.widget, to, value ? `${what} = ${value}` : what, () => selectWidgetNamed(link.widget)]);
   }
   for (const mapping of state.layout.mappings || []) {
     const message = mapping.message || {};
@@ -2516,7 +2578,8 @@ function controlledBy(widget) {
   for (const link of state.layout.links || []) {
     if (link.target !== widget.name || link.widget === widget.name) continue;
     const what = link.action ? `${link.on} → ${link.action}` : `${link.on} → ${(link.change || 'set').toLowerCase()} ${link.option}`;
-    items.push({ from: link.widget, what, go: () => selectWidgetNamed(link.widget) });
+    const value = describeValue(link);
+    items.push({ from: link.widget, what: value ? `${what} = ${value}` : what, go: () => selectWidgetNamed(link.widget) });
   }
   for (const binding of state.layout.bindings || []) {
     if (binding.widget !== widget.name) continue;
