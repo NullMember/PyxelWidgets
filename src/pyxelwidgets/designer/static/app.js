@@ -29,6 +29,7 @@ const state = {
   playing: false,
   hardware: { devices: [], outputs: [] },
   dragType: null, // a palette widget type being dragged onto the grid
+  zoom: 1, // pad size relative to the size that fits the window
   error: null,
   frameSize: [0, 0],
   spriteFrame: 0, // the Sprite frame being painted
@@ -516,6 +517,59 @@ function messageFields(widget) {
   ];
 }
 
+const COMMAND_KINDS = [
+  ['button', 'Buttons'], ['fader', 'Faders'], ['relative', 'V-Pots and jog wheel (steps)'],
+  ['display', 'Displays (received)'], ['meter', 'Meters (received)'],
+];
+
+// An output's commands for a picker: by kind, then numbered families as one per pad ('Mute {x+1}')
+function commandChoices(info) {
+  const commands = info?.commands || [];
+  if (!commands.length) return [];
+  const groups = COMMAND_KINDS.map(([kind, label]) => ({
+    label, items: commands.filter((command) => command.kind === kind).map((command) => ({ value: command.name, kind })),
+  }));
+  const families = new Map();
+  for (const command of commands) {
+    const match = command.name.match(/^(.*\D) 1$/);
+    if (match && commands.some((other) => other.name === `${match[1]} 2`)) families.set(`${match[1]} {x+1}`, command.kind);
+  }
+  groups.push({ label: 'One per pad column: {x+1} (use {y+1} or {cell+1} by typing)', items: [...families].map(([value, kind]) => ({ value, kind })) });
+  return groups.filter((group) => group.items.length);
+}
+
+function addressChoices(info) {
+  const addresses = info?.addresses || [];
+  return addresses.length ? [{ label: info.model, items: addresses.map((value) => ({ value })) }] : [];
+}
+
+// Set a picked command (or address) and give the message a value that suits it
+function pickName(widget, mapping, field, item) {
+  change(() => {
+    mapping.message[field] = item.value;
+    if (mapping.message.type !== 'Command' || !item.kind) return;
+    const xy = widget.type === 'XY';
+    const wanted = { fader: xy ? 'value_x' : 'value', meter: 'value', relative: 'delta', display: 'text' }[item.kind];
+    if (item.kind === 'display' || item.kind === 'meter') {
+      // Only the DAW sends these
+      delete mapping.on;
+      mapping.feedback = true;
+    }
+    if (wanted) mapping.message.value = { source: wanted };
+    else if (typeof mapping.message.value === 'object') mapping.message.value = mapping.on === 'Released' ? 0 : 1;
+    // Sent on an event that has every value it uses ({x+1} needs x), else only received
+    const needed = messageSources(mapping.message);
+    if (mapping.on && !needed.every((name) => sourceNames(mapping.on).includes(name))) {
+      const event = (state.catalog.widgets[widget.type]?.events || []).find((name) => needed.every((source) => sourceNames(name).includes(source)));
+      if (event) mapping.on = event;
+      else {
+        delete mapping.on;
+        mapping.feedback = true;
+      }
+    }
+  });
+}
+
 function mappingCard(widget, mapping, index) {
   const events = state.catalog.widgets[widget.type]?.events || [];
   const output = outputsOf().find((candidate) => candidate.name === mapping.output);
@@ -526,9 +580,6 @@ function mappingCard(widget, mapping, index) {
   const edit = (mutate) => change(() => mutate(mapping));
   const sources = sourceNames(mapping.on);
   const setField = (name) => (value) => edit(() => { mapping.message[name] = value; });
-  const suggestions = message.type === 'Command'
-    ? (info?.commands || []).map((command) => command.name)
-    : message.type === 'OscMessage' ? (info?.addresses || []) : [];
   const fieldEditors = (schema?.fields || []).flatMap((field) => {
     if (field.kind === 'list') {
       // OSC arguments
@@ -544,12 +595,29 @@ function mappingCard(widget, mapping, index) {
     }
     const value = field.name in message ? message[field.name] : field.default;
     if (field.kind === 'text') {
-      const list = `${id(field.name)}-list`;
+      const groups = message.type === 'Command' ? commandChoices(info) : message.type === 'OscMessage' ? addressChoices(info) : [];
+      const known = groups.some((group) => group.items.some((item) => item.value === value));
+      const input = el('input', {
+        type: 'text', id: id(field.name), value: value ?? '', hidden: !!(groups.length && known),
+        title: 'Placeholders like {x+1} take a value from the event', onchange: (e) => setField(field.name)(e.target.value),
+      });
+      const picker = groups.length ? el('select', {
+        id: id(`${field.name}-pick`), title: 'Pick one, or Custom to type a name with {x+1} placeholders',
+        onchange: (e) => {
+          if (e.target.value === '') {
+            input.hidden = false;
+            return input.focus();
+          }
+          const item = groups.flatMap((group) => group.items).find((candidate) => candidate.value === e.target.value);
+          pickName(widget, mapping, field.name, item);
+        },
+      },
+      groups.map((group) => el('optgroup', { label: group.label },
+        group.items.map((item) => el('option', { value: item.value, selected: item.value === value }, item.value)))),
+      el('option', { value: '', selected: !known }, 'Custom…')) : null;
       return [
-        el('label', { for: id(field.name), title: 'Placeholders like {x+1} take a value from the event' }, field.name),
-        el('div', { class: 'control' },
-          el('input', { type: 'text', id: id(field.name), value: value ?? '', list, onchange: (e) => setField(field.name)(e.target.value) }),
-          el('datalist', { id: list }, suggestions.map((name) => el('option', { value: name })))),
+        el('label', { for: id(groups.length ? `${field.name}-pick` : field.name) }, field.name),
+        el('div', { class: 'control picker' }, picker, input),
       ];
     }
     return [el('label', { for: id(field.name) }, field.name), valueEditor(id(field.name), value, field, sources, setField(field.name))];
@@ -800,8 +868,10 @@ function renderBoard() {
   const stage = $('stage');
   const gap = 4;
   const fit = (space, count) => Math.floor((space - 80 - gap * (count - 1)) / count);
-  const pad = Math.max(22, Math.min(64, fit(stage.clientWidth, width), fit(stage.clientHeight - 40, height)));
+  const fitted = Math.max(22, Math.min(64, fit(stage.clientWidth, width), fit(stage.clientHeight - 40, height)));
+  const pad = clamp(Math.round(fitted * state.zoom), 8, 240);
   document.documentElement.style.setProperty('--pad', `${pad}px`);
+  $('zoom-fit').textContent = state.zoom === 1 ? 'Fit' : `${Math.round(state.zoom * 100)}%`;
   if (state.frameSize[0] === width && state.frameSize[1] === height) return;
   state.frameSize = [width, height];
   const pads = $('pads');
@@ -815,6 +885,24 @@ function renderBoard() {
       }));
     }
   }
+}
+
+// Zoom the grid; the point under ``anchor`` (a pointer event) stays put, else the middle
+function setZoom(zoom, anchor = null) {
+  zoom = clamp(zoom, 0.25, 6);
+  if (Math.abs(zoom - 1) < 0.04) zoom = 1;
+  const stage = $('stage');
+  const bounds = stage.getBoundingClientRect();
+  const px = anchor ? anchor.clientX - bounds.left : stage.clientWidth / 2;
+  const py = anchor ? anchor.clientY - bounds.top : stage.clientHeight / 2;
+  const before = step();
+  const fx = stage.scrollLeft + px, fy = stage.scrollTop + py;
+  state.zoom = zoom;
+  renderBoard();
+  renderOverlay();
+  const ratio = step() / before;
+  stage.scrollLeft = fx * ratio - px;
+  stage.scrollTop = fy * ratio - py;
 }
 
 function place(node, x, y, width, height) {
@@ -1781,6 +1869,15 @@ function bindToolbar() {
     renderToolbar();
     await api('POST', '/api/play', { playing: state.playing });
   };
+  $('zoom-in').onclick = () => setZoom(state.zoom * 1.25);
+  $('zoom-out').onclick = () => setZoom(state.zoom / 1.25);
+  $('zoom-fit').onclick = () => setZoom(1);
+  // Ctrl/Cmd + scroll and trackpad pinches zoom around the pointer
+  $('stage').addEventListener('wheel', (event) => {
+    if (!event.ctrlKey && !event.metaKey) return;
+    event.preventDefault();
+    setZoom(state.zoom * Math.exp(-event.deltaY * 0.0025), event);
+  }, { passive: false });
   $('undo').onclick = undo;
   $('redo').onclick = redo;
   $('save').onclick = save;
@@ -1807,6 +1904,9 @@ function bindToolbar() {
     const key = event.key.toLowerCase();
     if (mod && key === 'z') { event.preventDefault(); return event.shiftKey ? redo() : undo(); }
     if (mod && key === 'y') { event.preventDefault(); return redo(); }
+    if (mod && (key === '=' || key === '+')) { event.preventDefault(); return setZoom(state.zoom * 1.25); }
+    if (mod && key === '-') { event.preventDefault(); return setZoom(state.zoom / 1.25); }
+    if (mod && key === '0') { event.preventDefault(); return setZoom(1); }
     if (mod && key === 's') { event.preventDefault(); return save(); }
     if (mod && key === 'd' && state.selection?.kind === 'widget') { event.preventDefault(); return duplicate(); }
     if (mod && key === 'a' && state.mode === 'edit') { event.preventDefault(); return selectAll(); }
