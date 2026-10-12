@@ -1879,6 +1879,354 @@ class Tracker(Timed, Widget):
         self.bar = self._bar
         return True
 
+# DrumPads class
+class DrumPads(Widget):
+    """
+    Drum pads: one note per pad, ``note`` at the bottom-left, then left to
+    right and up (4x4 from 36 is the General MIDI kit), moved by ``bank``
+    times the pads. Emits NoteOn/NoteOff; pads light while held (brighter for
+    harder hits) and for notes received, e.g. a DAW playing the pattern back.
+    """
+
+    emits = (pyxelwidgets.events.NoteOn, pyxelwidgets.events.NoteOff)
+
+    def __init__(self, x: int = 0, y: int = 0, width: int = 1, height: int = 1, *,
+                 note: int = 36,
+                 bank: int = 0,
+                 velocity: bool = True,
+                 active_color: pyxelwidgets.color.Color = pyxelwidgets.color.Colors.Orange,
+                 inactive_color: pyxelwidgets.color.Color = pyxelwidgets.color.Color(64, 32, 0),
+                 **kwargs):
+        """
+        note: int = 36, optional
+            The note of the bottom-left pad.
+        bank: int = 0, optional
+            Moves every pad's note by this many times the number of pads (e.g. linked to bank buttons).
+        velocity: bool = True, optional
+            Light pads by how hard they're hit (and pressed); else fully.
+        """
+        self.note = note
+        self.bank = bank
+        self.velocity = velocity
+        self.levels = numpy.zeros((1, 1))
+        super().__init__(x, y, width, height, active_color = active_color, inactive_color = inactive_color, **kwargs)
+
+    def note_at(self, x: int, y: int) -> int | None:
+        """The note of the pad at ``x``, ``y``, or None if it is beyond 127."""
+        note = self.note + self.bank * self.rect.area + x + y * self.rect.w
+        return note if 0 <= note <= 127 else None
+
+    def handle_press(self, x: int, y: int, velocity: float) -> None:
+        note = self.note_at(x, y)
+        if note is not None:
+            self._light(x, y, velocity)
+            self.emit(pyxelwidgets.events.NoteOn(self, note, velocity))
+
+    def handle_release(self, x: int, y: int, velocity: float) -> None:
+        note = self.note_at(x, y)
+        if note is not None:
+            self._light(x, y, 0.0)
+            self.emit(pyxelwidgets.events.NoteOff(self, note, velocity))
+
+    def handle_pressure(self, x: int, y: int, pressure: float) -> None:
+        if self.levels[x, y] > 0:
+            self._light(x, y, max(pressure, 0.01))
+
+    def receive(self, values: dict) -> None:
+        """Light the pad of a received ``note`` (or ``x``/``y``, ``cell``) by its velocity or value."""
+        super().receive(values)
+        level = _level(values)
+        if level is None:
+            return
+        if 'note' in values:
+            cell = int(values['note']) - self.note - self.bank * self.rect.area
+        elif 'cell' in values:
+            cell = int(values['cell'])
+        else:
+            cell = int(values.get('x', 0)) + int(values.get('y', 0)) * self.rect.w
+        if 0 <= cell < self.rect.area:
+            self._light(cell % self.rect.w, cell // self.rect.w, level)
+
+    def _light(self, x: int, y: int, level: float) -> None:
+        self.levels[x, y] = (level if self.velocity else 1.0) if level > 0 else 0.0
+        self.updated = True
+
+    def draw(self) -> None:
+        for x in range(self.rect.w):
+            for y in range(self.rect.h):
+                level = self.levels[x, y]
+                if self.note_at(x, y) is None:
+                    self.buffer[x, y] = pyxelwidgets.color.Colors.Black
+                elif level > 0:
+                    # Never too dim to see
+                    self.buffer[x, y] = self.active_color * (0.3 + 0.7 * level)
+                else:
+                    self.buffer[x, y] = self.inactive_color
+
+    def _resize(self, width, height) -> bool:
+        self.levels = numpy.zeros((width, height))
+        return True
+
+# Meter class
+class Meter(ValueWidget):
+    """
+    A level meter: the value lights a bar from the bottom (or the left), in
+    ``active_color`` up to ``warning``, ``warning_color`` up to ``danger`` and
+    ``danger_color`` above. The highest level stays lit for ``hold`` seconds.
+    Display only: values come from links, mappings (a DAW's meters) or code.
+    """
+
+    class Direction(enum.Enum):
+        Vertical    = enum.auto()
+        Horizontal  = enum.auto()
+
+    def __init__(self, x: int, y: int, width: int, height: int, *,
+                 direction: Direction = Direction.Vertical,
+                 warning: float = 0.6,
+                 danger: float = 0.85,
+                 hold: float = 1.0,
+                 falloff: float = 0.0,
+                 active_color: pyxelwidgets.color.Color = pyxelwidgets.color.Colors.Lime,
+                 warning_color: pyxelwidgets.color.Color = pyxelwidgets.color.Colors.Yellow,
+                 danger_color: pyxelwidgets.color.Color = pyxelwidgets.color.Colors.Red,
+                 interactive: bool = False,
+                 propagation: Propagation = Propagation.Pass,
+                 clock: typing.Callable[[], float] = time.monotonic,
+                 **kwargs):
+        """
+        warning, danger: float, optional
+            Levels (0.0-1.0) where the bar turns ``warning_color`` and ``danger_color``.
+        hold: float = 1.0, optional
+            Seconds the peak stays lit; 0 doesn't show it.
+        falloff: float = 0.0, optional
+            How fast the bar falls, in full heights per second; 0 falls at once (e.g. meters a DAW already smooths).
+        """
+        self.direction = direction
+        self.warning = warning
+        self.danger = danger
+        self.hold = hold
+        self.falloff = falloff
+        self.warning_color = warning_color
+        self.danger_color = danger_color
+        self.clock = clock
+        self._shown = 0.0
+        self._peak = 0.0
+        self._peak_time = clock()
+        self._last = clock()
+        super().__init__(x, y, width, height, interactive = interactive, active_color = active_color,
+                         propagation = propagation, **kwargs)
+        self._shown = self._peak = self._value
+
+    @property
+    def level(self) -> float:
+        """The level shown: the value, or above it while falling."""
+        return self._shown
+
+    @property
+    def peak(self) -> float:
+        return self._peak
+
+    def render(self, time = None) -> bool:
+        now = self.clock()
+        elapsed, self._last = now - self._last, now
+        shown, peak = self._shown, self._peak
+        if self.falloff > 0 and self._value < shown:
+            shown = max(self._value, shown - self.falloff * elapsed)
+        else:
+            shown = self._value
+        if shown >= peak:
+            peak, self._peak_time = shown, now
+        elif now - self._peak_time >= self.hold:
+            peak = shown
+        if (shown, peak) != (self._shown, self._peak):
+            self._shown, self._peak = shown, peak
+            self.updated = True
+        return super().render(time)
+
+    def _color(self, level: float) -> pyxelwidgets.color.Color:
+        if level > self.danger:
+            return self.danger_color
+        if level > self.warning:
+            return self.warning_color
+        return self.active_color
+
+    def draw(self) -> None:
+        vertical = self.direction == Meter.Direction.Vertical
+        cells = self.rect.h if vertical else self.rect.w
+        peak = min(int(self._peak * cells - 1e-9), cells - 1) if self.hold > 0 and self._peak > self._shown else -1
+        for index in range(cells):
+            # Each cell covers its part of the range; the top lit one is partly lit
+            lit = min(1.0, max(0.0, self._shown * cells - index))
+            color = self._color((index + 0.5) / cells)
+            if lit > 0:
+                color = color * lit
+            elif index != peak:
+                color = self.inactive_color
+            if vertical:
+                self.buffer[:, index] = color
+            else:
+                self.buffer[index, :] = color
+
+# ClipLauncher class
+class ClipLauncher(Timed, Widget):
+    """
+    A grid of clips, columns are tracks and rows scenes (scene 0 at the top).
+    Pressing a clip queues it (blinking) and it starts on the next ``rate``
+    from its clock, a bar by default, stopping the track's playing clip;
+    pressing a playing clip queues it to stop (pulsing). Without a clock
+    (``clock = Clock.Off``) clips start and stop at once. Emits ClipQueued,
+    ClipStarted and ClipStopped.
+    """
+
+    emits = (pyxelwidgets.events.ClipQueued, pyxelwidgets.events.ClipStarted, pyxelwidgets.events.ClipStopped)
+
+    actions = {'launch_scene': 'int', 'stop_track': 'int', 'stop_all': None, 'advance': None, **Timed.clock_actions}
+
+    Empty, Stopped, Playing = 0, 1, 2
+
+    def __init__(self, x: int = 0, y: int = 0, width: int = 1, height: int = 1, *,
+                 rate: Rate = 'bar',
+                 filled: bool = True,
+                 blink_rate: Rate | float = '1/8',
+                 active_color: pyxelwidgets.color.Color = pyxelwidgets.color.Colors.Lime,
+                 inactive_color: pyxelwidgets.color.Color = pyxelwidgets.color.Color(0, 72, 72),
+                 empty_color: pyxelwidgets.color.Color = pyxelwidgets.color.Colors.Black,
+                 **kwargs):
+        """
+        rate: Rate = 'bar', optional
+            When queued clips start and stop: every ``rate`` of its clock.
+        filled: bool = True, optional
+            Every slot starts with a clip; False starts empty (clips come from a DAW).
+        blink_rate: Rate | float = '1/8', optional
+            How fast queued clips blink.
+        active_color, inactive_color, empty_color: Color, optional
+            Playing clips, stopped clips and empty slots.
+        """
+        self.rate = rate
+        self.filled = filled
+        self.blink_rate = blink_rate
+        self.empty_color = empty_color
+        self.clips = numpy.zeros((1, 1), dtype = numpy.int8)
+        # Track (column) → (row, launch) waiting for the clock
+        self.queued = {}
+        super().__init__(x, y, width, height, active_color = active_color, inactive_color = inactive_color, **kwargs)
+        self.clips.fill(ClipLauncher.Stopped if filled else ClipLauncher.Empty)
+
+    def playing(self, track: int) -> int | None:
+        """The row of the clip playing in ``track``, or None."""
+        rows = numpy.flatnonzero(self.clips[track] == ClipLauncher.Playing)
+        return int(rows[0]) if len(rows) else None
+
+    def handle_press(self, x: int, y: int, velocity: float) -> None:
+        state = self.clips[x, y]
+        if state == ClipLauncher.Playing:
+            self.queue(x, y, False)
+        elif state == ClipLauncher.Stopped:
+            self.queue(x, y, True)
+
+    def queue(self, x: int, y: int, launch: bool) -> None:
+        """Start (``launch``) or stop the clip at ``x``, ``y`` on the next ``rate``, or at once without a clock."""
+        previous = self.queued.get(x)
+        if previous is not None:
+            self.animate_cell(x, previous[0], None)
+        self.queued[x] = (y, launch)
+        self.emit(pyxelwidgets.events.ClipQueued(self, x, y, launch))
+        if self.clock == Clock.Off:
+            self.advance()
+            return
+        animation = pyxelwidgets.animation.Blink(self.blink_rate) if launch else pyxelwidgets.animation.Pulse(self.blink_rate)
+        self.animate_cell(x, y, animation)
+
+    def launch_scene(self, scene: int) -> None:
+        """Queue the clips of ``scene`` (a row, 0 at the top); tracks without one stop."""
+        y = self.rect.h - 1 - int(scene)
+        if not 0 <= y < self.rect.h:
+            return
+        for x in range(self.rect.w):
+            if self.clips[x, y] != ClipLauncher.Empty:
+                if self.clips[x, y] != ClipLauncher.Playing:
+                    self.queue(x, y, True)
+            else:
+                self.stop_track(x)
+
+    def stop_track(self, track: int) -> None:
+        """Queue the clip playing in ``track`` (a column) to stop."""
+        if 0 <= track < self.rect.w:
+            row = self.playing(track)
+            if row is not None:
+                self.queue(track, row, False)
+
+    def stop_all(self) -> None:
+        for track in range(self.rect.w):
+            self.stop_track(track)
+
+    def play(self, count: int | None = None) -> None:
+        """Start and stop the queued clips (called every ``rate`` by its clock)."""
+        queued, self.queued = self.queued, {}
+        for x, (y, launch) in queued.items():
+            self.animate_cell(x, y, None)
+            row = self.playing(x)
+            if row is not None and (launch or row == y):
+                self.clips[x, row] = ClipLauncher.Stopped
+                self.emit(pyxelwidgets.events.ClipStopped(self, x, row))
+            if launch and self.clips[x, y] != ClipLauncher.Empty:
+                self.clips[x, y] = ClipLauncher.Playing
+                self.emit(pyxelwidgets.events.ClipStarted(self, x, y))
+        self.updated = True
+
+    def advance(self) -> None:
+        """Start and stop the queued clips now."""
+        self.play()
+
+    def receive(self, values: dict) -> None:
+        """
+        Show a clip's state from elsewhere (a DAW): at ``x``/``y`` (or ``cell``),
+        playing if the value is above 0, else stopped; ``flash`` shows it queued.
+        """
+        level = _level(values)
+        if 'cell' in values:
+            x, y = values['cell'] % self.rect.w, values['cell'] // self.rect.w
+        else:
+            x, y = values.get('x', 0), values.get('y', 0)
+        if level is None or not (0 <= x < self.rect.w and 0 <= y < self.rect.h):
+            return
+        if values.get('flash'):
+            self.animate_cell(x, y, pyxelwidgets.animation.Blink(self.blink_rate))
+            return
+        self.animate_cell(x, y, None)
+        if level > 0:
+            row = self.playing(x)
+            if row is not None:
+                self.clips[x, row] = ClipLauncher.Stopped
+            self.clips[x, y] = ClipLauncher.Playing
+        else:
+            self.clips[x, y] = ClipLauncher.Stopped
+        self.updated = True
+
+    def save_state(self) -> dict:
+        return {'clips': self.clips.copy()}
+
+    def load_state(self, state: dict) -> None:
+        if 'clips' in state:
+            _copy_overlap(self.clips, state['clips'])
+            self.updated = True
+
+    def draw(self) -> None:
+        colors = {ClipLauncher.Empty: self.empty_color, ClipLauncher.Stopped: self.inactive_color, ClipLauncher.Playing: self.active_color}
+        for x in range(self.rect.w):
+            for y in range(self.rect.h):
+                state = self.clips[x, y]
+                queued = self.queued.get(x)
+                # A queued clip blinks (or pulses) in the playing color
+                self.buffer[x, y] = self.active_color if queued is not None and queued[0] == y else colors[int(state)]
+
+    def _resize(self, width, height) -> bool:
+        old = self.clips
+        self.clips = numpy.full((width, height), ClipLauncher.Stopped if getattr(self, 'filled', True) else ClipLauncher.Empty, dtype = numpy.int8)
+        _copy_overlap(self.clips, old)
+        self.queued = {x: queued for x, queued in self.queued.items() if x < width and queued[0] < height}
+        return True
+
 # XY class
 class XY(ValueWidget):
     """A two dimensional value (x, y) set by pressing anywhere in the area."""
