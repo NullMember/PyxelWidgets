@@ -1109,6 +1109,7 @@ A playable note layout (piano, chromatic or in-scale) emitting NoteOn and NoteOf
 - `type: Type = Type.Diatonic, optional`: Keyboard: piano rows of white and black keys. Chromatic: every semitone, rows moved by `fold`. Diatonic: only the scale's notes, each row an octave above the one below; the vertical and horizontal variants overlap rows by `fold`.
 - `scale, root: optional`: The notes in key: lit in `keyboard_color` (the root in `root_color`) and the only ones Diatonic types lay out.
 - `transpose: int = 0, optional`: Semitones added to the notes played, without moving the layout or its colors.
+- `root_color, keyboard_color, non_scale_color: Color, optional`: The root notes, the other notes of the scale, and notes outside it (Chromatic and Keyboard types).
 
 - **`octave`** (settable)
 - **`fold`** (settable)
@@ -1220,6 +1221,8 @@ link actions (`set_velocity`, `set_probability`, `set_ratchets`,
 - `swing: float = 50.0, optional`: Where every second step starts, in percent of a pair of steps: 50 is straight, 66 a triplet feel, 75 the most. Needs a clock (calls of `play`/`advance` aren't delayed).
 - `gate: float = 0.5, optional`: How long an active step sounds, in steps (up to 1): StepEnded then. Without a clock it ends when the next step plays.
 - `gate_random: float = 0.0, optional`: Each hit's gate is longer or shorter by up to this many steps, at random.
+- `rate: Rate = '1/16', optional`: The length of a step: a note value such as '1/16', '1/8T' or 'bar'.
+- `current_color, current_active_color: Color, optional`: The playing step: its empty cells and its active ones.
 
 - **`pages`**
 - **`page`** (settable)
@@ -1270,6 +1273,7 @@ its notes (NoteOn, then NoteOff when they end) when `play(step)` or
 - `scale, root: optional`: The notes rows have: one row per note in the scale.
 - `root_color: Color, optional`: The background of the root's rows.
 - `current_color, current_active_color: Color, optional`: The playing step's column, and its notes.
+- `rate: Rate = '1/16', optional`: The length of a step (a note value).
 
 - **`steps`** (settable)
 - **`pages`**
@@ -1298,6 +1302,9 @@ Sprite(x: int, y: int, width: int, height: int, *, frames: widgets.Frames | None
 Shows a picture, or animates through `frames` changing every `rate`
 (a note value, or seconds). Display-only: presses pass through by default.
 
+- `frames: Frames, optional`: The pictures it shows (painted in the designer), fitted to its size from the bottom-left.
+- `rate: Rate | float, optional`: How long each frame shows: a note value or seconds; none shows the first frame only.
+
 - **`render(time: animation.Time | None = None)`**
 - **`draw()`**
 
@@ -1325,6 +1332,8 @@ active one turns it off when it's let go, unless it was edited while held
 - `bar: int = 0, optional`: The first row shown, at the top.
 - `follow: bool = True, optional`: Scroll to the playing row when it plays.
 - `note: int = 36, optional`: The first column's note; each column to the right plays the next one.
+- `rate: Rate = '1/16', optional`: How long each row plays (a note value).
+- `current_color, current_active_color: Color, optional`: The playing row: its empty cells and its active ones.
 
 - **`step`** (settable): The current row over all pages: `current_page * bars + current_bar`; setting it moves there without playing it.
 - **`page`** (settable): The page shown and edited.
@@ -1380,6 +1389,8 @@ Display only: values come from links, mappings (a DAW's meters) or code.
 - `warning, danger: float, optional`: Levels (0.0-1.0) where the bar turns `warning_color` and `danger_color`.
 - `hold: float = 1.0, optional`: Seconds the peak stays lit; 0 doesn't show it.
 - `falloff: float = 0.0, optional`: How fast the bar falls, in full heights per second; 0 falls at once (e.g. meters a DAW already smooths).
+- `direction: Direction = Direction.Vertical, optional`: The bar grows from the bottom (Vertical) or from the left (Horizontal).
+- `warning_color, danger_color: Color, optional`: The bar above `warning` and above `danger`.
 
 - **`level`**: The level shown: the value, or above it while falling.
 - **`peak`**
@@ -1453,6 +1464,11 @@ Text in a 3x5 pixel font (`pyxelwidgets.font`), e.g. a tempo or a track
 name, vertically centered. Text that doesn't fit scrolls (`scroll`) at
 `speed` columns per second. Display only: presses pass through.
 
+- `text: str = '', optional`: What it shows.
+- `align: Align = Align.Left, optional`: Where text that fits sits: left, centered or right.
+- `scroll: Scroll = Scroll.Auto, optional`: Scrolling: when the text doesn't fit (Auto), Always, or Off.
+- `speed: float = 8.0, optional`: Scrolling speed in columns per second.
+
 - **`text`** (settable)
 - **`save_state()`**
 - **`load_state(state: dict)`**
@@ -1512,6 +1528,7 @@ let go, until new ones are pressed. Emits NoteOn and NoteOff.
 - `octave: int = 4, optional`: The bottom-left pad is the root in this octave (4 with C: MIDI note 48).
 - `scale, root: optional`: The notes of the pads.
 - `root_color, current_color: Color, optional`: The root's pads, and the note playing.
+- `rate: Rate = '1/16', optional`: How often a note plays (a note value).
 
 - **`latch`** (settable)
 - **`note_at(x: int, y: int)`**: The note of the pad at `x`, `y`, or None past 127.
@@ -1553,6 +1570,7 @@ NoteOff on the next step).
 - `note: int = 36, optional`: The bottom row's note; each row above plays the next one.
 - `length: int, optional`: How many steps new rows have (up to the width). Defaults to the width.
 - `current_color, current_active_color: Color, optional`: Each row's playing step, without and with a hit.
+- `rate: Rate = '1/16', optional`: The length of a step (a note value).
 
 - **`row_length(row: int)`**
 - **`pattern(row: int)`**
@@ -1593,6 +1611,7 @@ NoteOff on the next generation). Press pads to turn cells on or off.
 - `octave: int = 4, optional`: The bottom row plays the root in this octave (4 with C: MIDI note 48).
 - `scale, root: optional`: The rows' notes, from the bottom.
 - `current_color: Color, optional`: Cells just born.
+- `rate: Rate = '1/8', optional`: How often a new generation grows (a note value).
 
 - **`row_note(y: int)`**
 - **`handle_press(x: int, y: int, velocity: float)`**
@@ -1672,6 +1691,7 @@ mixer's tracks: each works like a Meter (`warning`, `danger`, peak
 - `warning, danger: float, optional`: Levels (0.0-1.0) where bars turn `warning_color` and `danger_color`.
 - `hold: float = 1.0, optional`: Seconds peaks stay lit; 0 doesn't show them.
 - `falloff: float = 0.0, optional`: How fast bars fall, in full heights per second; 0 falls at once.
+- `warning_color, danger_color: Color, optional`: The bars above `warning` and above `danger`.
 
 - **`channels`**
 - **`set_level(channel: int, level: float)`**: Show `level` (0.0-1.0) on meter `channel` (from the left, or the bottom).
@@ -1706,6 +1726,8 @@ A group itself passes presses on its empty area through by default.
 
 Children never know their group: it notices changes by rendering them.
 
+- `background: Color = Colors.Invisible, optional`: The empty area's color (Invisible: the widgets underneath show).
+
 - **`background`** (settable): The color of the area no child covers (the group's `inactive_color`).
 - **`children`**: Children from bottom to top.
 - **`add(widget: Widget)`**: Add `widget` on top of the existing children and return it.
@@ -1728,6 +1750,10 @@ gets input. An optional `selector` strip along one side has a cell per
 page; pressing one switches to that page. Emits PageChanged.
 
 Pages usually fill `content`, the area besides the selector.
+
+- `page: int = 0, optional`: The page shown first, from 0.
+- `selector: Selector = Selector.Top, optional`: The side of the strip with a cell per page (Off: no strip; `next`/`previous` or links switch pages).
+- `current_color, selector_color: Color, optional`: The current page's cell, and the others'.
 
 - **`pages`**
 - **`page`** (settable)
@@ -1881,6 +1907,11 @@ Connects `control` events from `source` (a device, or a Surface with
 `value` (or a tuple, with `axis`), or a callable.
 
 `glide_time` is how long a glide across the whole range takes, in seconds.
+
+- `takeover: Takeover = Takeover.Glide, optional`: How a knob or fader takes over a value it doesn't match: Glide moves there over `glide_time`, Pickup waits until the control passes the value, Jump sets it at once.
+- `glide_time: float = 0.3, optional`: Seconds a glide over the whole range takes.
+- `step: float = 1/64, optional`: How much one step of an encoder (a relative control) moves the value.
+- `axis: int, optional`: Which value of a two-value widget (XY) the control sets: 0 for x, 1 for y.
 
 - **`close()`**: Stop following the control.
 - **`is_action`**
@@ -2217,6 +2248,12 @@ Device and output classes added with `register`, by type.
 ### `widget_types()`
 
 Widget classes usable in layouts, by name (registered ones included).
+
+### `option_docs(cls)`
+
+What each constructor option of `cls` is for, from the `__init__`
+docstrings (`name: type = default, optional` and indented lines below;
+a subclass's text wins over its bases'), as one line per option.
 
 ### `color_to_text(color: Color)`
 
