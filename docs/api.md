@@ -1007,14 +1007,16 @@ Members: `Button`, `Switch`, `Mixed`.
 ### `ButtonGroup` (Widget)
 
 ```python
-ButtonGroup(x: int = 0, y: int = 0, width: int = 1, height: int = 1, *, mode: ButtonGroup.Mode = ButtonGroup.Mode.Switch, allow_none: bool = False, **kwargs)
+ButtonGroup(x: int = 0, y: int = 0, width: int = 1, height: int = 1, *, mode: ButtonGroup.Mode = ButtonGroup.Mode.Switch, allow_none: bool = False, selected: int | None = None, **kwargs)
 ```
 
 A grid of buttons: one selected at a time (Switch), toggles (Multi) or momentary (Button); emits Toggled.
 
 - `mode: Mode = Mode.Switch, optional`: Switch: one cell on at a time (the bottom-left one at first). Multi: each press turns a cell on or off. Button: cells are on while pressed.
 - `allow_none: bool = False, optional`: Switch: pressing the cell that's on turns it off, and none is on at first.
+- `selected: int, optional`: Switch: the cell on (0 is the bottom-left, then left to right and up); setting it (`configure`, links) moves there without emitting Toggled. Defaults to the first cell, or none with `allow_none`.
 
+- **`selected`**: The Switch's cell that's on (0 is the bottom-left), or None.
 - **`handle_press(x: int, y: int, velocity: float)`**
 - **`handle_release(x: int, y: int, velocity: float)`**
 - **`save_state()`**
@@ -1545,7 +1547,8 @@ NoteOff on the next step).
 - **`pattern(row: int)`**
 - **`handle_press(x: int, y: int, velocity: float)`**
 - **`handle_release(x: int, y: int, velocity: float)`**
-- **`set_pulses(pulses: int)`**: Set the hits of the last row pressed.
+- **`select(row: int)`**: Make `row` (0 at the bottom) the one `set_pulses`, `set_rotation` and `set_length` change.
+- **`set_pulses(pulses: int)`**: Set the hits of the last row pressed (or selected).
 - **`set_rotation(rotation: int)`**: Set how far the last row pressed is turned.
 - **`set_length(length: int)`**: Set the length of the last row pressed (up to the width).
 - **`play(count: int)`**: Play step `count` of every row (each wrapped to its length): the last hits end, the new ones start.
@@ -1961,6 +1964,13 @@ constant chooses between two values:
     Link(tabs, sequencers[n], 'visible', Condition(Source('cell'), '==', n), on = Toggled)
     Link(tabs, pad, 'active_color', Condition(Source('x'), '<', 4, Colors.Red, Colors.Blue), on = Toggled)
 
+Or a `Choice`: an event value picks one of a list (whole numbers by
+index, with their offset; 0.0-1.0 values spread over the list):
+
+    # A row of four pads sets a Sequencer's length
+    Link(lengths, sequencer, 'length', Choice(Source('x'), (8, 16, 24, 32)), on = Toggled)
+    Link(velocities, sequencer.set_velocity, Choice(Source('x'), (0.25, 0.5, 0.75, 1.0)), on = Pressed)
+
 An action's value is a number: 0.0-1.0 sources cover `minimum` to
 `maximum` (whole numbers if both are), whole number sources add `offset`.
 A text value is filled in from the event: `'pad {x},{y} at {velocity}'`;
@@ -2004,6 +2014,19 @@ A link value chosen by a comparison: `then` if the event's `source`
 with `op` (==, !=, <, <=, >, >=) to `to` is true, else `otherwise`.
 
 - **`test(sources: dict)`**
+- **`choose(sources: dict)`**
+
+### `Choice`
+
+```python
+Choice(source: Source, values: tuple)
+```
+
+A link value picked from `values` by the event's `source`: a whole
+number (with its offset) is the index, a 0.0-1.0 value spreads over the
+list; past either end it takes the first or last.
+
+- **`index(sources: dict)`**
 - **`choose(sources: dict)`**
 
 # Putting it together
@@ -3276,7 +3299,7 @@ what the widgets' mappings send.
 ### `Designer`
 
 ```python
-Designer(path: str | None = None, *, connect: bool = True)
+Designer(path: str | None = None, *, connect: bool = True, snippets: str | None = None)
 ```
 
 The designer's state: the preview and the file it saves to.
