@@ -101,7 +101,11 @@ class REAPER(pyxelwidgets.devices.plugins.PluginParameters, OSC):
     Plug-in parameters by name: REAPER sends a device the names in its banks
     (tracks 8 at a time, a plug-in's parameters 16 at a time) and only what
     changed, so the output keeps all it was sent (``state``, after a refresh
-    of the surfaces on the first scan) and goes through the banks. Setting a
+    of the surfaces on the first scan) and goes through the banks. REAPER
+    addresses tracks and plug-ins by their place, so before setting a
+    parameter the output checks the names there and scans again when they
+    moved: name every track, each differently (``warning`` lists the ones
+    that aren't). Setting a
     parameter selects its track in the device (``/track/...`` without a
     number then means that track). REAPER sends a parameter's changes back
     only while its track is in the device's bank of tracks (the first 8,
@@ -140,10 +144,11 @@ class REAPER(pyxelwidgets.devices.plugins.PluginParameters, OSC):
         self._change_count = 0
         self._change_time = 0.0
         self._synced = False
-        # Where scans found things: track numbers (0 is the master) by label, plug-ins as
-        # (label, number) by track, parameters as (label, number) by (track, plugin)
+        # Where scans found things: track numbers (0 is the master) and names by label, plug-ins
+        # as (label, number, name) by track, parameters as (label, number) by (track, plugin)
         self._track_numbers = {}
-        # (track number, plug-in number, parameter number) → (track, plugin, parameter) labels
+        self._track_names = {}
+        # (track name, plug-in number, parameter number) → (track, plugin, parameter) labels and the plug-in's name
         self._found = {}
         self._emitted = {}
 
@@ -181,18 +186,22 @@ class REAPER(pyxelwidgets.devices.plugins.PluginParameters, OSC):
         if not self._found or isinstance(value, (str, tuple)):
             return
         match = _SELECTED_VALUE.fullmatch(address)
+        # Known by the names REAPER shows there, so moved tracks and plug-ins are followed
         if match:
-            track = self._number(self.state.get('/track/number/str'))
-            plugin, slot = int(match[1]), int(match[2])
+            track, plugin, slot = self.state.get('/track/name'), int(match[1]), int(match[2])
+            plugin_name = self.state.get(f'/fx/{plugin}/name')
         else:
             match = _TRACK_VALUE.fullmatch(address)
             if not match:
                 return
-            track = self._number(self.state.get(f'/track/{match[1]}/number/str'))
-            plugin, slot = int(match[2]), int(match[3])
+            track, plugin, slot = self.state.get(f'/track/{match[1]}/name'), int(match[2]), int(match[3])
+            plugin_name = self.state.get(f'/track/{match[1]}/fx/{plugin}/name')
         bank = self._number(self.state.get('/device/fxparam/bank/str')) or 1
-        names = self._found.get((track, plugin, (bank - 1) * self._size('fxparam', 16) + slot))
-        if names is not None and self._emitted.get(names) != value:
+        found = self._found.get((track, plugin, (bank - 1) * self._size('fxparam', 16) + slot))
+        if found is None or plugin_name != found[3]:
+            return
+        names = found[:3]
+        if self._emitted.get(names) != value:
             self._emitted[names] = value
             self.emit(pyxelwidgets.events.MessageReceived(self, pyxelwidgets.message.PluginParameter(*names, float(value))))
 
@@ -202,6 +211,9 @@ class REAPER(pyxelwidgets.devices.plugins.PluginParameters, OSC):
         """
         REAPER's track names, then 'MASTER' (repeated names get " (2)"). Blocks
         for a while; don't call it from an OSC or widget event handler.
+
+        Tracks are found by name when they move: unnamed tracks (REAPER calls
+        them "Track 4" by their place) and repeated names are listed in ``warning``.
         """
         with self._navigation:
             self._sync()
@@ -218,15 +230,27 @@ class REAPER(pyxelwidgets.devices.plugins.PluginParameters, OSC):
                 names += [self.state.get(f'/track/{slot}/name') or f'Track {page * size + slot}'
                           for slot in range(1, size + 1)]
             self._show_bank(bank)
-            self.tracks = pyxelwidgets.devices.plugins.labels(names[:count] + ['MASTER'])
-            self._track_numbers = {label: number for number, label in enumerate(self.tracks[-1:] + self.tracks[:-1])}
-            self._plugins, self._parameters, self._found = {}, {}, {}
+            names = names[:count] + ['MASTER']
+            self.tracks = pyxelwidgets.devices.plugins.labels(names)
+            self._track_numbers = {label: (number + 1) % len(names) for number, label in enumerate(self.tracks)}
+            self._track_names = dict(zip(self.tracks, names))
+            # Scans of tracks still there stay (their plug-ins are checked by name when used)
+            self._plugins = {track: plugins for track, plugins in self._plugins.items() if track in self._track_numbers}
+            self._parameters = {key: found for key, found in self._parameters.items() if key[0] in self._track_numbers}
+            self._index()
+            unnamed = [name for number, name in enumerate(names[:-1], 1) if name == f'Track {number}']
+            repeated = sorted({name for name in names if names.count(name) > 1})
+            self._scan_warning = None
+            if unnamed or repeated:
+                self._scan_warning = ('Name every track, each differently, so tracks are found when they move: '
+                                      + ', '.join(unnamed + repeated))
+            self.warning = self._scan_warning
             return list(self.tracks)
 
     def scan_plugins(self, track: str) -> list:
         """The plug-ins on ``track`` (a name from ``scan_tracks``), in their order."""
         with self._navigation:
-            self._select_track(self._track_number(track))
+            self._to_track(track)
             size = self._size('fx', 8)
             names = [self.state.get(f'/fx/{slot}/name') or '' for slot in range(1, size + 1)]
             names = names[:names.index('')] if '' in names else names
@@ -238,14 +262,14 @@ class REAPER(pyxelwidgets.devices.plugins.PluginParameters, OSC):
                         break
                     names.append(self.state.get('/fx/name') or '')
                 self._ask('/device/fx/select', 1)
-            self._plugins[track] = list(zip(pyxelwidgets.devices.plugins.labels(names), range(1, len(names) + 1)))
-            return [label for label, _ in self._plugins[track]]
+            self._plugins[track] = list(zip(pyxelwidgets.devices.plugins.labels(names), range(1, len(names) + 1), names))
+            self._index()
+            return [label for label, _, _ in self._plugins[track]]
 
     def scan_parameters(self, track: str, plugin: str) -> list:
         """The parameters of ``plugin`` on ``track``: goes through its banks of parameters."""
         with self._navigation:
-            number, plugin_number = self._track_number(track), self._plugin_number(track, plugin)
-            self._select_track(number)
+            plugin_number = self._to_plugin(track, plugin)
             if self._number(self.state.get('/fx/number/str')) != plugin_number:
                 self._ask('/device/fx/select', plugin_number)
             size = self._size('fxparam', 16)
@@ -260,9 +284,7 @@ class REAPER(pyxelwidgets.devices.plugins.PluginParameters, OSC):
             self._show_parameters(1)
             labels = pyxelwidgets.devices.plugins.labels(names)
             self._parameters[(track, plugin)] = list(zip(labels, range(1, len(labels) + 1)))
-            self._found = {key: names for key, names in self._found.items() if key[:2] != (number, plugin_number)}
-            self._found.update({(number, plugin_number, index): (track, plugin, label)
-                                for label, index in self._parameters[(track, plugin)]})
+            self._index()
             return labels
 
     def _turn(self, track: str, plugin: str, parameter: str, value: float) -> None:
@@ -272,13 +294,22 @@ class REAPER(pyxelwidgets.devices.plugins.PluginParameters, OSC):
             found = dict(self._parameters[(track, plugin)])
             if parameter not in found:
                 raise LookupError(f'no parameter {parameter!r} (parameters: {", ".join(found) or "none found"})')
-            self._select_track(self._track_number(track))
+            plugin_number = self._to_plugin(track, plugin)
             # The parameter's number counts from the device's bank of parameters
             index = found[parameter] - ((self._number(self.state.get('/device/fxparam/bank/str')) or 1) - 1) * self._size('fxparam', 16)
             if index < 1:
                 self._show_parameters(1)
                 index = found[parameter]
-            self.client.send_message(f'/fx/{self._plugin_number(track, plugin)}/fxparam/{index}/value', [float(value)])
+            self.client.send_message(f'/fx/{plugin_number}/fxparam/{index}/value', [float(value)])
+
+    def _index(self) -> None:
+        """Scanned parameters by (track name, plug-in number, parameter number), for feedback."""
+        self._found = {}
+        for (track, plugin), parameters in self._parameters.items():
+            for label, number, name in self._plugins.get(track, ()):
+                if label == plugin and track in self._track_names:
+                    self._found.update({(self._track_names[track], number, index): (track, plugin, parameter, name)
+                                        for parameter, index in parameters})
 
     def _track_number(self, track: str) -> int:
         if not self.tracks:
@@ -287,13 +318,39 @@ class REAPER(pyxelwidgets.devices.plugins.PluginParameters, OSC):
             raise LookupError(f'no track {track!r} (tracks: {", ".join(self.tracks) or "none found"})')
         return self._track_numbers[track]
 
-    def _plugin_number(self, track: str, plugin: str) -> int:
-        if track not in self._plugins:
-            self.scan_plugins(track)
-        found = dict(self._plugins[track])
-        if plugin not in found:
-            raise LookupError(f'no plug-in {plugin!r} on {track!r} (plug-ins: {", ".join(found) or "none found"})')
-        return found[plugin]
+    def _to_track(self, track: str) -> None:
+        """Select ``track`` in the device, where it is now: scans the tracks again when another one is at its place."""
+        for again in (False, True):
+            if again:
+                self.scan_tracks()
+            try:
+                self._select_track(self._track_number(track))
+            except LookupError:
+                if again:
+                    raise
+                continue
+            if self.state.get('/track/name') == self._track_names[track]:
+                return
+        raise LookupError(f'track {track!r} has moved and is not found by its name')
+
+    def _to_plugin(self, track: str, plugin: str) -> int:
+        """Select ``track`` and return ``plugin``'s number on it, where it is now (checked by name)."""
+        self._to_track(track)
+        for again in (False, True):
+            if again or track not in self._plugins:
+                self.scan_plugins(track)
+            found = {label: (number, name) for label, number, name in self._plugins[track]}
+            if plugin not in found:
+                raise LookupError(f'no plug-in {plugin!r} on {track!r} (plug-ins: {", ".join(found) or "none found"})')
+            number, name = found[plugin]
+            if number <= self._size('fx', 8):
+                shown = self.state.get(f'/fx/{number}/name')
+            else:
+                self._ask('/device/fx/select', number)
+                shown = self.state.get('/fx/name') if self._number(self.state.get('/fx/number/str')) == number else None
+            if shown == name:
+                return number
+        raise LookupError(f'plug-in {plugin!r} on {track!r} has moved and is not found by its name')
 
     def _select_track(self, number: int) -> None:
         """Select a track in the device: its number counts from the bank's first track (0 is the one before)."""

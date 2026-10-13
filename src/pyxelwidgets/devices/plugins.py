@@ -34,6 +34,8 @@ class PluginParameters:
         self._parameters = {}
         #: What went wrong reaching a plug-in parameter last, if anything
         self.warning = None
+        # What the last scan of tracks found wrong (shown while parameters are reached)
+        self._scan_warning = None
         self._navigation = threading.RLock()
         # Values waiting for the DAW to get there: (track, plugin, parameter) → value
         self._turns = {}
@@ -83,7 +85,7 @@ class PluginParameters:
             for (track, plugin, parameter), value in turns.items():
                 try:
                     self._turn(track, plugin, parameter, value)
-                    self.warning = None
+                    self.warning = self._scan_warning
                 except Exception as error:
                     self.warning = f'{track} / {plugin} / {parameter}: {error}'
 
