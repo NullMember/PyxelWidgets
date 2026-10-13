@@ -24,7 +24,8 @@ import re
 import typing
 
 __all__ = ['Source', 'Message', 'MidiMessage', 'NoteOn', 'NoteOff', 'ControlChange', 'ProgramChange',
-           'PitchBend', 'PolyPressure', 'ChannelPressure', 'OscMessage', 'Command', 'PluginParameter', 'INTEGER_SOURCES',
+           'PitchBend', 'PolyPressure', 'ChannelPressure', 'OscMessage', 'Command', 'PluginParameter', 'TrackParameter',
+           'TRACK_PARAMETERS', 'INTEGER_SOURCES',
            'Hotkey', 'Key', 'TypeText', 'MouseMove', 'MouseButton', 'MouseClick', 'Scroll', 'KEY_NAMES', 'parse_keys']
 
 #: Sources that are whole numbers; the others are 0.0-1.0 (``text`` is a string)
@@ -344,6 +345,30 @@ class PluginParameter(Message):
 
     #: Fields named from a scan of the DAW, for editors
     scanned: typing.ClassVar[tuple] = ('track', 'plugin', 'parameter')
+
+#: What TrackParameter reaches on a track
+TRACK_PARAMETERS = ('Volume', 'Pan', 'Mute', 'Solo', 'Record')
+
+@dataclasses.dataclass(frozen = True)
+class TrackParameter(Message):
+    """
+    A track's ``Volume``, ``Pan``, ``Mute``, ``Solo`` or ``Record`` (arm), by
+    the track's name as the output scanned it (``scan_tracks``), wherever the
+    track is shown. ``value``: Volume is the fader's position 0.0-1.0; Pan is
+    V-Pot steps for Mackie Control (a ``delta``) and the position 0.0-1.0 for
+    REAPER; Mute, Solo and Record are on above 0.5. Received, every value is
+    0.0-1.0.
+    """
+    track: str = ''
+    parameter: str = 'Volume'
+    value: typing.Any = Source('value')
+
+    scanned: typing.ClassVar[tuple] = ('track',)
+    choices: typing.ClassVar[dict] = {'parameter': TRACK_PARAMETERS}
+
+    def __post_init__(self):
+        if self.parameter not in TRACK_PARAMETERS:
+            raise ValueError(f'parameter must be one of {", ".join(TRACK_PARAMETERS)}, got {self.parameter!r}')
 
 # Keyboard and mouse (see pyxelwidgets.devices.desktop)
 
