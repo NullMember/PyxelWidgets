@@ -32,7 +32,7 @@ import pyxelwidgets.widgets
 
 __all__ = ['Preview', 'Designer', 'new_layout', 'catalog']
 
-DEVICE_MODULES = ['novation', 'akai', 'ableton', 'presonus', 'virtual', 'web']
+DEVICE_MODULES = ['novation', 'akai', 'ableton', 'arturia', 'presonus', 'virtual', 'web']
 OUTPUT_MODULES = ['midi_port', 'mackie', 'osc', 'desktop']
 
 def new_layout(width: int = 9, height: int = 9) -> dict:
