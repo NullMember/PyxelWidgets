@@ -2114,6 +2114,7 @@ widgets from another thread, e.g. a MIDI callback of your own.
 - **`check_devices(devices = None)`**: Let `devices` (default: the surface's devices and its mappings' outputs) notice being unplugged and plugged back in, with their `check()` (MIDI devices have one). Ports are listed once, outside the lock; each check holds it. Returns the devices whose connection changed. App calls this about once a second.
 - **`force_update()`**: Resend every pixel on the next update, e.g. after a device reconnected.
 - **`update()`**: Render changed widgets and send changed pixels to every device.
+- **`test_pattern(device, frame = None)`**: Show `frame` (a buffer the device's size) on `device` instead of its part of the widgets, e.g. to check its lights; None goes back. Its pads still reach the widgets.
 - **`reveal(seconds: float = 2.0)`**: Show on the devices, for `seconds`, where the widgets are: each shown widget's area in a color of its own (later widgets over earlier ones). Called again while showing, it stops. A binding action (`surface.reveal` in layouts) for finding your way on a busy grid.
 - **`control_light(binding)`**: The color a bound control shows: a Button's active or inactive color, another widget's active color dimmed by its value, lime for play/toggle while the transport plays; None leaves it as it is.
 - **`close()`**: Close all devices, and the outputs of the mappings.
@@ -3353,6 +3354,8 @@ what the widgets' mappings send.
 - **`set_hardware(enabled: bool)`**: Connect (or close) every device and output of the layout, and the ones added later.
 - **`hardware_status()`**
 - **`scan(index: int, what: str, track: str | None = None, plugin: str | None = None)`**: Scan the DAW through connected output `index` (Mackie Control): `what` is `tracks`, `plugins` (of `track`), `parameters` (of `plugin` on `track`) or `known` (what earlier scans found). Returns the names found and everything scanned so far. Takes seconds: the DAW is driven.
+- **`check_device(index: int, pattern: str | None)`**: Check connected layout device `index`: show test `pattern` on it (`CHECK_PATTERNS`) and record its pads, controls and raw MIDI; None ends the check. Returns `check_status()`.
+- **`check_status()`**: What the device being checked reported: pads pressed (in order) and held, controls, raw MIDI.
 - **`close()`**
 - **`frame(since: int = 0)`**: Render; pixels are `#rrggbb` rows from the top, plus events after `since`.
 - **`input(x: int, y: int, velocity: float)`**: Press (`velocity` > 0) or release the surface pad at `x`, `y`.
