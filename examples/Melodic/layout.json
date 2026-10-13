@@ -1,0 +1,513 @@
+{
+  "format": "pyxelwidgets.layout",
+  "version": 6,
+  "surface": {
+    "width": 9,
+    "height": 9
+  },
+  "transport": {
+    "bpm": 100,
+    "signature": [
+      4,
+      4
+    ]
+  },
+  "devices": [
+    {
+      "type": "novation.LaunchpadMiniMK3",
+      "x": 0,
+      "y": 0,
+      "options": {}
+    }
+  ],
+  "outputs": [
+    {
+      "name": "midi",
+      "type": "midi_port.MidiPort",
+      "virtual": "PyxelWidgets Melodic",
+      "options": {}
+    }
+  ],
+  "mappings": [
+    {
+      "widget": "roll",
+      "on": "NoteOn",
+      "output": "midi",
+      "message": {
+        "type": "NoteOn",
+        "note": {
+          "source": "note"
+        },
+        "velocity": {
+          "source": "velocity"
+        },
+        "channel": 1
+      }
+    },
+    {
+      "widget": "roll",
+      "on": "NoteOff",
+      "output": "midi",
+      "message": {
+        "type": "NoteOff",
+        "note": {
+          "source": "note"
+        },
+        "velocity": 0,
+        "channel": 1
+      }
+    },
+    {
+      "widget": "chords",
+      "on": "NoteOn",
+      "output": "midi",
+      "message": {
+        "type": "NoteOn",
+        "note": {
+          "source": "note"
+        },
+        "velocity": {
+          "source": "velocity"
+        },
+        "channel": 2
+      }
+    },
+    {
+      "widget": "chords",
+      "on": "NoteOff",
+      "output": "midi",
+      "message": {
+        "type": "NoteOff",
+        "note": {
+          "source": "note"
+        },
+        "velocity": 0,
+        "channel": 2
+      }
+    },
+    {
+      "widget": "arp",
+      "on": "NoteOn",
+      "output": "midi",
+      "message": {
+        "type": "NoteOn",
+        "note": {
+          "source": "note"
+        },
+        "velocity": {
+          "source": "velocity"
+        },
+        "channel": 3
+      }
+    },
+    {
+      "widget": "arp",
+      "on": "NoteOff",
+      "output": "midi",
+      "message": {
+        "type": "NoteOff",
+        "note": {
+          "source": "note"
+        },
+        "velocity": 0,
+        "channel": 3
+      }
+    },
+    {
+      "widget": "euclid",
+      "on": "NoteOn",
+      "output": "midi",
+      "message": {
+        "type": "NoteOn",
+        "note": {
+          "source": "note"
+        },
+        "velocity": {
+          "source": "velocity"
+        },
+        "channel": 10
+      }
+    },
+    {
+      "widget": "euclid",
+      "on": "NoteOff",
+      "output": "midi",
+      "message": {
+        "type": "NoteOff",
+        "note": {
+          "source": "note"
+        },
+        "velocity": 0,
+        "channel": 10
+      }
+    },
+    {
+      "widget": "life",
+      "on": "NoteOn",
+      "output": "midi",
+      "message": {
+        "type": "NoteOn",
+        "note": {
+          "source": "note"
+        },
+        "velocity": {
+          "source": "velocity"
+        },
+        "channel": 4
+      }
+    },
+    {
+      "widget": "life",
+      "on": "NoteOff",
+      "output": "midi",
+      "message": {
+        "type": "NoteOff",
+        "note": {
+          "source": "note"
+        },
+        "velocity": 0,
+        "channel": 4
+      }
+    },
+    {
+      "widget": "hats",
+      "on": "StepPlayed",
+      "output": "midi",
+      "message": {
+        "type": "NoteOn",
+        "note": {
+          "source": "note"
+        },
+        "velocity": {
+          "source": "velocity"
+        },
+        "channel": 10
+      }
+    },
+    {
+      "widget": "hats",
+      "on": "StepEnded",
+      "output": "midi",
+      "message": {
+        "type": "NoteOff",
+        "note": {
+          "source": "note"
+        },
+        "velocity": 0,
+        "channel": 10
+      }
+    }
+  ],
+  "links": [
+    {
+      "widget": "play",
+      "on": "Pressed",
+      "action": "transport.toggle"
+    },
+    {
+      "widget": "tap",
+      "on": "TempoTapped",
+      "action": "transport.tempo",
+      "value": {
+        "source": "bpm"
+      }
+    },
+    {
+      "widget": "roll_up",
+      "on": "Pressed",
+      "target": "roll",
+      "option": "row",
+      "change": "Add",
+      "value": 1,
+      "max": 40
+    },
+    {
+      "widget": "roll_down",
+      "on": "Pressed",
+      "target": "roll",
+      "option": "row",
+      "change": "Add",
+      "value": -1,
+      "min": -20
+    },
+    {
+      "widget": "arp_mode",
+      "on": "Toggled",
+      "target": "arp",
+      "option": "mode",
+      "value": {
+        "source": "y"
+      }
+    },
+    {
+      "widget": "arp_latch",
+      "on": "Changed",
+      "target": "arp",
+      "option": "latch",
+      "value": {
+        "source": "value"
+      }
+    },
+    {
+      "widget": "chords",
+      "on": "NoteOn",
+      "target": "arp",
+      "action": "add",
+      "value": {
+        "source": "note"
+      }
+    },
+    {
+      "widget": "chords",
+      "on": "NoteOff",
+      "target": "arp",
+      "action": "remove",
+      "value": {
+        "source": "note"
+      }
+    },
+    {
+      "widget": "hat_velocity",
+      "on": "Changed",
+      "target": "hats",
+      "action": "set_velocity",
+      "value": {
+        "source": "value"
+      }
+    },
+    {
+      "widget": "life_seed",
+      "on": "Pressed",
+      "target": "life",
+      "action": "randomize"
+    }
+  ],
+  "widgets": [
+    {
+      "type": "Pages",
+      "name": "pages",
+      "x": 0,
+      "y": 0,
+      "width": 9,
+      "height": 9,
+      "options": {
+        "selector": "Top"
+      },
+      "widgets": [
+        {
+          "type": "Group",
+          "name": "melody_page",
+          "x": 0,
+          "y": 0,
+          "width": 9,
+          "height": 8,
+          "widgets": [
+            {
+              "type": "PianoRoll",
+              "name": "roll",
+              "x": 0,
+              "y": 0,
+              "width": 8,
+              "height": 8,
+              "options": {
+                "steps": 16,
+                "octave": 4,
+                "scale": "Minor",
+                "root": "A"
+              }
+            },
+            {
+              "type": "Button",
+              "name": "roll_up",
+              "x": 8,
+              "y": 7,
+              "width": 1,
+              "height": 1,
+              "options": {
+                "active_color": "#ffa500"
+              }
+            },
+            {
+              "type": "Button",
+              "name": "roll_down",
+              "x": 8,
+              "y": 6,
+              "width": 1,
+              "height": 1,
+              "options": {
+                "active_color": "#ffa500"
+              }
+            },
+            {
+              "type": "TapTempo",
+              "name": "tap",
+              "x": 8,
+              "y": 1,
+              "width": 1,
+              "height": 1
+            },
+            {
+              "type": "Button",
+              "name": "play",
+              "x": 8,
+              "y": 0,
+              "width": 1,
+              "height": 1,
+              "options": {
+                "active_color": "#00ff00"
+              }
+            }
+          ]
+        },
+        {
+          "type": "Group",
+          "name": "chords_page",
+          "x": 0,
+          "y": 0,
+          "width": 9,
+          "height": 8,
+          "widgets": [
+            {
+              "type": "ChordPads",
+              "name": "chords",
+              "x": 0,
+              "y": 3,
+              "width": 7,
+              "height": 5,
+              "options": {
+                "octave": 3,
+                "scale": "Minor",
+                "root": "A",
+                "velocity_curve": "Soft"
+              }
+            },
+            {
+              "type": "Arpeggiator",
+              "name": "arp",
+              "x": 0,
+              "y": 0,
+              "width": 7,
+              "height": 2,
+              "options": {
+                "octave": 4,
+                "scale": "Minor",
+                "root": "A",
+                "octaves": 2,
+                "gate": 0.4,
+                "velocity_random": 0.15
+              }
+            },
+            {
+              "type": "ButtonGroup",
+              "name": "arp_mode",
+              "x": 8,
+              "y": 0,
+              "width": 1,
+              "height": 5,
+              "options": {
+                "active_color": "#00ffff",
+                "inactive_color": "#003030"
+              }
+            },
+            {
+              "type": "Button",
+              "name": "arp_latch",
+              "x": 8,
+              "y": 7,
+              "width": 1,
+              "height": 1,
+              "options": {
+                "mode": "Switch",
+                "active_color": "#ff00ff"
+              }
+            }
+          ]
+        },
+        {
+          "type": "Group",
+          "name": "rhythm_page",
+          "x": 0,
+          "y": 0,
+          "width": 9,
+          "height": 8,
+          "widgets": [
+            {
+              "type": "Euclidean",
+              "name": "euclid",
+              "x": 0,
+              "y": 4,
+              "width": 8,
+              "height": 4,
+              "options": {
+                "note": 36,
+                "velocity_random": 0.2
+              }
+            },
+            {
+              "type": "Sequencer",
+              "name": "hats",
+              "x": 0,
+              "y": 0,
+              "width": 8,
+              "height": 2,
+              "options": {
+                "note": 42,
+                "swing": 58.0,
+                "gate": 0.25
+              }
+            },
+            {
+              "type": "Fader",
+              "name": "hat_velocity",
+              "x": 8,
+              "y": 0,
+              "width": 1,
+              "height": 4,
+              "options": {
+                "mode": "Magnitude",
+                "value": 1.0,
+                "active_color": "#ff4500"
+              }
+            }
+          ]
+        },
+        {
+          "type": "Group",
+          "name": "life_page",
+          "x": 0,
+          "y": 0,
+          "width": 9,
+          "height": 8,
+          "widgets": [
+            {
+              "type": "Automaton",
+              "name": "life",
+              "x": 0,
+              "y": 0,
+              "width": 8,
+              "height": 8,
+              "options": {
+                "rate": "1/8",
+                "max_notes": 3,
+                "scale": "MinorPentatonic",
+                "root": "A",
+                "octave": 4
+              }
+            },
+            {
+              "type": "Button",
+              "name": "life_seed",
+              "x": 8,
+              "y": 7,
+              "width": 1,
+              "height": 1,
+              "options": {
+                "active_color": "#00ff00"
+              }
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}
