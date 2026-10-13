@@ -88,6 +88,12 @@ class OSC(pyxelwidgets.devices.Device):
 # REAPER's feedback for a plug-in parameter of the selected track, or of a track in the bank
 _SELECTED_VALUE = re.compile(r'/fx/(\d+)/fxparam/(\d+)/value')
 _TRACK_VALUE = re.compile(r'/track/(\d+)/fx/(\d+)/fxparam/(\d+)/value')
+# A track's state: of a track in the bank (/track/3/mute), the selected one (/track/mute) or the master's
+_BANK_TRACK_STATE = re.compile(r'/track/(\d+)/(volume|pan|mute|solo|recarm)')
+_SELECTED_TRACK_STATE = re.compile(r'/track/(volume|pan|mute|solo|recarm)')
+_MASTER_STATE = re.compile(r'/master/(volume|pan)')
+_TRACK_PARAMETERS = {'volume': 'Volume', 'pan': 'Pan', 'mute': 'Mute', 'solo': 'Solo', 'recarm': 'Record'}
+
 # What scans read: names, numbers and the device's selections
 _SCAN_ADDRESS = re.compile(r'/(name|str)$|^/device/')
 
@@ -121,7 +127,7 @@ class REAPER(pyxelwidgets.devices.plugins.PluginParameters, OSC):
         '/master/volume', '/master/pan', '/time/str', '/beat/str', '/tempo/raw', '/action',
         '/device/track/bank/+', '/device/track/bank/-', '/fx/1/fxparam/{x+1}/value',
     )
-    messages = OSC.messages + ('PluginParameter',)
+    messages = OSC.messages + ('PluginParameter', 'TrackParameter')
     #: PluginParameter's value: the parameter's position 0.0-1.0 (a widget's value)
     parameter_value = 'value'
 
@@ -164,7 +170,7 @@ class REAPER(pyxelwidgets.devices.plugins.PluginParameters, OSC):
         super().connect()
 
     def send(self, message) -> None:
-        if isinstance(message, pyxelwidgets.message.PluginParameter):
+        if isinstance(message, (pyxelwidgets.message.PluginParameter, pyxelwidgets.message.TrackParameter)):
             if not isinstance(message.value, str):
                 self._turn_later(message, min(1.0, max(0.0, float(message.value))))
             return
@@ -179,6 +185,7 @@ class REAPER(pyxelwidgets.devices.plugins.PluginParameters, OSC):
                 self._change_time = time.monotonic()
                 self._changes.notify_all()
         self._parameter_feedback(address, value)
+        self._track_feedback(address, value)
         super()._received(address, *args)
 
     def _parameter_feedback(self, address: str, value) -> None:
@@ -204,6 +211,33 @@ class REAPER(pyxelwidgets.devices.plugins.PluginParameters, OSC):
         if self._emitted.get(names) != value:
             self._emitted[names] = value
             self.emit(pyxelwidgets.events.MessageReceived(self, pyxelwidgets.message.PluginParameter(*names, float(value))))
+
+    def _track_feedback(self, address: str, value) -> None:
+        """A scanned track's volume, pan, mute, solo or arm, received as a TrackParameter (known by the track's name)."""
+        if not self._track_numbers or isinstance(value, (str, tuple)):
+            return
+        if match := _BANK_TRACK_STATE.fullmatch(address):
+            name, kind = self.state.get(f'/track/{match[1]}/name'), match[2]
+        elif match := _SELECTED_TRACK_STATE.fullmatch(address):
+            name, kind = self.state.get('/track/name'), match[1]
+        elif match := _MASTER_STATE.fullmatch(address):
+            name, kind = 'MASTER', match[1]
+        else:
+            return
+        track = next((label for label, shown in self._track_names.items() if shown == name), None)
+        key = (track, _TRACK_PARAMETERS[kind])
+        if track is not None and self._emitted.get(key) != value:
+            self._emitted[key] = value
+            self.emit(pyxelwidgets.events.MessageReceived(self, pyxelwidgets.message.TrackParameter(*key, float(value))))
+
+    def _set_track(self, track: str, parameter: str, value: float) -> None:
+        with self._navigation:
+            self._to_track(track)
+            address = next(address for address, name in _TRACK_PARAMETERS.items() if name == parameter)
+            if parameter in ('Volume', 'Pan'):
+                self.client.send_message(f'/track/{address}', [float(value)])
+            else:
+                self.client.send_message(f'/track/{address}', [1 if value > 0.5 else 0])
 
     # Plug-in parameters
 

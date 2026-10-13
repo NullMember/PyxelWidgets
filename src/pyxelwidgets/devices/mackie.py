@@ -122,7 +122,7 @@ class MackieControl(pyxelwidgets.devices.plugins.PluginParameters, _ControlSurfa
     #: Answered to the connection query
     serial = [0x50, 0x57, 0x30, 0x30, 0x30, 0x30, 0x31]
 
-    messages = _ControlSurface.messages + ('PluginParameter',)
+    messages = _ControlSurface.messages + ('PluginParameter', 'TrackParameter')
 
     #: Seconds without display changes after which the DAW has answered a button
     settle = 0.15
@@ -165,6 +165,8 @@ class MackieControl(pyxelwidgets.devices.plugins.PluginParameters, _ControlSurfa
         self._real_changes = 0
         self.timecode = [' '] * 10
         self.assignment = [' ', ' ']
+        #: Button LEDs the DAW lit: name → 1.0 (on), 0.0 (off)
+        self.leds = {}
         # Scans: track names as the display shows them (labels are made unique), plug-ins as
         # (label, strip) by track, parameters as (label, page, strip) by (track, plugin)
         self._track_names = []
@@ -194,6 +196,17 @@ class MackieControl(pyxelwidgets.devices.plugins.PluginParameters, _ControlSurfa
         return [0x00, 0x00, 0x66, self.mode.value]
 
     def send(self, message) -> None:
+        if isinstance(message, pyxelwidgets.message.TrackParameter):
+            if isinstance(message.value, str):
+                return
+            if message.parameter == 'Pan':
+                # V-Pot steps, summed while the DAW gets there
+                steps = int(round(float(message.value)))
+                if steps:
+                    self._turn_later(message, steps, operator.add)
+            else:
+                self._turn_later(message, min(1.0, max(0.0, float(message.value))))
+            return
         if isinstance(message, pyxelwidgets.message.PluginParameter):
             # V-Pot steps, summed while the DAW gets there
             steps = 0 if isinstance(message.value, str) else int(round(float(message.value)))
@@ -225,11 +238,17 @@ class MackieControl(pyxelwidgets.devices.plugins.PluginParameters, _ControlSurfa
             name = _MCU_NOTES.get(midi[1])
             if name is not None:
                 velocity = midi[2] if status == 0x90 else 0
+                self.leds[name] = 1.0 if velocity else 0.0
                 self._received(name, 1.0 if velocity else 0.0, velocity == 1)
+                kind, _, strip = name.rpartition(' ')
+                if kind in _TRACK_BUTTONS and strip.isdigit():
+                    self._track_feedback(int(strip) - 1, _TRACK_BUTTONS[kind], 1.0 if velocity else 0.0)
         elif status == 0xE0 and len(midi) == 3:
             channel = midi[0] & 0x0F
             name = 'Master Fader' if channel == 8 else f'Fader {channel + 1}'
             self._received(name, (midi[1] | (midi[2] << 7)) / 16383)
+            if channel < 8:
+                self._track_feedback(channel, 'Volume', (midi[1] | (midi[2] << 7)) / 16383)
         elif status == 0xB0 and len(midi) == 3:
             self._control(midi[1], midi[2])
         elif status == 0xD0 and len(midi) >= 2:
@@ -259,7 +278,8 @@ class MackieControl(pyxelwidgets.devices.plugins.PluginParameters, _ControlSurfa
             self._received('Assignment', ''.join(self.assignment).strip())
 
     def _ring(self, strip: int, position: int) -> None:
-        """A V-Pot ring on a parameter's strip, received as its PluginParameter."""
+        """A V-Pot ring on a parameter's strip, received as its PluginParameter (or a track's pan)."""
+        self._track_feedback(strip, 'Pan', (position - 1) / 10 if position else 0.0)
         parameter = self._shown_parameter(strip)
         if parameter is not None:
             message = pyxelwidgets.message.PluginParameter(*parameter, (position - 1) / 10 if position else 0.0)
@@ -484,6 +504,10 @@ class MackieControl(pyxelwidgets.devices.plugins.PluginParameters, _ControlSurfa
 
     def _select(self, track: str) -> None:
         """Show ``track`` in the channels view and press its Select."""
+        self._press(f'Select {self._show_track(track) + 1}')
+
+    def _show_track(self, track: str) -> int:
+        """Show ``track`` in the channels view (checked by name) and return its strip."""
         self._require()
         index = self._track_index(track)
         self._to_channels()
@@ -502,7 +526,43 @@ class MackieControl(pyxelwidgets.devices.plugins.PluginParameters, _ControlSurfa
             # The tracks changed in the DAW: scan them again
             self.scan_tracks()
             index = self._track_index(track)
-        self._press(f'Select {strip + 1}')
+        return strip
+
+    def _set_track(self, track: str, parameter: str, value) -> None:
+        """Set a TrackParameter on the track's strip: its fader, V-Pot (Pan) or button."""
+        with self._navigation:
+            strip = self._show_track(track)
+            if parameter == 'Volume':
+                self.send(pyxelwidgets.message.Command(f'Fader Touch {strip + 1}', 1.0))
+                self.send(pyxelwidgets.message.Command(f'Fader {strip + 1}', value))
+                self.send(pyxelwidgets.message.Command(f'Fader Touch {strip + 1}', 0.0))
+            elif parameter == 'Pan':
+                while value:
+                    step = max(-63, min(63, value))
+                    self.send(pyxelwidgets.message.Command(f'V-Pot {strip + 1}', step))
+                    value -= step
+            else:
+                # The buttons switch: pressed when the LED says otherwise
+                button = f'{_TRACK_BUTTON_NAMES[parameter]} {strip + 1}'
+                if (self.leds.get(button, 0.0) > 0) != (value > 0.5):
+                    self._press(button)
+
+    def _strip_track(self, strip: int) -> str | None:
+        """The scanned track on ``strip`` in the channels view, checked by its name shown there."""
+        if self._view != 'channels' or self._bank is None:
+            return None
+        shown = self.row(self._names_line)[strip]
+        for index, place in enumerate(self._track_places):
+            if place == (self._bank, strip) and self._track_names[index] == shown:
+                return self.tracks[index]
+        return None
+
+    def _track_feedback(self, strip: int, parameter: str, value: float) -> None:
+        """A strip's fader, V-Pot ring (pan) or button LED, received as the track's TrackParameter."""
+        track = self._strip_track(strip)
+        if track is not None and (parameter != 'Pan' or self.channel_button == 'Pan'):
+            message = pyxelwidgets.message.TrackParameter(track, parameter, value)
+            self.emit(pyxelwidgets.events.MessageReceived(self, message))
 
     def _open(self, track: str, plugin: str) -> None:
         """Show the parameters of ``plugin`` on ``track`` (first page)."""
@@ -526,8 +586,13 @@ class MackieControl(pyxelwidgets.devices.plugins.PluginParameters, _ControlSurfa
             # The slot's page, then its parameters on the next pages
             self._to_slot(plugins[plugin][0])
             self._paging = ('Channel Right', 'Channel Left')
+            # Its pages will name the plug-in and the track (the slot's page names the track too),
+            # known before the first page's rings come
+            bottom = ''.join(self.lcd[56:])
+            counter = _CUBASE_PAGE.search(bottom)
+            self._headers[(track, plugin)] = (plugins[plugin][1][:16].strip(), bottom[16:counter.start()].strip() if counter else None)
+            self._view, self._focus = 'parameters', (track, plugin, 0)
             opened = self._slot() == plugins[plugin] and self._tap('Channel Right', lambda: self._lines() != shown)
-            self._headers[(track, plugin)] = self._header()
         else:
             opened = self._tap(f'V-Select {plugins[plugin][0] + 1}', lambda: self.row(0) != shown[0])
         if not opened:
@@ -683,6 +748,10 @@ class MackieControl(pyxelwidgets.devices.plugins.PluginParameters, _ControlSurfa
                 step = max(-63, min(63, steps))
                 self.send(pyxelwidgets.message.Command(f'V-Pot {strip + 1}', step))
                 steps -= step
+
+# TrackParameter's buttons: the strip buttons' names → parameters, and back
+_TRACK_BUTTONS = {'Mute': 'Mute', 'Solo': 'Solo', 'Rec': 'Record'}
+_TRACK_BUTTON_NAMES = {parameter: button for button, parameter in _TRACK_BUTTONS.items()}
 
 # Cubase's page counter ("Page:02/13") and insert slot page (" IFX 2    On         Pro-C 3")
 _CUBASE_PAGE = re.compile(r'Page:\d+/\d+')

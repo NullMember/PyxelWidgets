@@ -1,11 +1,12 @@
 """
-Shared by the outputs that reach a DAW's plug-in parameters by name
-(``mackie.MackieControl``, ``osc.REAPER``): the names scans found, and a
-thread that drives the DAW to a parameter, so ``send`` never blocks.
+Shared by the outputs that reach a DAW's tracks and plug-in parameters by
+name (``mackie.MackieControl``, ``osc.REAPER``): the names scans found, and a
+thread that drives the DAW there, so ``send`` never blocks.
 
 An output mixes in ``PluginParameters`` and provides ``scan_tracks()``,
-``scan_plugins(track)``, ``scan_parameters(track, plugin)`` and
-``_turn(track, plugin, parameter, value)``.
+``scan_plugins(track)``, ``scan_parameters(track, plugin)``,
+``_turn(track, plugin, parameter, value)`` (PluginParameter) and
+``_set_track(track, parameter, value)`` (TrackParameter).
 """
 
 import threading
@@ -59,12 +60,13 @@ class PluginParameters:
 
     def _turn_later(self, message, value, combine = None) -> None:
         """
-        Queue ``value`` for ``message``'s parameter; ``combine(waiting, value)``
-        merges it with a value still waiting (default: the newest wins).
+        Queue ``value`` for ``message``'s parameter (a PluginParameter's or a
+        TrackParameter's); ``combine(waiting, value)`` merges it with a value
+        still waiting (default: the newest wins).
         """
         if self._closing:
             return
-        key = (message.track, message.plugin, message.parameter)
+        key = (message.track, getattr(message, 'plugin', None), message.parameter)
         with self._turns_lock:
             if key in self._turns and combine is not None:
                 value = combine(self._turns[key], value)
@@ -84,10 +86,16 @@ class PluginParameters:
                 self._turned.clear()
             for (track, plugin, parameter), value in turns.items():
                 try:
-                    self._turn(track, plugin, parameter, value)
+                    if plugin is None:
+                        self._set_track(track, parameter, value)
+                    else:
+                        self._turn(track, plugin, parameter, value)
                     self.warning = self._scan_warning
                 except Exception as error:
-                    self.warning = f'{track} / {plugin} / {parameter}: {error}'
+                    self.warning = f'{" / ".join(name for name in (track, plugin, parameter) if name)}: {error}'
 
     def _turn(self, track: str, plugin: str, parameter: str, value) -> None:
+        raise NotImplementedError
+
+    def _set_track(self, track: str, parameter: str, value) -> None:
         raise NotImplementedError
