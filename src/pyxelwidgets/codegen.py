@@ -29,6 +29,9 @@ HANDLERS = {
     'Button': ('Changed', 'e.value'), 'Fader': ('Changed', 'e.value'), 'Knob': ('Changed', 'e.value'), 'XY': ('Changed', 'e.value'),
     'Keyboard': ('NoteOn', 'e.note, e.velocity'), 'DrumPads': ('NoteOn', 'e.note, e.velocity'), 'ButtonGroup': ('Toggled', 'e.x, e.y, e.state'),
     'ClipLauncher': ('ClipStarted', 'e.x, e.y'), 'Sequencer': ('StepPlayed', 'e.step, e.active'), 'Tracker': ('RowPlayed', 'e.row, e.columns'),
+    'PianoRoll': ('NoteOn', 'e.note, e.velocity'), 'ChordPads': ('NoteOn', 'e.note, e.velocity'), 'Arpeggiator': ('NoteOn', 'e.note, e.velocity'),
+    'Euclidean': ('NoteOn', 'e.note, e.velocity'), 'Automaton': ('NoteOn', 'e.note, e.velocity'), 'TapTempo': ('TempoTapped', 'e.bpm'),
+    'Stepper': ('Changed', 'e.widget.number'), 'Presets': ('PresetRecalled', 'e.slot'),
 }
 
 # Transport actions as code, given the transport's expression
@@ -92,7 +95,9 @@ def _played(layout: dict) -> bool:
     # Widgets the transport plays: started with app.transport.play() (unless a DAW starts it)
     if (layout.get('transport') or {}).get('sync'):
         return False
-    return any(item.get('type') in ('Sequencer', 'Tracker', 'ClipLauncher') and (item.get('options') or {}).get('clock', 'Transport') == 'Transport'
+    types = pyxelwidgets.parser.widget_types()
+    return any(issubclass(types.get(item.get('type'), object), pyxelwidgets.widgets.Timed)
+               and (item.get('options') or {}).get('clock', 'Transport') == 'Transport'
                for item in _walk(layout.get('widgets', [])))
 
 def _same(a, b) -> bool:

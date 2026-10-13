@@ -175,6 +175,7 @@ def widget_types() -> dict:
              and cls not in (pyxelwidgets.widgets.Widget, pyxelwidgets.widgets.ValueWidget)}
     types['Group'] = pyxelwidgets.group.Group
     types['Pages'] = pyxelwidgets.group.Pages
+    types['Presets'] = pyxelwidgets.group.Presets
     types.update(_WIDGETS)
     return dict(sorted(types.items()))
 
@@ -185,6 +186,7 @@ _PLACEMENT = {'self', 'x', 'y', 'width', 'height', 'name'}
 # inactive_color) or by the layout entry (a binding's device, control and target)
 _HIDDEN = {pyxelwidgets.group.Group: {'active_color', 'inactive_color'},
            pyxelwidgets.group.Pages: {'active_color', 'inactive_color'},
+           pyxelwidgets.group.Presets: {'active_color', 'inactive_color'},
            # Shows its frames only
            pyxelwidgets.widgets.Sprite: {'active_color', 'inactive_color'},
            # Set by the binding entry itself
