@@ -862,6 +862,17 @@ Scroll by `dx`, `dy` steps (positive dy is up), e.g. a knob's `delta`.
 
 ## `pyxelwidgets.widgets`
 
+### `state_to_json(state)`
+
+A `save_state()` result as JSON data: numpy arrays become
+`{"$array": rows, "dtype": ...}`, tuples `{"$tuple": [...]}` and dicts
+with keys other than text `{"$items": [[key, value], ...]}`.
+`state_from_json` turns it back.
+
+### `state_from_json(data)`
+
+A widget state from `state_to_json` data (anything else is returned as it is).
+
 ### `Propagation` (Enum)
 
 What happens to a press after a widget handles it, when widgets overlap.
@@ -1740,20 +1751,24 @@ Members: `Off`, `Top`, `Bottom`, `Left`, `Right`.
 ### `Presets` (Group)
 
 ```python
-Presets(x: int = 0, y: int = 0, width: int = 1, height: int = 1, *, selector: Pages.Selector = Pages.Selector.Top, send: bool = True, current_color: Color = Colors.White, stored_color: Color = Color(0, 64, 96), empty_color: Color = Color(24, 24, 24), propagation: Propagation = Propagation.Stop, **kwargs)
+Presets(x: int = 0, y: int = 0, width: int = 1, height: int = 1, *, selector: Pages.Selector = Pages.Selector.Top, send: bool = True, save: bool = True, presets: dict | None = None, current_color: Color = Colors.White, stored_color: Color = Color(0, 64, 96), empty_color: Color = Color(24, 24, 24), propagation: Propagation = Propagation.Stop, **kwargs)
 ```
 
 A group that remembers what its widgets show (values, steps, pages...) in
 slots, one per cell of its `selector` strip: press an empty cell to
 store, a stored one to bring it back, hold one to store over it. Values
 brought back are sent on (Changed), so outputs follow, unless `send` is
-off. Emits PresetStored and PresetRecalled.
+off. Emits PresetStored and PresetRecalled. A layout loaded from a file
+keeps what is stored in that file unless `save` is off.
 
 - `selector: Pages.Selector = Pages.Selector.Top, optional`: The side of the strip of slots (Off: only the `store`/`recall` actions).
 - `send: bool = True, optional`: Widgets brought back emit Changed with their values.
+- `save: bool = True, optional`: Keep stored presets in the layout file (`parser.load` of a file writes them there; the designer puts them in the layout it saves).
+- `presets: dict, optional`: What the slots hold: `{slot: {widget path: state}}`, as `presets` holds it, or as `stored()` gives it for a layout.
 - `current_color, stored_color, empty_color: Color, optional`: The slot brought back last, slots with something stored, empty ones.
 
 - **`content`**: The area for widgets, relative to this one: everything but the strip.
+- **`stored()`**: What the slots hold as JSON data, for a layout's `presets` option: widget paths as `'group/name'`.
 - **`snapshot()`**: What the widgets inside show now, by path.
 - **`store(slot: int)`**: Store what the widgets show in `slot`.
 - **`recall(slot: int)`**: Bring back what `slot` stored (nothing if it's empty).
@@ -2236,6 +2251,10 @@ A mapping message as layout JSON.
 
 A mapping message from layout JSON; raises LayoutError naming the field.
 
+### `widget_entries(widgets, found = None)`
+
+Layout widget entries by name, nested ones included.
+
 ### `device_class(device: dict, where: str = 'device')`
 
 The class of a layout `device` entry, e.g. `"novation.LaunchpadMiniMK3"` (or a registered one).
@@ -2261,9 +2280,14 @@ available after construction; `ui['name']` finds a widget.
 With `devices = False` the devices aren't created (no ports are opened),
 e.g. to validate or preview a layout.
 
+A layout loaded from a file (`path`) keeps what its Presets groups store
+in that file, unless their `save` option is off.
+
 - **`get_surface()`**
 - **`get_devices()`**
 - **`get_widgets()`**
+- **`keep_presets()`**: Write what Presets groups store (with `save` on) into `path`, the layout file.
+- **`save_presets(name: str)`**: Write the presets of the Presets group `name` into its `presets` option in `path`. The file is read again first, so changes made to it meanwhile (e.g. saved by the designer) are kept. Failures are printed.
 - **`sync_settings()`**: The layout's `transport.sync`: `{"input": port}` or `{"virtual": port}`, the MIDI port a DAW's clock comes in through; None if the transport keeps its own time.
 - **`sync_input(transport)`**: A MidiClockInput driving `transport` (created with `sync = True`) from the `sync` port, connected; None without sync.
 - **`transport_settings()`**: Keyword arguments for a Transport (or App) from the layout's `transport` (bpm and signature).
