@@ -121,4 +121,8 @@ plugged in yet, and reconnects one that was unplugged. Press Ctrl+C to stop.
   (Audio MIDI Setup) and give the output its port name.
 - **Keyboard and mouse output on macOS:** allow your terminal in *System
   Settings → Privacy & Security → Accessibility*.
+- **Lights in the wrong place, wrong colors, a knob that does nothing:** your
+  device may not have been tested on real hardware yet (the author has a
+  Launchpad Mini MK3). Select it, press **Check this device…** and follow the
+  steps; then share the report it makes, so it can be fixed.
 - **The Problems tab** under the grid lists what won't work as the layout is.

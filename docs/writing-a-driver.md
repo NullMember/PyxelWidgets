@@ -180,6 +180,11 @@ must keep its recorded behaviour.
 
 ## Checklist
 
+Without the hardware yourself, ask an owner to run the designer's device check
+(select the device, *Check this device…*): its report has their answers about
+the test patterns, the pads they pressed, the controls that were understood
+and the raw MIDI the device sent.
+
 - [ ] `(0, 0)` is the bottom-left pad; `describe()` shows the right size and controls.
 - [ ] Velocity 0 note-ons are releases.
 - [ ] `on_disconnect` returns the device to its standalone mode.
