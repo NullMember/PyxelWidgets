@@ -21,6 +21,7 @@ _exports = {
     'Binding': 'binding',
     'Link': 'link',
     'Condition': 'link',
+    'Choice': 'link',
     'Mapping': 'mapping',
     'Source': 'message',
     'Takeover': 'binding',

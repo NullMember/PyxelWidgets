@@ -171,6 +171,9 @@ class _Writer:
             options = [(key, self.value(getattr(value, key))) for key, default in (('then', True), ('otherwise', False))
                        if not _same(getattr(value, key), default)]
             return self.call(self.name(pyxelwidgets.link.Condition), [self.value(value.source), repr(value.op), repr(value.to)], options)
+        if isinstance(value, pyxelwidgets.link.Choice):
+            values = ', '.join(self.value(item) for item in value.values)
+            return self.call(self.name(pyxelwidgets.link.Choice), [self.value(value.source), f'({values},)' if len(value.values) == 1 else f'({values})'])
         if isinstance(value, pyxelwidgets.message.OscMessage):
             return self.call(self.name(type(value)), [repr(value.address), *[self.value(arg) for arg in value.args]])
         if isinstance(value, pyxelwidgets.message.Message):

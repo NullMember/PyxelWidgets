@@ -38,6 +38,13 @@ constant chooses between two values::
     Link(tabs, sequencers[n], 'visible', Condition(Source('cell'), '==', n), on = Toggled)
     Link(tabs, pad, 'active_color', Condition(Source('x'), '<', 4, Colors.Red, Colors.Blue), on = Toggled)
 
+Or a ``Choice``: an event value picks one of a list (whole numbers by
+index, with their offset; 0.0-1.0 values spread over the list)::
+
+    # A row of four pads sets a Sequencer's length
+    Link(lengths, sequencer, 'length', Choice(Source('x'), (8, 16, 24, 32)), on = Toggled)
+    Link(velocities, sequencer.set_velocity, Choice(Source('x'), (0.25, 0.5, 0.75, 1.0)), on = Pressed)
+
 An action's value is a number: 0.0-1.0 sources cover ``minimum`` to
 ``maximum`` (whole numbers if both are), whole number sources add ``offset``.
 A text value is filled in from the event: ``'pad {x},{y} at {velocity}'``;
@@ -59,7 +66,7 @@ import pyxelwidgets.color
 import pyxelwidgets.mapping
 import pyxelwidgets.message
 
-__all__ = ['Link', 'Condition']
+__all__ = ['Link', 'Condition', 'Choice']
 
 #: Comparisons a Condition makes
 OPERATORS = {'==': operator.eq, '!=': operator.ne, '<': operator.lt, '<=': operator.le, '>': operator.gt, '>=': operator.ge}
@@ -95,6 +102,35 @@ class Condition:
 
     def choose(self, sources: dict):
         return self.then if self.test(sources) else self.otherwise
+
+@dataclasses.dataclass(frozen = True)
+class Choice:
+    """
+    A link value picked from ``values`` by the event's ``source``: a whole
+    number (with its offset) is the index, a 0.0-1.0 value spreads over the
+    list; past either end it takes the first or last.
+    """
+    source: pyxelwidgets.message.Source
+    values: tuple
+
+    def __post_init__(self):
+        if not self.values or isinstance(self.values, (str, bytes)):
+            raise ValueError('a Choice needs values to choose from')
+        object.__setattr__(self, 'values', tuple(self.values))
+
+    def index(self, sources: dict) -> int:
+        value = self.source.get(sources)
+        if isinstance(value, str):
+            return 0
+        if not self.source.integer:
+            value = round(float(value) * (len(self.values) - 1))
+        return min(max(int(value), 0), len(self.values) - 1)
+
+    def choose(self, sources: dict):
+        return self.values[self.index(sources)]
+
+#: Link values computed from the event: they ``choose`` the value
+CHOOSERS = (Condition, Choice)
 
 def _short(value):
     return round(value, 3) if isinstance(value, float) else value
@@ -158,7 +194,7 @@ class Link:
             raise ValueError(f'only numbers and choices can be added to, not {option!r}')
         if change != Link.Change.Toggle and value is None and kind != 'action':
             raise ValueError('a value is needed to set or add')
-        if isinstance(value, Condition):
+        if isinstance(value, CHOOSERS):
             names = pyxelwidgets.mapping.available(on)
             if value.source.name not in names:
                 raise ValueError(f'{on.__name__} has no {value.source.name!r} (it has {", ".join(names)})')
@@ -205,7 +241,7 @@ class Link:
 
     def argument(self, sources: dict):
         """An action's argument from the event's ``sources``."""
-        value = self.value.choose(sources) if isinstance(self.value, Condition) else self.value
+        value = self.value.choose(sources) if isinstance(self.value, CHOOSERS) else self.value
         if isinstance(value, str):
             return fill_text(value, sources)
         if not isinstance(value, pyxelwidgets.message.Source):
@@ -228,7 +264,7 @@ class Link:
                 return not current
             members = list(type(current))
             return members[(members.index(current) + 1) % len(members)]
-        given = self.value.choose(sources) if isinstance(self.value, Condition) else self.value
+        given = self.value.choose(sources) if isinstance(self.value, CHOOSERS) else self.value
         if self.change == Link.Change.Add:
             if isinstance(given, pyxelwidgets.message.Source):
                 # As the event has it: whole number steps (delta...) or 0.0-1.0

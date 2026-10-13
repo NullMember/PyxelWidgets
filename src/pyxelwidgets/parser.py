@@ -867,6 +867,8 @@ class Parser():
             return given
         if isinstance(value, dict) and 'if' in value:
             value = self._link_condition(value, event, f'{where}.value', lambda given, at: number(given, at))
+        elif isinstance(value, dict) and 'choose' in value:
+            value = self._link_choice(value, event, f'{where}.value', lambda given, at: number(given, at))
         elif isinstance(value, dict):
             value = self._link_source(value, event, f'{where}.value')
         else:
@@ -899,14 +901,17 @@ class Parser():
                 raise LayoutError(f'{where}.value: Toggle takes no value')
         elif value is None:
             raise LayoutError(f'{where}.value: needed to {change}')
-        elif isinstance(value, dict) and 'if' in value:
+        elif isinstance(value, dict) and ('if' in value or 'choose' in value):
             def decode(given, at):
                 if change == 'Add':
                     if isinstance(given, bool) or not isinstance(given, (int, float)) or (kind != 'float' and not isinstance(given, int)):
                         raise LayoutError(f'{at}: Add takes a {"number" if kind == "float" else "whole number"}, got {given!r}')
                     return given
                 return self._link_constant(cls, option, kind, given, at)
-            value = self._link_condition(value, event, f'{where}.value', decode, on_off = kind == 'bool' and change == 'Set')
+            if 'choose' in value:
+                value = self._link_choice(value, event, f'{where}.value', decode)
+            else:
+                value = self._link_condition(value, event, f'{where}.value', decode, on_off = kind == 'bool' and change == 'Set')
         elif isinstance(value, dict):
             value = self._link_source(value, event, f'{where}.value')
             if change == 'Set' and kind not in LINK_SOURCES:
@@ -956,6 +961,20 @@ class Parser():
             else:
                 raise LayoutError(f'{where}.{key}: needed (the value when the condition is {"true" if key == "then" else "false"})')
         return pyxelwidgets.link.Condition(source, op, to, *chosen)
+
+    def _link_choice(self, value: dict, event: type, where: str, decode) -> pyxelwidgets.link.Choice:
+        """``{"choose": [values], "by": source}``: the event value picks one (whole numbers by index, 0.0-1.0 spread over them)."""
+        unknown = set(value) - {'choose', 'by'}
+        if unknown:
+            raise LayoutError(f'{where}: a choice is {{"choose": [values], "by": source}}, not {", ".join(sorted(unknown))}')
+        values = value['choose']
+        if not isinstance(values, list) or not values:
+            raise LayoutError(f'{where}.choose: must be a list of values, got {values!r}')
+        by = value.get('by')
+        if by is None:
+            raise LayoutError(f'{where}.by: needed (the event value picking one, e.g. "x")')
+        source = self._link_source(by if isinstance(by, dict) else {'source': by}, event, f'{where}.by')
+        return pyxelwidgets.link.Choice(source, tuple(decode(given, f'{where}.choose[{index}]') for index, given in enumerate(values)))
 
     @staticmethod
     def _link_source(value: dict, event: type, where: str) -> pyxelwidgets.message.Source:
