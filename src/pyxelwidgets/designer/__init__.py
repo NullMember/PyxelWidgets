@@ -13,6 +13,7 @@ import copy
 import dataclasses
 import http.server
 import importlib
+import ipaddress
 import importlib.resources
 import json
 import os
@@ -30,6 +31,8 @@ import pyxelwidgets.message
 import pyxelwidgets.parser
 import pyxelwidgets.transport
 import pyxelwidgets.widgets
+
+from .dialogs import Unavailable, pick_file
 
 __all__ = ['Preview', 'Designer', 'new_layout', 'catalog']
 
@@ -721,13 +724,16 @@ class Preview:
 class Designer:
     """The designer's state: the preview and the file it saves to."""
 
-    def __init__(self, path: str | None = None, *, connect: bool = True, snippets: str | None = None):
+    def __init__(self, path: str | None = None, *, connect: bool = True, snippets: str | None = None, dialogs: bool = True):
         self.path = pathlib.Path(path) if path else None
         layout = json.loads(self.path.read_text()) if self.path and self.path.exists() else new_layout()
         self.preview = Preview(layout, connect = connect)
         self.catalog = catalog()
         #: Where the snippets you save go
         self.snippets = pathlib.Path(snippets).expanduser() if snippets else USER_SNIPPETS
+        #: Shows the system's file dialog for Open and Save As: ``pick(mode, path)`` → a path or None (cancelled);
+        #: None asks for paths in the page instead
+        self.pick = pick_file if dialogs else None
 
     def close(self) -> None:
         """Stop the transport and close connected hardware."""
@@ -1006,6 +1012,19 @@ class Handler(http.server.BaseHTTPRequestHandler):
                     self.designer.new(body.get('template'), body.get('layout'))
                 self._json({'ok': True, 'file': str(self.designer.path) if self.designer.path else None, 'layout': preview.layout})
                 return
+            elif path == '/api/pick':
+                # {"mode": open|save, "path"}: the system's file dialog, only for a browser on this computer
+                pick = self.designer.pick
+                if pick is None or not ipaddress.ip_address(self.client_address[0]).is_loopback:
+                    self._json({'ok': False, 'unavailable': True})
+                    return
+                try:
+                    chosen = pick(str(body['mode']), body.get('path') or (str(self.designer.path) if self.designer.path else None))
+                except Unavailable as error:
+                    self._json({'ok': False, 'unavailable': True, 'error': str(error)})
+                    return
+                self._json({'ok': True, 'path': chosen})
+                return
             elif path == '/api/python':
                 # {"layout", "file", "handlers"}: the Python tab's code, loading the layout file and building it in code
                 layout, handlers = body['layout'], bool(body.get('handlers'))
@@ -1046,11 +1065,12 @@ class Handler(http.server.BaseHTTPRequestHandler):
         self._json({'ok': True})
 
 def serve(path: str | None = None, port: int = 8765, host: str = '127.0.0.1', *, connect: bool = True,
-          snippets: str | None = None) -> http.server.ThreadingHTTPServer:
+          snippets: str | None = None, dialogs: bool = True) -> http.server.ThreadingHTTPServer:
     """
     Start the designer's web server (not yet serving: call ``serve_forever``).
     With ``connect`` (default), the layout's devices and outputs connect as they're added.
     ``snippets`` is where snippets you save go (default ``~/.pyxelwidgets/snippets``).
+    With ``dialogs`` (default), Open and Save As show the system's file dialog (to a browser on this computer).
     """
-    handler = type('DesignerHandler', (Handler,), {'designer': Designer(path, connect = connect, snippets = snippets)})
+    handler = type('DesignerHandler', (Handler,), {'designer': Designer(path, connect = connect, snippets = snippets, dialogs = dialogs)})
     return http.server.ThreadingHTTPServer((host, port), handler)

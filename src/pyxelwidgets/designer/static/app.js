@@ -4290,12 +4290,29 @@ async function save() {
   }
 }
 
+// The system's file dialog (shown by the server, so only for a browser on its computer):
+// the chosen path, null when cancelled, undefined when there is none (ask in the page instead)
+async function pickFile(mode, path) {
+  if (state.noFileDialog) return undefined;
+  const reply = await api('POST', '/api/pick', { mode, path });
+  if (reply.unavailable) {
+    state.noFileDialog = true;
+    return undefined;
+  }
+  if (!reply.ok) setStatus(reply.error, 'error');
+  return reply.ok ? reply.path : null;
+}
+
 async function saveAs() {
   const suggestion = state.file || `${prefs.lastDirectory || ''}layout.json`;
-  const answer = await ask({ title: 'Save as', fields: [{ name: 'path', label: 'file', value: suggestion, placeholder: 'folder/name.json' }], ok: 'Save' });
-  if (!answer?.path) return;
+  let path = await pickFile('save', suggestion);
+  if (path === undefined) {
+    const answer = await ask({ title: 'Save as', fields: [{ name: 'path', label: 'file', value: suggestion, placeholder: 'folder/name.json' }], ok: 'Save' });
+    path = answer?.path;
+  }
+  if (!path) return;
   await flushSync();
-  const reply = await api('POST', '/api/save', { layout: state.layout, path: answer.path });
+  const reply = await api('POST', '/api/save', { layout: state.layout, path });
   if (!reply.ok) return setStatus(reply.error, 'error');
   prefs.lastDirectory = reply.file.replace(/[^\\/]*$/, '');
   state.file = reply.file;
@@ -4340,6 +4357,8 @@ async function showNew() {
 }
 
 async function showOpen() {
+  const picked = await pickFile('open', state.file || prefs.lastDirectory || null);
+  if (picked !== undefined) return picked && openPath(picked);
   const recent = prefs.recent || [];
   const answer = await ask({
     title: 'Open a layout',

@@ -29,10 +29,11 @@ def main() -> None:
     parser.add_argument('--import', dest = 'imports', action = 'append', default = [], metavar = 'MODULE',
                         help = 'a module (or .py file) registering widgets or devices of your own with parser.register; repeatable')
     parser.add_argument('--snippets', metavar = 'FOLDER', help = 'where snippets you save go (default ~/.pyxelwidgets/snippets)')
+    parser.add_argument('--no-dialogs', action = 'store_true', help = "type file paths in the page instead of the system's file dialogs")
     args = parser.parse_args()
     for module in args.imports:
         load_module(module)
-    server = pyxelwidgets.designer.serve(args.layout, args.port, connect = not args.offline, snippets = args.snippets)
+    server = pyxelwidgets.designer.serve(args.layout, args.port, connect = not args.offline, snippets = args.snippets, dialogs = not args.no_dialogs)
     url = f'http://{server.server_address[0]}:{server.server_address[1]}/'
     print(f'PyxelWidgets designer on {url} (Ctrl+C to stop)')
     if not args.no_browser:

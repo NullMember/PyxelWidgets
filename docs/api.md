@@ -3299,7 +3299,7 @@ what the widgets' mappings send.
 ### `Designer`
 
 ```python
-Designer(path: str | None = None, *, connect: bool = True, snippets: str | None = None)
+Designer(path: str | None = None, *, connect: bool = True, snippets: str | None = None, dialogs: bool = True)
 ```
 
 The designer's state: the preview and the file it saves to.
