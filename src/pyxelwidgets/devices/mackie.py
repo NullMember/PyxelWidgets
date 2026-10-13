@@ -28,7 +28,9 @@ and ``PluginParameter`` messages turn a parameter's V-Pot::
     surface.map(knob, mackie, PluginParameter('Bass', 'ReaComp', 'Ratio'), on = Changed, feedback = True)
 
 Works with Logic Pro (its plug-in views, cursor paging and passing messages
-are handled); REAPER's own Mackie Control support has no plug-in mode (its
+are handled) and Cubase (track names on the bottom line, one insert slot at a
+time picked with V-Pot 1, Channel Left/Right paging, names cut to 7
+characters); REAPER's own Mackie Control support has no plug-in mode (its
 OSC has: ``osc.REAPER``).
 """
 
@@ -173,6 +175,9 @@ class MackieControl(pyxelwidgets.devices.plugins.PluginParameters, _ControlSurfa
         self._focus = None
         # The buttons that page parameters (next, previous), once found
         self._paging = None
+        # Cubase's layout, known by its page counter ("Page:01/13"): track names on the bottom
+        # line, a header on top, one insert slot at a time (V-Pot 1 picks it), names filling the strips
+        self._cubase = False
         self._display = threading.Condition()
         self._display_changes = 0
         self._display_time = 0.0
@@ -267,7 +272,9 @@ class MackieControl(pyxelwidgets.devices.plugins.PluginParameters, _ControlSurfa
             for i, code in enumerate(body[1:]):
                 if 0 <= offset + i < len(self.lcd):
                     self.lcd[offset + i] = chr(code) if 0x20 <= code < 0x7F else ' '
-            if self.lcd[:56] != before[:56] and not _has_message(self.lcd[:56]):
+            if not self._cubase and _CUBASE_PAGE.search(''.join(self.lcd)):
+                self._cubase = True
+            if self.lcd[:56] != before[:56] and (self._cubase or not _has_message(self.lcd[:56])):
                 self._real_top = self.lcd[:56]
                 self._real_changes += 1
             if self.lcd != before:
@@ -302,13 +309,19 @@ class MackieControl(pyxelwidgets.devices.plugins.PluginParameters, _ControlSurfa
             self._require()
             self._to_channels()
             self._first_bank()
-            names = []
+            banks = []
             for bank in range(self.most_pages):
-                shown = self.row(0)
-                names += shown
-                if not any(shown) or not self._tap('Bank Right', lambda: self.row(0) != shown):
+                shown = self.row(self._names_line)
+                banks.append(shown)
+                if not any(shown) or not self._tap('Bank Right', lambda: self.row(self._names_line) != shown):
                     break
                 self._bank = bank + 1
+            names = [name for shown in banks[:-1] for name in shown]
+            if banks:
+                # Cubase's last bank ends at the last track, showing some of the bank before again
+                last = banks[-1]
+                previous = (banks[-2],) * 2 if len(banks) > 1 and all(last) else None
+                names += last[_overlap(previous, (last, last)):]
             while names and not names[-1]:
                 names.pop()
             self._track_names = [name or f'Track {index + 1}' for index, name in enumerate(names)]
@@ -323,7 +336,15 @@ class MackieControl(pyxelwidgets.devices.plugins.PluginParameters, _ControlSurfa
             return self._read_plugins(track)
 
     def _read_plugins(self, track: str) -> list:
-        """The plug-ins the display shows for ``track``, kept as (label, strip, name)."""
+        """
+        The plug-ins the display shows for ``track``, kept as (label, strip, name);
+        in Cubase (label, insert slot, name), going through its slots with V-Pot 1.
+        """
+        if self._cubase:
+            slots = self._slots()
+            labels = pyxelwidgets.devices.plugins.labels([name for _, name in slots])
+            self._plugins[track] = [(label, slot, name) for label, (slot, name) in zip(labels, slots)]
+            return labels
         names = self._plugin_names()
         strips = [strip for strip, name in enumerate(names) if name]
         labels = pyxelwidgets.devices.plugins.labels([names[strip] for strip in strips])
@@ -337,35 +358,45 @@ class MackieControl(pyxelwidgets.devices.plugins.PluginParameters, _ControlSurfa
             found, previous = [], None
             for page in range(self.most_pages):
                 shown, values = self.row(0), self.row(1)
-                last = not self._next_page(shown)
+                # The page's V-Pot rings come with it
+                self._focus = (track, plugin, page + 1)
+                last = not self._next_page()
                 # Logic's last page ends at the last parameter, showing some of the page before again
-                skip = _overlap(previous, (shown, values)) if last else 0
+                skip = _overlap(previous, (shown, values)) if last and not self._cubase else 0
                 found += [(name, page, strip) for strip, name in enumerate(shown) if name and strip >= skip]
                 if last:
+                    self._focus = (track, plugin, page)
                     break
                 previous = (shown, values)
-                self._focus = (track, plugin, page + 1)
             labels = pyxelwidgets.devices.plugins.labels([name for name, _, _ in found])
             self._parameters[(track, plugin)] = [(label, page, strip) for label, (_, page, strip) in zip(labels, found)]
             self._to_page(0)
             return labels
 
+    @property
+    def _names_line(self) -> int:
+        """The display line with the track names in the channels view (Cubase's bottom)."""
+        return 1 if self._cubase else 0
+
     def _require(self) -> None:
         if self._midi_output is None or self._midi_input is None:
             raise ConnectionError('Mackie Control is not connected to the DAW')
 
-    def _tap(self, name: str, changed = None, *, read: bool = True) -> bool:
+    def _tap(self, name: str, changed = None, *, read: bool = True, steps: int | None = None) -> bool:
         """
-        Press and release ``name``; True once the DAW changed its display and
-        settled (and ``changed()`` says it changed what matters), False if it
-        didn't answer. To ``read`` the result, a passing message hiding it
-        (Logic's "Page 2/12") is waited out.
+        Press and release ``name`` (or turn it by ``steps``); True once the DAW
+        changed its display and settled (and ``changed()`` says it changed what
+        matters), False if it didn't answer. To ``read`` the result, a passing
+        message hiding it (Logic's "Page 2/12") is waited out.
         """
         with self._display:
             before = self._display_changes
             real_before = self._real_changes
-        self.send(pyxelwidgets.message.Command(name, 1.0))
-        self.send(pyxelwidgets.message.Command(name, 0.0))
+        if steps is not None:
+            self.send(pyxelwidgets.message.Command(name, steps))
+        else:
+            self.send(pyxelwidgets.message.Command(name, 1.0))
+            self.send(pyxelwidgets.message.Command(name, 0.0))
         start = time.monotonic()
         with self._display:
             while True:
@@ -380,7 +411,7 @@ class MackieControl(pyxelwidgets.devices.plugins.PluginParameters, _ControlSurfa
                     return False
                 else:
                     self._display.wait(self.timeout - (now - start))
-            if read and self._real_changes == real_before and _has_message(self.lcd[:56]):
+            if read and not self._cubase and self._real_changes == real_before and _has_message(self.lcd[:56]):
                 # What changed is under a message: it shows when the message goes
                 end = time.monotonic() + self.message_time
                 while _has_message(self.lcd[:56]) and time.monotonic() < end:
@@ -395,18 +426,25 @@ class MackieControl(pyxelwidgets.devices.plugins.PluginParameters, _ControlSurfa
 
     def _to_channels(self) -> None:
         if self._view != 'channels':
-            shown = self.row(0)
-            self._tap(self.channel_button, lambda: self.row(0) != shown)
+            if self._view is None:
+                # Another view first, so the DAW draws the channels view in full (it sends
+                # only what changes, and may have drawn it before the connection)
+                self._tap('Send')
+            shown = self._lines()
+            self._tap(self.channel_button, lambda: self._lines() != shown)
             if self.assignment[-1].endswith('.'):
                 # Logic: a dot is its one-track view, and the button switches between them
-                shown = self.row(0)
-                self._tap(self.channel_button, lambda: self.row(0) != shown)
+                shown = self._lines()
+                self._tap(self.channel_button, lambda: self._lines() != shown)
             self._view, self._focus = 'channels', None
+
+    def _lines(self) -> tuple:
+        return tuple(self.row(0)), tuple(self.row(1))
 
     def _first_bank(self) -> None:
         for _ in range(self.most_pages):
-            shown = self.row(0)
-            if not self._tap('Bank Left', lambda: self.row(0) != shown):
+            shown = self.row(self._names_line)
+            if not self._tap('Bank Left', lambda: self.row(self._names_line) != shown):
                 break
         self._bank = 0
 
@@ -432,7 +470,7 @@ class MackieControl(pyxelwidgets.devices.plugins.PluginParameters, _ControlSurfa
             while self._bank > bank:
                 self._tap('Bank Left')
                 self._bank -= 1
-            if self.row(0)[strip] == self._track_names[index] or attempt:
+            if self.row(self._names_line)[strip] == self._track_names[index] or attempt:
                 break
             # The tracks changed in the DAW: scan them again
             self.scan_tracks()
@@ -446,7 +484,9 @@ class MackieControl(pyxelwidgets.devices.plugins.PluginParameters, _ControlSurfa
         if plugin in self._plugin_strips(track):
             self._show_plugins(track)
             strip, name = self._plugin_strips(track)[plugin]
-            if self._plugin_names()[strip] != name:
+            if self._cubase:
+                self._to_slot(strip)
+            if (self._slot() or (0, ''))[1] != name if self._cubase else self._plugin_names()[strip] != name:
                 # Plug-ins were added, removed or moved on the track: read them again
                 self._read_plugins(track)
         else:
@@ -454,11 +494,50 @@ class MackieControl(pyxelwidgets.devices.plugins.PluginParameters, _ControlSurfa
         plugins = self._plugin_strips(track)
         if plugin not in plugins:
             raise LookupError(f'no plug-in {plugin!r} on {track!r} (plug-ins: {", ".join(plugins) or "none found"})')
-        shown = self.row(0)
-        if not self._tap(f'V-Select {plugins[plugin][0] + 1}', lambda: self.row(0) != shown):
+        shown = self._lines()
+        if self._cubase:
+            # The slot's page, then its parameters on the next pages
+            self._to_slot(plugins[plugin][0])
+            self._paging = ('Channel Right', 'Channel Left')
+            opened = self._slot() == plugins[plugin] and self._tap('Channel Right', lambda: self._lines() != shown)
+        else:
+            opened = self._tap(f'V-Select {plugins[plugin][0] + 1}', lambda: self.row(0) != shown[0])
+        if not opened:
             self._view = None
-            raise LookupError(f'the DAW didn\'t show the parameters of {plugin!r} when its V-Pot was pressed')
+            raise LookupError(f'the DAW didn\'t show the parameters of {plugin!r}')
         self._view, self._focus = 'parameters', (track, plugin, 0)
+
+    def _slot(self):
+        """Cubase's insert slot shown: (number, plug-in name or ''), None when it shows none."""
+        match = _CUBASE_SLOT.match(''.join(self.lcd[:56]))
+        if match is None:
+            return None
+        name = match[2].strip()
+        return int(match[1]), '' if name == 'No Effect' else name
+
+    def _slots(self) -> list:
+        """Cubase's insert slots with a plug-in, as (number, name): V-Pot 1 goes through them from the first."""
+        self._to_slot(1)
+        found = []
+        for _ in range(self.most_pages):
+            shown = self._slot()
+            if shown is None:
+                break
+            if shown[1]:
+                found.append(shown)
+            if not self._tap('V-Pot 1', lambda: self._slot() != shown, steps = 1):
+                break
+        return found
+
+    def _to_slot(self, slot: int) -> None:
+        """Show Cubase's insert ``slot`` (it stops at the first)."""
+        for _ in range(3):
+            shown = self._slot()
+            if shown is not None and shown[0] == slot:
+                return
+            steps = -63 if shown is None or slot == 1 else slot - shown[0]
+            if not self._tap('V-Pot 1', lambda: self._slot() != shown, steps = steps):
+                return
 
     def _plugin_strips(self, track: str) -> dict:
         """Scanned plug-ins of ``track``: label → (strip, name as shown)."""
@@ -478,6 +557,13 @@ class MackieControl(pyxelwidgets.devices.plugins.PluginParameters, _ControlSurfa
             # for the selected track's plug-ins
             shown = (self.row(0), self.row(1))
             self._tap(self.plugin_button, lambda: (self.row(0), self.row(1)) != shown)
+        for _ in range(self.most_pages):
+            # Cubase stays on a plug-in's page of parameters: back to its slot's page
+            if self._slot() is not None or not self._cubase:
+                break
+            shown = self._lines()
+            if not self._tap('Channel Left', lambda: self._lines() != shown):
+                break
         self._view = 'plugins'
 
     def _plugin_names(self) -> list:
@@ -487,12 +573,17 @@ class MackieControl(pyxelwidgets.devices.plugins.PluginParameters, _ControlSurfa
         bottom = names(1)
         return bottom if any(bottom) else names(0)
 
-    def _next_page(self, shown: list) -> bool:
-        """Show the next page of parameters; False if there is none. The cursor buttons page in Logic."""
+    def _next_page(self) -> bool:
+        """
+        Show the next page of parameters; False if there is none. The cursor
+        buttons page in Logic, Channel Left/Right in Cubase (whose pages may
+        have the same names: its page counter changes).
+        """
+        shown = self._lines()
         if self._paging is not None:
-            return self._tap(self._paging[0], lambda: self.row(0) != shown)
+            return self._tap(self._paging[0], lambda: self._lines() != shown)
         for paging in ((self.next_page, self.previous_page), ('Right', 'Left')):
-            if self._tap(paging[0], lambda: self.row(0) != shown):
+            if self._tap(paging[0], lambda: self._lines() != shown):
                 self._paging = paging
                 return True
         return False
@@ -500,13 +591,15 @@ class MackieControl(pyxelwidgets.devices.plugins.PluginParameters, _ControlSurfa
     def _to_page(self, page: int) -> None:
         track, plugin, shown = self._focus
         forward, back = self._paging or (self.next_page, self.previous_page)
+        # The page's V-Pot rings come with it
         while shown < page:
-            self._tap(forward, read = False)
             shown += 1
+            self._focus = (track, plugin, shown)
+            self._tap(forward, read = False)
         while shown > page:
-            self._tap(back, read = False)
             shown -= 1
-        self._focus = (track, plugin, page)
+            self._focus = (track, plugin, shown)
+            self._tap(back, read = False)
 
     def _shown_parameter(self, strip: int):
         """(track, plugin, parameter) on ``strip`` in the parameters view, else None."""
@@ -534,6 +627,10 @@ class MackieControl(pyxelwidgets.devices.plugins.PluginParameters, _ControlSurfa
                 step = max(-63, min(63, steps))
                 self.send(pyxelwidgets.message.Command(f'V-Pot {strip + 1}', step))
                 steps -= step
+
+# Cubase's page counter ("Page:02/13") and insert slot page (" IFX 2    On         Pro-C 3")
+_CUBASE_PAGE = re.compile(r'Page:\d+/\d+')
+_CUBASE_SLOT = re.compile(r'\s*IFX\s*(\d+)\s+(?:On\s+|Off\s+)?(.*)')
 
 # Logic's page message, which may fit the strips ("   Page 10/12")
 _PAGE_MESSAGE = re.compile(r'Page\s+\d+\s*/\s*\d+')
