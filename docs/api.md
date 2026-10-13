@@ -37,6 +37,7 @@ Generated from the docstrings by `docs/build_api.py`; see the [guides](README.md
   - [`pyxelwidgets.devices.web`](#pyxelwidgetsdevicesweb)
   - [`pyxelwidgets.devices.midi_clock`](#pyxelwidgetsdevicesmidi_clock)
   - [`pyxelwidgets.devices.midi_port`](#pyxelwidgetsdevicesmidi_port)
+  - [`pyxelwidgets.devices.plugins`](#pyxelwidgetsdevicesplugins)
   - [`pyxelwidgets.devices.mackie`](#pyxelwidgetsdevicesmackie)
   - [`pyxelwidgets.devices.osc`](#pyxelwidgetsdevicesosc)
   - [`pyxelwidgets.devices.desktop`](#pyxelwidgetsdevicesdesktop)
@@ -739,11 +740,12 @@ a display (`'Timecode'`, value a string). Buttons are pressed while
 PluginParameter(track: str = '', plugin: str = '', parameter: str = '', value: Any = Source(name='delta', min=None, max=None, offset=0))
 ```
 
-A plug-in parameter, through a control surface's plug-in mode (Mackie
-Control): `track`, `plugin` and `parameter` are names as the
-surface scanned them from the DAW (`scan_tracks`, `scan_plugins`,
-`scan_parameters`). `value` is V-Pot steps (a knob's or fader's
-`delta`); received, it is the parameter's position 0.0-1.0.
+A plug-in parameter, by name: `track`, `plugin` and `parameter` are
+names as the output scanned them from the DAW (`scan_tracks`,
+`scan_plugins`, `scan_parameters`). `value` is V-Pot steps for
+Mackie Control's plug-in mode (a knob's or fader's `delta`) and the
+position 0.0-1.0 for REAPER's OSC (a widget's `value`); received, it is
+the parameter's position 0.0-1.0.
 
 ### `Hotkey` (Message)
 
@@ -2576,6 +2578,33 @@ Sends MidiMessages with `send`; received channel messages are emitted as Message
 - **`send(message: MidiMessage)`**
 - **`decode(midi: list)`**
 
+## `pyxelwidgets.devices.plugins`
+
+Shared by the outputs that reach a DAW's plug-in parameters by name
+(`mackie.MackieControl`, `osc.REAPER`): the names scans found, and a
+thread that drives the DAW to a parameter, so `send` never blocks.
+
+An output mixes in `PluginParameters` and provides `scan_tracks()`,
+`scan_plugins(track)`, `scan_parameters(track, plugin)` and
+`_turn(track, plugin, parameter, value)`.
+
+### `PluginParameters`
+
+```python
+PluginParameters(**kwargs)
+```
+
+Scans by label: `tracks`, plug-ins as (label, ...) by track, parameters
+as (label, ...) by (track, plugin); what follows the label is where the
+output finds it. `warning` says what went wrong reaching a parameter last.
+
+- **`scanned()`**: What the scans found: `tracks`, `plugins` by track and `parameters` by track and plug-in.
+- **`close()`**
+
+### `labels(names: list)`
+
+Names made unique: a repeated one gets " (2)", " (3)"...
+
 ## `pyxelwidgets.devices.mackie`
 
 DAW control surface protocols over MIDI: Mackie Control (also Logic Control)
@@ -2607,9 +2636,10 @@ and `PluginParameter` messages turn a parameter's V-Pot:
     surface.map(knob, mackie, PluginParameter('Bass', 'ReaComp', 'Ratio'), on = Changed, feedback = True)
 
 Works with Logic Pro (its plug-in views, cursor paging and passing messages
-are handled); REAPER's own Mackie Control support has no plug-in mode.
+are handled); REAPER's own Mackie Control support has no plug-in mode (its
+OSC has: `osc.REAPER`).
 
-### `MackieControl` (_ControlSurface)
+### `MackieControl` (PluginParameters, _ControlSurface)
 
 ```python
 MackieControl(*, mode: MackieControl.Mode = MackieControl.Mode.MackieControl, plugin_button: str = 'Plug-in', channel_button: str = 'Pan', next_page: str = 'Bank Right', previous_page: str = 'Bank Left', **kwargs)
@@ -2630,9 +2660,7 @@ both). Answers the Logic Control connection handshake.
 - **`header`**
 - **`send(message)`**
 - **`decode(midi: list)`**
-- **`close()`**
 - **`row(line: int = 0)`**: The 8 strips' texts on the display's top (0) or bottom (1) line; the top line without a passing message over it (Logic's "Page 2/12" for 2 seconds).
-- **`scanned()`**: What the scans found: `tracks`, `plugins` by track and `parameters` by track and plug-in.
 - **`scan_tracks()`**: The DAW's track names: banks through the strips from the first, reading the display (a DAW shows at most 7 characters; repeated names get " (2)"). Blocks for a while; don't call it from a MIDI or widget event handler.
 - **`scan_plugins(track: str)`**: The plug-ins on `track` (a name from `scan_tracks`), as the DAW's plug-in mode shows them.
 - **`scan_parameters(track: str, plugin: str)`**: The parameters of `plugin` on `track`: opens it and pages through its parameters, 8 at a time.
@@ -2668,6 +2696,16 @@ OSC over UDP (needs the `osc` extra: `pip install "pyxelwidgets[osc]"`):
 
 Received messages are emitted as MessageReceived with an OscMessage.
 
+REAPER also reaches plug-in parameters by name: `scan_tracks()`,
+`scan_plugins(track)` and `scan_parameters(track, plugin)` ask REAPER
+for its names, and `PluginParameter` messages set a parameter (0.0-1.0):
+
+    reaper.scan_tracks()                       # ['Drums', 'Bass', ..., 'MASTER']
+    reaper.scan_plugins('Bass')                # ['3-Band EQ', 'Volume/Pan Smoother']
+    reaper.scan_parameters('Bass', '3-Band EQ')  # ['Low (dB)', 'Frequency (Hz)', 'Mid (dB)', ...]
+    surface.map(knob, reaper, PluginParameter('Bass', '3-Band EQ', 'Mid (dB)', Source('value')),
+                on = Changed, feedback = True)
+
 ### `OSC` (Device)
 
 ```python
@@ -2683,9 +2721,32 @@ editors.
 - **`disconnect()`**
 - **`send(message: OscMessage)`**
 
-### `REAPER` (OSC)
+### `REAPER` (PluginParameters, OSC)
 
-REAPER's default OSC pattern (Default.ReaperOSC): tracks are `{x+1}`-style placeholders for `@`.
+```python
+REAPER(**kwargs)
+```
+
+REAPER's default OSC pattern (Default.ReaperOSC): tracks are `{x+1}`-style
+placeholders for `@`. In REAPER: Preferences > Control/OSC/web > Add >
+OSC, mode "Configure device IP+local port", device port 9000 (`receive_port`),
+local listen port 8000 (`send_port`).
+
+Plug-in parameters by name: REAPER sends a device the names in its banks
+(tracks 8 at a time, a plug-in's parameters 16 at a time) and only what
+changed, so the output keeps all it was sent (`state`, after a refresh
+of the surfaces on the first scan) and goes through the banks. Setting a
+parameter selects its track in the device (`/track/...` without a
+number then means that track). REAPER sends a parameter's changes back
+only while its track is in the device's bank of tracks (the first 8,
+unless the bank was moved) and the parameter among the 16 shown.
+
+- classmethod **`describe()`**
+- **`connect()`**
+- **`send(message)`**
+- **`scan_tracks()`**: REAPER's track names, then 'MASTER' (repeated names get " (2)"). Blocks for a while; don't call it from an OSC or widget event handler.
+- **`scan_plugins(track: str)`**: The plug-ins on `track` (a name from `scan_tracks`), in their order.
+- **`scan_parameters(track: str, plugin: str)`**: The parameters of `plugin` on `track`: goes through its banks of parameters.
 
 ## `pyxelwidgets.devices.desktop`
 
