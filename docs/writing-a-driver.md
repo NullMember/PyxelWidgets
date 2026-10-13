@@ -106,6 +106,11 @@ Transparent and half-transparent pixels arrive already blended over black.
 - **Controls:** emit `ControlPressed`/`ControlReleased` (velocity),
   `ControlChanged` (an absolute value, 0.0-1.0) or `ControlTurned` (relative
   steps, negative is counter-clockwise), named like your `controls`.
+- **Control lights:** if some controls have LEDs, return their names from
+  `lights()` and send one in `send_control(name, value)` (`value` comes from
+  your `color_model`). Bound controls then show what they control: the
+  surface calls `set_control(name, color)` every frame, which sends only
+  changes.
 
 Input arrives on rtmidi's thread; that's fine, see [Threads](threads.md).
 

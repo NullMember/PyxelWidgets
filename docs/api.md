@@ -2083,6 +2083,8 @@ widgets from another thread, e.g. a MIDI callback of your own.
 - **`check_devices(devices = None)`**: Let `devices` (default: the surface's devices and its mappings' outputs) notice being unplugged and plugged back in, with their `check()` (MIDI devices have one). Ports are listed once, outside the lock; each check holds it. Returns the devices whose connection changed. App calls this about once a second.
 - **`force_update()`**: Resend every pixel on the next update, e.g. after a device reconnected.
 - **`update()`**: Render changed widgets and send changed pixels to every device.
+- **`reveal(seconds: float = 2.0)`**: Show on the devices, for `seconds`, where the widgets are: each shown widget's area in a color of its own (later widgets over earlier ones). Called again while showing, it stops. A binding action (`surface.reveal` in layouts) for finding your way on a busy grid.
+- **`control_light(binding)`**: The color a bound control shows: a Button's active or inactive color, another widget's active color dimmed by its value, lime for play/toggle while the transport plays; None leaves it as it is.
 - **`close()`**: Close all devices, and the outputs of the mappings.
 
 ## `pyxelwidgets.app`
@@ -2158,7 +2160,8 @@ tempo, start, stop and position (song position) then come from there.
 
 Bindings connect a device's named controls (by the device's index in
 `devices`) to a widget, with Binding options (`takeover`, `glide_time`,
-`step`, `axis`), or to an action (see `ACTIONS`).
+`step`, `axis`), or to an action (see `ACTIONS`; `surface.reveal`
+shows where the widgets are on the devices for a moment).
 Device inputs/outputs are optional port names; without them devices are found
 by their port names.
 
@@ -2383,6 +2386,9 @@ PadDoublePressed and PadHeld events.
 - **`show(frame: ndarray, x: int = 0, y: int = 0)`**: Show an RGBA `frame` with its bottom left at grid `x`, `y`; only changed pixels are sent.
 - **`fill(color)`**: Show one color on the whole grid.
 - **`invalidate()`**: Forget what the device shows, so the next `show` sends every pixel.
+- **`lights()`**: Names of the controls with a light `set_control` can set (e.g. a Launchpad's side buttons); none by default.
+- **`set_control(name: str, color)`**: Light control `name` in `color` (a Color); only changes are sent, and controls without a light (see `lights`) are ignored.
+- **`send_control(name: str, value)`**: Send a control's light, `value` from `color_model`. Override with `lights`.
 - **`send_pixels(pixels: list)`**: Send `(x, y, value)` triples, values from `color_model`. Override to batch.
 - **`send_pixel(x: int, y: int, value)`**
 
