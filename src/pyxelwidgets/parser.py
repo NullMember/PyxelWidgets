@@ -128,7 +128,7 @@ ANIMATIONS = {cls.__name__: cls for cls in (pyxelwidgets.animation.Blink, pyxelw
 # Messages mappings send, by class name
 MESSAGES = {name: getattr(pyxelwidgets.message, name) for name in (
     'NoteOn', 'NoteOff', 'ControlChange', 'ProgramChange', 'PitchBend', 'PolyPressure', 'ChannelPressure', 'OscMessage', 'Command',
-    'Hotkey', 'Key', 'TypeText', 'MouseMove', 'MouseButton', 'MouseClick', 'Scroll', 'PluginParameter')}
+    'Hotkey', 'Key', 'TypeText', 'MouseMove', 'MouseButton', 'MouseClick', 'Scroll', 'PluginParameter', 'TrackParameter')}
 
 # Option kinds a link can take an event value for, and the ones it can add to or toggle
 LINK_SOURCES = {'bool', 'int', 'float', 'color', 'enum', 'str'}
