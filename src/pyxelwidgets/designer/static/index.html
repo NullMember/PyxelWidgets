@@ -24,8 +24,9 @@
       <div class="segmented zoom" role="group" aria-label="Zoom">
         <button id="zoom-out" title="Zoom out (Ctrl/Cmd -)">−</button>
         <button id="zoom-fit" title="Fit the grid in the window (Ctrl/Cmd 0)">Fit</button>
-        <button id="zoom-in" title="Zoom in (Ctrl/Cmd +, or Ctrl/Cmd + scroll)">+</button>
+        <button id="zoom-in" title="Zoom in (Ctrl/Cmd +, or the wheel)">+</button>
       </div>
+      <button id="wheel-mode" class="small-toggle"></button>
       <span class="divider"></span>
       <button id="undo" title="Undo (Ctrl+Z)">Undo</button>
       <button id="redo" title="Redo (Ctrl+Shift+Z)">Redo</button>
@@ -108,6 +109,33 @@
       <section id="properties"></section>
     </aside>
   </main>
+  <section id="rules" class="window" hidden aria-label="Messages and links">
+    <header class="window-head">
+      <h3>Messages and links <span id="rules-title" class="window-note"></span></h3>
+      <div class="segmented" role="group" aria-label="Whose">
+        <button id="rules-selected" title="The selected widgets' messages and links">Selected</button>
+        <button id="rules-all" title="Every widget's messages and links">All widgets</button>
+      </div>
+      <button id="rules-close" class="icon" title="Close (Escape, M)" aria-label="Close">×</button>
+    </header>
+    <div class="window-tools">
+      <button id="rules-add-message">+ Message</button>
+      <button id="rules-add-link">+ Link</button>
+      <span class="divider"></span>
+      <button id="rules-copy" title="Copy (Ctrl/Cmd+C)">Copy</button>
+      <button id="rules-cut" title="Cut (Ctrl/Cmd+X)">Cut</button>
+      <button id="rules-paste">Paste</button>
+      <button id="rules-duplicate" title="Duplicate on the same widgets (Ctrl/Cmd+D)">Duplicate</button>
+      <button id="rules-delete" class="danger" title="Delete (Delete)">Delete</button>
+      <span class="divider"></span>
+      <button id="rules-all-rows" title="Pick all of them (Ctrl/Cmd+A)">Pick all</button>
+      <input type="search" id="rules-search" placeholder="Find" aria-label="Find a message or link">
+    </div>
+    <div class="window-body">
+      <ul id="rules-list" class="rule-list" aria-label="Messages and links"></ul>
+      <section id="rules-editor" class="rule-pane"></section>
+    </div>
+  </section>
   <script type="module" src="app.js"></script>
 </body>
 </html>

@@ -26,6 +26,7 @@ const state = {
   hardware: { devices: [], outputs: [] },
   dragType: null, // a palette widget type being dragged onto the grid
   zoom: 1, // pad size relative to the size that fits the window
+  pan: { x: 0, y: 0 }, // the board moved from the middle of the stage, in pixels
   layerDrag: null, // paths of the layers being dragged in the Layers panel
   error: null,
   frameSize: [0, 0],
@@ -33,6 +34,11 @@ const state = {
   paint: { color: '#ffffff', erase: false },
   eventLog: [], // events from the preview, newest last
   eventsPaused: false,
+  // The messages and links window: shown, every widget's or the selected ones', picked rules, Shift+click
+  // start, search, whether keys go to it
+  rules: { open: false, all: false, picked: [], anchor: null, query: '', focused: false },
+  // Several picked rules edited as one: {kind, rep, others} (see spreadChange)
+  broadcast: null,
 };
 
 const $ = (id) => document.getElementById(id);
@@ -509,22 +515,6 @@ function defaultMessage(widget, on, info) {
   }
 }
 
-function addMapping(widget) {
-  const output = outputsOf()[0];
-  const info = outputInfo(output);
-  // Macro buttons: a momentary button fires a shortcut on presses (it changes on releases too)
-  const momentary = widget.type === 'Button' && (widget.options?.mode || 'Button') !== 'Switch';
-  const on = momentary && info?.messages.includes('Hotkey') ? 'Pressed' : defaultEvent(widget);
-  const rules = [{ widget: widget.name, on, output: output.name, message: defaultMessage(widget, on, info) }];
-  // A Sequencer's notes end with their gates
-  if (on === 'StepPlayed' && rules[0].message.type === 'NoteOn' && info?.messages.includes('NoteOff')) {
-    rules.push({ widget: widget.name, on: 'StepEnded', output: output.name, message: defaultMessage(widget, 'StepEnded', info) });
-  }
-  change((layout) => {
-    setMappings(layout, [...(layout.mappings || []), ...rules]);
-  });
-}
-
 // Names of the event values a layout message uses, placeholders included
 function messageSources(message) {
   const found = [];
@@ -584,17 +574,6 @@ function valueEditor(id, value, field, sources, commit) {
       number('min', field.range ? String(field.range[0]) : '0'), '–', number('max', field.range ? String(field.range[1]) : '1'));
   }
   return el('div', { class: 'control value' }, mode, detail);
-}
-
-function messageFields(widget) {
-  const mappings = (state.layout.mappings || []).map((mapping, index) => [mapping, index]).filter(([mapping]) => mapping.widget === widget.name);
-  const outputs = outputsOf();
-  return [
-    el('h4', {}, 'Messages'),
-    outputs.length ? null : el('p', { class: 'hint' }, 'Add an output (a MIDI port, OSC, Mackie Control or HUI) to send this widget\'s events to other software.'),
-    mappings.map(([mapping, index]) => mappingCard(widget, mapping, index)),
-    outputs.length ? el('div', { class: 'actions' }, el('button', { onclick: () => addMapping(widget), title: 'Send an event of this widget to an output' }, 'Add message')) : null,
-  ];
 }
 
 const COMMAND_KINDS = [
@@ -1019,29 +998,6 @@ function defaultLinkValue(link) {
   }
 }
 
-function addLink(widget) {
-  // A momentary button acts on presses (it changes on releases too)
-  const momentary = widget.type === 'Button' && (widget.options?.mode || 'Button') !== 'Switch';
-  const on = momentary ? 'Pressed' : defaultEvent(widget);
-  // Another widget if there is one
-  const target = allWidgets().map((item) => item.widget).find((candidate) => candidate !== widget) || widget;
-  change((layout) => {
-    const link = { widget: widget.name, on, target: target.name, option: 'visible' };
-    defaultLinkValue(link);
-    setLinks(layout, [...(layout.links || []), link]);
-  });
-}
-
-function linkFields(widget) {
-  const links = (state.layout.links || []).map((link, index) => [link, index]).filter(([link]) => link.widget === widget.name);
-  return [
-    el('h4', {}, 'Links'),
-    links.length ? null : el('p', { class: 'hint' }, 'Change another widget\'s options when this one is used: show a group, switch a page, move a keyboard\'s octave, dim a color…'),
-    links.map(([link, index]) => linkCard(widget, link, index)),
-    el('div', { class: 'actions' }, el('button', { onclick: () => addLink(widget), title: 'Change an option of a widget on an event of this one' }, 'Add link')),
-  ];
-}
-
 // The value a link sets or adds: a constant, or an event value with its range (or offset)
 // "if <event value> <op> <constant> then <value> else <value>"
 function conditionEditor(link, option, id, edit, change) {
@@ -1358,6 +1314,579 @@ function linkCard(widget, link, index) {
   );
 }
 
+// ---------------------------------------------------------------- the messages and links window
+
+// A floating window listing the messages (layout.mappings) and links of the selected widgets, or
+// of every widget. Rules are picked as {kind: 'mapping' | 'link', index}; several picked ones of
+// one kind are edited together: a change to the first is made to the others (`spreadChange`).
+
+const RULES_CLIPBOARD = 'pyxelwidgets.rules';
+
+function ruleKey(rule) {
+  return `${rule.kind}:${rule.index}`;
+}
+
+function ruleObject(rule) {
+  return (rule.kind === 'mapping' ? state.layout.mappings : state.layout.links)?.[rule.index];
+}
+
+// The selected widgets in layout order
+function selectedWidgets() {
+  const picked = new Set(selectedPaths().map((path) => widgetAt(path)));
+  return allWidgets().map((item) => item.widget).filter((widget) => picked.has(widget));
+}
+
+// Widgets whose rules show: the selected ones, or all of them
+function ruleWidgets() {
+  return state.rules.all ? allWidgets().map((item) => item.widget) : selectedWidgets();
+}
+
+function fieldText(value) {
+  if (value && typeof value === 'object' && !Array.isArray(value)) {
+    if ('if' in value) return `(${value.if?.source} ${value.op || '=='} ${value.to} ? ${value.then} : ${value.else})`;
+    return `{${value.source}${value.offset ? `${value.offset > 0 ? '+' : ''}${value.offset}` : ''}}`;
+  }
+  if (Array.isArray(value)) return value.map(fieldText).join(' ');
+  return String(value);
+}
+
+// A message in a few words: "ControlChange control 1 · value {value} · channel 1"
+function messageText(message = {}) {
+  switch (message.type) {
+    case 'Command': return `${message.name ?? 'Play'} = ${fieldText(message.value ?? 1)}`;
+    case 'OscMessage': return `${message.address ?? '/'} ${fieldText(message.args || [])}`.trim();
+    case 'PluginParameter': return `${message.track || '?'} / ${message.plugin || '?'} / ${message.parameter || '?'}`;
+    case 'TrackParameter': return `${message.track || '?'} · ${message.parameter || 'Volume'}`;
+    default: return Object.entries(message).filter(([key]) => key !== 'type').map(([key, value]) => `${key} ${fieldText(value)}`).join(' · ');
+  }
+}
+
+// [when, to, what] of a rule
+function ruleText(rule, object = ruleObject(rule)) {
+  if (rule.kind === 'mapping') {
+    return [object.on || 'receive only', object.output, `${object.message?.type || '?'} ${messageText(object.message)}`];
+  }
+  if (object.action === 'debug') return [object.on, 'Debug log', `"${object.value ?? `${object.on} {all}`}"`];
+  const what = object.action ? object.action.replace(/^transport\./, '') : `${(object.change || 'set').toLowerCase()} ${object.option}`;
+  const value = describeValue(object);
+  return [object.on, object.target || 'Transport', value ? `${what} ${object.change === 'Add' ? 'by' : object.action ? '' : '='} ${value}`.replace(/  +/g, ' ') : what];
+}
+
+// The rows the window lists: [{rule, widget, text}], by widget, messages before links
+function ruleRows() {
+  const query = state.rules.query.trim().toLowerCase();
+  const rows = [];
+  for (const widget of ruleWidgets()) {
+    const add = (kind, list) => list.forEach((object, index) => {
+      if (object.widget !== widget.name) return;
+      const rule = { kind, index };
+      const text = ruleText(rule, object);
+      if (query && ![widget.name, ...text].some((part) => String(part).toLowerCase().includes(query))) return;
+      rows.push({ rule, widget, text });
+    });
+    add('mapping', state.layout.mappings || []);
+    add('link', state.layout.links || []);
+  }
+  return rows;
+}
+
+function pickedRules() {
+  const shown = new Set(ruleRows().map((row) => ruleKey(row.rule)));
+  return state.rules.picked.filter((rule) => shown.has(ruleKey(rule)) && ruleObject(rule));
+}
+
+function isPicked(rule) {
+  return state.rules.picked.some((picked) => ruleKey(picked) === ruleKey(rule));
+}
+
+// Click: this one; Shift+click: the rows from the one clicked before; Ctrl/Cmd+click or the box: one more or less
+function pickRule(rule, event = {}) {
+  const rules = state.rules;
+  const rows = ruleRows().map((row) => row.rule);
+  if (event.shiftKey && rules.anchor) {
+    const keys = rows.map(ruleKey);
+    const [a, b] = [keys.indexOf(ruleKey(rules.anchor)), keys.indexOf(ruleKey(rule))];
+    if (a >= 0 && b >= 0) {
+      rules.picked = rows.slice(Math.min(a, b), Math.max(a, b) + 1);
+      return renderRules();
+    }
+  }
+  rules.anchor = rule;
+  if (event.ctrlKey || event.metaKey || event.toggle) {
+    rules.picked = isPicked(rule) ? rules.picked.filter((picked) => ruleKey(picked) !== ruleKey(rule)) : [...pickedRules(), rule];
+  } else {
+    rules.picked = [rule];
+  }
+  renderRules();
+}
+
+function openRules(picked = null) {
+  state.rules.open = true;
+  if (picked) {
+    state.rules.picked = picked;
+    state.rules.anchor = picked[picked.length - 1] || null;
+    // Shown even when the widget isn't selected
+    const widgets = new Set(picked.map((rule) => ruleObject(rule)?.widget));
+    if (!state.rules.all && !ruleWidgets().some((widget) => widgets.has(widget.name))) {
+      const paths = allWidgets().filter(({ widget }) => widgets.has(widget.name)).map(({ path }) => path);
+      if (paths.length) state.selection = widgetSelection(paths);
+    }
+  }
+  state.rules.focused = true;
+  render();
+}
+
+function closeRules() {
+  state.rules.open = false;
+  state.rules.focused = false;
+  state.broadcast = null;
+  renderRules();
+}
+
+// ---- several rules changed as one
+
+// Paths of the values that differ between two rules: a message's fields, a link's value...
+// (event values, conditions and lists count as one value)
+function leafPaths(a, b, path = [], found = []) {
+  const leaf = (value) => value === null || typeof value !== 'object' || Array.isArray(value) || 'source' in value || 'if' in value;
+  if (a !== undefined && b !== undefined && !leaf(a) && !leaf(b)) {
+    for (const key of new Set([...Object.keys(a), ...Object.keys(b)])) leafPaths(a[key], b[key], [...path, key], found);
+  } else if (JSON.stringify(a) !== JSON.stringify(b)) {
+    found.push(path);
+  }
+  return found;
+}
+
+function getPath(object, path) {
+  return path.reduce((value, key) => value?.[key], object);
+}
+
+function setPath(object, path, value) {
+  let parent = object;
+  for (const key of path.slice(0, -1)) {
+    if (parent[key] === null || typeof parent[key] !== 'object') parent[key] = {};
+    parent = parent[key];
+  }
+  const last = path[path.length - 1];
+  if (value === undefined) delete parent[last];
+  else parent[last] = JSON.parse(JSON.stringify(value));
+}
+
+// Make the change `rep` went through (from `before`) to `others` too, where it fits them: an
+// event their widget has, a field their message type has, a value for the same option
+function spreadChange(kind, before, rep, others) {
+  const order = (path) => (path[1] === 'type' ? 0 : ['target', 'option', 'action', 'output'].includes(path[0]) ? 1 : 2);
+  const paths = leafPaths(before, rep).filter((path) => path[0] !== 'widget').sort((a, b) => order(a) - order(b));
+  if (!paths.length) return;
+  for (const other of others) {
+    const events = state.catalog.widgets[widgetNamed(other.widget)?.type]?.events || [];
+    for (const path of paths) {
+      const value = getPath(rep, path);
+      if (path[0] === 'on' && value !== undefined && !events.includes(value)) continue;
+      if (kind === 'mapping' && path[0] === 'message' && path[1] !== 'type') {
+        const fields = state.catalog.messages[other.message?.type]?.fields || [];
+        if (!fields.some((field) => field.name === path[1])) continue;
+      }
+      if (kind === 'link' && ['value', 'min', 'max', 'change'].includes(path[0])
+        && (other.option !== rep.option || other.action !== rep.action)) continue;
+      setPath(other, path, value);
+    }
+    if (kind === 'mapping') {
+      // Fields another message type had
+      const fields = state.catalog.messages[other.message?.type]?.fields;
+      if (fields) for (const key of Object.keys(other.message)) if (key !== 'type' && !fields.some((field) => field.name === key)) delete other.message[key];
+      if (!other.on) other.feedback = true;
+    }
+  }
+}
+
+// Marks the editors of values that differ between the picked rules
+function markMixed(card, kind, index, rep, others) {
+  const prefix = `${kind}-${index}-`;
+  const ids = new Set();
+  for (const other of others) {
+    for (const path of leafPaths(rep, other)) {
+      if (path[0] === 'widget') continue;
+      if (kind === 'mapping') ids.add(path[0] === 'message' ? (path[1] === 'type' ? 'type' : path[1] === 'args' ? 'arg0' : path[1]) : path[0]);
+      else ids.add(path[0] === 'action' ? 'option' : path[0]);
+    }
+  }
+  for (const id of ids) {
+    const node = card.querySelector(`#${CSS.escape(prefix + id)}-pick`) || card.querySelector(`#${CSS.escape(prefix + id)}`);
+    if (!node) continue;
+    const target = node.closest('.control') || node;
+    target.classList.add('mixed');
+    target.title = 'Differs between the picked ones: each keeps its own until this is changed';
+  }
+}
+
+// ---- adding, copying, pasting
+
+// New messages for a widget (a Sequencer's notes come with their note-offs)
+function newMappings(widget) {
+  const output = outputsOf()[0];
+  const info = outputInfo(output);
+  // Macro buttons: a momentary button fires a shortcut on presses (it changes on releases too)
+  const momentary = widget.type === 'Button' && (widget.options?.mode || 'Button') !== 'Switch';
+  const on = momentary && info?.messages.includes('Hotkey') ? 'Pressed' : defaultEvent(widget);
+  const rules = [{ widget: widget.name, on, output: output.name, message: defaultMessage(widget, on, info) }];
+  // A Sequencer's notes end with their gates
+  if (on === 'StepPlayed' && rules[0].message.type === 'NoteOn' && info?.messages.includes('NoteOff')) {
+    rules.push({ widget: widget.name, on: 'StepEnded', output: output.name, message: defaultMessage(widget, 'StepEnded', info) });
+  }
+  return rules;
+}
+
+function newLink(widget) {
+  // A momentary button acts on presses (it changes on releases too)
+  const momentary = widget.type === 'Button' && (widget.options?.mode || 'Button') !== 'Switch';
+  const on = momentary ? 'Pressed' : defaultEvent(widget);
+  // Another widget if there is one
+  const target = allWidgets().map((item) => item.widget).find((candidate) => candidate !== widget) || widget;
+  const link = { widget: widget.name, on, target: target.name, option: 'visible' };
+  defaultLinkValue(link);
+  return link;
+}
+
+// Add rules made by `make(widget)` (one or a list) to each widget, and pick them
+function addRules(kind, widgets, make) {
+  if (!widgets.length) return;
+  const added = [];
+  change((layout) => {
+    const list = kind === 'mapping' ? (layout.mappings ||= []) : (layout.links ||= []);
+    for (const widget of widgets) {
+      for (const rule of [make(widget)].flat()) {
+        list.push(rule);
+        added.push({ kind, index: list.length - 1 });
+      }
+    }
+    state.rules.picked = added;
+    state.rules.anchor = added[added.length - 1];
+  });
+  openRules();
+}
+
+function copyRules(cut = false) {
+  const picked = pickedRules();
+  if (!picked.length) return;
+  const clip = {
+    format: RULES_CLIPBOARD,
+    mappings: picked.filter((rule) => rule.kind === 'mapping').map(ruleObject),
+    links: picked.filter((rule) => rule.kind === 'link').map(ruleObject),
+  };
+  const text = JSON.stringify(clip);
+  state.ruleClipboard = clip;
+  try {
+    localStorage.setItem(RULES_CLIPBOARD, text);
+  } catch {
+    // This page only
+  }
+  navigator.clipboard?.writeText(text).catch(() => {});
+  if (cut) deleteRules();
+  setStatus(`${cut ? 'Cut' : 'Copied'} ${picked.length} message${picked.length > 1 ? 's and links' : ' or link'}`, 'ok');
+}
+
+function readRuleClipboard() {
+  try {
+    const stored = JSON.parse(localStorage.getItem(RULES_CLIPBOARD) || 'null');
+    if (stored?.format === RULES_CLIPBOARD) return stored;
+  } catch {
+    // Use this page's
+  }
+  return state.ruleClipboard;
+}
+
+// A copied rule for `widget`: null when it can't be (no such output or target, no event it needs)
+function adaptRule(kind, rule, widget) {
+  const copy = { ...JSON.parse(JSON.stringify(rule)), widget: widget.name };
+  const events = state.catalog.widgets[widget.type]?.events || [];
+  const needs = kind === 'mapping' ? messageSources(copy.message)
+    : [copy.value?.source, copy.value?.if?.source].filter(Boolean);
+  if (kind === 'mapping' && !outputsOf().some((output) => output.name === copy.output)) return null;
+  if (kind === 'link' && copy.target !== undefined) {
+    // A link changing its own widget changes the new one
+    if (copy.target === rule.widget) copy.target = widget.name;
+    else if (!widgetNamed(copy.target)) return null;
+  }
+  if (copy.on && !events.includes(copy.on)) {
+    const fits = events.find((name) => needs.every((source) => sourceNames(name).includes(source)));
+    if (!fits) return null;
+    copy.on = events.includes(defaultEvent(widget)) && needs.every((source) => sourceNames(defaultEvent(widget)).includes(source)) ? defaultEvent(widget) : fits;
+  }
+  return copy;
+}
+
+// Paste onto every selected widget (or, with none selected, the widgets they came from)
+function pasteRules(clip = readRuleClipboard(), widgets = selectedWidgets()) {
+  const rules = [...(clip?.mappings || []).map((rule) => ['mapping', rule]), ...(clip?.links || []).map((rule) => ['link', rule])];
+  if (!rules.length) return setStatus('Nothing to paste: copy messages or links first (Ctrl+C in this window)', 'error');
+  let pasted = 0, dropped = 0;
+  const added = [];
+  change((layout) => {
+    for (const [kind, rule] of rules) {
+      const targets = widgets.length ? widgets : [widgetNamed(rule.widget)].filter(Boolean);
+      if (!targets.length) dropped++;
+      for (const widget of targets) {
+        const copy = adaptRule(kind, rule, widget);
+        if (!copy) {
+          dropped++;
+          continue;
+        }
+        const list = kind === 'mapping' ? (layout.mappings ||= []) : (layout.links ||= []);
+        list.push(copy);
+        added.push({ kind, index: list.length - 1 });
+        pasted++;
+      }
+    }
+    state.rules.picked = added;
+    state.rules.anchor = added[added.length - 1] || null;
+  });
+  const count = `${pasted} message${pasted === 1 ? ' or link' : 's and links'}`;
+  setStatus(dropped ? `Pasted ${count}; ${dropped} left out (their output, target or event isn't there)` : `Pasted ${count}`, dropped ? '' : 'ok');
+}
+
+function duplicateRules() {
+  const picked = pickedRules();
+  if (!picked.length) return;
+  const added = [];
+  change((layout) => {
+    for (const rule of picked) {
+      const list = rule.kind === 'mapping' ? layout.mappings : layout.links;
+      list.push(JSON.parse(JSON.stringify(list[rule.index])));
+      added.push({ kind: rule.kind, index: list.length - 1 });
+    }
+    state.rules.picked = added;
+    state.rules.anchor = added[added.length - 1];
+  });
+}
+
+function deleteRules() {
+  const picked = pickedRules();
+  if (!picked.length) return;
+  const gone = new Set(picked.map(ruleKey));
+  change((layout) => {
+    setMappings(layout, (layout.mappings || []).filter((_, index) => !gone.has(`mapping:${index}`)));
+    setLinks(layout, (layout.links || []).filter((_, index) => !gone.has(`link:${index}`)));
+    state.rules.picked = [];
+  });
+}
+
+// Keys while the window has the focus (not in a field): true when handled
+function rulesKey(event) {
+  const mod = event.ctrlKey || event.metaKey;
+  const key = event.key.toLowerCase();
+  const actions = {
+    c: () => copyRules(), x: () => copyRules(true), v: () => pasteRules(), d: () => duplicateRules(),
+    a: () => { state.rules.picked = ruleRows().map((row) => row.rule); renderRules(); },
+  };
+  if (mod && actions[key] && !(key === 'c' && window.getSelection()?.toString())) {
+    event.preventDefault();
+    actions[key]();
+    return true;
+  }
+  if (mod) return false;
+  if (key === 'delete' || key === 'backspace') {
+    event.preventDefault();
+    deleteRules();
+    return true;
+  }
+  if (key === 'escape') {
+    closeRules();
+    return true;
+  }
+  return false;
+}
+
+// ---- the window
+
+function buildRules() {
+  const window_ = $('rules');
+  const head = window_.querySelector('.window-head');
+  // Dragged by its title bar; where it is and its size are remembered
+  head.addEventListener('pointerdown', (event) => {
+    if (event.target.closest('button, input, select') || event.button !== 0) return;
+    event.preventDefault();
+    const start = { x: event.clientX, y: event.clientY, left: window_.offsetLeft, top: window_.offsetTop };
+    const move = (e) => {
+      window_.style.left = `${clamp(start.left + e.clientX - start.x, 0, innerWidth - 80)}px`;
+      window_.style.top = `${clamp(start.top + e.clientY - start.y, 0, innerHeight - 40)}px`;
+    };
+    const up = () => {
+      window.removeEventListener('pointermove', move);
+      window.removeEventListener('pointerup', up);
+      saveRulesPlace();
+    };
+    window.addEventListener('pointermove', move);
+    window.addEventListener('pointerup', up);
+  });
+  new ResizeObserver(() => { if (!window_.hidden) saveRulesPlace(); }).observe(window_);
+  $('rules-close').onclick = closeRules;
+  $('rules-selected').onclick = () => { state.rules.all = false; renderRules(); };
+  $('rules-all').onclick = () => { state.rules.all = true; renderRules(); };
+  $('rules-search').addEventListener('input', (e) => { state.rules.query = e.target.value; renderRules(); });
+  $('rules-add-message').onclick = () => addRules('mapping', selectedWidgets(), newMappings);
+  $('rules-add-link').onclick = () => addRules('link', selectedWidgets(), newLink);
+  $('rules-copy').onclick = () => copyRules();
+  $('rules-cut').onclick = () => copyRules(true);
+  $('rules-paste').onclick = () => pasteRules();
+  $('rules-duplicate').onclick = duplicateRules;
+  $('rules-delete').onclick = deleteRules;
+  $('rules-all-rows').onclick = () => { state.rules.picked = ruleRows().map((row) => row.rule); renderRules(); };
+  // Which part of the page keys go to; changes spread to several picked rules only from their editor
+  document.addEventListener('pointerdown', (event) => {
+    state.rules.focused = state.rules.open && !!event.target.closest('#rules');
+    if (!event.target.closest('.rule-editor.multi')) state.broadcast = null;
+  }, true);
+  document.addEventListener('focusin', (event) => {
+    if (!event.target.closest('.rule-editor.multi')) state.broadcast = null;
+  }, true);
+}
+
+function saveRulesPlace() {
+  const window_ = $('rules');
+  prefs.rulesWindow = { left: window_.offsetLeft, top: window_.offsetTop, width: window_.offsetWidth, height: window_.offsetHeight };
+  savePrefs();
+}
+
+function placeRules() {
+  const window_ = $('rules');
+  const stage = $('stage').getBoundingClientRect();
+  const place = prefs.rulesWindow || {
+    width: Math.min(820, Math.max(480, stage.width - 32)), height: Math.min(560, Math.max(360, stage.height - 32)),
+    left: stage.left + 16, top: stage.top + 16,
+  };
+  const width = Math.min(place.width, innerWidth - 16), height = Math.min(place.height, innerHeight - 16);
+  Object.assign(window_.style, {
+    width: `${width}px`, height: `${height}px`,
+    left: `${clamp(place.left, 0, Math.max(0, innerWidth - width))}px`, top: `${clamp(place.top, 0, Math.max(0, innerHeight - height))}px`,
+  });
+}
+
+function renderRules() {
+  const window_ = $('rules');
+  const open = state.rules.open;
+  if (window_.hidden === open) {
+    window_.hidden = !open;
+    if (open) placeRules();
+  }
+  if (!open) return;
+  const rules = state.rules;
+  const widgets = ruleWidgets();
+  const selected = selectedWidgets();
+  const rows = ruleRows();
+  rules.picked = pickedRules();
+  const picked = rules.picked;
+  $('rules-title').textContent = rules.all ? 'All widgets'
+    : widgets.length === 1 ? widgets[0].name : widgets.length ? `${widgets.length} widgets` : 'No widget selected';
+  $('rules-selected').classList.toggle('active', !rules.all);
+  $('rules-all').classList.toggle('active', rules.all);
+  const each = selected.length > 1 ? ' to each selected widget' : '';
+  $('rules-add-message').disabled = !selected.length || !outputsOf().length;
+  $('rules-add-message').title = !outputsOf().length ? 'Add an output first (Outputs, on the left)' : selected.length ? `Send an event${each} to an output` : 'Select a widget first';
+  $('rules-add-link').disabled = !selected.length;
+  $('rules-add-link').title = selected.length ? `Change an option of a widget on an event${each}` : 'Select a widget first';
+  for (const id of ['rules-copy', 'rules-cut', 'rules-duplicate', 'rules-delete']) $(id).disabled = !picked.length;
+  const clip = readRuleClipboard();
+  const clipped = (clip?.mappings?.length || 0) + (clip?.links?.length || 0);
+  $('rules-paste').disabled = !clipped;
+  $('rules-paste').title = clipped ? `Paste ${clipped}${selected.length ? (selected.length > 1 ? ` onto each of the ${selected.length} selected widgets` : ` onto ${selected[0].name}`) : ' onto the widgets they came from'} (Ctrl/Cmd+V)` : 'Copy messages or links first (Ctrl/Cmd+C)';
+  $('rules-all-rows').disabled = !rows.length;
+  // The list, by widget
+  const list = $('rules-list');
+  const items = [];
+  let last = null;
+  for (const row of rows) {
+    if (row.widget !== last && widgets.length > 1) {
+      const own = rows.filter((other) => other.widget === row.widget).map((other) => other.rule);
+      items.push(el('li', {
+        class: 'rule-widget', title: 'Pick all of its messages and links',
+        onclick: () => { rules.picked = own; rules.anchor = own[own.length - 1]; renderRules(); },
+      }, row.widget.name, el('span', { class: 'type' }, row.widget.type)));
+    }
+    last = row.widget;
+    const [when, to, what] = row.text;
+    const object = ruleObject(row.rule);
+    items.push(el('li', {
+      class: `rule-row${isPicked(row.rule) ? ' picked' : ''}`, dataset: { rule: ruleKey(row.rule) },
+      onclick: (event) => pickRule(row.rule, event),
+    },
+      el('input', {
+        type: 'checkbox', checked: isPicked(row.rule), 'aria-label': 'Pick',
+        onclick: (event) => { event.stopPropagation(); pickRule(row.rule, { toggle: true }); },
+      }),
+      el('span', { class: `rule-kind ${row.rule.kind}` }, row.rule.kind === 'mapping' ? 'msg' : 'link'),
+      el('span', { class: 'rule-text' },
+        el('span', { class: 'rule-line' }, el('b', {}, when), ' → ', to, row.rule.kind === 'mapping' && object.feedback ? el('span', { class: 'feedback', title: 'Feedback: the output updates the widget' }, ' ⇄') : null),
+        el('span', { class: 'rule-what', title: what }, what))));
+  }
+  if (!rows.length) {
+    items.push(el('li', { class: 'hint' }, rules.query ? `Nothing matches "${rules.query}".`
+      : !widgets.length ? 'Select widgets on the grid or in Layers, or show All widgets.'
+        : 'No messages or links yet: add one above.'));
+  }
+  list.replaceChildren(...items);
+  fill($('rules-editor'), ruleEditor(picked));
+}
+
+function ruleEditor(picked) {
+  if (!picked.length) {
+    return el('p', { class: 'hint' }, 'Pick a message or link to edit it. Shift+click picks a range, Ctrl/Cmd+click one more: '
+      + 'changes are then made to all of them. Ctrl/Cmd+C and V copy and paste them onto the selected widgets.');
+  }
+  const kinds = new Set(picked.map((rule) => rule.kind));
+  if (kinds.size > 1) {
+    return el('p', { class: 'hint' }, `${picked.length} picked. Messages and links are edited apart: pick only messages or only links to change them together. Copy, cut, duplicate and delete work on all of them.`);
+  }
+  const [first] = picked;
+  const rep = ruleObject(first);
+  const widget = widgetNamed(rep.widget);
+  if (!widget) return el('p', { class: 'hint' }, `${rep.widget} isn't in the layout.`);
+  const card = first.kind === 'mapping' ? mappingCard(widget, rep, first.index) : linkCard(widget, rep, first.index);
+  if (picked.length === 1) {
+    return el('div', { class: 'rule-editor' }, el('p', { class: 'rule-for' }, widget.name, el('span', { class: 'type' }, widget.type)), card);
+  }
+  const others = picked.slice(1).map(ruleObject);
+  markMixed(card, first.kind, first.index, rep, others);
+  const names = [...new Set([rep, ...others].map((object) => object.widget))];
+  const editor = el('div', { class: 'rule-editor multi' },
+    el('p', { class: 'rule-for' }, `${picked.length} ${first.kind === 'mapping' ? 'messages' : 'links'} of ${names.length > 3 ? `${names.length} widgets` : names.join(', ')}`),
+    el('p', { class: 'hint note' }, 'A change here is made to all of them. Dashed fields differ: each keeps its own value until you change it.'),
+    card);
+  // Changes made in this editor spread to the other picked rules (see change())
+  const arm = () => {
+    const now = pickedRules();
+    if (now.length > 1 && now[0].kind === first.kind) state.broadcast = { kind: first.kind, rep: ruleObject(now[0]), others: now.slice(1).map(ruleObject) };
+  };
+  for (const type of ['pointerdown', 'focusin', 'keydown', 'change']) editor.addEventListener(type, arm, true);
+  return editor;
+}
+
+// The Behaviour group's list: a line per message and link, opening the window
+function ruleSummary(widgets) {
+  const names = new Set(widgets.map((widget) => widget.name));
+  const rows = [];
+  (state.layout.mappings || []).forEach((object, index) => { if (names.has(object.widget)) rows.push({ kind: 'mapping', index }); });
+  (state.layout.links || []).forEach((object, index) => { if (names.has(object.widget)) rows.push({ kind: 'link', index }); });
+  const single = widgets.length === 1;
+  return [
+    el('h4', {}, 'Messages and links'),
+    outputsOf().length ? null : el('p', { class: 'hint' }, 'Add an output (a MIDI port, OSC, Mackie Control or HUI) to send events to other software.'),
+    rows.length ? el('ul', { class: 'rule-summary' }, rows.slice(0, 10).map((rule) => {
+      const [when, to, what] = ruleText(rule);
+      return el('li', { onclick: () => openRules([rule]), title: 'Edit it' },
+        el('span', { class: `rule-kind ${rule.kind}` }, rule.kind === 'mapping' ? 'msg' : 'link'),
+        el('span', { class: 'rule-text' },
+          el('span', { class: 'rule-line' }, single ? null : `${ruleObject(rule).widget}: `, el('b', {}, when), ' → ', to),
+          el('span', { class: 'rule-what' }, what)));
+    }), rows.length > 10 ? el('li', { class: 'more', onclick: () => openRules(rows), title: 'Edit them' }, `and ${rows.length - 10} more…`) : null)
+      : el('p', { class: 'hint' }, 'Send events to outputs (messages), or change other widgets\' options when this one is used (links): show a group, switch a page, move a keyboard\'s octave, dim a color…'),
+    el('div', { class: 'actions' },
+      outputsOf().length ? el('button', { onclick: () => addRules('mapping', widgets, newMappings), title: single ? 'Send an event of this widget to an output' : 'Add one to each' }, single ? 'Add message' : 'Add message to each') : null,
+      el('button', { onclick: () => addRules('link', widgets, newLink), title: single ? 'Change an option of a widget on an event of this one' : 'Add one to each' }, single ? 'Add link' : 'Add link to each'),
+      el('button', { onclick: () => openRules(rows), title: 'Edit, copy and paste them in a window (M)' }, rows.length ? 'Edit…' : 'Open editor')),
+  ];
+}
+
 // ---------------------------------------------------------------- the drawer: events, connections, Python, problems
 
 const CLOCK_EVENTS = new Set(['StepPlayed', 'StepEnded', 'RowPlayed', 'ClipQueued', 'ClipStarted', 'ClipStopped', 'PageChanged']);
@@ -1433,17 +1962,17 @@ function renderDrawer() {
 // Every link, message and binding: [kind, from, to, what, select]
 function connectionRows() {
   const rows = [];
-  for (const link of state.layout.links || []) {
+  (state.layout.links || []).forEach((link, index) => {
     const to = link.target || (link.action === 'debug' ? 'Debug log' : 'Transport');
     const what = link.action ? `${link.on} → ${link.action.replace(/^transport\./, '')}` : `${link.on} → ${(link.change || 'set').toLowerCase()} ${link.option}`;
     const value = describeValue(link);
-    rows.push(['link', link.widget, to, value ? `${what} = ${value}` : what, () => selectWidgetNamed(link.widget)]);
-  }
-  for (const mapping of state.layout.mappings || []) {
+    rows.push(['link', link.widget, to, value ? `${what} = ${value}` : what, () => openRules([{ kind: 'link', index }])]);
+  });
+  (state.layout.mappings || []).forEach((mapping, index) => {
     const message = mapping.message || {};
     const what = `${mapping.on || 'receive only'} → ${message.type}${message.name ? ` ${message.name}` : ''}${message.address ? ` ${message.address}` : ''}${mapping.feedback ? ' · feedback' : ''}`;
-    rows.push(['message', mapping.widget, mapping.output, what, () => selectWidgetNamed(mapping.widget)]);
-  }
+    rows.push(['message', mapping.widget, mapping.output, what, () => openRules([{ kind: 'mapping', index }])]);
+  });
   for (const binding of state.layout.bindings || []) {
     const device = state.layout.devices[binding.device];
     const from = `${deviceInfo(device)?.model || device?.type} ${binding.control}`;
@@ -1656,15 +2185,20 @@ const SHORTCUTS = [
   ['Ctrl/Cmd + C, X, V', 'copy, cut and paste widgets (also between layouts)'],
   ['Ctrl/Cmd + D', 'duplicate'],
   ['Ctrl/Cmd + A', 'select everything in the group'],
-  ['Shift + click, drag on empty pads', 'select several'],
+  ['Shift + click, drag on empty pads', 'select several on the grid'],
+  ['Shift + click, Ctrl/Cmd + click in Layers', 'select a range of layers, add or remove one'],
   ['Ctrl/Cmd + G, Ctrl/Cmd + Shift + G', 'group, ungroup'],
   ['Arrows, Shift + arrows', 'move, resize'],
   ['Delete', 'delete'],
-  ['Ctrl/Cmd + scroll, + / − / 0', 'zoom'],
+  ['Wheel, Ctrl/Cmd + + / − / 0', 'zoom (the toolbar sets whether the wheel zooms or scrolls)'],
+  ['Middle button drag, Shift + wheel', 'move around the grid'],
   ['[ and ]', 'show or hide the left or right panel'],
   ['F', 'the grid alone (again: back)'],
   ['`', 'show or hide the drawer'],
-  ['Escape', 'select nothing'],
+  ['M', 'the messages and links window'],
+  ['In that window: click, Shift + click, Ctrl/Cmd + click', 'pick one, a range, one more (picked ones are edited together)'],
+  ['In that window: Ctrl/Cmd + C, X, V, D, A, Delete', 'copy, cut, paste onto the selected widgets, duplicate, pick all, delete'],
+  ['Escape', 'select nothing (in the window: close it)'],
   ['?', 'this list'],
 ];
 
@@ -1684,7 +2218,10 @@ function change(mutate) {
   state.history.push(JSON.stringify(state.layout));
   if (state.history.length > 300) state.history.shift();
   state.future = [];
+  const broadcast = state.broadcast;
+  const before = broadcast && JSON.parse(JSON.stringify(broadcast.rep));
   mutate(state.layout);
+  if (broadcast) spreadChange(broadcast.kind, before, broadcast.rep, broadcast.others);
   render();
   scheduleSync();
 }
@@ -1872,6 +2409,7 @@ function render() {
   renderDirty();
   renderDrawer();
   renderWelcome();
+  renderRules();
 }
 
 function step() {
@@ -1883,11 +2421,16 @@ function renderBoard() {
   const { width, height } = state.layout.surface;
   const stage = $('stage');
   const gap = 4;
-  const fit = (space, count) => Math.floor((space - 80 - gap * (count - 1)) / count);
-  const fitted = Math.max(22, Math.min(64, fit(stage.clientWidth, width), fit(stage.clientHeight - 40, height)));
-  const pad = clamp(Math.round(fitted * state.zoom), 8, 240);
+  // Pads as big as the stage allows (the board's frame and the stage's padding around them)
+  const fit = (space, count) => (space - 80 - gap * (count - 1)) / count;
+  const fitted = Math.max(16, Math.min(200, fit(stage.clientWidth, width), fit(stage.clientHeight - 40, height)));
+  state.fitted = fitted;
+  // In the browser's layout units (1/64 px), so pad positions add up exactly
+  const pad = Math.round(clamp(fitted * state.zoom, 6, 320) * 64) / 64;
   document.documentElement.style.setProperty('--pad', `${pad}px`);
-  $('zoom-fit').textContent = state.zoom === 1 ? 'Fit' : `${Math.round(state.zoom * 100)}%`;
+  document.documentElement.style.setProperty('--step', `${pad + gap}px`);
+  zoomLabel();
+  positionBoard();
   if (state.frameSize[0] === width && state.frameSize[1] === height) return;
   state.frameSize = [width, height];
   const pads = $('pads');
@@ -1901,33 +2444,85 @@ function renderBoard() {
       }));
     }
   }
+  positionBoard();
 }
 
-// Zoom the grid; the point under ``anchor`` (a pointer event) stays put, else the middle
+// The board in the middle of the stage (above the status line), moved by `state.pan`; at least
+// a corner of it stays in view
+function positionBoard() {
+  const stage = $('stage'), board = $('board');
+  const width = board.offsetWidth, height = board.offsetHeight;
+  const room = [stage.clientWidth, stage.clientHeight - 40];
+  const keep = 80;
+  const pan = state.pan;
+  const centre = [(room[0] - width) / 2, (room[1] - height) / 2];
+  pan.x = clamp(pan.x, keep - width - centre[0], room[0] - keep - centre[0]);
+  pan.y = clamp(pan.y, keep - height - centre[1], room[1] - keep - centre[1]);
+  board.style.left = `${Math.round(centre[0] + pan.x)}px`;
+  board.style.top = `${Math.round(centre[1] + pan.y)}px`;
+}
+
+function panBy(dx, dy) {
+  state.pan.x += dx;
+  state.pan.y += dy;
+  positionBoard();
+}
+
+// Zooming eases towards `target` a frame at a time; the pad under `anchor` (client x, y) stays put
+const zooming = { target: null, anchor: null, frame: null };
+
+// The zoom it is going to
+function zoomLabel() {
+  const shown = zooming.target ?? state.zoom;
+  $('zoom-fit').textContent = Math.abs(shown - 1) < 0.005 ? 'Fit' : `${Math.round(shown * 100)}%`;
+}
+
 function setZoom(zoom, anchor = null) {
-  zoom = clamp(zoom, 0.25, 6);
-  if (Math.abs(zoom - 1) < 0.04) zoom = 1;
+  zooming.target = clamp(zoom, 0.25, 8);
+  zooming.centre = zoom === 1 && !anchor;
+  zooming.anchor = anchor ? { x: anchor.clientX, y: anchor.clientY } : null;
+  zoomLabel();
+  if (zooming.frame === null) zooming.frame = requestAnimationFrame(zoomFrame);
+}
+
+function zoomFrame() {
+  zooming.frame = null;
+  const target = zooming.target;
+  if (target === null) return;
+  // A third of the way each frame, evenly on a log scale
+  const next = Math.abs(Math.log(target / state.zoom)) < 0.004 ? target : state.zoom * (target / state.zoom) ** 0.35;
+  if (zooming.centre) {
+    // Fitting also brings the board back to the middle
+    const left = next === target ? 0 : 0.65;
+    state.pan.x *= left;
+    state.pan.y *= left;
+  }
+  zoomNow(next, zooming.centre ? null : zooming.anchor);
+  if (next === target && !(zooming.centre && (state.pan.x || state.pan.y))) zooming.target = null;
+  else zooming.frame = requestAnimationFrame(zoomFrame);
+  if (zooming.target === null) renderBoard();
+}
+
+// Zoom at once, keeping the point at `anchor` (else the stage's middle) over the same spot of the grid
+function zoomNow(zoom, anchor = null) {
   const stage = $('stage');
   const bounds = stage.getBoundingClientRect();
-  const px = anchor ? anchor.clientX - bounds.left : stage.clientWidth / 2;
-  const py = anchor ? anchor.clientY - bounds.top : stage.clientHeight / 2;
-  const before = step();
-  const fx = stage.scrollLeft + px, fy = stage.scrollTop + py;
+  const point = anchor || { x: bounds.left + stage.clientWidth / 2, y: bounds.top + stage.clientHeight / 2 };
+  const before = $('pads').getBoundingClientRect();
+  const u = (point.x - before.left) / before.width, v = (point.y - before.top) / before.height;
   state.zoom = zoom;
   renderBoard();
-  renderOverlay();
-  const ratio = step() / before;
-  stage.scrollLeft = fx * ratio - px;
-  stage.scrollTop = fy * ratio - py;
+  const after = $('pads').getBoundingClientRect();
+  panBy(point.x - (after.left + u * after.width), point.y - (after.top + v * after.height));
 }
 
+// Outlines follow --step, so zooming doesn't redraw them
 function place(node, x, y, width, height) {
-  const size = step();
   const surfaceHeight = state.layout.surface.height;
-  node.style.left = `${x * size - 2}px`;
-  node.style.top = `${(surfaceHeight - y - height) * size - 2}px`;
-  node.style.width = `${width * size - 4 + 4}px`;
-  node.style.height = `${height * size - 4 + 4}px`;
+  node.style.left = `calc(${x} * var(--step) - 2px)`;
+  node.style.top = `calc(${surfaceHeight - y - height} * var(--step) - 2px)`;
+  node.style.width = `calc(${width} * var(--step))`;
+  node.style.height = `calc(${height} * var(--step))`;
 }
 
 // Links between widgets: the widgets `name` changes, and the ones changing it
@@ -2215,14 +2810,28 @@ function renderTree() {
         ondragover: (event) => layerDragOver(event, path),
         ondrop: (event) => layerDrop(event, path),
         onclick: (event) => {
-          if (event.shiftKey || event.ctrlKey || event.metaKey) return toggleSelected(path);
+          // From the layer clicked before (unless the selection changed elsewhere since), else the widget picked last
+          const anchor = state.layerAnchor && state.layerAnchor.selection === state.selection ? state.layerAnchor.path : state.selection?.path;
+          const remember = (from) => { state.layerAnchor = { path: from, selection: state.selection }; };
+          if (event.shiftKey && anchor) {
+            selectLayerRange(anchor, path);
+            return remember(anchor);
+          }
+          if (event.shiftKey || event.ctrlKey || event.metaKey) {
+            toggleSelected(path);
+            return remember(path);
+          }
           const hidden = hiddenBy(path);
-          if (!hidden.length) return select(widgetSelection([path]));
+          if (!hidden.length) {
+            select(widgetSelection([path]));
+            return remember(path);
+          }
           // Show the page the widget is on
           change(() => {
             for (const [pagesPath, page] of hidden) setOption(widgetAt(pagesPath), 'page', page || undefined);
             state.selection = widgetSelection([path]);
           });
+          remember(path);
         },
       },
         el('button', {
@@ -2242,6 +2851,16 @@ function renderTree() {
   tree.replaceChildren(...build(state.layout.widgets, []).children);
   if (!state.layout.widgets.length) tree.append(el('li', { class: 'hint' }, 'No widgets yet.'));
   else if (!tree.children.length) tree.append(el('li', { class: 'hint' }, `Nothing matches "${query}".`));
+}
+
+// Shift+click in Layers: every layer shown between the one clicked before and this one
+function selectLayerRange(from, to) {
+  const shown = [...$('tree').querySelectorAll('.node')].map((node) => node.dataset.path.split('.').map(Number));
+  const start = shown.findIndex((path) => samePath(path, from));
+  const end = shown.findIndex((path) => samePath(path, to));
+  if (start < 0 || end < 0) return toggleSelected(to);
+  const range = shown.slice(Math.min(start, end), Math.max(start, end) + 1);
+  select(widgetSelection(range, to));
 }
 
 // ---------------------------------------------------------------- reordering layers
@@ -2655,8 +3274,9 @@ function multiProperties(panel, paths) {
       el('div', { class: 'fields' }, shared.flatMap((option) => optionField(common, option, 'option',
         (value) => widgets.forEach((widget) => setOption(widget, option.name, value))))),
     ] : null,
+    group('behaviour', 'Behaviour', ruleSummary(widgets)),
     group('animation', 'Animation', animationFields(widgets)),
-    el('p', { class: 'hint note' }, 'Drag one or use the arrow keys to move them together. Shift+click adds or removes a widget; drag on empty pads to select an area.'),
+    el('p', { class: 'hint note' }, 'Drag one or use the arrow keys to move them together. Shift+click adds or removes a widget; drag on empty pads to select an area; Shift+click in Layers selects a range.'),
   );
 }
 
@@ -2800,8 +3420,7 @@ function renderProperties() {
           ? el('ul', { class: 'controlled' }, incoming.map((item) => el('li', { onclick: item.go, title: 'Select it' },
             el('span', { class: 'from' }, item.from), el('span', { class: 'what' }, item.what))))
           : el('p', { class: 'hint' }, 'Nothing changes this widget: links of other widgets, device controls and output feedback show up here.'),
-        messageFields(widget),
-        linkFields(widget),
+        ruleSummary([widget]),
       ], { count: behaviour || null }),
       group('animation', 'Animation', animationFields([widget]), { count: widget.animation ? widget.animation.type : null }),
     );
@@ -2951,6 +3570,11 @@ function renderToolbar() {
   $('palette-hint').textContent = targetGroup() ? `into ${widgetAt(targetGroup()).name}` : '';
   $('device-count').textContent = state.layout.devices.length || '';
   $('output-count').textContent = outputsOf().length || '';
+  const wheel = $('wheel-mode');
+  wheel.textContent = prefs.wheel === 'scroll' ? 'Wheel scrolls' : 'Wheel zooms';
+  wheel.title = prefs.wheel === 'scroll'
+    ? 'The mouse wheel scrolls the grid; Ctrl/Cmd + wheel zooms. Click: the wheel zooms'
+    : 'The mouse wheel zooms around the pointer (Shift + wheel scrolls, middle button drags). Click: the wheel scrolls';
 }
 
 function renderDirty() {
@@ -3564,15 +4188,15 @@ function bindToolbar() {
   };
   $('tree').addEventListener('dragover', treeDragOver);
   $('tree').addEventListener('drop', treeDrop);
-  $('zoom-in').onclick = () => setZoom(state.zoom * 1.25);
-  $('zoom-out').onclick = () => setZoom(state.zoom / 1.25);
+  $('zoom-in').onclick = () => setZoom((zooming.target ?? state.zoom) * 1.25);
+  $('zoom-out').onclick = () => setZoom((zooming.target ?? state.zoom) / 1.25);
   $('zoom-fit').onclick = () => setZoom(1);
-  // Ctrl/Cmd + scroll and trackpad pinches zoom around the pointer
-  $('stage').addEventListener('wheel', (event) => {
-    if (!event.ctrlKey && !event.metaKey) return;
-    event.preventDefault();
-    setZoom(state.zoom * Math.exp(-event.deltaY * 0.0025), event);
-  }, { passive: false });
+  $('wheel-mode').onclick = () => {
+    prefs.wheel = prefs.wheel === 'scroll' ? 'zoom' : 'scroll';
+    savePrefs();
+    renderToolbar();
+  };
+  bindStage();
   $('undo').onclick = undo;
   $('redo').onclick = redo;
   $('save').onclick = save;
@@ -3589,21 +4213,19 @@ function bindToolbar() {
   bindFolds();
   bindDrawer();
   bindSplitters();
-  $('stage').addEventListener('pointerdown', (event) => {
-    if (event.target.id === 'stage' || event.target.id === 'board') startMarquee(event);
-  });
-  window.addEventListener('resize', () => { renderBoard(); renderOverlay(); });
   window.addEventListener('beforeunload', (event) => {
     if (state.file && JSON.stringify(state.layout) !== state.saved) event.preventDefault();
   });
   window.addEventListener('keydown', (event) => {
     if (event.target.closest('input, select, textarea')) return;
+    if (event.target.closest('dialog')) return;
+    if (state.rules.open && state.rules.focused && rulesKey(event)) return;
     const mod = event.ctrlKey || event.metaKey;
     const key = event.key.toLowerCase();
     if (mod && key === 'z') { event.preventDefault(); return event.shiftKey ? redo() : undo(); }
     if (mod && key === 'y') { event.preventDefault(); return redo(); }
-    if (mod && (key === '=' || key === '+')) { event.preventDefault(); return setZoom(state.zoom * 1.25); }
-    if (mod && key === '-') { event.preventDefault(); return setZoom(state.zoom / 1.25); }
+    if (mod && (key === '=' || key === '+')) { event.preventDefault(); return setZoom((zooming.target ?? state.zoom) * 1.25); }
+    if (mod && key === '-') { event.preventDefault(); return setZoom((zooming.target ?? state.zoom) / 1.25); }
     if (mod && key === '0') { event.preventDefault(); return setZoom(1); }
     if (mod && key === 's') { event.preventDefault(); return event.shiftKey ? saveAs() : save(); }
     if (mod && key === 'o') { event.preventDefault(); return showOpen(); }
@@ -3623,6 +4245,7 @@ function bindToolbar() {
     if (key === ']') return togglePanel('right');
     if (key === 'f') return toggleFocus();
     if (key === '`') { drawerPrefs().open = !drawerPrefs().open; savePrefs(); return renderDrawer(); }
+    if (key === 'm') return state.rules.open ? closeRules() : openRules();
     if (key === 'e') return setMode('edit');
     if (key === 't') return setMode('try');
     if (key === 'escape') return select(null);
@@ -3633,6 +4256,51 @@ function bindToolbar() {
     const arrows = { arrowleft: [-1, 0], arrowright: [1, 0], arrowup: [0, 1], arrowdown: [0, -1] };
     if (arrows[key]) { event.preventDefault(); nudge(...arrows[key], event.shiftKey); }
   });
+}
+
+// The grid fills the stage (refitted when panels, the drawer or the window change size), the
+// wheel zooms around the pointer (or moves the grid, by the toolbar's choice; Ctrl/Cmd + wheel
+// and pinches always zoom), Shift + wheel and the middle button move it
+function bindStage() {
+  const stage = $('stage');
+  new ResizeObserver(() => renderBoard()).observe(stage);
+  stage.addEventListener('wheel', (event) => {
+    const pinch = event.ctrlKey || event.metaKey;
+    event.preventDefault();
+    const scale = event.deltaMode === 1 ? 16 : event.deltaMode === 2 ? stage.clientHeight : 1;
+    if (!pinch && (prefs.wheel === 'scroll' || event.shiftKey)) {
+      // Shift + wheel: sideways
+      const [dx, dy] = event.shiftKey && !event.deltaX ? [event.deltaY, 0] : [event.deltaX, event.deltaY];
+      return panBy(-dx * scale, -dy * scale);
+    }
+    const pixels = event.deltaY * scale;
+    // Pinches send small steps, wheels about 100 a notch
+    setZoom((zooming.target ?? state.zoom) * Math.exp(-pixels * (event.ctrlKey && Math.abs(pixels) < 50 ? 0.01 : 0.002)), event);
+  }, { passive: false });
+  stage.addEventListener('pointerdown', (event) => {
+    if (event.button === 1) return panStage(event);
+    if (event.target.id === 'stage' || event.target.id === 'board') startMarquee(event);
+  });
+  // No autoscroll circle on middle clicks
+  stage.addEventListener('mousedown', (event) => { if (event.button === 1) event.preventDefault(); });
+}
+
+function panStage(event) {
+  event.preventDefault();
+  const stage = $('stage');
+  let last = { x: event.clientX, y: event.clientY };
+  stage.classList.add('panning');
+  const move = (e) => {
+    panBy(e.clientX - last.x, e.clientY - last.y);
+    last = { x: e.clientX, y: e.clientY };
+  };
+  const up = () => {
+    window.removeEventListener('pointermove', move);
+    window.removeEventListener('pointerup', up);
+    stage.classList.remove('panning');
+  };
+  window.addEventListener('pointermove', move);
+  window.addEventListener('pointerup', up);
 }
 
 // A widget drawn small (rows from the top of colors, null where transparent), or null
@@ -3694,6 +4362,7 @@ async function start() {
   buildCatalog();
   renderPanels();
   bindToolbar();
+  buildRules();
   render();
   sendHidden();
   poll();
