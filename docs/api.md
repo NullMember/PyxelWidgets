@@ -32,6 +32,7 @@ Generated from the docstrings by `docs/build_api.py`; see the [guides](README.md
   - [`pyxelwidgets.devices.novation`](#pyxelwidgetsdevicesnovation)
   - [`pyxelwidgets.devices.akai`](#pyxelwidgetsdevicesakai)
   - [`pyxelwidgets.devices.ableton`](#pyxelwidgetsdevicesableton)
+  - [`pyxelwidgets.devices.arturia`](#pyxelwidgetsdevicesarturia)
   - [`pyxelwidgets.devices.presonus`](#pyxelwidgetsdevicespresonus)
   - [`pyxelwidgets.devices.virtual`](#pyxelwidgetsdevicesvirtual)
   - [`pyxelwidgets.devices.web`](#pyxelwidgetsdevicesweb)
@@ -1904,7 +1905,7 @@ with `on` and show frames on it with `show`. A Surface connects devices to
 widgets.
 
 Concrete devices live in submodules (`pyxelwidgets.devices.novation`,
-`.akai`, `.ableton`, `.presonus`, `.virtual`); importing this package
+`.akai`, `.ableton`, `.arturia`, `.presonus`, `.virtual`); importing this package
 doesn't load MIDI or GUI libraries.
 
 ### `Control`
@@ -2442,6 +2443,55 @@ Members: `Play`, `Record`, `Automate`, `FixedLength`, `New`, `Duplicate`, `Quant
 An enum.
 
 Members: `Encoder1Touch`, `Encoder2Touch`, `Encoder3Touch`, `Encoder4Touch`, `Encoder5Touch`, `Encoder6Touch`, `Encoder7Touch`, `Encoder8Touch`, `Encoder9Touch`, `Encoder10Touch`, `Encoder11Touch`, `PitchBendTouch`.
+
+## `pyxelwidgets.devices.arturia`
+
+Arturia controllers. Both MiniLabs have 8 pads in two banks (the Pad button
+switches them), shown as an 8x2 grid: the bottom row is the first bank, the
+top row the second, so a frame lights both banks and the pads show the bank
+selected on the device.
+
+Written from the messages Ableton Live's own MiniLab scripts send; not tried
+on hardware yet.
+
+### `MiniLabMK2` (_MiniLab)
+
+MiniLab mkII: 16 pads (two banks of 8) in 8 colors and 16 endless encoders.
+Connecting sets up the working memory: pads play notes 36-51 on channel 10,
+encoders send relative CCs on channel 2. Select a memory on the device to
+get its own settings back.
+
+- **`set_property(setting: int, control: int, value: int)`**: Write one setting (mode 1, channel 2, number 3, option 6, color 16) of a control to the working memory.
+- **`on_connect()`**
+- **`on_disconnect()`**
+- **`send_pixel(x: int, y: int, value)`**
+- **`decode_control(channel: int, number: int, value: int)`**
+
+#### `Controls` (Enum)
+
+An enum.
+
+Members: `Encoder_0`, `Encoder_1`, `Encoder_2`, `Encoder_3`, `Encoder_4`, `Encoder_5`, `Encoder_6`, `Encoder_7`, `Encoder_8`, `Encoder_9`, `Encoder_10`, `Encoder_11`, `Encoder_12`, `Encoder_13`, `Encoder_14`, `Encoder_15`.
+
+### `MiniLab3` (_MiniLab)
+
+MiniLab 3 in DAW mode: 16 RGB pads (two banks of 8), 8 knobs, 4 faders and
+the clickable display encoder. Select the DAW program on the device; Shift
+with pads 1-5 are the Loop, Stop, Play, Record and Tap buttons.
+`show_text` writes on the screen.
+
+- **`set_daw_mode(enabled: bool)`**
+- **`show_text(top: str, bottom: str = '')`**: Show two lines (10 and 18 characters) on the screen until the device draws over them.
+- **`on_connect()`**
+- **`on_disconnect()`**
+- **`send_pixel(x: int, y: int, value)`**
+- **`decode_control(channel: int, number: int, value: int)`**
+
+#### `Controls` (Enum)
+
+An enum.
+
+Members: `Knob_0`, `Knob_1`, `Knob_2`, `Knob_3`, `Knob_4`, `Knob_5`, `Knob_6`, `Knob_7`, `Fader_0`, `Fader_1`, `Fader_2`, `Fader_3`, `Display`, `Shift_Display`, `Shift`, `Display_Press`, `Shift_Display_Press`, `Loop`, `Stop`, `Play`, `Record`, `Tap`.
 
 ## `pyxelwidgets.devices.presonus`
 

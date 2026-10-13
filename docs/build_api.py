@@ -26,7 +26,7 @@ SECTIONS = [
     ('Time, controls and outputs', ['transport', 'binding', 'mapping', 'link']),
     ('Putting it together', ['surface', 'app', 'parser', 'codegen']),
     ('Devices', ['devices', 'devices.colors', 'devices.input', 'devices.midi', 'devices.novation', 'devices.akai',
-                 'devices.ableton', 'devices.presonus', 'devices.virtual', 'devices.web', 'devices.midi_clock',
+                 'devices.ableton', 'devices.arturia', 'devices.presonus', 'devices.virtual', 'devices.web', 'devices.midi_clock',
                  'devices.midi_port', 'devices.plugins', 'devices.mackie', 'devices.osc', 'devices.desktop']),
     ('Designer', ['designer']),
 ]
