@@ -2606,6 +2606,9 @@ and `PluginParameter` messages turn a parameter's V-Pot:
     mackie.scan_parameters('Bass', 'ReaComp')  # ['Thresh', 'Ratio', ...]
     surface.map(knob, mackie, PluginParameter('Bass', 'ReaComp', 'Ratio'), on = Changed, feedback = True)
 
+Works with Logic Pro (its plug-in views, cursor paging and passing messages
+are handled); REAPER's own Mackie Control support has no plug-in mode.
+
 ### `MackieControl` (_ControlSurface)
 
 ```python
@@ -2628,7 +2631,7 @@ both). Answers the Logic Control connection handshake.
 - **`send(message)`**
 - **`decode(midi: list)`**
 - **`close()`**
-- **`row(line: int = 0)`**: The 8 strips' texts on the display's top (0) or bottom (1) line.
+- **`row(line: int = 0)`**: The 8 strips' texts on the display's top (0) or bottom (1) line; the top line without a passing message over it (Logic's "Page 2/12" for 2 seconds).
 - **`scanned()`**: What the scans found: `tracks`, `plugins` by track and `parameters` by track and plug-in.
 - **`scan_tracks()`**: The DAW's track names: banks through the strips from the first, reading the display (a DAW shows at most 7 characters; repeated names get " (2)"). Blocks for a while; don't call it from a MIDI or widget event handler.
 - **`scan_plugins(track: str)`**: The plug-ins on `track` (a name from `scan_tracks`), as the DAW's plug-in mode shows them.
