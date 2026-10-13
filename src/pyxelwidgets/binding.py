@@ -54,6 +54,17 @@ class Binding:
                  step: float = 1 / 64,
                  axis: int | None = None,
                  clock: typing.Callable[[], float] = time.monotonic) -> None:
+        """
+        takeover: Takeover = Takeover.Glide, optional
+            How a knob or fader takes over a value it doesn't match: Glide moves there over
+            ``glide_time``, Pickup waits until the control passes the value, Jump sets it at once.
+        glide_time: float = 0.3, optional
+            Seconds a glide over the whole range takes.
+        step: float = 1/64, optional
+            How much one step of an encoder (a relative control) moves the value.
+        axis: int, optional
+            Which value of a two-value widget (XY) the control sets: 0 for x, 1 for y.
+        """
         self.source = source
         self.control = control
         self.target = target
