@@ -1248,6 +1248,9 @@ class Keyboard(Velocity, Widget):
             ``root_color``) and the only ones Diatonic types lay out.
         transpose: int = 0, optional
             Semitones added to the notes played, without moving the layout or its colors.
+        root_color, keyboard_color, non_scale_color: Color, optional
+            The root notes, the other notes of the scale, and notes outside it (Chromatic and
+            Keyboard types).
         """
         self._octave = octave
         self.transpose = transpose
@@ -1831,6 +1834,10 @@ class Sequencer(Timed, Velocity, Widget):
             Without a clock it ends when the next step plays.
         gate_random: float = 0.0, optional
             Each hit's gate is longer or shorter by up to this many steps, at random.
+        rate: Rate = '1/16', optional
+            The length of a step: a note value such as '1/16', '1/8T' or 'bar'.
+        current_color, current_active_color: Color, optional
+            The playing step: its empty cells and its active ones.
         """
         if not 50.0 <= swing <= 75.0:
             raise ValueError(f'swing must be from 50 to 75 percent, got {swing!r}')
@@ -2248,6 +2255,8 @@ class PianoRoll(Timed, Velocity, Widget):
             The background of the root's rows.
         current_color, current_active_color: Color, optional
             The playing step's column, and its notes.
+        rate: Rate = '1/16', optional
+            The length of a step (a note value).
         """
         if steps < 1:
             raise ValueError(f'steps must be at least 1, got {steps!r}')
@@ -2475,6 +2484,13 @@ class Sprite(Widget):
                  rate: Rate | float | None = None,
                  propagation: Propagation = Propagation.Pass,
                  **kwargs):
+        """
+        frames: Frames, optional
+            The pictures it shows (painted in the designer), fitted to its size from the
+            bottom-left.
+        rate: Rate | float, optional
+            How long each frame shows: a note value or seconds; none shows the first frame only.
+        """
         if isinstance(rate, str):
             pyxelwidgets.rate.parse_rate(rate)
         elif rate is not None and not rate > 0:
@@ -2568,6 +2584,10 @@ class Tracker(Timed, Velocity, Widget):
             Scroll to the playing row when it plays.
         note: int = 36, optional
             The first column's note; each column to the right plays the next one.
+        rate: Rate = '1/16', optional
+            How long each row plays (a note value).
+        current_color, current_active_color: Color, optional
+            The playing row: its empty cells and its active ones.
         """
         self.bars = bars
         self.bars = self.bars if self.bars >= height else height
@@ -2895,6 +2915,10 @@ class Meter(ValueWidget):
             Seconds the peak stays lit; 0 doesn't show it.
         falloff: float = 0.0, optional
             How fast the bar falls, in full heights per second; 0 falls at once (e.g. meters a DAW already smooths).
+        direction: Direction = Direction.Vertical, optional
+            The bar grows from the bottom (Vertical) or from the left (Horizontal).
+        warning_color, danger_color: Color, optional
+            The bar above ``warning`` and above ``danger``.
         """
         self.direction = direction
         self.warning = warning
@@ -3236,6 +3260,16 @@ class Text(Widget):
                  propagation: Propagation = Propagation.Pass,
                  clock: typing.Callable[[], float] = time.monotonic,
                  **kwargs):
+        """
+        text: str = '', optional
+            What it shows.
+        align: Align = Align.Left, optional
+            Where text that fits sits: left, centered or right.
+        scroll: Scroll = Scroll.Auto, optional
+            Scrolling: when the text doesn't fit (Auto), Always, or Off.
+        speed: float = 8.0, optional
+            Scrolling speed in columns per second.
+        """
         self._text = str(text)
         self._bitmap = pyxelwidgets.font.text_bitmap(self._text)
         self.align = align
@@ -3452,6 +3486,8 @@ class Arpeggiator(Timed, Velocity, Widget):
             The notes of the pads.
         root_color, current_color: Color, optional
             The root's pads, and the note playing.
+        rate: Rate = '1/16', optional
+            How often a note plays (a note value).
         """
         if not 1 <= octaves <= 4:
             raise ValueError(f'octaves must be from 1 to 4, got {octaves!r}')
@@ -3661,6 +3697,8 @@ class Euclidean(Timed, Velocity, Widget):
             How many steps new rows have (up to the width). Defaults to the width.
         current_color, current_active_color: Color, optional
             Each row's playing step, without and with a hit.
+        rate: Rate = '1/16', optional
+            The length of a step (a note value).
         """
         self.rate = rate
         self.note = note
@@ -3838,6 +3876,8 @@ class Automaton(Timed, Velocity, Widget):
             The rows' notes, from the bottom.
         current_color: Color, optional
             Cells just born.
+        rate: Rate = '1/8', optional
+            How often a new generation grows (a note value).
         """
         parse_rule(rule)
         if not 0.0 <= density <= 1.0:
@@ -4180,6 +4220,8 @@ class MeterBank(Widget):
             Seconds peaks stay lit; 0 doesn't show them.
         falloff: float = 0.0, optional
             How fast bars fall, in full heights per second; 0 falls at once.
+        warning_color, danger_color: Color, optional
+            The bars above ``warning`` and above ``danger``.
         """
         self.direction = direction
         self.warning = warning

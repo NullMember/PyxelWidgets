@@ -24,6 +24,10 @@ class Group(pyxelwidgets.widgets.Widget):
                  background: pyxelwidgets.color.Color = pyxelwidgets.color.Colors.Invisible,
                  propagation: pyxelwidgets.widgets.Propagation = pyxelwidgets.widgets.Propagation.Pass,
                  **kwargs):
+        """
+        background: Color = Colors.Invisible, optional
+            The empty area's color (Invisible: the widgets underneath show).
+        """
         self._children = []
         self._dirty = True
         super().__init__(x, y, width, height, inactive_color = background, propagation = propagation, **kwargs)
@@ -147,6 +151,15 @@ class Pages(Group):
                  selector_color: pyxelwidgets.color.Color = pyxelwidgets.color.Color(48, 48, 48),
                  propagation: pyxelwidgets.widgets.Propagation = pyxelwidgets.widgets.Propagation.Stop,
                  **kwargs):
+        """
+        page: int = 0, optional
+            The page shown first, from 0.
+        selector: Selector = Selector.Top, optional
+            The side of the strip with a cell per page (Off: no strip; ``next``/``previous`` or
+            links switch pages).
+        current_color, selector_color: Color, optional
+            The current page's cell, and the others'.
+        """
         self._page = page
         self.selector = selector
         self.current_color = current_color
