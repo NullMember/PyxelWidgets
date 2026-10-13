@@ -40,6 +40,7 @@ _ACTIONS = {
     'transport.stop': '{}.stop',
     'transport.toggle': '{}.toggle',
     'transport.rewind': 'lambda: {}.locate(0)',
+    'surface.reveal': 'surface.reveal',
     'transport.tempo': "lambda bpm: setattr({0}, 'bpm', max(1.0, float(bpm)))",
     'transport.tempo_add': "lambda amount: setattr({0}, 'bpm', max(1.0, {0}.bpm + amount))",
 }
