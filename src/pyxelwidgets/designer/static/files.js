@@ -7,6 +7,7 @@ import { change, flushSync, setStatus } from './history.js';
 import { held, padUp } from './preview.js';
 import { render } from './board.js';
 import { renderToolbar, renderDirty } from './properties.js';
+import { hidePadInfo } from './padinfo.js';
 
 function dirty() {
   return JSON.stringify(state.layout) !== state.saved;
@@ -271,5 +272,6 @@ export function setMode(mode) {
   state.mode = mode;
   for (const pointer of held.keys()) padUp({ pointerId: pointer });
   if (mode === 'try') openDrawer('events');
+  hidePadInfo();
   renderToolbar();
 }

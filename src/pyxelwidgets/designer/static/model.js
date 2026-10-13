@@ -2,6 +2,7 @@
 
 import { state, $, el } from './core.js';
 import { change } from './history.js';
+import { learnButton } from './learn.js';
 import { render } from './board.js';
 import { setOption, optionField } from './properties.js';
 
@@ -127,7 +128,9 @@ export function bindingFields(widget) {
   };
   return [
     el('label', { for: 'widget-control', title: 'A device control that drives this widget' }, 'control'),
-    el('div', { class: 'control' }, select),
+    el('div', { class: 'control learnable' }, select, learnButton('widget-control', 'control', (event) => setBinding(
+      (b) => b.widget === widget.name,
+      { device: event._device, control: event.control, widget: widget.name, ...(binding?.options ? { options: binding.options } : {}) }))),
     binding ? state.catalog.binding.options.filter((option) => shown[option.name]).flatMap((option) => optionField(binding, option)) : null,
   ];
 }
@@ -139,8 +142,9 @@ export function transportControls() {
     const id = `action-${action.replace('.', '-')}`;
     return [
       el('label', { for: id }, action.replace('transport.', '')),
-      el('div', { class: 'control' }, controlSelect(id, binding, (device, control) => setBinding(
-        (b) => b.action === action, device === null ? null : { device, control, action }))),
+      el('div', { class: 'control learnable' }, controlSelect(id, binding, (device, control) => setBinding(
+        (b) => b.action === action, device === null ? null : { device, control, action })),
+      learnButton(id, 'control', (event) => setBinding((b) => b.action === action, { device: event._device, control: event.control, action }))),
     ];
   }));
 }

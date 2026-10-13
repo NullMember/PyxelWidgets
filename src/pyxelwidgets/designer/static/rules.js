@@ -57,7 +57,7 @@ function messageText(message = {}) {
 }
 
 // [when, to, what] of a rule
-function ruleText(rule, object = ruleObject(rule)) {
+export function ruleText(rule, object = ruleObject(rule)) {
   if (rule.kind === 'mapping') {
     return [object.on || 'receive only', object.output, `${object.message?.type || '?'} ${messageText(object.message)}`];
   }

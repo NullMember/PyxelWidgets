@@ -219,7 +219,9 @@ class _OutputProxy(pyxelwidgets.events.Emitter):
             self.target.send(message)
 
     def _received(self, event) -> None:
-        self.preview._log(self.name, f'← {type(event.message).__name__}', _message_json(event.message))
+        # `_learn`: the message as layout JSON, for the page's Learn buttons (not shown)
+        self.preview._log(self.name, f'← {type(event.message).__name__}',
+                          {**_message_json(event.message), '_learn': pyxelwidgets.parser.message_to_json(event.message)})
         self.emit(pyxelwidgets.events.MessageReceived(self, event.message))
 
 class _PreviewActions:
@@ -337,6 +339,8 @@ class Preview:
         ui.surface.add_device(device)
         for widget in ui.widgets.values():
             widget.on(pyxelwidgets.events.WidgetEvent, self._record)
+        # Connected devices' knobs, faders and buttons (for the page's Learn buttons too)
+        ui.surface.on(pyxelwidgets.events.ControlEvent, self._control)
         # Mappings send to stand-ins that log, and forward to the connected outputs
         proxies = {entry['name']: _OutputProxy(self, entry['name']) for entry in ui.output_settings()}
         ui.mappings = ui.map(proxies)
@@ -392,6 +396,14 @@ class Preview:
             # The page puts them in the layout, so saving keeps them
             entry['presets'] = event.widget.stored()
         self._append(entry)
+
+    def _control(self, event) -> None:
+        index = next((i for i, entry in enumerate(self.hardware) if entry['device'] is event.device), None)
+        if index is None:
+            return
+        entry = _event_json(event)
+        entry.pop('device', None)
+        self._append({**entry, 'widget': f'{index + 1}. {type(event.device).__name__}', '_device': index})
 
     def _log(self, name: str, kind: str, fields: dict) -> None:
         self._append({'event': kind, 'widget': name, **fields})
@@ -613,6 +625,9 @@ class Preview:
                     # The tempo measured from the DAW's clock
                     'bpm': round(transport.bpm, 1) if self.synced and transport is not None else None,
                     'position': f'{transport.bar + 1}.{transport.beat + 1}' if playing else None,
+                    # The page each Pages container shows now (pressing may have changed it)
+                    'pages': {name: widget.page for name, widget in self.ui.widgets.items()
+                              if isinstance(widget, pyxelwidgets.group.Pages)},
                     'hardware': self.hardware_status()}
 
     def input(self, x: int, y: int, velocity: float) -> None:

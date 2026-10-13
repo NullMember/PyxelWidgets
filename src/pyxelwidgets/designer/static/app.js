@@ -20,6 +20,7 @@ import { select, renderToolbar } from './properties.js';
 import { addWidget, clearGhost, dragOver, drop, addDevice, removeSelection, duplicate, copySelection,
   pasteWidgets, groupSelection, ungroup, selectAll, nudge } from './editing.js';
 import { showPaletteTab, loadSnippets, renderSnippets, saveSnippet } from './snippets.js';
+import { stopLearning } from './learn.js';
 import { addRecent, save, saveAs, showOpen, importFile, showFileMenu, showDetect, setMode } from './files.js';
 
 function bindToolbar() {
@@ -77,6 +78,7 @@ function bindToolbar() {
   window.addEventListener('keydown', (event) => {
     if (event.target.closest('input, select, textarea')) return;
     if (event.target.closest('dialog')) return;
+    if (event.key === 'Escape' && state.learning) return stopLearning();
     if (state.rules.open && state.rules.focused && rulesKey(event)) return;
     const mod = event.ctrlKey || event.metaKey;
     const key = event.key.toLowerCase();

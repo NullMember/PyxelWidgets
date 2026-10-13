@@ -9,6 +9,7 @@ import { renderRules } from './rules.js';
 import { renderDrawer } from './drawer.js';
 import { change } from './history.js';
 import { padDown, pressAt, padUp } from './preview.js';
+import { showPadInfo, hidePadInfo } from './padinfo.js';
 import { renderTree } from './layers.js';
 import { renderDevices, select, renderProperties, renderCode, renderToolbar, renderDirty } from './properties.js';
 import { renderWelcome } from './files.js';
@@ -56,7 +57,7 @@ export function renderBoard() {
     for (let x = 0; x < width; x++) {
       pads.append(el('div', {
         class: 'pad', dataset: { x, y: height - 1 - top },
-        onpointerdown: padDown, onpointerup: padUp, onpointercancel: padUp,
+        onpointerdown: padDown, onpointerup: padUp, onpointercancel: padUp, onpointermove: showPadInfo, onpointerleave: hidePadInfo,
       }));
     }
   }

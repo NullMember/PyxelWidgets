@@ -446,3 +446,20 @@ body.dragging .welcome { display: none; }
   .window-body { grid-template-columns: 1fr; grid-template-rows: 40% 1fr; }
   .rule-list { border-right: none; border-bottom: 1px solid var(--line); }
 }
+
+/* Learn buttons sit next to the picker they fill in */
+.control.learnable { display: flex; gap: 6px; align-items: center; }
+.control.learnable > select { flex: 1; min-width: 0; }
+button.learn { flex: none; padding: 3px 8px; font-size: 11px; }
+button.learn.active { background: var(--accent-soft); border-color: var(--accent); color: var(--accent); animation: learning 1s ease-in-out infinite alternate; }
+@keyframes learning { from { box-shadow: 0 0 0 0 var(--accent-soft); } to { box-shadow: 0 0 0 4px var(--accent-soft); } }
+
+/* What a pad does (Try mode, on hover) */
+#pad-info { position: fixed; z-index: 50; max-width: 380px; background: var(--panel-2); border: 1px solid var(--line); border-radius: 6px;
+  padding: 8px 10px; font-size: 12px; box-shadow: 0 6px 24px rgba(0, 0, 0, 0.35); pointer-events: none; }
+#pad-info .title { color: var(--muted); font-size: 11px; margin-bottom: 4px; }
+#pad-info .reached + .reached { border-top: 1px solid var(--line); margin-top: 6px; padding-top: 6px; }
+#pad-info .head b { color: var(--accent); }
+#pad-info ul { margin: 4px 0 0; padding-left: 16px; }
+#pad-info li { margin: 2px 0; overflow-wrap: anywhere; }
+#pad-info .hint { margin: 4px 0 0; }

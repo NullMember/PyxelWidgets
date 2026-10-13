@@ -6,6 +6,7 @@ import { renderDrawer, renderEvents } from './drawer.js';
 import { widgetNamed } from './links.js';
 import { change, flushSync, setStatus } from './history.js';
 import { startMarquee } from './board.js';
+import { learnFrom } from './learn.js';
 import { renderDevices, syncStatus, renderToolbar } from './properties.js';
 
 export async function poll() {
@@ -19,6 +20,7 @@ export async function poll() {
       renderToolbar();
     }
     state.bpm = frame.bpm;
+    state.pages = frame.pages || {};
     if ($('sync-status')) $('sync-status').textContent = syncStatus();
     $('position').textContent = frame.position ? `bar ${frame.position}` : '';
     if (JSON.stringify(frame.hardware) !== JSON.stringify(state.hardware)) {
@@ -58,6 +60,7 @@ function addEvents(events) {
     state.eventLog.push(event);
   }
   if (stored.size) keepPresets(stored);
+  learnFrom(events);
   if (state.eventLog.length > 500) state.eventLog.splice(0, state.eventLog.length - 500);
   renderEvents();
 }

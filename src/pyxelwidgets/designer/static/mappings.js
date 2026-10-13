@@ -4,6 +4,7 @@ import { state, $, fill, el, api } from './core.js';
 import { trackValueSource } from './drawer.js';
 import { change, setStatus } from './history.js';
 import { render } from './board.js';
+import { learnButton, learnedMessage } from './learn.js';
 import { hardwareDot, connectButton, select, optionField, ADVANCED, group, optionFields } from './properties.js';
 
 export const INTEGER_SOURCES = new Set(['x', 'y', 'cell', 'note', 'step', 'row', 'page', 'delta']);
@@ -526,7 +527,7 @@ export function mappingCard(widget, mapping, index) {
       }, '×')),
     el('div', { class: 'fields' },
       el('label', { for: id('type') }, 'message'),
-      el('div', { class: 'control' }, el('select', {
+      el('div', { class: info?.receives === false ? 'control' : 'control learnable' }, el('select', {
         id: id('type'),
         onchange: (e) => edit(() => {
           const type = e.target.value;
@@ -544,7 +545,11 @@ export function mappingCard(widget, mapping, index) {
           }
           mapping.message = next;
         }),
-      }, (info?.messages || Object.keys(state.catalog.messages)).map((type) => el('option', { value: type, selected: type === message.type }, type)))),
+      }, (info?.messages || Object.keys(state.catalog.messages)).map((type) => el('option', { value: type, selected: type === message.type }, type))),
+      // What the DAW sends fills it in (channel, note, controller, address...)
+      info?.receives === false || !output ? null : learnButton(id('message'), 'message', (event) => edit(() => {
+        mapping.message = learnedMessage(mapping.message || {}, event._learn);
+      }), mapping.output)),
       fieldEditors,
       // Outputs that send nothing back (the keyboard and mouse) have no feedback
       info?.receives === false ? null : [

@@ -192,7 +192,7 @@ export function renderEvents() {
   fill($('events'), shown.slice(-200).reverse().map((event) => {
     const debug = event.event === 'Debug';
     const fields = debug ? event.text : Object.entries(event)
-      .filter(([key]) => !['id', 'widget', 'event'].includes(key))
+      .filter(([key]) => !['id', 'widget', 'event'].includes(key) && !key.startsWith('_'))
       .map(([key, value]) => `${key}=${Array.isArray(value) ? `[${value}]` : value}`)
       .join(' ');
     return el('li', { class: debug ? 'debug' : null, title: `${event.widget} ${event.event} ${fields}` },

@@ -42,6 +42,9 @@ export const state = {
   rules: { open: false, all: false, picked: [], anchor: null, query: '', focused: false },
   // Several picked rules edited as one: {kind, rep, others} (see spreadChange)
   broadcast: null,
+  // A Learn button waiting for a control or a received message (learn.js): {id, kind, output, apply}
+  learning: null,
+  pages: {}, // the page each Pages container shows in the preview now, by name
 };
 
 export const $ = (id) => document.getElementById(id);
