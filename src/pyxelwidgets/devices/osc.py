@@ -352,8 +352,9 @@ class REAPER(pyxelwidgets.devices.plugins.PluginParameters, OSC):
             return
         self._ask('/action', self.refresh_action, wait = self.refresh_time)
         if '/track/number/str' not in self.state:
-            raise ConnectionError(f'REAPER does not answer: add an OSC control surface in its preferences, '
-                                  f'listening on port {self.send_port} and sending to port {self.receive_port}')
+            raise ConnectionError(f'REAPER does not answer: its OSC control surface (Preferences > Control/OSC/web) '
+                                  f'needs local listen port {self.send_port}, device port {self.receive_port} and '
+                                  f'device IP 127.0.0.1 (where REAPER sends to: not 0.0.0.0)')
         self._synced = True
 
     def _ask(self, address: str, *args, wait: float | None = None) -> bool:
