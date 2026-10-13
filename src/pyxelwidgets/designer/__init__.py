@@ -84,6 +84,14 @@ PREVIEWS = {
     'Text': ((4, 5), {'text': 'A', 'scroll': 'Off'}),
     'Tracker': ((3, 4), {}),
     'XY': ((3, 3), {'value': (0.6, 0.4)}),
+    'PianoRoll': ((4, 4), {'octave': 4}),
+    'ChordPads': ((4, 3), {}),
+    'Arpeggiator': ((4, 2), {}),
+    'Euclidean': ((4, 3), {}),
+    'Automaton': ((4, 4), {}),
+    'TapTempo': ((2, 2), {}),
+    'Stepper': ((4, 1), {'value': 0.5}),
+    'MeterBank': ((4, 4), {}),
 }
 
 def _preview(cls, name: str) -> list | None:
@@ -106,6 +114,22 @@ def _preview(cls, name: str) -> list | None:
             widget.clips[0, 2] = widget.clips[2, 1] = pyxelwidgets.widgets.ClipLauncher.Playing
         elif name == 'DrumPads':
             widget.levels[1, 1] = widget.levels[2, 2] = 1.0
+        elif name == 'PianoRoll':
+            for step, row, length in ((0, 0, 2), (2, 2, 1), (3, 1, 1)):
+                widget.add_note(step, widget.rows()[row], length)
+        elif name == 'ChordPads':
+            widget._held[(1, 0)] = []
+        elif name == 'Arpeggiator':
+            widget.held[:] = [widget.note_at(0, 0), widget.note_at(2, 0)]
+            widget._sounding = widget.note_at(2, 0)
+        elif name == 'Euclidean':
+            widget.pulses[:] = [3, 2, 1]
+        elif name == 'Automaton':
+            for x, y in ((1, 2), (2, 1), (0, 0), (1, 0), (2, 0)):
+                widget.cells[x, y] = True
+        elif name == 'MeterBank':
+            for channel, level in enumerate((0.5, 0.95, 0.7, 0.3)):
+                widget.set_level(channel, level)
         elif name == 'Sprite':
             heart = [[0, 1, 0], [1, 1, 1], [1, 0, 1]]
             widget.configure(frames = [[[pyxelwidgets.color.Colors.Red if heart[2 - y][x] else pyxelwidgets.color.Colors.Invisible

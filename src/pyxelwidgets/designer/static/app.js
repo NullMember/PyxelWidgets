@@ -4,6 +4,8 @@
 const DEFAULT_SIZE = {
   Button: [1, 1], ButtonGroup: [4, 1], ClipLauncher: [8, 4], DrumPads: [4, 4], Fader: [1, 8], Keyboard: [8, 4], Knob: [3, 3],
   Meter: [1, 8], Sequencer: [8, 4], Sprite: [2, 2], Text: [8, 5], Tracker: [4, 8], XY: [4, 4],
+  PianoRoll: [8, 8], ChordPads: [8, 4], Arpeggiator: [8, 2], Euclidean: [8, 4], Automaton: [8, 8], TapTempo: [1, 1],
+  Stepper: [4, 1], MeterBank: [8, 4], Presets: [8, 8],
 };
 // Colors offered for painting Sprite frames (any color can be picked too)
 const SWATCHES = ['White', 'Gray', 'Red', 'OrangeRed', 'Orange', 'Yellow', 'Lime', 'Green', 'Cyan', 'DodgerBlue', 'Blue', 'Purple', 'Magenta', 'HotPink'];
@@ -474,7 +476,7 @@ function outputProperties(panel, index) {
 // The event a new message is sent on: the widget's main one
 function defaultEvent(widget) {
   const events = state.catalog.widgets[widget.type]?.events || [];
-  return ['Changed', 'Toggled', 'NoteOn', 'StepPlayed', 'RowPlayed', 'ClipStarted', 'PageChanged', 'Pressed'].find((name) => events.includes(name)) || events[0];
+  return ['Changed', 'Toggled', 'NoteOn', 'StepPlayed', 'RowPlayed', 'ClipStarted', 'TempoTapped', 'PresetRecalled', 'PageChanged', 'Pressed'].find((name) => events.includes(name)) || events[0];
 }
 
 // A useful first message for an event on an output
@@ -510,8 +512,8 @@ function defaultMessage(widget, on, info) {
     case 'NoteOn': return { type: 'NoteOn', note: source('note'), velocity: source('velocity'), channel: 1 };
     case 'NoteOff': return { type: 'NoteOff', note: source('note'), velocity: 0, channel: 1 };
     case 'Pressure': return { type: 'PolyPressure', note, pressure: source('pressure'), channel: 1 };
-    case 'StepPlayed': return { type: 'NoteOn', note: 36, velocity: source('active'), channel: 1 };
-    case 'StepEnded': return { type: 'NoteOff', note: 36, velocity: 0, channel: 1 };
+    case 'StepPlayed': return { type: 'NoteOn', note: source('note'), velocity: source('velocity'), channel: 1 };
+    case 'StepEnded': return { type: 'NoteOff', note: source('note'), velocity: 0, channel: 1 };
     default: return { type: 'NoteOn', note: 60, velocity: 127, channel: 1 };
   }
 }
@@ -1135,12 +1137,19 @@ function defaultActionValue(link) {
   if (linkActions(widgetNamed(link.target))[link.action] === null) return;
   const sources = sourceNames(link.on);
   if (link.action === 'transport.tempo') {
-    if (sources.includes('value')) Object.assign(link, { value: { source: 'value' }, min: 60, max: 180 });
+    // A TapTempo's tempo as it is
+    if (sources.includes('bpm')) link.value = { source: 'bpm' };
+    else if (sources.includes('value')) Object.assign(link, { value: { source: 'value' }, min: 60, max: 180 });
     else link.value = 120;
     return;
   }
   if (link.action === 'transport.tempo_add') {
     link.value = 1;
+    return;
+  }
+  // A value (0-1) for actions taking one, e.g. a fader setting a step's velocity
+  if (linkActions(widgetNamed(link.target))[link.action] === 'float' && sources.includes('value')) {
+    link.value = { source: 'value' };
     return;
   }
   const source = ['step', 'row', 'cell', 'note'].find((name) => sources.includes(name));
@@ -1523,7 +1532,7 @@ function markMixed(card, kind, index, rep, others) {
 
 // ---- adding, copying, pasting
 
-// New messages for a widget (a Sequencer's notes come with their note-offs)
+// New messages for a widget (notes come with their note-offs)
 function newMappings(widget) {
   const output = outputsOf()[0];
   const info = outputInfo(output);
@@ -1531,9 +1540,11 @@ function newMappings(widget) {
   const momentary = widget.type === 'Button' && (widget.options?.mode || 'Button') !== 'Switch';
   const on = momentary && info?.messages.includes('Hotkey') ? 'Pressed' : defaultEvent(widget);
   const rules = [{ widget: widget.name, on, output: output.name, message: defaultMessage(widget, on, info) }];
-  // A Sequencer's notes end with their gates
-  if (on === 'StepPlayed' && rules[0].message.type === 'NoteOn' && info?.messages.includes('NoteOff')) {
-    rules.push({ widget: widget.name, on: 'StepEnded', output: output.name, message: defaultMessage(widget, 'StepEnded', info) });
+  // A Sequencer's notes end with their gates, other widgets' with their NoteOff
+  const ends = { StepPlayed: 'StepEnded', NoteOn: 'NoteOff' }[on];
+  const events = state.catalog.widgets[widget.type]?.events || [];
+  if (ends && events.includes(ends) && rules[0].message.type === 'NoteOn' && info?.messages.includes('NoteOff')) {
+    rules.push({ widget: widget.name, on: ends, output: output.name, message: defaultMessage(widget, ends, info) });
   }
   return rules;
 }
