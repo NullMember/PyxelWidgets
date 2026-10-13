@@ -55,7 +55,7 @@ export function deviceInfo(device) {
 }
 
 // Named controls of a layout device; a Launchpad's side buttons are controls with side_buttons off
-function deviceControls(device) {
+export function deviceControls(device) {
   const info = deviceInfo(device);
   const controls = [...(info?.controls || [])];
   if (info?.side_buttons && device.options?.side_buttons === false) {

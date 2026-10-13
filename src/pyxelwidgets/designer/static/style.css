@@ -469,3 +469,18 @@ button.learn.active { background: var(--accent-soft); border-color: var(--accent
 #pad-info ul { margin: 4px 0 0; padding-left: 16px; }
 #pad-info li { margin: 2px 0; overflow-wrap: anywhere; }
 #pad-info .hint { margin: 4px 0 0; }
+
+/* The device check */
+.check-window { width: min(560px, calc(100vw - 32px)); z-index: 45; }
+.check-window .check-steps { display: flex; gap: 6px; list-style: none; padding: 0; margin: 10px 0; font-size: 11px; text-transform: capitalize; }
+.check-window .check-steps li { flex: 1; text-align: center; padding: 3px 0; border-bottom: 2px solid var(--line); color: var(--muted); }
+.check-window .check-steps li.current { border-color: var(--accent); color: var(--text); }
+.check-window .check-steps li.done { border-color: var(--ok); }
+.check-window .answers { display: flex; gap: 8px; margin: 8px 0; }
+.check-window textarea { width: 100%; box-sizing: border-box; background: var(--bg); color: var(--text); border: 1px solid var(--line); border-radius: 6px; padding: 6px; font: inherit; }
+.check-list { list-style: none; padding: 0; margin: 8px 0; }
+.check-list li { padding: 3px 0 3px 22px; position: relative; }
+.check-list li::before { content: '○'; position: absolute; left: 4px; color: var(--muted); }
+.check-list li.ok::before { content: '✓'; color: var(--ok); }
+.check-list li.wrong::before { content: '✗'; color: var(--danger); }
+.check-list.controls { columns: 2; max-height: 260px; overflow: auto; }

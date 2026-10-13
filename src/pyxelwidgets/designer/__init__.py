@@ -20,9 +20,12 @@ import os
 import mimetypes
 import pathlib
 import re
+import platform
 import threading
+import time
 import urllib.parse
 
+import pyxelwidgets.buffer
 import pyxelwidgets.codegen
 import pyxelwidgets.color
 import pyxelwidgets.devices
@@ -326,6 +329,8 @@ class Preview:
         self.proxies = {}
         # Following a DAW's clock (the layout's transport.sync): {'key', 'input' (a MidiClockInput or None), 'error'}
         self.sync = None
+        # A device being checked (check_device): its test pattern and what it reported
+        self.check = None
         self._render_stop = None
         self.load(layout or new_layout())
         self._watch_stop = threading.Event()
@@ -369,6 +374,9 @@ class Preview:
                 proxy.detach()
             self.layout, self.ui, self.device, self.proxies = copy.deepcopy(layout), ui, device, proxies
             self._attach(old)
+            if self.check is not None:
+                # The new surface shows the check's test pattern too
+                self._show_check()
             self._hide(set(), self.hidden)
             ui.surface.transport = self._idle(ui)
             # Widgets with clocks of their own run while editing
@@ -533,6 +541,9 @@ class Preview:
             if output is not None and spec['name'] in self.proxies:
                 self.proxies[spec['name']].attach(output)
             self.outputs.append({'key': _device_key(spec), 'device': output, 'error': error})
+        if self.check is not None and all(entry['device'] is not self.check['device'] for entry in self.hardware):
+            # The device checked is gone (disconnected or removed)
+            self.check = None
         for entries in (*pool.values(), *outputs.values()):
             for entry in entries:
                 entry.close()
@@ -575,6 +586,118 @@ class Preview:
             return None, 'no port: give it a virtual port name, or input/output ports'
         return output, None
 
+    # Checking a device: test patterns on it, and what it reports (the page's device check)
+
+    #: Test patterns a check shows
+    CHECK_PATTERNS = ('corners', 'colors', 'pads', 'off')
+    #: Colors of the 'colors' pattern's rows, from the bottom
+    CHECK_COLORS = ('Red', 'Lime', 'Blue', 'Yellow', 'White', 'Cyan', 'Magenta', 'Orange')
+    #: Raw MIDI messages a check keeps
+    check_limit = 400
+
+    def check_device(self, index: int, pattern: str | None) -> dict:
+        """
+        Check connected layout device ``index``: show test ``pattern`` on it
+        (``CHECK_PATTERNS``) and record its pads, controls and raw MIDI; None
+        ends the check. Returns ``check_status()``.
+        """
+        with self.lock:
+            if pattern is None:
+                self._end_check()
+                return {}
+            if pattern not in self.CHECK_PATTERNS:
+                raise ValueError(f'unknown pattern {pattern!r} (patterns: {", ".join(self.CHECK_PATTERNS)})')
+            device = self.hardware[index]['device'] if 0 <= index < len(self.hardware) else None
+            if device is None or not device.connected:
+                raise ValueError('connect the device first')
+            if self.check is None or self.check['device'] is not device:
+                self._end_check()
+                self.check = {'device': device, 'index': index, 'pressed': [], 'held': set(), 'controls': {}, 'raw': [],
+                              'start': time.monotonic()}
+                device.on(pyxelwidgets.events.PadEvent, self._check_pad)
+                device.on(pyxelwidgets.events.ControlEvent, self._check_control)
+                if hasattr(device, 'raw_listeners'):
+                    device.raw_listeners.append(self._check_raw)
+            self.check['pattern'] = pattern
+            self._show_check()
+            return self.check_status()
+
+    def check_status(self) -> dict:
+        """What the device being checked reported: pads pressed (in order) and held, controls, raw MIDI."""
+        with self.lock:
+            check = self.check
+            if check is None:
+                return {}
+            device = check['device']
+            return {'index': check['index'], 'pattern': check['pattern'], 'type': pyxelwidgets.parser.device_type(type(device)),
+                    'model': getattr(device, 'model', type(device).__name__), 'width': device.width, 'height': device.height,
+                    'ports': [getattr(device, '_midi_input_name', None), getattr(device, '_midi_output_name', None)],
+                    'pressed': list(check['pressed']), 'held': sorted(check['held']),
+                    'controls': dict(check['controls']), 'raw': list(check['raw']),
+                    'system': {'platform': platform.platform(), 'python': platform.python_version(),
+                               'pyxelwidgets': getattr(pyxelwidgets, '__version__', '?')}}
+
+    def _check_pad(self, event) -> None:
+        check = self.check
+        if check is None:
+            return
+        if isinstance(event, pyxelwidgets.events.PadPressed):
+            check['pressed'] = (check['pressed'] + [[event.x, event.y]])[-200:]
+            check['held'].add((event.x, event.y))
+        elif isinstance(event, pyxelwidgets.events.PadReleased):
+            check['held'].discard((event.x, event.y))
+        if check['pattern'] == 'pads':
+            self._show_check()
+
+    def _check_control(self, event) -> None:
+        check = self.check
+        if check is None:
+            return
+        seen = check['controls'].setdefault(event.control, {'events': 0})
+        seen['events'] += 1
+        seen['last'] = type(event).__name__
+        for field in ('value', 'delta', 'velocity'):
+            if hasattr(event, field):
+                seen[field] = getattr(event, field)
+
+    def _check_raw(self, midi: list) -> None:
+        check = self.check
+        if check is not None:
+            check['raw'] = (check['raw'] + [[round(time.monotonic() - check['start'], 3), midi]])[-self.check_limit:]
+
+    def _show_check(self) -> None:
+        check = self.check
+        device = check['device']
+        width, height = device.width, device.height
+        colors = pyxelwidgets.color.Colors
+        frame = pyxelwidgets.buffer.new(width, height, colors.Black)
+        if check['pattern'] == 'corners':
+            frame[0, 0] = colors.Red
+            frame[0, height - 1] = colors.Lime
+            frame[width - 1, height - 1] = colors.Blue
+        elif check['pattern'] == 'colors':
+            for y in range(height):
+                frame[:, y] = getattr(colors, self.CHECK_COLORS[y % len(self.CHECK_COLORS)])
+        elif check['pattern'] == 'pads':
+            for x, y in {tuple(place) for place in check['pressed']}:
+                if 0 <= x < width and 0 <= y < height:
+                    frame[x, y] = pyxelwidgets.color.Color(48, 48, 48)
+            for x, y in check['held']:
+                if 0 <= x < width and 0 <= y < height:
+                    frame[x, y] = colors.White
+        self.ui.surface.test_pattern(device, frame)
+
+    def _end_check(self) -> None:
+        check, self.check = self.check, None
+        if check is None:
+            return
+        device = check['device']
+        device.off(pyxelwidgets.events.PadEvent, self._check_pad)
+        device.off(pyxelwidgets.events.ControlEvent, self._check_control)
+        if self._check_raw in getattr(device, 'raw_listeners', []):
+            device.raw_listeners.remove(self._check_raw)
+        self.ui.surface.test_pattern(device, None)
+
     #: Seconds between checks for unplugged and plugged in hardware
     check_interval = 1.0
 
@@ -604,6 +727,7 @@ class Preview:
         self._watch_stop.set()
         self.stop()
         with self.lock:
+            self._end_check()
             self._unfollow()
             self.ui.close_clocks()
             self.connect = False
@@ -978,6 +1102,8 @@ class Handler(http.server.BaseHTTPRequestHandler):
             self._json({'inputs': list(inputs), 'outputs': list(outputs)})
         elif url.path == '/api/layout':
             self._json({'layout': preview.layout, 'file': str(self.designer.path) if self.designer.path else None})
+        elif url.path == '/api/check':
+            self._json({'check': preview.check_status()})
         elif url.path == '/api/frame':
             since = int(urllib.parse.parse_qs(url.query).get('since', ['0'])[0])
             self._json(preview.frame(since))
@@ -1072,6 +1198,11 @@ class Handler(http.server.BaseHTTPRequestHandler):
                 preview.set_hidden([str(name) for name in body.get('hidden', [])])
             elif path == '/api/connect':
                 self._json({'ok': True, **preview.set_connected(str(body['kind']), int(body['index']), bool(body['connected']))})
+                return
+            elif path == '/api/check':
+                # {"index", "pattern"}: check a connected device (pattern null: done)
+                pattern = body.get('pattern')
+                self._json({'ok': True, 'check': preview.check_device(int(body.get('index', -1)), None if pattern is None else str(pattern))})
                 return
             else:
                 self._send(404, b'Not found', 'text/plain')

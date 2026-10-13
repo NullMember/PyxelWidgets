@@ -7,7 +7,7 @@ import { widgetNamed } from './links.js';
 import { change, flushSync, setStatus } from './history.js';
 import { startMarquee } from './board.js';
 import { learnFrom } from './learn.js';
-import { renderDevices, syncStatus, renderToolbar } from './properties.js';
+import { renderDevices, renderProperties, syncStatus, renderToolbar } from './properties.js';
 
 export async function poll() {
   try {
@@ -29,6 +29,8 @@ export async function poll() {
       renderDevices();
       renderOutputs();
       renderDrawer();
+      // A device's panel offers checking it once it's connected
+      if (state.selection?.kind === 'device') renderProperties();
     }
   } catch {
     setStatus('Lost connection to the designer server', 'error');

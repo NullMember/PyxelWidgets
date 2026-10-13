@@ -9,6 +9,7 @@ import { describeValue } from './links.js';
 import { ruleSummary } from './rules.js';
 import { drawerPrefs } from './drawer.js';
 import { change, flushSync, setStatus } from './history.js';
+import { openCheck } from './check.js';
 import { render } from './board.js';
 import { renameWidget } from './layers.js';
 import { spriteEditor } from './sprite.js';
@@ -67,6 +68,7 @@ async function setConnected(kind, index, connected) {
   state.hardware = { devices: reply.devices, outputs: reply.outputs };
   renderDevices();
   renderOutputs();
+  if (state.selection?.kind === 'device') renderProperties();
   const status = state.hardware[kind][index];
   if (connected && !status?.connected) setStatus(`Couldn't connect: ${status?.error}`, 'error');
 }
@@ -375,7 +377,14 @@ export function renderProperties() {
         optionFields(device, (info?.options || []).filter((option) => !ADVANCED.has(option.name)))),
       optionFields(device, (info?.options || []).filter((option) => ADVANCED.has(option.name))),
       info?.controls?.length ? el('p', { class: 'hint' }, `Controls: ${info.controls.map((c) => c.name).join(', ')}`) : null,
-      el('div', { class: 'actions' }, el('button', { class: 'danger', onclick: () => removeSelection() }, 'Remove device')),
+      el('div', { class: 'actions' },
+        device.type.startsWith('virtual.') || device.type.startsWith('web.') ? null : el('button', {
+          id: 'device-check', disabled: !state.hardware.devices[selection.index]?.connected,
+          title: state.hardware.devices[selection.index]?.connected ? 'Test patterns and questions, then a report for the developers' : 'Connect the device to check it',
+          onclick: () => openCheck(selection.index),
+        }, 'Check this device…'),
+        el('button', { class: 'danger', onclick: () => removeSelection() }, 'Remove device')),
+      el('p', { class: 'hint' }, 'Only the Launchpad Mini MK3 is tested on hardware by the author: checking yours helps make it right.'),
     );
     return;
   }
