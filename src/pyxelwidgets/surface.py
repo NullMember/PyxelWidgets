@@ -55,6 +55,8 @@ class Surface(pyxelwidgets.events.Emitter):
         self.lock = threading.RLock()
         # Until when reveal() shows the widgets' areas (time.monotonic), or None
         self._revealed = None
+        # Frames shown on devices instead of the widgets (test_pattern), by device name
+        self._patterns = {}
         Surface._count += 1
 
     # Widgets
@@ -211,10 +213,26 @@ class Surface(pyxelwidgets.events.Emitter):
             # Always called: devices diff against what they show, poll held
             # pads, and some (Virtual) also process their own events here
             for entry in list(self.devices.values()):
+                pattern = self._patterns.get(entry['device'].name)
+                if pattern is not None:
+                    entry['device'].show(pattern)
+                    continue
                 area = self.rect.intersect(entry['rect'])
                 if area:
                     entry['device'].show(frame[area.slice], area.x - entry['rect'].x, area.y - entry['rect'].y)
             self._light_controls()
+
+    def test_pattern(self, device, frame = None) -> None:
+        """
+        Show ``frame`` (a buffer the device's size) on ``device`` instead of
+        its part of the widgets, e.g. to check its lights; None goes back.
+        Its pads still reach the widgets.
+        """
+        with self.lock:
+            if frame is None:
+                self._patterns.pop(device.name, None)
+            else:
+                self._patterns[device.name] = frame
 
     #: Colors reveal() paints widgets in, one after another
     REVEAL_COLORS = ('Red', 'Lime', 'Blue', 'Yellow', 'Cyan', 'Magenta', 'Orange', 'White')
