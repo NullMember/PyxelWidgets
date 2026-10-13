@@ -76,6 +76,8 @@ class Device(pyxelwidgets.events.Emitter):
         self.buffer = pyxelwidgets.buffer.new(width, height)
         self.pads = PadInput(held_time, double_press_time)
         self._input_timer = None
+        # What lit controls show (set_control), by name
+        self._lit = {}
 
     @property
     def width(self) -> int:
@@ -189,6 +191,29 @@ class Device(pyxelwidgets.events.Emitter):
     def invalidate(self) -> None:
         """Forget what the device shows, so the next ``show`` sends every pixel."""
         self.buffer[:] = 0
+        self._lit = {}
+
+    def lights(self) -> tuple:
+        """Names of the controls with a light ``set_control`` can set (e.g. a Launchpad's side buttons); none by default."""
+        return ()
+
+    def set_control(self, name: str, color) -> None:
+        """
+        Light control ``name`` in ``color`` (a Color); only changes are sent,
+        and controls without a light (see ``lights``) are ignored.
+        """
+        if not self.connected or name not in self.lights():
+            return
+        cell = pyxelwidgets.buffer.new(1, 1, color)[0, 0]
+        key = tuple(int(value) for value in cell)
+        if self._lit.get(name) == key:
+            return
+        self._lit[name] = key
+        self.send_control(name, self.color_model.convert(cell[None])[0])
+
+    def send_control(self, name: str, value) -> None:
+        """Send a control's light, ``value`` from ``color_model``. Override with ``lights``."""
+        raise NotImplementedError(f'{type(self).__name__} has no control lights')
 
     def send_pixels(self, pixels: list) -> None:
         """Send ``(x, y, value)`` triples, values from ``color_model``. Override to batch."""

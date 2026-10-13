@@ -53,6 +53,14 @@ class Launchpad(pyxelwidgets.devices.midi.MIDI):
                 names[mx - 1, my + i] = f'Left{i + 1}'
         return names
 
+    def lights(self) -> tuple:
+        # Side buttons outside the grid are controls with a light
+        return () if self.side_buttons else tuple(self._side_names().values())
+
+    def send_control(self, name: str, value) -> None:
+        position = next(place for place, side in self._side_names().items() if side == name)
+        self._send([(*position, value)])
+
     def _pad(self, x: int, y: int, velocity: float) -> None:
         """Input at physical grid position ``x``, ``y``."""
         if self.side_buttons:
