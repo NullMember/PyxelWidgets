@@ -29,6 +29,7 @@ desktop = ["pynput >= 1.7"]
 test = ["pytest >= 7"]
 
 [project.scripts]
+pyxelwidgets = "pyxelwidgets.__main__:main"
 pyxelwidgets-designer = "pyxelwidgets.designer.__main__:main"
 
 [project.urls]
