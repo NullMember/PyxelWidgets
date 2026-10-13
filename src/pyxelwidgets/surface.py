@@ -9,8 +9,10 @@ import pyxelwidgets.group
 import pyxelwidgets.link
 import pyxelwidgets.mapping
 import pyxelwidgets.rectangle
+import pyxelwidgets.widgets
 import dataclasses
 import threading
+import time
 import typing
 
 # Only for type hints: a surface works with any device like object
@@ -51,6 +53,8 @@ class Surface(pyxelwidgets.events.Emitter):
         self.buffer = pyxelwidgets.buffer.new(width, height, pyxelwidgets.color.Colors.Black)
         self.frame_counter = 0
         self.lock = threading.RLock()
+        # Until when reveal() shows the widgets' areas (time.monotonic), or None
+        self._revealed = None
         Surface._count += 1
 
     # Widgets
@@ -198,12 +202,87 @@ class Surface(pyxelwidgets.events.Emitter):
                 # Transparent areas show as black on the devices
                 self.buffer[:] = pyxelwidgets.color.Colors.Black
                 pyxelwidgets.buffer.composite(self.buffer, self.root.buffer)
+            frame = self.buffer
+            if self._revealed is not None:
+                if time.monotonic() < self._revealed:
+                    frame = self._reveal_frame()
+                else:
+                    self._revealed = None
             # Always called: devices diff against what they show, poll held
             # pads, and some (Virtual) also process their own events here
             for entry in list(self.devices.values()):
                 area = self.rect.intersect(entry['rect'])
                 if area:
-                    entry['device'].show(self.buffer[area.slice], area.x - entry['rect'].x, area.y - entry['rect'].y)
+                    entry['device'].show(frame[area.slice], area.x - entry['rect'].x, area.y - entry['rect'].y)
+            self._light_controls()
+
+    #: Colors reveal() paints widgets in, one after another
+    REVEAL_COLORS = ('Red', 'Lime', 'Blue', 'Yellow', 'Cyan', 'Magenta', 'Orange', 'White')
+
+    def reveal(self, seconds: float = 2.0) -> None:
+        """
+        Show on the devices, for ``seconds``, where the widgets are: each shown
+        widget's area in a color of its own (later widgets over earlier ones).
+        Called again while showing, it stops. A binding action
+        (``surface.reveal`` in layouts) for finding your way on a busy grid.
+        """
+        with self.lock:
+            now = time.monotonic()
+            self._revealed = None if self._revealed is not None and self._revealed > now else now + seconds
+
+    def _reveal_frame(self):
+        frame = pyxelwidgets.buffer.new(self.rect.w, self.rect.h, pyxelwidgets.color.Colors.Black)
+        count = 0
+        def paint(group, ox, oy, clip):
+            nonlocal count
+            for child in group.children:
+                if not child.visible:
+                    continue
+                area = clip.intersect(pyxelwidgets.rectangle.Rectangle2D(ox + child.rect.x, oy + child.rect.y, child.rect.w, child.rect.h))
+                if area is None:
+                    continue
+                # Plain groups only hold widgets; Pages and Presets have their strips
+                if type(child) is not pyxelwidgets.group.Group:
+                    name = self.REVEAL_COLORS[count % len(self.REVEAL_COLORS)]
+                    frame[area.slice] = getattr(pyxelwidgets.color.Colors, name)
+                    count += 1
+                if isinstance(child, pyxelwidgets.group.Group):
+                    paint(child, ox + child.rect.x, oy + child.rect.y, area)
+        paint(self.root, 0, 0, self.rect)
+        return frame
+
+    def _light_controls(self) -> None:
+        """Bound controls with a light (a Launchpad's side buttons...) show what they control."""
+        for binding in self.bindings:
+            device = binding.device
+            lights = getattr(device, 'lights', None)
+            if lights is None or not lights():
+                continue
+            color = self.control_light(binding)
+            if color is not None:
+                device.set_control(binding.control, color)
+
+    @staticmethod
+    def control_light(binding):
+        """
+        The color a bound control shows: a Button's active or inactive color, another
+        widget's active color dimmed by its value, lime for play/toggle while the
+        transport plays; None leaves it as it is.
+        """
+        target = binding.target
+        if isinstance(target, pyxelwidgets.widgets.ValueWidget):
+            value = target.value
+            if isinstance(value, tuple):
+                value = value[binding.axis or 0]
+            active = getattr(target, 'active_color', pyxelwidgets.color.Colors.White)
+            inactive = getattr(target, 'inactive_color', pyxelwidgets.color.Colors.Black)
+            if not value:
+                return inactive
+            return active if isinstance(target, pyxelwidgets.widgets.Button) else active * max(0.2, float(value))
+        owner = getattr(target, '__self__', None)
+        if getattr(target, '__name__', None) in ('play', 'toggle') and hasattr(owner, 'playing'):
+            return pyxelwidgets.color.Colors.Lime if owner.playing else pyxelwidgets.color.Colors.Black
+        return None
 
     def close(self) -> None:
         """Close all devices, and the outputs of the mappings."""
