@@ -178,6 +178,11 @@ class MackieControl(pyxelwidgets.devices.plugins.PluginParameters, _ControlSurfa
         # Cubase's layout, known by its page counter ("Page:01/13"): track names on the bottom
         # line, a header on top, one insert slot at a time (V-Pot 1 picks it), names filling the strips
         self._cubase = False
+        # Cubase's header for an open plug-in (its name and the track's, as the bottom line shows them)
+        self._headers = {}
+        # Cubase's V-Pot rings, which come before the display says whose they are: strip → position
+        self._rings = {}
+        self._rings_lock = threading.Lock()
         self._display = threading.Condition()
         self._display_changes = 0
         self._display_time = 0.0
@@ -236,10 +241,13 @@ class MackieControl(pyxelwidgets.devices.plugins.PluginParameters, _ControlSurfa
             position = value & 0x0F
             strip = number - 0x30
             self._received(f'V-Pot {strip + 1}', (position - 1) / 10 if position else 0.0)
-            parameter = self._shown_parameter(strip)
-            if parameter is not None:
-                message = pyxelwidgets.message.PluginParameter(*parameter, (position - 1) / 10 if position else 0.0)
-                self.emit(pyxelwidgets.events.MessageReceived(self, message))
+            if not self._cubase:
+                return self._ring(strip, position)
+            # Cubase sends a page's rings before its header: checked once the display settled
+            with self._rings_lock:
+                if not self._rings:
+                    threading.Timer(self.settle, self._settled_rings).start()
+                self._rings[strip] = position
         elif 0x40 <= number < 0x4A:
             # Timecode digits, right to left
             self.timecode[9 - (number - 0x40)] = self._character(value)
@@ -247,6 +255,19 @@ class MackieControl(pyxelwidgets.devices.plugins.PluginParameters, _ControlSurfa
         elif number in (0x4A, 0x4B):
             self.assignment[0x4B - number] = self._character(value)
             self._received('Assignment', ''.join(self.assignment).strip())
+
+    def _ring(self, strip: int, position: int) -> None:
+        """A V-Pot ring on a parameter's strip, received as its PluginParameter."""
+        parameter = self._shown_parameter(strip)
+        if parameter is not None:
+            message = pyxelwidgets.message.PluginParameter(*parameter, (position - 1) / 10 if position else 0.0)
+            self.emit(pyxelwidgets.events.MessageReceived(self, message))
+
+    def _settled_rings(self) -> None:
+        with self._rings_lock:
+            rings, self._rings = self._rings, {}
+        for strip, position in rings.items():
+            self._ring(strip, position)
 
     @staticmethod
     def _character(value: int) -> str:
@@ -500,6 +521,7 @@ class MackieControl(pyxelwidgets.devices.plugins.PluginParameters, _ControlSurfa
             self._to_slot(plugins[plugin][0])
             self._paging = ('Channel Right', 'Channel Left')
             opened = self._slot() == plugins[plugin] and self._tap('Channel Right', lambda: self._lines() != shown)
+            self._headers[(track, plugin)] = self._header()
         else:
             opened = self._tap(f'V-Select {plugins[plugin][0] + 1}', lambda: self.row(0) != shown[0])
         if not opened:
@@ -590,6 +612,8 @@ class MackieControl(pyxelwidgets.devices.plugins.PluginParameters, _ControlSurfa
 
     def _to_page(self, page: int) -> None:
         track, plugin, shown = self._focus
+        if self._cubase and self._page() is not None:
+            shown = self._page()
         forward, back = self._paging or (self.next_page, self.previous_page)
         # The page's V-Pot rings come with it
         while shown < page:
@@ -601,10 +625,33 @@ class MackieControl(pyxelwidgets.devices.plugins.PluginParameters, _ControlSurfa
             self._focus = (track, plugin, shown)
             self._tap(back, read = False)
 
+    def _header(self):
+        """Cubase's plug-in, track and page on the bottom line of a page of parameters, else None."""
+        bottom = ''.join(self.lcd[56:])
+        match = _CUBASE_PAGE.search(bottom)
+        if match is None or bottom.startswith('Inserts'):
+            return None
+        return bottom[:16].strip(), bottom[16:match.start()].strip()
+
+    def _page(self) -> int | None:
+        """The page of parameters Cubase shows (0 is its first), from its page counter."""
+        match = _CUBASE_PAGE.search(''.join(self.lcd[56:]))
+        return int(match[0][5:].split('/')[0]) - 2 if match else None
+
+    def _still_shown(self) -> bool:
+        """
+        Whether the DAW still shows the plug-in opened last: Cubase shows
+        another track's when that track gets selected (touching its fader does).
+        """
+        focus = self._focus
+        if self._view != 'parameters' or focus is None:
+            return False
+        return not self._cubase or (self._header() == self._headers.get(focus[:2]) and self._page() == focus[2])
+
     def _shown_parameter(self, strip: int):
         """(track, plugin, parameter) on ``strip`` in the parameters view, else None."""
         focus = self._focus
-        if self._view != 'parameters' or focus is None:
+        if not self._still_shown():
             return None
         track, plugin, page = focus
         for label, on_page, on_strip in self._parameters.get((track, plugin), ()):
@@ -621,6 +668,9 @@ class MackieControl(pyxelwidgets.devices.plugins.PluginParameters, _ControlSurfa
             if parameter not in found:
                 raise LookupError(f'no parameter {parameter!r} (parameters: {", ".join(found) or "none found"})')
             page, strip = found[parameter]
+            if self._cubase and self._view == 'parameters' and self._header() != self._headers.get(self._focus[:2]):
+                # Not the plug-in opened last any more: there again
+                self._view = None
             self._open(track, plugin)
             self._to_page(page)
             while steps:
