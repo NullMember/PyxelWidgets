@@ -168,6 +168,8 @@ class MackieControl(pyxelwidgets.devices.plugins.PluginParameters, _ControlSurfa
         # Scans: track names as the display shows them (labels are made unique), plug-ins as
         # (label, strip) by track, parameters as (label, page, strip) by (track, plugin)
         self._track_names = []
+        # Where each track shows: (bank, strip)
+        self._track_places = []
         # What the DAW shows: 'channels', 'plugins', 'parameters' or None (not known), the bank
         # of tracks in the channels view, and (track, plugin, page) in the parameters view
         self._view = None
@@ -337,14 +339,18 @@ class MackieControl(pyxelwidgets.devices.plugins.PluginParameters, _ControlSurfa
                 if not any(shown) or not self._tap('Bank Right', lambda: self.row(self._names_line) != shown):
                     break
                 self._bank = bank + 1
+            places = [(bank, strip) for bank in range(len(banks) - 1) for strip in range(8)]
             names = [name for shown in banks[:-1] for name in shown]
             if banks:
                 # Cubase's last bank ends at the last track, showing some of the bank before again
                 last = banks[-1]
                 previous = (banks[-2],) * 2 if len(banks) > 1 and all(last) else None
-                names += last[_overlap(previous, (last, last)):]
+                skip = _overlap(previous, (last, last))
+                names += last[skip:]
+                places += [(len(banks) - 1, strip) for strip in range(skip, 8)]
             while names and not names[-1]:
                 names.pop()
+            self._track_places = places[:len(names)]
             self._track_names = [name or f'Track {index + 1}' for index, name in enumerate(names)]
             self.tracks = pyxelwidgets.devices.plugins.labels(self._track_names)
             self._plugins, self._parameters = {}, {}
@@ -482,7 +488,7 @@ class MackieControl(pyxelwidgets.devices.plugins.PluginParameters, _ControlSurfa
         index = self._track_index(track)
         self._to_channels()
         for attempt in range(2):
-            bank, strip = divmod(index, 8)
+            bank, strip = self._track_places[index]
             if self._bank is None:
                 self._first_bank()
             while self._bank < bank:
