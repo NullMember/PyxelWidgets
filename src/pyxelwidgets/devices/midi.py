@@ -86,6 +86,8 @@ class MIDI(pyxelwidgets.devices.Device):
         self._wanted = None
         #: True while unplugged: ``check()`` reconnects when the ports are back
         self.lost = False
+        #: Called with every incoming message (a list of bytes) before it's decoded, e.g. to record it
+        self.raw_listeners = []
 
     @staticmethod
     def available_ports() -> tuple:
@@ -237,7 +239,10 @@ class MIDI(pyxelwidgets.devices.Device):
 
     def process_midi(self, message, _) -> None:
         """rtmidi callback: ``message`` is ``(bytes, delta_time)``."""
-        self.decode(list(message[0]))
+        midi = list(message[0])
+        for listener in self.raw_listeners:
+            listener(midi)
+        self.decode(midi)
 
     def decode(self, midi: list) -> None:
         """Override to turn an incoming message into ``set_button`` calls and control events."""
