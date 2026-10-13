@@ -1,0 +1,59 @@
+{
+  "format": "pyxelwidgets.snippet",
+  "title": "Clip launcher (APC40)",
+  "doc": "Five scenes of eight tracks",
+  "category": "Clips",
+  "size": [
+    8,
+    5
+  ],
+  "widgets": [
+    {
+      "type": "ClipLauncher",
+      "name": "clips",
+      "x": 0,
+      "y": 0,
+      "width": 8,
+      "height": 5,
+      "options": {}
+    }
+  ],
+  "mappings": [
+    {
+      "widget": "clips",
+      "on": "ClipStarted",
+      "output": "midi",
+      "message": {
+        "type": "NoteOn",
+        "note": {
+          "source": "cell",
+          "offset": 36
+        },
+        "velocity": 127,
+        "channel": 1
+      }
+    },
+    {
+      "widget": "clips",
+      "on": "ClipStopped",
+      "output": "midi",
+      "message": {
+        "type": "NoteOff",
+        "note": {
+          "source": "cell",
+          "offset": 36
+        },
+        "velocity": 0,
+        "channel": 1
+      }
+    }
+  ],
+  "outputs": [
+    {
+      "name": "midi",
+      "type": "midi_port.MidiPort",
+      "virtual": "PyxelWidgets midi",
+      "options": {}
+    }
+  ]
+}

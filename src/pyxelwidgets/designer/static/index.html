@@ -44,9 +44,22 @@
   <main>
     <aside class="panel" id="left">
       <section class="fold" data-fold="widgets">
-        <h2 class="fold-head">Widgets <span class="fold-note" id="palette-hint"></span></h2>
+        <h2 class="fold-head">
+          <span class="palette-tabs">
+            <button id="tab-widgets" class="active" title="Widgets to add one by one">Widgets</button>
+            <button id="tab-snippets" title="Ready-made pieces: widgets with their links and messages, for common grid sizes">Snippets</button>
+          </span>
+          <span class="fold-note" id="palette-hint"></span>
+        </h2>
         <div class="fold-body">
           <div id="palette" class="palette"></div>
+          <div id="snippet-pane" hidden>
+            <div class="row">
+              <select id="snippet-size" aria-label="Snippet size" title="Sizes are width x height: 8x2 is two rows of eight (Launchkey, Launch Control), 8x5 the APC40's grid, 9x9 a Launchpad with its side buttons"></select>
+              <button id="save-snippet" title="Keep the selected widgets, their links and messages as a snippet">Save selection</button>
+            </div>
+            <div id="snippets" class="palette snippets"></div>
+          </div>
         </div>
       </section>
       <section class="fold" data-fold="devices">

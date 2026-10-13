@@ -1,0 +1,61 @@
+{
+  "format": "pyxelwidgets.snippet",
+  "title": "Chord strip",
+  "doc": "Triads on the bottom row, sevenths on the top, in C major",
+  "category": "Chords",
+  "size": [
+    8,
+    2
+  ],
+  "widgets": [
+    {
+      "type": "ChordPads",
+      "name": "chords",
+      "x": 0,
+      "y": 0,
+      "width": 8,
+      "height": 2,
+      "options": {
+        "octave": 3
+      }
+    }
+  ],
+  "mappings": [
+    {
+      "widget": "chords",
+      "on": "NoteOn",
+      "output": "midi",
+      "message": {
+        "type": "NoteOn",
+        "note": {
+          "source": "note"
+        },
+        "velocity": {
+          "source": "velocity"
+        },
+        "channel": 2
+      }
+    },
+    {
+      "widget": "chords",
+      "on": "NoteOff",
+      "output": "midi",
+      "message": {
+        "type": "NoteOff",
+        "note": {
+          "source": "note"
+        },
+        "velocity": 0,
+        "channel": 2
+      }
+    }
+  ],
+  "outputs": [
+    {
+      "name": "midi",
+      "type": "midi_port.MidiPort",
+      "virtual": "PyxelWidgets midi",
+      "options": {}
+    }
+  ]
+}

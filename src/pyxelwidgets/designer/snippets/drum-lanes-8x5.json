@@ -1,0 +1,227 @@
+{
+  "format": "pyxelwidgets.snippet",
+  "title": "Drum lanes",
+  "doc": "Five 8-step lanes: kick, snare, clap and hats",
+  "category": "Drums",
+  "size": [
+    8,
+    5
+  ],
+  "widgets": [
+    {
+      "type": "Sequencer",
+      "name": "kick",
+      "x": 0,
+      "y": 4,
+      "width": 8,
+      "height": 1,
+      "options": {
+        "note": 36,
+        "gate": 0.25,
+        "active_color": "#ff4500"
+      }
+    },
+    {
+      "type": "Sequencer",
+      "name": "snare",
+      "x": 0,
+      "y": 3,
+      "width": 8,
+      "height": 1,
+      "options": {
+        "note": 38,
+        "gate": 0.25,
+        "active_color": "#ffa500"
+      }
+    },
+    {
+      "type": "Sequencer",
+      "name": "clap",
+      "x": 0,
+      "y": 2,
+      "width": 8,
+      "height": 1,
+      "options": {
+        "note": 39,
+        "gate": 0.25,
+        "active_color": "#ff00ff"
+      }
+    },
+    {
+      "type": "Sequencer",
+      "name": "hat",
+      "x": 0,
+      "y": 1,
+      "width": 8,
+      "height": 1,
+      "options": {
+        "note": 42,
+        "gate": 0.25,
+        "active_color": "#ffff00"
+      }
+    },
+    {
+      "type": "Sequencer",
+      "name": "open_hat",
+      "x": 0,
+      "y": 0,
+      "width": 8,
+      "height": 1,
+      "options": {
+        "note": 46,
+        "gate": 0.25,
+        "active_color": "#00ffff"
+      }
+    }
+  ],
+  "mappings": [
+    {
+      "widget": "kick",
+      "on": "StepPlayed",
+      "output": "midi",
+      "message": {
+        "type": "NoteOn",
+        "note": {
+          "source": "note"
+        },
+        "velocity": {
+          "source": "velocity"
+        },
+        "channel": 10
+      }
+    },
+    {
+      "widget": "kick",
+      "on": "StepEnded",
+      "output": "midi",
+      "message": {
+        "type": "NoteOff",
+        "note": {
+          "source": "note"
+        },
+        "velocity": 0,
+        "channel": 10
+      }
+    },
+    {
+      "widget": "snare",
+      "on": "StepPlayed",
+      "output": "midi",
+      "message": {
+        "type": "NoteOn",
+        "note": {
+          "source": "note"
+        },
+        "velocity": {
+          "source": "velocity"
+        },
+        "channel": 10
+      }
+    },
+    {
+      "widget": "snare",
+      "on": "StepEnded",
+      "output": "midi",
+      "message": {
+        "type": "NoteOff",
+        "note": {
+          "source": "note"
+        },
+        "velocity": 0,
+        "channel": 10
+      }
+    },
+    {
+      "widget": "clap",
+      "on": "StepPlayed",
+      "output": "midi",
+      "message": {
+        "type": "NoteOn",
+        "note": {
+          "source": "note"
+        },
+        "velocity": {
+          "source": "velocity"
+        },
+        "channel": 10
+      }
+    },
+    {
+      "widget": "clap",
+      "on": "StepEnded",
+      "output": "midi",
+      "message": {
+        "type": "NoteOff",
+        "note": {
+          "source": "note"
+        },
+        "velocity": 0,
+        "channel": 10
+      }
+    },
+    {
+      "widget": "hat",
+      "on": "StepPlayed",
+      "output": "midi",
+      "message": {
+        "type": "NoteOn",
+        "note": {
+          "source": "note"
+        },
+        "velocity": {
+          "source": "velocity"
+        },
+        "channel": 10
+      }
+    },
+    {
+      "widget": "hat",
+      "on": "StepEnded",
+      "output": "midi",
+      "message": {
+        "type": "NoteOff",
+        "note": {
+          "source": "note"
+        },
+        "velocity": 0,
+        "channel": 10
+      }
+    },
+    {
+      "widget": "open_hat",
+      "on": "StepPlayed",
+      "output": "midi",
+      "message": {
+        "type": "NoteOn",
+        "note": {
+          "source": "note"
+        },
+        "velocity": {
+          "source": "velocity"
+        },
+        "channel": 10
+      }
+    },
+    {
+      "widget": "open_hat",
+      "on": "StepEnded",
+      "output": "midi",
+      "message": {
+        "type": "NoteOff",
+        "note": {
+          "source": "note"
+        },
+        "velocity": 0,
+        "channel": 10
+      }
+    }
+  ],
+  "outputs": [
+    {
+      "name": "midi",
+      "type": "midi_port.MidiPort",
+      "virtual": "PyxelWidgets midi",
+      "options": {}
+    }
+  ]
+}

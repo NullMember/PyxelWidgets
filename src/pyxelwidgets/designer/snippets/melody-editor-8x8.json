@@ -1,0 +1,164 @@
+{
+  "format": "pyxelwidgets.snippet",
+  "title": "Melody editor",
+  "doc": "A piano roll in C major with scroll and octave buttons and play on the right",
+  "category": "Melody",
+  "size": [
+    8,
+    8
+  ],
+  "widgets": [
+    {
+      "type": "PianoRoll",
+      "name": "roll",
+      "x": 0,
+      "y": 0,
+      "width": 7,
+      "height": 8,
+      "options": {
+        "steps": 16
+      }
+    },
+    {
+      "type": "Button",
+      "name": "roll_up",
+      "x": 7,
+      "y": 7,
+      "width": 1,
+      "height": 1,
+      "options": {
+        "active_color": "#ffa500",
+        "inactive_color": "#3f2900"
+      }
+    },
+    {
+      "type": "Button",
+      "name": "roll_down",
+      "x": 7,
+      "y": 6,
+      "width": 1,
+      "height": 1,
+      "options": {
+        "active_color": "#ffa500",
+        "inactive_color": "#3f2900"
+      }
+    },
+    {
+      "type": "Button",
+      "name": "octave_up",
+      "x": 7,
+      "y": 5,
+      "width": 1,
+      "height": 1,
+      "options": {
+        "active_color": "#ff00ff",
+        "inactive_color": "#3f003f"
+      }
+    },
+    {
+      "type": "Button",
+      "name": "octave_down",
+      "x": 7,
+      "y": 4,
+      "width": 1,
+      "height": 1,
+      "options": {
+        "active_color": "#ff00ff",
+        "inactive_color": "#3f003f"
+      }
+    },
+    {
+      "type": "Button",
+      "name": "play",
+      "x": 7,
+      "y": 0,
+      "width": 1,
+      "height": 1,
+      "options": {
+        "active_color": "#00ff00",
+        "inactive_color": "#003f00"
+      }
+    }
+  ],
+  "links": [
+    {
+      "widget": "roll_up",
+      "on": "Pressed",
+      "target": "roll",
+      "option": "row",
+      "change": "Add",
+      "value": 1,
+      "max": 60
+    },
+    {
+      "widget": "roll_down",
+      "on": "Pressed",
+      "target": "roll",
+      "option": "row",
+      "change": "Add",
+      "value": -1,
+      "min": -30
+    },
+    {
+      "widget": "octave_up",
+      "on": "Pressed",
+      "target": "roll",
+      "option": "octave",
+      "change": "Add",
+      "value": 1,
+      "max": 8
+    },
+    {
+      "widget": "octave_down",
+      "on": "Pressed",
+      "target": "roll",
+      "option": "octave",
+      "change": "Add",
+      "value": -1,
+      "min": 0
+    },
+    {
+      "widget": "play",
+      "on": "Pressed",
+      "action": "transport.toggle"
+    }
+  ],
+  "mappings": [
+    {
+      "widget": "roll",
+      "on": "NoteOn",
+      "output": "midi",
+      "message": {
+        "type": "NoteOn",
+        "note": {
+          "source": "note"
+        },
+        "velocity": {
+          "source": "velocity"
+        },
+        "channel": 1
+      }
+    },
+    {
+      "widget": "roll",
+      "on": "NoteOff",
+      "output": "midi",
+      "message": {
+        "type": "NoteOff",
+        "note": {
+          "source": "note"
+        },
+        "velocity": 0,
+        "channel": 1
+      }
+    }
+  ],
+  "outputs": [
+    {
+      "name": "midi",
+      "type": "midi_port.MidiPort",
+      "virtual": "PyxelWidgets midi",
+      "options": {}
+    }
+  ]
+}

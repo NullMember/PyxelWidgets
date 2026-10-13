@@ -1,0 +1,25 @@
+{
+  "format": "pyxelwidgets.snippet",
+  "title": "Octave stepper",
+  "doc": "An octave from 0 to 8 a step at a time; link its Changed to a keyboard's octave",
+  "category": "Melody",
+  "size": [
+    8,
+    1
+  ],
+  "widgets": [
+    {
+      "type": "Stepper",
+      "name": "octave",
+      "x": 0,
+      "y": 0,
+      "width": 8,
+      "height": 1,
+      "options": {
+        "minimum": 0,
+        "maximum": 8,
+        "value": 0.5
+      }
+    }
+  ]
+}

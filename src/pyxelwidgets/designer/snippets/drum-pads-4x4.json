@@ -1,0 +1,59 @@
+{
+  "format": "pyxelwidgets.snippet",
+  "title": "Drum pads",
+  "doc": "A 4x4 General MIDI kit from note 36",
+  "category": "Drums",
+  "size": [
+    4,
+    4
+  ],
+  "widgets": [
+    {
+      "type": "DrumPads",
+      "name": "pads",
+      "x": 0,
+      "y": 0,
+      "width": 4,
+      "height": 4,
+      "options": {}
+    }
+  ],
+  "mappings": [
+    {
+      "widget": "pads",
+      "on": "NoteOn",
+      "output": "midi",
+      "message": {
+        "type": "NoteOn",
+        "note": {
+          "source": "note"
+        },
+        "velocity": {
+          "source": "velocity"
+        },
+        "channel": 10
+      }
+    },
+    {
+      "widget": "pads",
+      "on": "NoteOff",
+      "output": "midi",
+      "message": {
+        "type": "NoteOff",
+        "note": {
+          "source": "note"
+        },
+        "velocity": 0,
+        "channel": 10
+      }
+    }
+  ],
+  "outputs": [
+    {
+      "name": "midi",
+      "type": "midi_port.MidiPort",
+      "virtual": "PyxelWidgets midi",
+      "options": {}
+    }
+  ]
+}

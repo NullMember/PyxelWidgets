@@ -1,0 +1,74 @@
+{
+  "format": "pyxelwidgets.snippet",
+  "title": "Fader pair",
+  "doc": "Two faders sending CC 7 on channels 1 and 2",
+  "category": "Mixing",
+  "size": [
+    2,
+    8
+  ],
+  "widgets": [
+    {
+      "type": "Fader",
+      "name": "left",
+      "x": 0,
+      "y": 0,
+      "width": 1,
+      "height": 8,
+      "options": {
+        "mode": "Magnitude",
+        "active_color": "#00ffff"
+      }
+    },
+    {
+      "type": "Fader",
+      "name": "right",
+      "x": 1,
+      "y": 0,
+      "width": 1,
+      "height": 8,
+      "options": {
+        "mode": "Magnitude",
+        "active_color": "#00ffff"
+      }
+    }
+  ],
+  "mappings": [
+    {
+      "widget": "left",
+      "on": "Changed",
+      "output": "midi",
+      "feedback": true,
+      "message": {
+        "type": "ControlChange",
+        "control": 7,
+        "value": {
+          "source": "value"
+        },
+        "channel": 1
+      }
+    },
+    {
+      "widget": "right",
+      "on": "Changed",
+      "output": "midi",
+      "feedback": true,
+      "message": {
+        "type": "ControlChange",
+        "control": 7,
+        "value": {
+          "source": "value"
+        },
+        "channel": 2
+      }
+    }
+  ],
+  "outputs": [
+    {
+      "name": "midi",
+      "type": "midi_port.MidiPort",
+      "virtual": "PyxelWidgets midi",
+      "options": {}
+    }
+  ]
+}

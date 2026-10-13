@@ -1,0 +1,566 @@
+{
+  "format": "pyxelwidgets.snippet",
+  "title": "Mutes and solos (Mackie)",
+  "doc": "Solo buttons over mute buttons for eight tracks",
+  "category": "Mixing",
+  "size": [
+    8,
+    2
+  ],
+  "widgets": [
+    {
+      "type": "Button",
+      "name": "mute1",
+      "x": 0,
+      "y": 0,
+      "width": 1,
+      "height": 1,
+      "options": {
+        "active_color": "#ff0000",
+        "inactive_color": "#3f0000",
+        "interactive": false
+      }
+    },
+    {
+      "type": "Button",
+      "name": "mute2",
+      "x": 1,
+      "y": 0,
+      "width": 1,
+      "height": 1,
+      "options": {
+        "active_color": "#ff0000",
+        "inactive_color": "#3f0000",
+        "interactive": false
+      }
+    },
+    {
+      "type": "Button",
+      "name": "mute3",
+      "x": 2,
+      "y": 0,
+      "width": 1,
+      "height": 1,
+      "options": {
+        "active_color": "#ff0000",
+        "inactive_color": "#3f0000",
+        "interactive": false
+      }
+    },
+    {
+      "type": "Button",
+      "name": "mute4",
+      "x": 3,
+      "y": 0,
+      "width": 1,
+      "height": 1,
+      "options": {
+        "active_color": "#ff0000",
+        "inactive_color": "#3f0000",
+        "interactive": false
+      }
+    },
+    {
+      "type": "Button",
+      "name": "mute5",
+      "x": 4,
+      "y": 0,
+      "width": 1,
+      "height": 1,
+      "options": {
+        "active_color": "#ff0000",
+        "inactive_color": "#3f0000",
+        "interactive": false
+      }
+    },
+    {
+      "type": "Button",
+      "name": "mute6",
+      "x": 5,
+      "y": 0,
+      "width": 1,
+      "height": 1,
+      "options": {
+        "active_color": "#ff0000",
+        "inactive_color": "#3f0000",
+        "interactive": false
+      }
+    },
+    {
+      "type": "Button",
+      "name": "mute7",
+      "x": 6,
+      "y": 0,
+      "width": 1,
+      "height": 1,
+      "options": {
+        "active_color": "#ff0000",
+        "inactive_color": "#3f0000",
+        "interactive": false
+      }
+    },
+    {
+      "type": "Button",
+      "name": "mute8",
+      "x": 7,
+      "y": 0,
+      "width": 1,
+      "height": 1,
+      "options": {
+        "active_color": "#ff0000",
+        "inactive_color": "#3f0000",
+        "interactive": false
+      }
+    },
+    {
+      "type": "Button",
+      "name": "solo1",
+      "x": 0,
+      "y": 1,
+      "width": 1,
+      "height": 1,
+      "options": {
+        "active_color": "#ffff00",
+        "inactive_color": "#3f3f00",
+        "interactive": false
+      }
+    },
+    {
+      "type": "Button",
+      "name": "solo2",
+      "x": 1,
+      "y": 1,
+      "width": 1,
+      "height": 1,
+      "options": {
+        "active_color": "#ffff00",
+        "inactive_color": "#3f3f00",
+        "interactive": false
+      }
+    },
+    {
+      "type": "Button",
+      "name": "solo3",
+      "x": 2,
+      "y": 1,
+      "width": 1,
+      "height": 1,
+      "options": {
+        "active_color": "#ffff00",
+        "inactive_color": "#3f3f00",
+        "interactive": false
+      }
+    },
+    {
+      "type": "Button",
+      "name": "solo4",
+      "x": 3,
+      "y": 1,
+      "width": 1,
+      "height": 1,
+      "options": {
+        "active_color": "#ffff00",
+        "inactive_color": "#3f3f00",
+        "interactive": false
+      }
+    },
+    {
+      "type": "Button",
+      "name": "solo5",
+      "x": 4,
+      "y": 1,
+      "width": 1,
+      "height": 1,
+      "options": {
+        "active_color": "#ffff00",
+        "inactive_color": "#3f3f00",
+        "interactive": false
+      }
+    },
+    {
+      "type": "Button",
+      "name": "solo6",
+      "x": 5,
+      "y": 1,
+      "width": 1,
+      "height": 1,
+      "options": {
+        "active_color": "#ffff00",
+        "inactive_color": "#3f3f00",
+        "interactive": false
+      }
+    },
+    {
+      "type": "Button",
+      "name": "solo7",
+      "x": 6,
+      "y": 1,
+      "width": 1,
+      "height": 1,
+      "options": {
+        "active_color": "#ffff00",
+        "inactive_color": "#3f3f00",
+        "interactive": false
+      }
+    },
+    {
+      "type": "Button",
+      "name": "solo8",
+      "x": 7,
+      "y": 1,
+      "width": 1,
+      "height": 1,
+      "options": {
+        "active_color": "#ffff00",
+        "inactive_color": "#3f3f00",
+        "interactive": false
+      }
+    }
+  ],
+  "mappings": [
+    {
+      "widget": "mute1",
+      "on": "Pressed",
+      "output": "daw",
+      "feedback": true,
+      "message": {
+        "type": "Command",
+        "name": "Mute 1",
+        "value": 1
+      }
+    },
+    {
+      "widget": "mute1",
+      "on": "Released",
+      "output": "daw",
+      "message": {
+        "type": "Command",
+        "name": "Mute 1",
+        "value": 0
+      }
+    },
+    {
+      "widget": "mute2",
+      "on": "Pressed",
+      "output": "daw",
+      "feedback": true,
+      "message": {
+        "type": "Command",
+        "name": "Mute 2",
+        "value": 1
+      }
+    },
+    {
+      "widget": "mute2",
+      "on": "Released",
+      "output": "daw",
+      "message": {
+        "type": "Command",
+        "name": "Mute 2",
+        "value": 0
+      }
+    },
+    {
+      "widget": "mute3",
+      "on": "Pressed",
+      "output": "daw",
+      "feedback": true,
+      "message": {
+        "type": "Command",
+        "name": "Mute 3",
+        "value": 1
+      }
+    },
+    {
+      "widget": "mute3",
+      "on": "Released",
+      "output": "daw",
+      "message": {
+        "type": "Command",
+        "name": "Mute 3",
+        "value": 0
+      }
+    },
+    {
+      "widget": "mute4",
+      "on": "Pressed",
+      "output": "daw",
+      "feedback": true,
+      "message": {
+        "type": "Command",
+        "name": "Mute 4",
+        "value": 1
+      }
+    },
+    {
+      "widget": "mute4",
+      "on": "Released",
+      "output": "daw",
+      "message": {
+        "type": "Command",
+        "name": "Mute 4",
+        "value": 0
+      }
+    },
+    {
+      "widget": "mute5",
+      "on": "Pressed",
+      "output": "daw",
+      "feedback": true,
+      "message": {
+        "type": "Command",
+        "name": "Mute 5",
+        "value": 1
+      }
+    },
+    {
+      "widget": "mute5",
+      "on": "Released",
+      "output": "daw",
+      "message": {
+        "type": "Command",
+        "name": "Mute 5",
+        "value": 0
+      }
+    },
+    {
+      "widget": "mute6",
+      "on": "Pressed",
+      "output": "daw",
+      "feedback": true,
+      "message": {
+        "type": "Command",
+        "name": "Mute 6",
+        "value": 1
+      }
+    },
+    {
+      "widget": "mute6",
+      "on": "Released",
+      "output": "daw",
+      "message": {
+        "type": "Command",
+        "name": "Mute 6",
+        "value": 0
+      }
+    },
+    {
+      "widget": "mute7",
+      "on": "Pressed",
+      "output": "daw",
+      "feedback": true,
+      "message": {
+        "type": "Command",
+        "name": "Mute 7",
+        "value": 1
+      }
+    },
+    {
+      "widget": "mute7",
+      "on": "Released",
+      "output": "daw",
+      "message": {
+        "type": "Command",
+        "name": "Mute 7",
+        "value": 0
+      }
+    },
+    {
+      "widget": "mute8",
+      "on": "Pressed",
+      "output": "daw",
+      "feedback": true,
+      "message": {
+        "type": "Command",
+        "name": "Mute 8",
+        "value": 1
+      }
+    },
+    {
+      "widget": "mute8",
+      "on": "Released",
+      "output": "daw",
+      "message": {
+        "type": "Command",
+        "name": "Mute 8",
+        "value": 0
+      }
+    },
+    {
+      "widget": "solo1",
+      "on": "Pressed",
+      "output": "daw",
+      "feedback": true,
+      "message": {
+        "type": "Command",
+        "name": "Solo 1",
+        "value": 1
+      }
+    },
+    {
+      "widget": "solo1",
+      "on": "Released",
+      "output": "daw",
+      "message": {
+        "type": "Command",
+        "name": "Solo 1",
+        "value": 0
+      }
+    },
+    {
+      "widget": "solo2",
+      "on": "Pressed",
+      "output": "daw",
+      "feedback": true,
+      "message": {
+        "type": "Command",
+        "name": "Solo 2",
+        "value": 1
+      }
+    },
+    {
+      "widget": "solo2",
+      "on": "Released",
+      "output": "daw",
+      "message": {
+        "type": "Command",
+        "name": "Solo 2",
+        "value": 0
+      }
+    },
+    {
+      "widget": "solo3",
+      "on": "Pressed",
+      "output": "daw",
+      "feedback": true,
+      "message": {
+        "type": "Command",
+        "name": "Solo 3",
+        "value": 1
+      }
+    },
+    {
+      "widget": "solo3",
+      "on": "Released",
+      "output": "daw",
+      "message": {
+        "type": "Command",
+        "name": "Solo 3",
+        "value": 0
+      }
+    },
+    {
+      "widget": "solo4",
+      "on": "Pressed",
+      "output": "daw",
+      "feedback": true,
+      "message": {
+        "type": "Command",
+        "name": "Solo 4",
+        "value": 1
+      }
+    },
+    {
+      "widget": "solo4",
+      "on": "Released",
+      "output": "daw",
+      "message": {
+        "type": "Command",
+        "name": "Solo 4",
+        "value": 0
+      }
+    },
+    {
+      "widget": "solo5",
+      "on": "Pressed",
+      "output": "daw",
+      "feedback": true,
+      "message": {
+        "type": "Command",
+        "name": "Solo 5",
+        "value": 1
+      }
+    },
+    {
+      "widget": "solo5",
+      "on": "Released",
+      "output": "daw",
+      "message": {
+        "type": "Command",
+        "name": "Solo 5",
+        "value": 0
+      }
+    },
+    {
+      "widget": "solo6",
+      "on": "Pressed",
+      "output": "daw",
+      "feedback": true,
+      "message": {
+        "type": "Command",
+        "name": "Solo 6",
+        "value": 1
+      }
+    },
+    {
+      "widget": "solo6",
+      "on": "Released",
+      "output": "daw",
+      "message": {
+        "type": "Command",
+        "name": "Solo 6",
+        "value": 0
+      }
+    },
+    {
+      "widget": "solo7",
+      "on": "Pressed",
+      "output": "daw",
+      "feedback": true,
+      "message": {
+        "type": "Command",
+        "name": "Solo 7",
+        "value": 1
+      }
+    },
+    {
+      "widget": "solo7",
+      "on": "Released",
+      "output": "daw",
+      "message": {
+        "type": "Command",
+        "name": "Solo 7",
+        "value": 0
+      }
+    },
+    {
+      "widget": "solo8",
+      "on": "Pressed",
+      "output": "daw",
+      "feedback": true,
+      "message": {
+        "type": "Command",
+        "name": "Solo 8",
+        "value": 1
+      }
+    },
+    {
+      "widget": "solo8",
+      "on": "Released",
+      "output": "daw",
+      "message": {
+        "type": "Command",
+        "name": "Solo 8",
+        "value": 0
+      }
+    }
+  ],
+  "outputs": [
+    {
+      "name": "daw",
+      "type": "mackie.MackieControl",
+      "virtual": "PyxelWidgets MCU",
+      "options": {}
+    }
+  ]
+}

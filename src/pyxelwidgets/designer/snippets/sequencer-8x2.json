@@ -1,0 +1,59 @@
+{
+  "format": "pyxelwidgets.snippet",
+  "title": "16-step sequencer",
+  "doc": "Sixteen steps on two rows, playing note 36",
+  "category": "Sequencing",
+  "size": [
+    8,
+    2
+  ],
+  "widgets": [
+    {
+      "type": "Sequencer",
+      "name": "steps",
+      "x": 0,
+      "y": 0,
+      "width": 8,
+      "height": 2,
+      "options": {}
+    }
+  ],
+  "mappings": [
+    {
+      "widget": "steps",
+      "on": "StepPlayed",
+      "output": "midi",
+      "message": {
+        "type": "NoteOn",
+        "note": {
+          "source": "note"
+        },
+        "velocity": {
+          "source": "velocity"
+        },
+        "channel": 10
+      }
+    },
+    {
+      "widget": "steps",
+      "on": "StepEnded",
+      "output": "midi",
+      "message": {
+        "type": "NoteOff",
+        "note": {
+          "source": "note"
+        },
+        "velocity": 0,
+        "channel": 10
+      }
+    }
+  ],
+  "outputs": [
+    {
+      "name": "midi",
+      "type": "midi_port.MidiPort",
+      "virtual": "PyxelWidgets midi",
+      "options": {}
+    }
+  ]
+}

@@ -1,0 +1,23 @@
+{
+  "format": "pyxelwidgets.snippet",
+  "title": "Stereo meter",
+  "doc": "Two level meters; send them levels from a mapping (x picks the meter) or links",
+  "category": "Mixing",
+  "size": [
+    2,
+    8
+  ],
+  "widgets": [
+    {
+      "type": "MeterBank",
+      "name": "meters",
+      "x": 0,
+      "y": 0,
+      "width": 2,
+      "height": 8,
+      "options": {
+        "falloff": 1.5
+      }
+    }
+  ]
+}

@@ -1,0 +1,62 @@
+{
+  "format": "pyxelwidgets.snippet",
+  "title": "Arpeggiator",
+  "doc": "Hold notes to arpeggiate them, up and down over two octaves",
+  "category": "Chords",
+  "size": [
+    8,
+    2
+  ],
+  "widgets": [
+    {
+      "type": "Arpeggiator",
+      "name": "arp",
+      "x": 0,
+      "y": 0,
+      "width": 8,
+      "height": 2,
+      "options": {
+        "mode": "UpDown",
+        "octaves": 2
+      }
+    }
+  ],
+  "mappings": [
+    {
+      "widget": "arp",
+      "on": "NoteOn",
+      "output": "midi",
+      "message": {
+        "type": "NoteOn",
+        "note": {
+          "source": "note"
+        },
+        "velocity": {
+          "source": "velocity"
+        },
+        "channel": 3
+      }
+    },
+    {
+      "widget": "arp",
+      "on": "NoteOff",
+      "output": "midi",
+      "message": {
+        "type": "NoteOff",
+        "note": {
+          "source": "note"
+        },
+        "velocity": 0,
+        "channel": 3
+      }
+    }
+  ],
+  "outputs": [
+    {
+      "name": "midi",
+      "type": "midi_port.MidiPort",
+      "virtual": "PyxelWidgets midi",
+      "options": {}
+    }
+  ]
+}

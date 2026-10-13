@@ -1,0 +1,83 @@
+{
+  "format": "pyxelwidgets.snippet",
+  "title": "Clip launcher",
+  "doc": "Seven scenes of eight tracks; the bottom row stops a track",
+  "category": "Clips",
+  "size": [
+    8,
+    8
+  ],
+  "widgets": [
+    {
+      "type": "ClipLauncher",
+      "name": "clips",
+      "x": 0,
+      "y": 1,
+      "width": 8,
+      "height": 7,
+      "options": {}
+    },
+    {
+      "type": "ButtonGroup",
+      "name": "stops",
+      "x": 0,
+      "y": 0,
+      "width": 8,
+      "height": 1,
+      "options": {
+        "mode": "Button",
+        "active_color": "#ff0000",
+        "inactive_color": "#3f0000"
+      }
+    }
+  ],
+  "links": [
+    {
+      "widget": "stops",
+      "on": "Toggled",
+      "target": "clips",
+      "action": "stop_track",
+      "value": {
+        "source": "x"
+      }
+    }
+  ],
+  "mappings": [
+    {
+      "widget": "clips",
+      "on": "ClipStarted",
+      "output": "midi",
+      "message": {
+        "type": "NoteOn",
+        "note": {
+          "source": "cell",
+          "offset": 36
+        },
+        "velocity": 127,
+        "channel": 1
+      }
+    },
+    {
+      "widget": "clips",
+      "on": "ClipStopped",
+      "output": "midi",
+      "message": {
+        "type": "NoteOff",
+        "note": {
+          "source": "cell",
+          "offset": 36
+        },
+        "velocity": 0,
+        "channel": 1
+      }
+    }
+  ],
+  "outputs": [
+    {
+      "name": "midi",
+      "type": "midi_port.MidiPort",
+      "virtual": "PyxelWidgets midi",
+      "options": {}
+    }
+  ]
+}

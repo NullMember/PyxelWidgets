@@ -1,0 +1,62 @@
+{
+  "format": "pyxelwidgets.snippet",
+  "title": "Mini piano",
+  "doc": "White keys on the bottom row, black keys above",
+  "category": "Melody",
+  "size": [
+    8,
+    2
+  ],
+  "widgets": [
+    {
+      "type": "Keyboard",
+      "name": "piano",
+      "x": 0,
+      "y": 0,
+      "width": 8,
+      "height": 2,
+      "options": {
+        "type": "Keyboard",
+        "octave": 4
+      }
+    }
+  ],
+  "mappings": [
+    {
+      "widget": "piano",
+      "on": "NoteOn",
+      "output": "midi",
+      "message": {
+        "type": "NoteOn",
+        "note": {
+          "source": "note"
+        },
+        "velocity": {
+          "source": "velocity"
+        },
+        "channel": 1
+      }
+    },
+    {
+      "widget": "piano",
+      "on": "NoteOff",
+      "output": "midi",
+      "message": {
+        "type": "NoteOff",
+        "note": {
+          "source": "note"
+        },
+        "velocity": 0,
+        "channel": 1
+      }
+    }
+  ],
+  "outputs": [
+    {
+      "name": "midi",
+      "type": "midi_port.MidiPort",
+      "virtual": "PyxelWidgets midi",
+      "options": {}
+    }
+  ]
+}

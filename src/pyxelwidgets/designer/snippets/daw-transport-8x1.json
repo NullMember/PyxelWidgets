@@ -1,0 +1,294 @@
+{
+  "format": "pyxelwidgets.snippet",
+  "title": "DAW transport (Mackie)",
+  "doc": "Rewind, forward, stop, play, record, cycle, click and undo in the DAW, lit as it is",
+  "category": "Transport",
+  "size": [
+    8,
+    1
+  ],
+  "widgets": [
+    {
+      "type": "Button",
+      "name": "rewind",
+      "x": 0,
+      "y": 0,
+      "width": 1,
+      "height": 1,
+      "options": {
+        "active_color": "#00ffff",
+        "inactive_color": "#003f3f",
+        "interactive": false
+      }
+    },
+    {
+      "type": "Button",
+      "name": "fast_forward",
+      "x": 1,
+      "y": 0,
+      "width": 1,
+      "height": 1,
+      "options": {
+        "active_color": "#00ffff",
+        "inactive_color": "#003f3f",
+        "interactive": false
+      }
+    },
+    {
+      "type": "Button",
+      "name": "stop",
+      "x": 2,
+      "y": 0,
+      "width": 1,
+      "height": 1,
+      "options": {
+        "active_color": "#ffff00",
+        "inactive_color": "#3f3f00",
+        "interactive": false
+      }
+    },
+    {
+      "type": "Button",
+      "name": "play",
+      "x": 3,
+      "y": 0,
+      "width": 1,
+      "height": 1,
+      "options": {
+        "active_color": "#00ff00",
+        "inactive_color": "#003f00",
+        "interactive": false
+      }
+    },
+    {
+      "type": "Button",
+      "name": "record",
+      "x": 4,
+      "y": 0,
+      "width": 1,
+      "height": 1,
+      "options": {
+        "active_color": "#ff0000",
+        "inactive_color": "#3f0000",
+        "interactive": false
+      }
+    },
+    {
+      "type": "Button",
+      "name": "cycle",
+      "x": 5,
+      "y": 0,
+      "width": 1,
+      "height": 1,
+      "options": {
+        "active_color": "#ffa500",
+        "inactive_color": "#3f2900",
+        "interactive": false
+      }
+    },
+    {
+      "type": "Button",
+      "name": "click",
+      "x": 6,
+      "y": 0,
+      "width": 1,
+      "height": 1,
+      "options": {
+        "active_color": "#ff00ff",
+        "inactive_color": "#3f003f",
+        "interactive": false
+      }
+    },
+    {
+      "type": "Button",
+      "name": "undo",
+      "x": 7,
+      "y": 0,
+      "width": 1,
+      "height": 1,
+      "options": {
+        "active_color": "#ffffff",
+        "inactive_color": "#303030",
+        "interactive": false
+      }
+    }
+  ],
+  "mappings": [
+    {
+      "widget": "rewind",
+      "on": "Pressed",
+      "output": "daw",
+      "feedback": true,
+      "message": {
+        "type": "Command",
+        "name": "Rewind",
+        "value": 1
+      }
+    },
+    {
+      "widget": "rewind",
+      "on": "Released",
+      "output": "daw",
+      "message": {
+        "type": "Command",
+        "name": "Rewind",
+        "value": 0
+      }
+    },
+    {
+      "widget": "fast_forward",
+      "on": "Pressed",
+      "output": "daw",
+      "feedback": true,
+      "message": {
+        "type": "Command",
+        "name": "Fast Forward",
+        "value": 1
+      }
+    },
+    {
+      "widget": "fast_forward",
+      "on": "Released",
+      "output": "daw",
+      "message": {
+        "type": "Command",
+        "name": "Fast Forward",
+        "value": 0
+      }
+    },
+    {
+      "widget": "stop",
+      "on": "Pressed",
+      "output": "daw",
+      "feedback": true,
+      "message": {
+        "type": "Command",
+        "name": "Stop",
+        "value": 1
+      }
+    },
+    {
+      "widget": "stop",
+      "on": "Released",
+      "output": "daw",
+      "message": {
+        "type": "Command",
+        "name": "Stop",
+        "value": 0
+      }
+    },
+    {
+      "widget": "play",
+      "on": "Pressed",
+      "output": "daw",
+      "feedback": true,
+      "message": {
+        "type": "Command",
+        "name": "Play",
+        "value": 1
+      }
+    },
+    {
+      "widget": "play",
+      "on": "Released",
+      "output": "daw",
+      "message": {
+        "type": "Command",
+        "name": "Play",
+        "value": 0
+      }
+    },
+    {
+      "widget": "record",
+      "on": "Pressed",
+      "output": "daw",
+      "feedback": true,
+      "message": {
+        "type": "Command",
+        "name": "Record",
+        "value": 1
+      }
+    },
+    {
+      "widget": "record",
+      "on": "Released",
+      "output": "daw",
+      "message": {
+        "type": "Command",
+        "name": "Record",
+        "value": 0
+      }
+    },
+    {
+      "widget": "cycle",
+      "on": "Pressed",
+      "output": "daw",
+      "feedback": true,
+      "message": {
+        "type": "Command",
+        "name": "Cycle",
+        "value": 1
+      }
+    },
+    {
+      "widget": "cycle",
+      "on": "Released",
+      "output": "daw",
+      "message": {
+        "type": "Command",
+        "name": "Cycle",
+        "value": 0
+      }
+    },
+    {
+      "widget": "click",
+      "on": "Pressed",
+      "output": "daw",
+      "feedback": true,
+      "message": {
+        "type": "Command",
+        "name": "Click",
+        "value": 1
+      }
+    },
+    {
+      "widget": "click",
+      "on": "Released",
+      "output": "daw",
+      "message": {
+        "type": "Command",
+        "name": "Click",
+        "value": 0
+      }
+    },
+    {
+      "widget": "undo",
+      "on": "Pressed",
+      "output": "daw",
+      "feedback": true,
+      "message": {
+        "type": "Command",
+        "name": "Undo",
+        "value": 1
+      }
+    },
+    {
+      "widget": "undo",
+      "on": "Released",
+      "output": "daw",
+      "message": {
+        "type": "Command",
+        "name": "Undo",
+        "value": 0
+      }
+    }
+  ],
+  "outputs": [
+    {
+      "name": "daw",
+      "type": "mackie.MackieControl",
+      "virtual": "PyxelWidgets MCU",
+      "options": {}
+    }
+  ]
+}

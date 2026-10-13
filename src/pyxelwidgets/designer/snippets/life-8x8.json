@@ -1,0 +1,117 @@
+{
+  "format": "pyxelwidgets.snippet",
+  "title": "Generative (Life)",
+  "doc": "Notes from Conway's Life in C minor pentatonic; reseed, clear and pause on the right",
+  "category": "Generative",
+  "size": [
+    8,
+    8
+  ],
+  "widgets": [
+    {
+      "type": "Automaton",
+      "name": "life",
+      "x": 0,
+      "y": 0,
+      "width": 7,
+      "height": 8,
+      "options": {
+        "max_notes": 3
+      }
+    },
+    {
+      "type": "Button",
+      "name": "reseed",
+      "x": 7,
+      "y": 7,
+      "width": 1,
+      "height": 1,
+      "options": {
+        "active_color": "#00ff00",
+        "inactive_color": "#003f00"
+      }
+    },
+    {
+      "type": "Button",
+      "name": "clear",
+      "x": 7,
+      "y": 6,
+      "width": 1,
+      "height": 1,
+      "options": {
+        "active_color": "#ff0000",
+        "inactive_color": "#3f0000"
+      }
+    },
+    {
+      "type": "Button",
+      "name": "pause",
+      "x": 7,
+      "y": 0,
+      "width": 1,
+      "height": 1,
+      "options": {
+        "active_color": "#ffff00",
+        "inactive_color": "#3f3f00"
+      }
+    }
+  ],
+  "links": [
+    {
+      "widget": "reseed",
+      "on": "Pressed",
+      "target": "life",
+      "action": "randomize"
+    },
+    {
+      "widget": "clear",
+      "on": "Pressed",
+      "target": "life",
+      "action": "clear"
+    },
+    {
+      "widget": "pause",
+      "on": "Pressed",
+      "target": "life",
+      "action": "toggle"
+    }
+  ],
+  "mappings": [
+    {
+      "widget": "life",
+      "on": "NoteOn",
+      "output": "midi",
+      "message": {
+        "type": "NoteOn",
+        "note": {
+          "source": "note"
+        },
+        "velocity": {
+          "source": "velocity"
+        },
+        "channel": 4
+      }
+    },
+    {
+      "widget": "life",
+      "on": "NoteOff",
+      "output": "midi",
+      "message": {
+        "type": "NoteOff",
+        "note": {
+          "source": "note"
+        },
+        "velocity": 0,
+        "channel": 4
+      }
+    }
+  ],
+  "outputs": [
+    {
+      "name": "midi",
+      "type": "midi_port.MidiPort",
+      "virtual": "PyxelWidgets midi",
+      "options": {}
+    }
+  ]
+}

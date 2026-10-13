@@ -1,0 +1,164 @@
+{
+  "format": "pyxelwidgets.snippet",
+  "title": "Chords and arpeggios",
+  "doc": "Chord pads feeding an arpeggiator; its mode (up, down, both, random, as played) and latch on the bottom row",
+  "category": "Chords",
+  "size": [
+    8,
+    8
+  ],
+  "widgets": [
+    {
+      "type": "ChordPads",
+      "name": "chords",
+      "x": 0,
+      "y": 3,
+      "width": 8,
+      "height": 5,
+      "options": {
+        "octave": 3
+      }
+    },
+    {
+      "type": "Arpeggiator",
+      "name": "arp",
+      "x": 0,
+      "y": 1,
+      "width": 8,
+      "height": 2,
+      "options": {
+        "octaves": 2,
+        "gate": 0.4
+      }
+    },
+    {
+      "type": "ButtonGroup",
+      "name": "arp_mode",
+      "x": 0,
+      "y": 0,
+      "width": 5,
+      "height": 1,
+      "options": {
+        "active_color": "#00ffff",
+        "inactive_color": "#003030"
+      }
+    },
+    {
+      "type": "Button",
+      "name": "arp_latch",
+      "x": 7,
+      "y": 0,
+      "width": 1,
+      "height": 1,
+      "options": {
+        "active_color": "#ff00ff",
+        "inactive_color": "#3f003f",
+        "mode": "Switch"
+      }
+    }
+  ],
+  "links": [
+    {
+      "widget": "arp_mode",
+      "on": "Toggled",
+      "target": "arp",
+      "option": "mode",
+      "value": {
+        "source": "x"
+      }
+    },
+    {
+      "widget": "arp_latch",
+      "on": "Changed",
+      "target": "arp",
+      "option": "latch",
+      "value": {
+        "source": "value"
+      }
+    },
+    {
+      "widget": "chords",
+      "on": "NoteOn",
+      "target": "arp",
+      "action": "add",
+      "value": {
+        "source": "note"
+      }
+    },
+    {
+      "widget": "chords",
+      "on": "NoteOff",
+      "target": "arp",
+      "action": "remove",
+      "value": {
+        "source": "note"
+      }
+    }
+  ],
+  "mappings": [
+    {
+      "widget": "chords",
+      "on": "NoteOn",
+      "output": "midi",
+      "message": {
+        "type": "NoteOn",
+        "note": {
+          "source": "note"
+        },
+        "velocity": {
+          "source": "velocity"
+        },
+        "channel": 2
+      }
+    },
+    {
+      "widget": "chords",
+      "on": "NoteOff",
+      "output": "midi",
+      "message": {
+        "type": "NoteOff",
+        "note": {
+          "source": "note"
+        },
+        "velocity": 0,
+        "channel": 2
+      }
+    },
+    {
+      "widget": "arp",
+      "on": "NoteOn",
+      "output": "midi",
+      "message": {
+        "type": "NoteOn",
+        "note": {
+          "source": "note"
+        },
+        "velocity": {
+          "source": "velocity"
+        },
+        "channel": 3
+      }
+    },
+    {
+      "widget": "arp",
+      "on": "NoteOff",
+      "output": "midi",
+      "message": {
+        "type": "NoteOff",
+        "note": {
+          "source": "note"
+        },
+        "velocity": 0,
+        "channel": 3
+      }
+    }
+  ],
+  "outputs": [
+    {
+      "name": "midi",
+      "type": "midi_port.MidiPort",
+      "virtual": "PyxelWidgets midi",
+      "options": {}
+    }
+  ]
+}

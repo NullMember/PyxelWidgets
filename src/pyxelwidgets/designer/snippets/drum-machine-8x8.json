@@ -1,0 +1,314 @@
+{
+  "format": "pyxelwidgets.snippet",
+  "title": "Drum machine",
+  "doc": "Four 8-step lanes (kick, snare, hats), drum pads, a swing knob, play and tap tempo",
+  "category": "Drums",
+  "size": [
+    8,
+    8
+  ],
+  "widgets": [
+    {
+      "type": "Sequencer",
+      "name": "kick",
+      "x": 0,
+      "y": 7,
+      "width": 8,
+      "height": 1,
+      "options": {
+        "note": 36,
+        "gate": 0.25,
+        "active_color": "#ff4500"
+      }
+    },
+    {
+      "type": "Sequencer",
+      "name": "snare",
+      "x": 0,
+      "y": 6,
+      "width": 8,
+      "height": 1,
+      "options": {
+        "note": 38,
+        "gate": 0.25,
+        "active_color": "#ffa500"
+      }
+    },
+    {
+      "type": "Sequencer",
+      "name": "hat",
+      "x": 0,
+      "y": 5,
+      "width": 8,
+      "height": 1,
+      "options": {
+        "note": 42,
+        "gate": 0.25,
+        "active_color": "#ffff00"
+      }
+    },
+    {
+      "type": "Sequencer",
+      "name": "open_hat",
+      "x": 0,
+      "y": 4,
+      "width": 8,
+      "height": 1,
+      "options": {
+        "note": 46,
+        "gate": 0.25,
+        "active_color": "#00ffff"
+      }
+    },
+    {
+      "type": "DrumPads",
+      "name": "pads",
+      "x": 0,
+      "y": 0,
+      "width": 4,
+      "height": 4,
+      "options": {}
+    },
+    {
+      "type": "Knob",
+      "name": "swing",
+      "x": 4,
+      "y": 0,
+      "width": 3,
+      "height": 3,
+      "options": {
+        "active_color": "#ff00ff"
+      }
+    },
+    {
+      "type": "Button",
+      "name": "play",
+      "x": 7,
+      "y": 2,
+      "width": 1,
+      "height": 1,
+      "options": {
+        "active_color": "#00ff00",
+        "inactive_color": "#003f00"
+      }
+    },
+    {
+      "type": "TapTempo",
+      "name": "tap",
+      "x": 7,
+      "y": 0,
+      "width": 1,
+      "height": 2,
+      "options": {}
+    }
+  ],
+  "links": [
+    {
+      "widget": "play",
+      "on": "Pressed",
+      "action": "transport.toggle"
+    },
+    {
+      "widget": "tap",
+      "on": "TempoTapped",
+      "action": "transport.tempo",
+      "value": {
+        "source": "bpm"
+      }
+    },
+    {
+      "widget": "swing",
+      "on": "Changed",
+      "target": "kick",
+      "option": "swing",
+      "value": {
+        "source": "value"
+      },
+      "min": 50.0,
+      "max": 75.0
+    },
+    {
+      "widget": "swing",
+      "on": "Changed",
+      "target": "snare",
+      "option": "swing",
+      "value": {
+        "source": "value"
+      },
+      "min": 50.0,
+      "max": 75.0
+    },
+    {
+      "widget": "swing",
+      "on": "Changed",
+      "target": "hat",
+      "option": "swing",
+      "value": {
+        "source": "value"
+      },
+      "min": 50.0,
+      "max": 75.0
+    },
+    {
+      "widget": "swing",
+      "on": "Changed",
+      "target": "open_hat",
+      "option": "swing",
+      "value": {
+        "source": "value"
+      },
+      "min": 50.0,
+      "max": 75.0
+    }
+  ],
+  "mappings": [
+    {
+      "widget": "kick",
+      "on": "StepPlayed",
+      "output": "midi",
+      "message": {
+        "type": "NoteOn",
+        "note": {
+          "source": "note"
+        },
+        "velocity": {
+          "source": "velocity"
+        },
+        "channel": 10
+      }
+    },
+    {
+      "widget": "kick",
+      "on": "StepEnded",
+      "output": "midi",
+      "message": {
+        "type": "NoteOff",
+        "note": {
+          "source": "note"
+        },
+        "velocity": 0,
+        "channel": 10
+      }
+    },
+    {
+      "widget": "snare",
+      "on": "StepPlayed",
+      "output": "midi",
+      "message": {
+        "type": "NoteOn",
+        "note": {
+          "source": "note"
+        },
+        "velocity": {
+          "source": "velocity"
+        },
+        "channel": 10
+      }
+    },
+    {
+      "widget": "snare",
+      "on": "StepEnded",
+      "output": "midi",
+      "message": {
+        "type": "NoteOff",
+        "note": {
+          "source": "note"
+        },
+        "velocity": 0,
+        "channel": 10
+      }
+    },
+    {
+      "widget": "hat",
+      "on": "StepPlayed",
+      "output": "midi",
+      "message": {
+        "type": "NoteOn",
+        "note": {
+          "source": "note"
+        },
+        "velocity": {
+          "source": "velocity"
+        },
+        "channel": 10
+      }
+    },
+    {
+      "widget": "hat",
+      "on": "StepEnded",
+      "output": "midi",
+      "message": {
+        "type": "NoteOff",
+        "note": {
+          "source": "note"
+        },
+        "velocity": 0,
+        "channel": 10
+      }
+    },
+    {
+      "widget": "open_hat",
+      "on": "StepPlayed",
+      "output": "midi",
+      "message": {
+        "type": "NoteOn",
+        "note": {
+          "source": "note"
+        },
+        "velocity": {
+          "source": "velocity"
+        },
+        "channel": 10
+      }
+    },
+    {
+      "widget": "open_hat",
+      "on": "StepEnded",
+      "output": "midi",
+      "message": {
+        "type": "NoteOff",
+        "note": {
+          "source": "note"
+        },
+        "velocity": 0,
+        "channel": 10
+      }
+    },
+    {
+      "widget": "pads",
+      "on": "NoteOn",
+      "output": "midi",
+      "message": {
+        "type": "NoteOn",
+        "note": {
+          "source": "note"
+        },
+        "velocity": {
+          "source": "velocity"
+        },
+        "channel": 10
+      }
+    },
+    {
+      "widget": "pads",
+      "on": "NoteOff",
+      "output": "midi",
+      "message": {
+        "type": "NoteOff",
+        "note": {
+          "source": "note"
+        },
+        "velocity": 0,
+        "channel": 10
+      }
+    }
+  ],
+  "outputs": [
+    {
+      "name": "midi",
+      "type": "midi_port.MidiPort",
+      "virtual": "PyxelWidgets midi",
+      "options": {}
+    }
+  ]
+}

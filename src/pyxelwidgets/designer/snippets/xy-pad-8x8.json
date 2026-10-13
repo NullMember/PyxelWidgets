@@ -1,0 +1,65 @@
+{
+  "format": "pyxelwidgets.snippet",
+  "title": "XY pad",
+  "doc": "Two controls at once (CC 1 and 2); springs back to the middle when let go",
+  "category": "Effects",
+  "size": [
+    8,
+    8
+  ],
+  "widgets": [
+    {
+      "type": "XY",
+      "name": "xy",
+      "x": 0,
+      "y": 0,
+      "width": 8,
+      "height": 8,
+      "options": {
+        "spring": true,
+        "value": [
+          0.5,
+          0.5
+        ]
+      }
+    }
+  ],
+  "mappings": [
+    {
+      "widget": "xy",
+      "on": "Changed",
+      "output": "midi",
+      "feedback": true,
+      "message": {
+        "type": "ControlChange",
+        "control": 1,
+        "value": {
+          "source": "value_x"
+        },
+        "channel": 1
+      }
+    },
+    {
+      "widget": "xy",
+      "on": "Changed",
+      "output": "midi",
+      "feedback": true,
+      "message": {
+        "type": "ControlChange",
+        "control": 2,
+        "value": {
+          "source": "value_y"
+        },
+        "channel": 1
+      }
+    }
+  ],
+  "outputs": [
+    {
+      "name": "midi",
+      "type": "midi_port.MidiPort",
+      "virtual": "PyxelWidgets midi",
+      "options": {}
+    }
+  ]
+}

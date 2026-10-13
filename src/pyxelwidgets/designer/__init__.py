@@ -18,6 +18,7 @@ import json
 import os
 import mimetypes
 import pathlib
+import re
 import threading
 import urllib.parse
 
@@ -720,11 +721,13 @@ class Preview:
 class Designer:
     """The designer's state: the preview and the file it saves to."""
 
-    def __init__(self, path: str | None = None, *, connect: bool = True):
+    def __init__(self, path: str | None = None, *, connect: bool = True, snippets: str | None = None):
         self.path = pathlib.Path(path) if path else None
         layout = json.loads(self.path.read_text()) if self.path and self.path.exists() else new_layout()
         self.preview = Preview(layout, connect = connect)
         self.catalog = catalog()
+        #: Where the snippets you save go
+        self.snippets = pathlib.Path(snippets).expanduser() if snippets else USER_SNIPPETS
 
     def close(self) -> None:
         """Stop the transport and close connected hardware."""
@@ -790,6 +793,91 @@ def templates() -> list:
             found.append({'name': name, 'title': title, 'doc': doc})
     return found
 
+#: Pieces of layouts to add (widgets with their links, messages and outputs): built in, and your own
+SNIPPETS = pathlib.Path(__file__).parent / 'snippets'
+USER_SNIPPETS = pathlib.Path.home() / '.pyxelwidgets' / 'snippets'
+SNIPPET_FORMAT = 'pyxelwidgets.snippet'
+
+def snippet_layout(snippet: dict) -> dict:
+    """A layout of the snippet's size holding just the snippet, e.g. to check or draw it."""
+    width, height = snippet['size']
+    layout = new_layout(width, height)
+    layout['widgets'] = snippet['widgets']
+    for key in ('outputs', 'mappings', 'links'):
+        if snippet.get(key):
+            layout[key] = snippet[key]
+    return layout
+
+def check_snippet(snippet) -> dict:
+    """``snippet`` checked (it loads as a layout of its size); raises ValueError saying what's wrong."""
+    if not isinstance(snippet, dict) or snippet.get('format') != SNIPPET_FORMAT:
+        raise ValueError(f'A snippet has "format": "{SNIPPET_FORMAT}"')
+    widgets = snippet.get('widgets')
+    if not isinstance(widgets, list) or not widgets:
+        raise ValueError('A snippet has widgets')
+    if not str(snippet.get('title') or '').strip():
+        raise ValueError('A snippet has a title')
+    size = snippet.get('size')
+    if not (isinstance(size, list) and len(size) == 2 and all(isinstance(n, int) and not isinstance(n, bool) and n > 0 for n in size)):
+        raise ValueError('A snippet has a size: [width, height]')
+    for widget in widgets:
+        if not isinstance(widget, dict):
+            raise ValueError('Widgets are objects')
+        if widget.get('x', 0) + widget.get('width', 1) > size[0] or widget.get('y', 0) + widget.get('height', 1) > size[1]:
+            raise ValueError(f'{widget.get("name")!r} is outside the snippet\'s {size[0]}x{size[1]}')
+    try:
+        pyxelwidgets.parser.Parser(snippet_layout(snippet), devices = False)
+    except pyxelwidgets.parser.LayoutError as error:
+        raise ValueError(f'The snippet doesn\'t load: {error}') from None
+    return snippet
+
+def _snippet_preview(snippet: dict) -> list | None:
+    """The snippet drawn: rows from the top of ``#rrggbb`` (None where nothing is), or None."""
+    try:
+        ui = pyxelwidgets.parser.Parser(snippet_layout(snippet), devices = False)
+        root = ui.surface.root
+        root.render()
+    except Exception:
+        return None
+    buffer = root.buffer
+    return [[f'#{int(buffer[x, y, 0]):02x}{int(buffer[x, y, 1]):02x}{int(buffer[x, y, 2]):02x}' if buffer[x, y, 3] else None
+             for x in range(buffer.shape[0])] for y in reversed(range(buffer.shape[1]))]
+
+def _snippet_entry(path: pathlib.Path, builtin: bool) -> dict | None:
+    try:
+        snippet = check_snippet(json.loads(path.read_text()))
+    except (OSError, ValueError):
+        # A broken file of your own is left out
+        return None
+    return {'id': ('' if builtin else 'user/') + path.stem, 'title': snippet['title'], 'doc': snippet.get('doc', ''),
+            'category': snippet.get('category') or ('Snippets' if builtin else 'My snippets'), 'size': snippet['size'],
+            'builtin': builtin, 'preview': _snippet_preview(snippet), 'snippet': snippet}
+
+_BUILTIN_SNIPPETS = None
+
+def snippets(user: pathlib.Path = USER_SNIPPETS) -> list:
+    """Every snippet: the built-in ones, then yours from ``user``; each with an id, title, doc, category, size and preview."""
+    global _BUILTIN_SNIPPETS
+    if _BUILTIN_SNIPPETS is None:
+        _BUILTIN_SNIPPETS = [entry for path in sorted(SNIPPETS.glob('*.json')) if (entry := _snippet_entry(path, True))]
+    own = [entry for path in sorted(user.glob('*.json')) if (entry := _snippet_entry(path, False))] if user.is_dir() else []
+    return _BUILTIN_SNIPPETS + own
+
+def save_snippet(snippet: dict, user: pathlib.Path = USER_SNIPPETS) -> str:
+    """Keep ``snippet`` in ``user`` (named after its title, replacing one of the same name); returns its id."""
+    check_snippet(snippet)
+    stem = re.sub(r'[^a-z0-9]+', '-', snippet['title'].lower()).strip('-') or 'snippet'
+    user.mkdir(parents = True, exist_ok = True)
+    (user / f'{stem}.json').write_text(json.dumps(snippet, indent = 2) + '\n')
+    return f'user/{stem}'
+
+def delete_snippet(id: str, user: pathlib.Path = USER_SNIPPETS) -> None:
+    """Delete one of your snippets (built-in ones stay)."""
+    stem = id.removeprefix('user/')
+    if not id.startswith('user/') or not re.fullmatch(r'[a-z0-9-]+', stem):
+        raise ValueError(f'Only your own snippets can be deleted, not {id!r}')
+    (user / f'{stem}.json').unlink(missing_ok = True)
+
 def detect_devices() -> list:
     """Layout device types whose MIDI ports are present now (devices plugged in)."""
     try:
@@ -854,6 +942,8 @@ class Handler(http.server.BaseHTTPRequestHandler):
             self._json(self.designer.catalog)
         elif url.path == '/api/templates':
             self._json({'templates': templates()})
+        elif url.path == '/api/snippets':
+            self._json({'snippets': snippets(self.designer.snippets)})
         elif url.path == '/api/detect':
             self._json({'devices': detect_devices()})
         elif url.path == '/api/ports':
@@ -933,6 +1023,15 @@ class Handler(http.server.BaseHTTPRequestHandler):
                     return
                 self._json({'ok': True, **found})
                 return
+            elif path == '/api/snippets':
+                # {"snippet"}: keep one of your own; {"delete": id}: delete one
+                if isinstance(body, dict) and 'delete' in body:
+                    delete_snippet(str(body['delete']), self.designer.snippets)
+                    self._json({'ok': True, 'snippets': snippets(self.designer.snippets)})
+                else:
+                    id = save_snippet(body['snippet'], self.designer.snippets)
+                    self._json({'ok': True, 'id': id, 'snippets': snippets(self.designer.snippets)})
+                return
             elif path == '/api/view':
                 preview.set_hidden([str(name) for name in body.get('hidden', [])])
             elif path == '/api/connect':
@@ -946,10 +1045,12 @@ class Handler(http.server.BaseHTTPRequestHandler):
             return
         self._json({'ok': True})
 
-def serve(path: str | None = None, port: int = 8765, host: str = '127.0.0.1', *, connect: bool = True) -> http.server.ThreadingHTTPServer:
+def serve(path: str | None = None, port: int = 8765, host: str = '127.0.0.1', *, connect: bool = True,
+          snippets: str | None = None) -> http.server.ThreadingHTTPServer:
     """
     Start the designer's web server (not yet serving: call ``serve_forever``).
     With ``connect`` (default), the layout's devices and outputs connect as they're added.
+    ``snippets`` is where snippets you save go (default ``~/.pyxelwidgets/snippets``).
     """
-    handler = type('DesignerHandler', (Handler,), {'designer': Designer(path, connect = connect)})
+    handler = type('DesignerHandler', (Handler,), {'designer': Designer(path, connect = connect, snippets = snippets)})
     return http.server.ThreadingHTTPServer((host, port), handler)

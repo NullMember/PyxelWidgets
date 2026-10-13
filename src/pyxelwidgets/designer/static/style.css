@@ -147,6 +147,22 @@ h2 {
 /* A widget drawn small by the real widget */
 .palette .thumb { width: 30px; height: 30px; display: grid; gap: 1px; place-content: center; flex: none; }
 .palette .thumb i { display: block; border-radius: 1px; }
+/* Widgets and Snippets share the palette section */
+.palette-tabs { display: flex; gap: 10px; }
+.palette-tabs button { background: none; border: none; padding: 0; font: inherit; letter-spacing: inherit; text-transform: inherit; color: var(--muted); cursor: pointer; }
+.palette-tabs button.active { color: var(--text); }
+.palette[hidden], #snippet-pane[hidden] { display: none; }
+/* Snippets: bigger pictures, grouped by category */
+.snippets { grid-template-columns: repeat(auto-fill, minmax(96px, 1fr)); margin-top: 8px; align-content: start; }
+.snippets h4 { grid-column: 1 / -1; margin: 6px 0 0; font-size: 11px; font-weight: 600; color: var(--muted); }
+.snippets h4:first-child { margin-top: 0; }
+.snippets .hint { grid-column: 1 / -1; }
+.snippets button { position: relative; }
+.snippets .thumb { width: 48px; height: 48px; }
+.snippets .size { font-size: 10px; color: var(--muted); }
+.snippets .delete { position: absolute; top: 1px; right: 4px; color: var(--muted); display: none; }
+.snippets button:hover .delete { display: block; }
+.snippets .delete:hover { color: var(--danger); }
 
 .list, .tree { list-style: none; margin: 0; padding: 0; }
 .list li, .tree li > .node {
@@ -188,6 +204,8 @@ h2 {
 body.try .pad { cursor: pointer; }
 body.try .pad:active { transform: scale(0.96); }
 #overlay { position: absolute; inset: 14px; pointer-events: none; }
+#stage { cursor: grab; }
+#board { cursor: default; }
 #stage.panning, #stage.panning * { cursor: grabbing !important; }
 .small-toggle { font-size: 11px; color: var(--muted); }
 

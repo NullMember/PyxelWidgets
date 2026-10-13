@@ -1,0 +1,59 @@
+{
+  "format": "pyxelwidgets.snippet",
+  "title": "16 drum pads",
+  "doc": "Sixteen pads from note 36 (the General MIDI kit)",
+  "category": "Drums",
+  "size": [
+    8,
+    2
+  ],
+  "widgets": [
+    {
+      "type": "DrumPads",
+      "name": "pads",
+      "x": 0,
+      "y": 0,
+      "width": 8,
+      "height": 2,
+      "options": {}
+    }
+  ],
+  "mappings": [
+    {
+      "widget": "pads",
+      "on": "NoteOn",
+      "output": "midi",
+      "message": {
+        "type": "NoteOn",
+        "note": {
+          "source": "note"
+        },
+        "velocity": {
+          "source": "velocity"
+        },
+        "channel": 10
+      }
+    },
+    {
+      "widget": "pads",
+      "on": "NoteOff",
+      "output": "midi",
+      "message": {
+        "type": "NoteOff",
+        "note": {
+          "source": "note"
+        },
+        "velocity": 0,
+        "channel": 10
+      }
+    }
+  ],
+  "outputs": [
+    {
+      "name": "midi",
+      "type": "midi_port.MidiPort",
+      "virtual": "PyxelWidgets midi",
+      "options": {}
+    }
+  ]
+}

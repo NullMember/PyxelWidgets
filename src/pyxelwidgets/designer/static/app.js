@@ -2197,14 +2197,15 @@ const SHORTCUTS = [
   ['Ctrl/Cmd + C, X, V', 'copy, cut and paste widgets (also between layouts)'],
   ['Ctrl/Cmd + D', 'duplicate'],
   ['Ctrl/Cmd + A', 'select everything in the group'],
-  ['Shift + click, drag on empty pads', 'select several on the grid'],
+  ['Shift + click, drag on empty pads or the grid\'s frame', 'select several on the grid'],
   ['Shift + click, Ctrl/Cmd + click in Layers', 'select a range of layers, add or remove one'],
   ['Double-click a layer name, F2', 'rename the widget'],
   ['Ctrl/Cmd + G, Ctrl/Cmd + Shift + G', 'group, ungroup'],
   ['Arrows, Shift + arrows', 'move, resize'],
   ['Delete', 'delete'],
   ['Wheel, Ctrl/Cmd + + / − / 0', 'zoom (the toolbar sets whether the wheel zooms or scrolls)'],
-  ['Middle button drag, Shift + wheel', 'move around the grid'],
+  ['Drag around the grid, two-finger scroll, middle button drag, Shift + wheel', 'move around the grid'],
+  ['Pinch, Ctrl/Cmd + wheel', 'zoom'],
   ['[ and ]', 'show or hide the left or right panel'],
   ['F', 'the grid alone (again: back)'],
   ['`', 'show or hide the drawer'],
@@ -3642,8 +3643,8 @@ function renderToolbar() {
   const wheel = $('wheel-mode');
   wheel.textContent = prefs.wheel === 'scroll' ? 'Wheel scrolls' : 'Wheel zooms';
   wheel.title = prefs.wheel === 'scroll'
-    ? 'The mouse wheel scrolls the grid; Ctrl/Cmd + wheel zooms. Click: the wheel zooms'
-    : 'The mouse wheel zooms around the pointer (Shift + wheel scrolls, middle button drags). Click: the wheel scrolls';
+    ? 'The mouse wheel scrolls the grid; Ctrl/Cmd + wheel and pinches zoom. Click: the wheel zooms'
+    : 'The mouse wheel zooms around the pointer (Shift + wheel, two-finger scrolls and dragging around the grid move it). Click: the wheel scrolls';
 }
 
 function renderDirty() {
@@ -3688,14 +3689,14 @@ function addWidget(type, group = targetGroup(), x = 0, y = 0) {
 
 // Where a dragged widget would go: the pad under the pointer is its top-left; inside the
 // innermost group (or shown page) it fits in, else on the surface
-function dropPlace(event, type) {
+function dropPlace(event, type, size = null) {
   const bounds = $('overlay').getBoundingClientRect();
-  const size = step();
+  const pad = step();
   const { width: surfaceWidth, height: surfaceHeight } = state.layout.surface;
-  const column = Math.floor((event.clientX - bounds.left) / size);
-  const row = Math.floor((event.clientY - bounds.top) / size);
+  const column = Math.floor((event.clientX - bounds.left) / pad);
+  const row = Math.floor((event.clientY - bounds.top) / pad);
   if (column < 0 || row < 0 || column >= surfaceWidth || row >= surfaceHeight) return null;
-  const [defaultWidth, defaultHeight] = DEFAULT_SIZE[type] || (state.catalog.widgets[type]?.container ? [surfaceWidth, surfaceHeight] : [2, 2]);
+  const [defaultWidth, defaultHeight] = size || DEFAULT_SIZE[type] || (state.catalog.widgets[type]?.container ? [surfaceWidth, surfaceHeight] : [2, 2]);
   const width = Math.min(defaultWidth, surfaceWidth), height = Math.min(defaultHeight, surfaceHeight);
   // Top-left at the pointer, moved back inside the surface
   const x = clamp(column, 0, surfaceWidth - width);
@@ -3715,8 +3716,8 @@ function clearGhost() {
 }
 
 function dragOver(event) {
-  if (!state.dragType) return;
-  const spot = dropPlace(event, state.dragType);
+  if (!state.dragType && !state.dragSnippet) return;
+  const spot = dropPlace(event, state.dragType, state.dragSnippet?.size);
   if (!spot) return clearGhost();
   event.preventDefault();
   event.dataTransfer.dropEffect = 'copy';
@@ -3729,6 +3730,16 @@ function dragOver(event) {
 }
 
 function drop(event) {
+  const snippet = state.dragSnippet;
+  if (snippet) {
+    clearGhost();
+    state.dragSnippet = null;
+    const spot = dropPlace(event, null, snippet.size);
+    if (!spot) return;
+    event.preventDefault();
+    if (state.mode !== 'edit') setMode('edit');
+    return insertSnippet(snippet, spot.group, spot.absolute.slice(0, 2));
+  }
   const type = state.dragType || event.dataTransfer.getData('text/plain');
   clearGhost();
   state.dragType = null;
@@ -3892,6 +3903,15 @@ function readClipboard() {
 // where they were; names stay unless taken
 function pasteWidgets(clip = readClipboard(), into = targetGroup()) {
   if (!clip?.widgets?.length) return setStatus('Nothing to paste: copy widgets first (Ctrl+C)', 'error');
+  let dropped = 0;
+  change((layout) => { dropped = placeClip(layout, clip, into); });
+  const count = `${clip.widgets.length} widget${clip.widgets.length > 1 ? 's' : ''}`;
+  setStatus(dropped ? `Pasted ${count}; ${dropped} message${dropped > 1 ? 's or links' : ' or link'} left out (their output or target isn't in this layout)` : `Pasted ${count}`, dropped ? '' : 'ok');
+}
+
+// Adds a clip's widgets (at their absolute places, kept inside ``into``) with their messages and links,
+// inside a change; the new widgets get selected. Returns how many messages and links were left out.
+function placeClip(layout, clip, into) {
   const existing = new Set(allWidgets().map(({ widget }) => widget.name));
   const taken = new Set();
   const renames = new Map();
@@ -3902,27 +3922,179 @@ function pasteWidgets(clip = readClipboard(), into = targetGroup()) {
     taken.add(name);
     (widget.widgets || []).forEach(rename);
   };
-  let dropped = 0;
-  change((layout) => {
-    const container = into ? widgetAt(into) : null;
-    const list = container ? (container.widgets ||= []) : layout.widgets;
-    const [ox, oy] = into ? absolute(into) : [0, 0];
-    const [width, height] = container ? [container.width, container.height] : [layout.surface.width, layout.surface.height];
-    const pasted = clip.widgets.map(({ widget, at }) => {
-      const copy = JSON.parse(JSON.stringify(widget));
-      rename(copy);
-      copy.width = Math.min(copy.width, width);
-      copy.height = Math.min(copy.height, height);
-      copy.x = clamp(at[0] - ox, 0, width - copy.width);
-      copy.y = clamp(at[1] - oy, 0, height - copy.height);
-      list.push(copy);
-      return copy;
-    });
-    dropped = copyBehaviour(layout, renames, clip.links || [], clip.mappings || []);
-    state.selection = widgetSelection(pathsOf(pasted));
+  const container = into ? widgetAt(into) : null;
+  const list = container ? (container.widgets ||= []) : layout.widgets;
+  const [ox, oy] = into ? absolute(into) : [0, 0];
+  const [width, height] = container ? [container.width, container.height] : [layout.surface.width, layout.surface.height];
+  const pasted = clip.widgets.map(({ widget, at }) => {
+    const copy = JSON.parse(JSON.stringify(widget));
+    rename(copy);
+    copy.width = Math.min(copy.width, width);
+    copy.height = Math.min(copy.height, height);
+    copy.x = clamp(at[0] - ox, 0, width - copy.width);
+    copy.y = clamp(at[1] - oy, 0, height - copy.height);
+    list.push(copy);
+    return copy;
   });
-  const count = `${clip.widgets.length} widget${clip.widgets.length > 1 ? 's' : ''}`;
-  setStatus(dropped ? `Pasted ${count}; ${dropped} message${dropped > 1 ? 's or links' : ' or link'} left out (their output or target isn't in this layout)` : `Pasted ${count}`, dropped ? '' : 'ok');
+  const dropped = copyBehaviour(layout, renames, clip.links || [], clip.mappings || []);
+  state.selection = widgetSelection(pathsOf(pasted));
+  return dropped;
+}
+
+// ---------------------------------------------------------------- snippets
+
+// Adds a snippet (widgets with their links, messages and outputs) into ``into`` with its bottom-left
+// at ``at`` (absolute; default the group's corner). Its messages go to an output of the same type
+// when the layout has one, else its output is added.
+function insertSnippet(snippet, into = targetGroup(), at = null) {
+  let dropped = 0;
+  const [width, height] = into ? [widgetAt(into).width, widgetAt(into).height] : [state.layout.surface.width, state.layout.surface.height];
+  change((layout) => {
+    const outputs = new Map();
+    for (const output of snippet.outputs || []) {
+      const same = outputsOf(layout).find((other) => other.type === output.type);
+      if (same) {
+        outputs.set(output.name, same.name);
+        continue;
+      }
+      const name = uniqueOutputName(output.name);
+      layout.outputs = [...outputsOf(layout), { ...JSON.parse(JSON.stringify(output)), name }];
+      outputs.set(output.name, name);
+    }
+    const [ox, oy] = at || (into ? absolute(into) : [0, 0]);
+    dropped = placeClip(layout, {
+      widgets: snippet.widgets.map((widget) => ({ widget, at: [ox + (widget.x || 0), oy + (widget.y || 0)] })),
+      links: snippet.links || [],
+      mappings: (snippet.mappings || []).map((mapping) => ({ ...mapping, output: outputs.get(mapping.output) ?? mapping.output })),
+    }, into);
+  });
+  const [w, h] = snippet.size;
+  const notes = [];
+  if (w > width || h > height) notes.push(`it is ${w}x${h}, larger than the ${width}x${height} it went into`);
+  if (dropped) notes.push(`${dropped} link${dropped > 1 ? 's' : ''} left out`);
+  setStatus(`Added ${snippet.title}${notes.length ? `: ${notes.join('; ')}` : ''}`, notes.length ? '' : 'ok');
+}
+
+// Widgets or Snippets in the palette section; remembered in this browser
+function showPaletteTab(tab) {
+  prefs.paletteTab = tab;
+  savePrefs();
+  $('tab-widgets').classList.toggle('active', tab === 'widgets');
+  $('tab-snippets').classList.toggle('active', tab === 'snippets');
+  $('palette').hidden = tab !== 'widgets';
+  $('snippet-pane').hidden = tab !== 'snippets';
+}
+
+async function loadSnippets() {
+  const reply = await api('GET', '/api/snippets');
+  state.snippets = reply.snippets || [];
+  renderSnippets();
+}
+
+function snippetSize(entry) {
+  return `${entry.size[0]}x${entry.size[1]}`;
+}
+
+function renderSnippets() {
+  const list = state.snippets || [];
+  const sizes = [...new Set(list.map(snippetSize))].sort((a, b) => {
+    const [aw, ah] = a.split('x').map(Number), [bw, bh] = b.split('x').map(Number);
+    return bw * bh - aw * ah || bw - aw;
+  });
+  const chosen = sizes.includes(prefs.snippetSize) ? prefs.snippetSize : '';
+  const filter = $('snippet-size');
+  filter.replaceChildren(el('option', { value: '' }, 'All sizes'),
+    ...sizes.map((size) => el('option', { value: size, selected: size === chosen }, size)));
+  filter.value = chosen;
+  const shown = list.filter((entry) => !chosen || snippetSize(entry) === chosen);
+  const categories = new Map();
+  for (const entry of shown) {
+    if (!categories.has(entry.category)) categories.set(entry.category, []);
+    categories.get(entry.category).push(entry);
+  }
+  $('snippets').replaceChildren(...[...categories].flatMap(([category, entries]) => [
+    el('h4', {}, category),
+    ...entries.map((entry) => el('button', {
+      class: 'snippet', dataset: { snippet: entry.id }, draggable: 'true',
+      title: `${entry.title} (${snippetSize(entry)}): ${entry.doc}\nClick to add, or drag onto the grid.`,
+      onclick: () => insertSnippet(entry.snippet),
+      ondragstart: (event) => {
+        state.dragSnippet = entry.snippet;
+        document.body.classList.add('dragging');
+        event.dataTransfer.setData('text/plain', `snippet:${entry.id}`);
+        event.dataTransfer.effectAllowed = 'copy';
+      },
+      ondragend: () => { state.dragSnippet = null; document.body.classList.remove('dragging'); clearGhost(); },
+    },
+      thumb(entry.preview, 48) || el('span', { class: 'glyph' }, snippetSize(entry)),
+      el('span', { class: 'label' }, entry.title),
+      el('span', { class: 'size' }, snippetSize(entry)),
+      entry.builtin ? null : el('span', {
+        class: 'delete', role: 'button', title: 'Delete this snippet',
+        onclick: (event) => { event.stopPropagation(); deleteSnippet(entry); },
+      }, '×'))),
+  ]));
+  if (!shown.length) $('snippets').append(el('p', { class: 'hint' }, 'No snippets of this size yet: select widgets and save them as one.'));
+}
+
+// The selected widgets, their links and messages (and the outputs those use) as a snippet
+function selectionSnippet(title, doc, category) {
+  const widgets = topSelected().map(widgetAt);
+  const places = widgets.map((widget) => absolute(pathsOf([widget])[0]));
+  const x0 = Math.min(...places.map(([x]) => x)), y0 = Math.min(...places.map(([, y]) => y));
+  const x1 = Math.max(...widgets.map((widget, i) => places[i][0] + widget.width));
+  const y1 = Math.max(...widgets.map((widget, i) => places[i][1] + widget.height));
+  const names = new Set();
+  const collect = (widget) => {
+    names.add(widget.name);
+    (widget.widgets || []).forEach(collect);
+  };
+  widgets.forEach(collect);
+  const copy = (value) => JSON.parse(JSON.stringify(value));
+  const mappings = (state.layout.mappings || []).filter((mapping) => names.has(mapping.widget));
+  const used = new Set(mappings.map((mapping) => mapping.output));
+  const snippet = {
+    format: 'pyxelwidgets.snippet', title, doc, category, size: [x1 - x0, y1 - y0],
+    widgets: widgets.map((widget, i) => ({ ...copy(widget), x: places[i][0] - x0, y: places[i][1] - y0 })),
+  };
+  // Links between the widgets, and to the transport
+  const links = (state.layout.links || []).filter((link) => names.has(link.widget) && (link.target === undefined || names.has(link.target)));
+  if (links.length) snippet.links = copy(links);
+  if (mappings.length) {
+    snippet.mappings = copy(mappings);
+    snippet.outputs = copy(outputsOf().filter((output) => used.has(output.name)));
+  }
+  return snippet;
+}
+
+async function saveSnippet() {
+  if (state.selection?.kind !== 'widget') return setStatus('Select the widgets to keep as a snippet first', 'error');
+  const first = widgetAt(topSelected()[0]);
+  const answer = await ask({
+    title: 'Save as a snippet',
+    text: 'The selected widgets with their links and messages, to add to any layout from the Snippets section.',
+    fields: [
+      { name: 'title', label: 'name', value: topSelected().length === 1 ? first.name : '', placeholder: 'My drum kit' },
+      { name: 'doc', label: 'description', placeholder: 'What it does' },
+      { name: 'category', label: 'category', value: 'My snippets' },
+    ],
+    ok: 'Save',
+  });
+  if (!answer) return;
+  if (!answer.title) return setStatus('A snippet needs a name', 'error');
+  const reply = await api('POST', '/api/snippets', { snippet: selectionSnippet(answer.title, answer.doc, answer.category || 'My snippets') });
+  if (!reply.ok) return setStatus(reply.error, 'error');
+  state.snippets = reply.snippets;
+  renderSnippets();
+  setStatus(`Saved the snippet ${answer.title}`, 'ok');
+}
+
+async function deleteSnippet(entry) {
+  if (!(await ask({ title: `Delete the snippet ${entry.title}?`, text: 'It goes from every layout\'s Snippets section (layouts using it keep their widgets).', ok: 'Delete' }))) return;
+  const reply = await api('POST', '/api/snippets', { delete: entry.id });
+  if (!reply.ok) return setStatus(reply.error, 'error');
+  state.snippets = reply.snippets;
+  renderSnippets();
 }
 
 // Move the selected widgets into a new Group around them (they must share a parent)
@@ -4274,6 +4446,15 @@ function bindToolbar() {
   $('open-file').onchange = (e) => { if (e.target.files[0]) importFile(e.target.files[0]); e.target.value = ''; };
   $('add-device').onclick = addDevice;
   $('add-output').onclick = addOutput;
+  $('snippet-size').onchange = (event) => {
+    prefs.snippetSize = event.target.value;
+    savePrefs();
+    renderSnippets();
+  };
+  $('save-snippet').onclick = saveSnippet;
+  $('tab-widgets').onclick = () => showPaletteTab('widgets');
+  $('tab-snippets').onclick = () => showPaletteTab('snippets');
+  showPaletteTab(prefs.paletteTab || 'widgets');
   $('toggle-left').onclick = () => togglePanel('left');
   $('toggle-right').onclick = () => togglePanel('right');
   $('help').onclick = showShortcuts;
@@ -4328,9 +4509,10 @@ function bindToolbar() {
   });
 }
 
-// The grid fills the stage (refitted when panels, the drawer or the window change size), the
-// wheel zooms around the pointer (or moves the grid, by the toolbar's choice; Ctrl/Cmd + wheel
-// and pinches always zoom), Shift + wheel and the middle button move it
+// The grid fills the stage (refitted when panels, the drawer or the window change size). Pinches
+// and Ctrl/Cmd + wheel zoom around the pointer, two-finger trackpad scrolls move the grid; a mouse
+// wheel zooms (or moves the grid, by the toolbar's choice); Shift + wheel, the middle button and
+// dragging the space around the grid move it
 function bindStage() {
   const stage = $('stage');
   new ResizeObserver(() => renderBoard()).observe(stage);
@@ -4338,7 +4520,7 @@ function bindStage() {
     const pinch = event.ctrlKey || event.metaKey;
     event.preventDefault();
     const scale = event.deltaMode === 1 ? 16 : event.deltaMode === 2 ? stage.clientHeight : 1;
-    if (!pinch && (prefs.wheel === 'scroll' || event.shiftKey)) {
+    if (!pinch && (prefs.wheel === 'scroll' || event.shiftKey || trackpad(event))) {
       // Shift + wheel: sideways
       const [dx, dy] = event.shiftKey && !event.deltaX ? [event.deltaY, 0] : [event.deltaX, event.deltaY];
       return panBy(-dx * scale, -dy * scale);
@@ -4349,18 +4531,39 @@ function bindStage() {
   }, { passive: false });
   stage.addEventListener('pointerdown', (event) => {
     if (event.button === 1) return panStage(event);
-    if (event.target.id === 'stage' || event.target.id === 'board') startMarquee(event);
+    if (event.button !== 0) return;
+    // Around the grid: drag to move it, click to select the surface; on the board's frame: a selection rectangle
+    if (event.target.id === 'stage') panStage(event, () => { if (state.mode === 'edit') select(null); });
+    else if (event.target.id === 'board') startMarquee(event);
   });
   // No autoscroll circle on middle clicks
   stage.addEventListener('mousedown', (event) => { if (event.button === 1) event.preventDefault(); });
 }
 
-function panStage(event) {
+// Whether a wheel event comes from a trackpad's two-finger scroll rather than a mouse wheel:
+// sideways movement, or (Chrome, Safari) a legacy wheelDelta of 3 per pixel where wheels send
+// notches of 120. A gesture keeps its kind (momentum scrolling can look like a wheel)
+const gesture = { trackpad: false, last: 0 };
+function trackpad(event) {
+  const now = performance.now();
+  if (now - gesture.last > 300) {
+    gesture.trackpad = event.deltaMode === 0 && (event.deltaX !== 0
+      || (event.wheelDeltaY ? event.wheelDeltaY === -3 * event.deltaY : !Number.isInteger(event.deltaY)));
+  } else if (event.deltaMode === 0 && event.deltaX !== 0) gesture.trackpad = true;
+  gesture.last = now;
+  return gesture.trackpad;
+}
+
+// Drags the grid around; a press that doesn't move calls `clicked`
+function panStage(event, clicked = null) {
   event.preventDefault();
   const stage = $('stage');
-  let last = { x: event.clientX, y: event.clientY };
-  stage.classList.add('panning');
+  const start = { x: event.clientX, y: event.clientY };
+  let last = start, moved = false;
   const move = (e) => {
+    if (!moved && Math.hypot(e.clientX - start.x, e.clientY - start.y) < 4) return;
+    if (!moved) stage.classList.add('panning');
+    moved = true;
     panBy(e.clientX - last.x, e.clientY - last.y);
     last = { x: e.clientX, y: e.clientY };
   };
@@ -4368,17 +4571,18 @@ function panStage(event) {
     window.removeEventListener('pointermove', move);
     window.removeEventListener('pointerup', up);
     stage.classList.remove('panning');
+    if (!moved && clicked) clicked();
   };
   window.addEventListener('pointermove', move);
   window.addEventListener('pointerup', up);
 }
 
 // A widget drawn small (rows from the top of colors, null where transparent), or null
-function thumb(preview) {
+function thumb(preview, box = 30) {
   if (!preview) return null;
   const rows = preview.length;
   const columns = preview[0].length;
-  const cell = Math.max(3, Math.floor((30 - (Math.max(rows, columns) - 1)) / Math.max(rows, columns)));
+  const cell = Math.max(3, Math.floor((box - (Math.max(rows, columns) - 1)) / Math.max(rows, columns)));
   return el('span', { class: 'thumb', style: `grid-template-columns: repeat(${columns}, ${cell}px); grid-auto-rows: ${cell}px` },
     preview.flat().map((color) => el('i', { style: `background: ${color || '#0c0d10'}` })));
 }
@@ -4430,6 +4634,7 @@ async function start() {
   state.saved = JSON.stringify(state.layout);
   addRecent(state.file);
   buildCatalog();
+  loadSnippets();
   renderPanels();
   bindToolbar();
   buildRules();

@@ -1,0 +1,502 @@
+{
+  "format": "pyxelwidgets.snippet",
+  "title": "Mixer (Mackie Control)",
+  "doc": "Eight faders with mutes above them, following the DAW (REAPER, Logic, Cubase...)",
+  "category": "Mixing",
+  "size": [
+    8,
+    8
+  ],
+  "widgets": [
+    {
+      "type": "Fader",
+      "name": "fader1",
+      "x": 0,
+      "y": 0,
+      "width": 1,
+      "height": 7,
+      "options": {
+        "mode": "Magnitude",
+        "active_color": "#00ffff",
+        "slew": 0.15
+      }
+    },
+    {
+      "type": "Fader",
+      "name": "fader2",
+      "x": 1,
+      "y": 0,
+      "width": 1,
+      "height": 7,
+      "options": {
+        "mode": "Magnitude",
+        "active_color": "#00ffff",
+        "slew": 0.15
+      }
+    },
+    {
+      "type": "Fader",
+      "name": "fader3",
+      "x": 2,
+      "y": 0,
+      "width": 1,
+      "height": 7,
+      "options": {
+        "mode": "Magnitude",
+        "active_color": "#00ffff",
+        "slew": 0.15
+      }
+    },
+    {
+      "type": "Fader",
+      "name": "fader4",
+      "x": 3,
+      "y": 0,
+      "width": 1,
+      "height": 7,
+      "options": {
+        "mode": "Magnitude",
+        "active_color": "#00ffff",
+        "slew": 0.15
+      }
+    },
+    {
+      "type": "Fader",
+      "name": "fader5",
+      "x": 4,
+      "y": 0,
+      "width": 1,
+      "height": 7,
+      "options": {
+        "mode": "Magnitude",
+        "active_color": "#00ffff",
+        "slew": 0.15
+      }
+    },
+    {
+      "type": "Fader",
+      "name": "fader6",
+      "x": 5,
+      "y": 0,
+      "width": 1,
+      "height": 7,
+      "options": {
+        "mode": "Magnitude",
+        "active_color": "#00ffff",
+        "slew": 0.15
+      }
+    },
+    {
+      "type": "Fader",
+      "name": "fader7",
+      "x": 6,
+      "y": 0,
+      "width": 1,
+      "height": 7,
+      "options": {
+        "mode": "Magnitude",
+        "active_color": "#00ffff",
+        "slew": 0.15
+      }
+    },
+    {
+      "type": "Fader",
+      "name": "fader8",
+      "x": 7,
+      "y": 0,
+      "width": 1,
+      "height": 7,
+      "options": {
+        "mode": "Magnitude",
+        "active_color": "#00ffff",
+        "slew": 0.15
+      }
+    },
+    {
+      "type": "Button",
+      "name": "mute1",
+      "x": 0,
+      "y": 7,
+      "width": 1,
+      "height": 1,
+      "options": {
+        "active_color": "#ff0000",
+        "inactive_color": "#3f0000",
+        "interactive": false
+      }
+    },
+    {
+      "type": "Button",
+      "name": "mute2",
+      "x": 1,
+      "y": 7,
+      "width": 1,
+      "height": 1,
+      "options": {
+        "active_color": "#ff0000",
+        "inactive_color": "#3f0000",
+        "interactive": false
+      }
+    },
+    {
+      "type": "Button",
+      "name": "mute3",
+      "x": 2,
+      "y": 7,
+      "width": 1,
+      "height": 1,
+      "options": {
+        "active_color": "#ff0000",
+        "inactive_color": "#3f0000",
+        "interactive": false
+      }
+    },
+    {
+      "type": "Button",
+      "name": "mute4",
+      "x": 3,
+      "y": 7,
+      "width": 1,
+      "height": 1,
+      "options": {
+        "active_color": "#ff0000",
+        "inactive_color": "#3f0000",
+        "interactive": false
+      }
+    },
+    {
+      "type": "Button",
+      "name": "mute5",
+      "x": 4,
+      "y": 7,
+      "width": 1,
+      "height": 1,
+      "options": {
+        "active_color": "#ff0000",
+        "inactive_color": "#3f0000",
+        "interactive": false
+      }
+    },
+    {
+      "type": "Button",
+      "name": "mute6",
+      "x": 5,
+      "y": 7,
+      "width": 1,
+      "height": 1,
+      "options": {
+        "active_color": "#ff0000",
+        "inactive_color": "#3f0000",
+        "interactive": false
+      }
+    },
+    {
+      "type": "Button",
+      "name": "mute7",
+      "x": 6,
+      "y": 7,
+      "width": 1,
+      "height": 1,
+      "options": {
+        "active_color": "#ff0000",
+        "inactive_color": "#3f0000",
+        "interactive": false
+      }
+    },
+    {
+      "type": "Button",
+      "name": "mute8",
+      "x": 7,
+      "y": 7,
+      "width": 1,
+      "height": 1,
+      "options": {
+        "active_color": "#ff0000",
+        "inactive_color": "#3f0000",
+        "interactive": false
+      }
+    }
+  ],
+  "mappings": [
+    {
+      "widget": "fader1",
+      "on": "Changed",
+      "output": "daw",
+      "feedback": true,
+      "message": {
+        "type": "Command",
+        "name": "Fader 1",
+        "value": {
+          "source": "value"
+        }
+      }
+    },
+    {
+      "widget": "fader2",
+      "on": "Changed",
+      "output": "daw",
+      "feedback": true,
+      "message": {
+        "type": "Command",
+        "name": "Fader 2",
+        "value": {
+          "source": "value"
+        }
+      }
+    },
+    {
+      "widget": "fader3",
+      "on": "Changed",
+      "output": "daw",
+      "feedback": true,
+      "message": {
+        "type": "Command",
+        "name": "Fader 3",
+        "value": {
+          "source": "value"
+        }
+      }
+    },
+    {
+      "widget": "fader4",
+      "on": "Changed",
+      "output": "daw",
+      "feedback": true,
+      "message": {
+        "type": "Command",
+        "name": "Fader 4",
+        "value": {
+          "source": "value"
+        }
+      }
+    },
+    {
+      "widget": "fader5",
+      "on": "Changed",
+      "output": "daw",
+      "feedback": true,
+      "message": {
+        "type": "Command",
+        "name": "Fader 5",
+        "value": {
+          "source": "value"
+        }
+      }
+    },
+    {
+      "widget": "fader6",
+      "on": "Changed",
+      "output": "daw",
+      "feedback": true,
+      "message": {
+        "type": "Command",
+        "name": "Fader 6",
+        "value": {
+          "source": "value"
+        }
+      }
+    },
+    {
+      "widget": "fader7",
+      "on": "Changed",
+      "output": "daw",
+      "feedback": true,
+      "message": {
+        "type": "Command",
+        "name": "Fader 7",
+        "value": {
+          "source": "value"
+        }
+      }
+    },
+    {
+      "widget": "fader8",
+      "on": "Changed",
+      "output": "daw",
+      "feedback": true,
+      "message": {
+        "type": "Command",
+        "name": "Fader 8",
+        "value": {
+          "source": "value"
+        }
+      }
+    },
+    {
+      "widget": "mute1",
+      "on": "Pressed",
+      "output": "daw",
+      "feedback": true,
+      "message": {
+        "type": "Command",
+        "name": "Mute 1",
+        "value": 1
+      }
+    },
+    {
+      "widget": "mute1",
+      "on": "Released",
+      "output": "daw",
+      "message": {
+        "type": "Command",
+        "name": "Mute 1",
+        "value": 0
+      }
+    },
+    {
+      "widget": "mute2",
+      "on": "Pressed",
+      "output": "daw",
+      "feedback": true,
+      "message": {
+        "type": "Command",
+        "name": "Mute 2",
+        "value": 1
+      }
+    },
+    {
+      "widget": "mute2",
+      "on": "Released",
+      "output": "daw",
+      "message": {
+        "type": "Command",
+        "name": "Mute 2",
+        "value": 0
+      }
+    },
+    {
+      "widget": "mute3",
+      "on": "Pressed",
+      "output": "daw",
+      "feedback": true,
+      "message": {
+        "type": "Command",
+        "name": "Mute 3",
+        "value": 1
+      }
+    },
+    {
+      "widget": "mute3",
+      "on": "Released",
+      "output": "daw",
+      "message": {
+        "type": "Command",
+        "name": "Mute 3",
+        "value": 0
+      }
+    },
+    {
+      "widget": "mute4",
+      "on": "Pressed",
+      "output": "daw",
+      "feedback": true,
+      "message": {
+        "type": "Command",
+        "name": "Mute 4",
+        "value": 1
+      }
+    },
+    {
+      "widget": "mute4",
+      "on": "Released",
+      "output": "daw",
+      "message": {
+        "type": "Command",
+        "name": "Mute 4",
+        "value": 0
+      }
+    },
+    {
+      "widget": "mute5",
+      "on": "Pressed",
+      "output": "daw",
+      "feedback": true,
+      "message": {
+        "type": "Command",
+        "name": "Mute 5",
+        "value": 1
+      }
+    },
+    {
+      "widget": "mute5",
+      "on": "Released",
+      "output": "daw",
+      "message": {
+        "type": "Command",
+        "name": "Mute 5",
+        "value": 0
+      }
+    },
+    {
+      "widget": "mute6",
+      "on": "Pressed",
+      "output": "daw",
+      "feedback": true,
+      "message": {
+        "type": "Command",
+        "name": "Mute 6",
+        "value": 1
+      }
+    },
+    {
+      "widget": "mute6",
+      "on": "Released",
+      "output": "daw",
+      "message": {
+        "type": "Command",
+        "name": "Mute 6",
+        "value": 0
+      }
+    },
+    {
+      "widget": "mute7",
+      "on": "Pressed",
+      "output": "daw",
+      "feedback": true,
+      "message": {
+        "type": "Command",
+        "name": "Mute 7",
+        "value": 1
+      }
+    },
+    {
+      "widget": "mute7",
+      "on": "Released",
+      "output": "daw",
+      "message": {
+        "type": "Command",
+        "name": "Mute 7",
+        "value": 0
+      }
+    },
+    {
+      "widget": "mute8",
+      "on": "Pressed",
+      "output": "daw",
+      "feedback": true,
+      "message": {
+        "type": "Command",
+        "name": "Mute 8",
+        "value": 1
+      }
+    },
+    {
+      "widget": "mute8",
+      "on": "Released",
+      "output": "daw",
+      "message": {
+        "type": "Command",
+        "name": "Mute 8",
+        "value": 0
+      }
+    }
+  ],
+  "outputs": [
+    {
+      "name": "daw",
+      "type": "mackie.MackieControl",
+      "virtual": "PyxelWidgets MCU",
+      "options": {}
+    }
+  ]
+}

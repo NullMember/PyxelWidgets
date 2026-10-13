@@ -1,0 +1,63 @@
+{
+  "format": "pyxelwidgets.snippet",
+  "title": "Chromatic fourths",
+  "doc": "Every semitone, rows a fourth apart (like a bass or guitar)",
+  "category": "Melody",
+  "size": [
+    8,
+    5
+  ],
+  "widgets": [
+    {
+      "type": "Keyboard",
+      "name": "keys",
+      "x": 0,
+      "y": 0,
+      "width": 8,
+      "height": 5,
+      "options": {
+        "type": "ChromaticVertical",
+        "fold": 6,
+        "octave": 3
+      }
+    }
+  ],
+  "mappings": [
+    {
+      "widget": "keys",
+      "on": "NoteOn",
+      "output": "midi",
+      "message": {
+        "type": "NoteOn",
+        "note": {
+          "source": "note"
+        },
+        "velocity": {
+          "source": "velocity"
+        },
+        "channel": 1
+      }
+    },
+    {
+      "widget": "keys",
+      "on": "NoteOff",
+      "output": "midi",
+      "message": {
+        "type": "NoteOff",
+        "note": {
+          "source": "note"
+        },
+        "velocity": 0,
+        "channel": 1
+      }
+    }
+  ],
+  "outputs": [
+    {
+      "name": "midi",
+      "type": "midi_port.MidiPort",
+      "virtual": "PyxelWidgets midi",
+      "options": {}
+    }
+  ]
+}

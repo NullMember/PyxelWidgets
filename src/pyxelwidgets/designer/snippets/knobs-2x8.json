@@ -1,0 +1,122 @@
+{
+  "format": "pyxelwidgets.snippet",
+  "title": "Four knobs",
+  "doc": "Four knobs sending CC 21 to 24 (hold a pad to turn)",
+  "category": "Effects",
+  "size": [
+    2,
+    8
+  ],
+  "widgets": [
+    {
+      "type": "Knob",
+      "name": "knob1",
+      "x": 0,
+      "y": 6,
+      "width": 2,
+      "height": 2,
+      "options": {
+        "active_color": "#ff4500"
+      }
+    },
+    {
+      "type": "Knob",
+      "name": "knob2",
+      "x": 0,
+      "y": 4,
+      "width": 2,
+      "height": 2,
+      "options": {
+        "active_color": "#ffff00"
+      }
+    },
+    {
+      "type": "Knob",
+      "name": "knob3",
+      "x": 0,
+      "y": 2,
+      "width": 2,
+      "height": 2,
+      "options": {
+        "active_color": "#00ff00"
+      }
+    },
+    {
+      "type": "Knob",
+      "name": "knob4",
+      "x": 0,
+      "y": 0,
+      "width": 2,
+      "height": 2,
+      "options": {
+        "active_color": "#00ffff"
+      }
+    }
+  ],
+  "mappings": [
+    {
+      "widget": "knob1",
+      "on": "Changed",
+      "output": "midi",
+      "feedback": true,
+      "message": {
+        "type": "ControlChange",
+        "control": 21,
+        "value": {
+          "source": "value"
+        },
+        "channel": 1
+      }
+    },
+    {
+      "widget": "knob2",
+      "on": "Changed",
+      "output": "midi",
+      "feedback": true,
+      "message": {
+        "type": "ControlChange",
+        "control": 22,
+        "value": {
+          "source": "value"
+        },
+        "channel": 1
+      }
+    },
+    {
+      "widget": "knob3",
+      "on": "Changed",
+      "output": "midi",
+      "feedback": true,
+      "message": {
+        "type": "ControlChange",
+        "control": 23,
+        "value": {
+          "source": "value"
+        },
+        "channel": 1
+      }
+    },
+    {
+      "widget": "knob4",
+      "on": "Changed",
+      "output": "midi",
+      "feedback": true,
+      "message": {
+        "type": "ControlChange",
+        "control": 24,
+        "value": {
+          "source": "value"
+        },
+        "channel": 1
+      }
+    }
+  ],
+  "outputs": [
+    {
+      "name": "midi",
+      "type": "midi_port.MidiPort",
+      "virtual": "PyxelWidgets midi",
+      "options": {}
+    }
+  ]
+}

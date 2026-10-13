@@ -1,0 +1,253 @@
+{
+  "format": "pyxelwidgets.snippet",
+  "title": "Clip launcher with scenes",
+  "doc": "Eight scenes of eight tracks, scene buttons on the right, stops on top (top right stops all)",
+  "category": "Clips",
+  "size": [
+    9,
+    9
+  ],
+  "widgets": [
+    {
+      "type": "ClipLauncher",
+      "name": "clips",
+      "x": 0,
+      "y": 0,
+      "width": 8,
+      "height": 8,
+      "options": {}
+    },
+    {
+      "type": "ButtonGroup",
+      "name": "stops",
+      "x": 0,
+      "y": 8,
+      "width": 8,
+      "height": 1,
+      "options": {
+        "mode": "Button",
+        "active_color": "#ff0000",
+        "inactive_color": "#3f0000"
+      }
+    },
+    {
+      "type": "Button",
+      "name": "stop_all",
+      "x": 8,
+      "y": 8,
+      "width": 1,
+      "height": 1,
+      "options": {
+        "active_color": "#ff0000",
+        "inactive_color": "#3f0000"
+      }
+    },
+    {
+      "type": "Button",
+      "name": "scene1",
+      "x": 8,
+      "y": 7,
+      "width": 1,
+      "height": 1,
+      "options": {
+        "active_color": "#00ff00",
+        "inactive_color": "#003f00"
+      }
+    },
+    {
+      "type": "Button",
+      "name": "scene2",
+      "x": 8,
+      "y": 6,
+      "width": 1,
+      "height": 1,
+      "options": {
+        "active_color": "#00ff00",
+        "inactive_color": "#003f00"
+      }
+    },
+    {
+      "type": "Button",
+      "name": "scene3",
+      "x": 8,
+      "y": 5,
+      "width": 1,
+      "height": 1,
+      "options": {
+        "active_color": "#00ff00",
+        "inactive_color": "#003f00"
+      }
+    },
+    {
+      "type": "Button",
+      "name": "scene4",
+      "x": 8,
+      "y": 4,
+      "width": 1,
+      "height": 1,
+      "options": {
+        "active_color": "#00ff00",
+        "inactive_color": "#003f00"
+      }
+    },
+    {
+      "type": "Button",
+      "name": "scene5",
+      "x": 8,
+      "y": 3,
+      "width": 1,
+      "height": 1,
+      "options": {
+        "active_color": "#00ff00",
+        "inactive_color": "#003f00"
+      }
+    },
+    {
+      "type": "Button",
+      "name": "scene6",
+      "x": 8,
+      "y": 2,
+      "width": 1,
+      "height": 1,
+      "options": {
+        "active_color": "#00ff00",
+        "inactive_color": "#003f00"
+      }
+    },
+    {
+      "type": "Button",
+      "name": "scene7",
+      "x": 8,
+      "y": 1,
+      "width": 1,
+      "height": 1,
+      "options": {
+        "active_color": "#00ff00",
+        "inactive_color": "#003f00"
+      }
+    },
+    {
+      "type": "Button",
+      "name": "scene8",
+      "x": 8,
+      "y": 0,
+      "width": 1,
+      "height": 1,
+      "options": {
+        "active_color": "#00ff00",
+        "inactive_color": "#003f00"
+      }
+    }
+  ],
+  "links": [
+    {
+      "widget": "stops",
+      "on": "Toggled",
+      "target": "clips",
+      "action": "stop_track",
+      "value": {
+        "source": "x"
+      }
+    },
+    {
+      "widget": "stop_all",
+      "on": "Pressed",
+      "target": "clips",
+      "action": "stop_all"
+    },
+    {
+      "widget": "scene1",
+      "on": "Pressed",
+      "target": "clips",
+      "action": "launch_scene",
+      "value": 0
+    },
+    {
+      "widget": "scene2",
+      "on": "Pressed",
+      "target": "clips",
+      "action": "launch_scene",
+      "value": 1
+    },
+    {
+      "widget": "scene3",
+      "on": "Pressed",
+      "target": "clips",
+      "action": "launch_scene",
+      "value": 2
+    },
+    {
+      "widget": "scene4",
+      "on": "Pressed",
+      "target": "clips",
+      "action": "launch_scene",
+      "value": 3
+    },
+    {
+      "widget": "scene5",
+      "on": "Pressed",
+      "target": "clips",
+      "action": "launch_scene",
+      "value": 4
+    },
+    {
+      "widget": "scene6",
+      "on": "Pressed",
+      "target": "clips",
+      "action": "launch_scene",
+      "value": 5
+    },
+    {
+      "widget": "scene7",
+      "on": "Pressed",
+      "target": "clips",
+      "action": "launch_scene",
+      "value": 6
+    },
+    {
+      "widget": "scene8",
+      "on": "Pressed",
+      "target": "clips",
+      "action": "launch_scene",
+      "value": 7
+    }
+  ],
+  "mappings": [
+    {
+      "widget": "clips",
+      "on": "ClipStarted",
+      "output": "midi",
+      "message": {
+        "type": "NoteOn",
+        "note": {
+          "source": "cell",
+          "offset": 36
+        },
+        "velocity": 127,
+        "channel": 1
+      }
+    },
+    {
+      "widget": "clips",
+      "on": "ClipStopped",
+      "output": "midi",
+      "message": {
+        "type": "NoteOff",
+        "note": {
+          "source": "cell",
+          "offset": 36
+        },
+        "velocity": 0,
+        "channel": 1
+      }
+    }
+  ],
+  "outputs": [
+    {
+      "name": "midi",
+      "type": "midi_port.MidiPort",
+      "virtual": "PyxelWidgets midi",
+      "options": {}
+    }
+  ]
+}

@@ -1,0 +1,118 @@
+{
+  "format": "pyxelwidgets.snippet",
+  "title": "Transport column",
+  "doc": "Play, stop, back to the start, tempo up and down, and tap tempo, for the app's transport",
+  "category": "Transport",
+  "size": [
+    1,
+    8
+  ],
+  "widgets": [
+    {
+      "type": "Button",
+      "name": "play",
+      "x": 0,
+      "y": 7,
+      "width": 1,
+      "height": 1,
+      "options": {
+        "active_color": "#00ff00",
+        "inactive_color": "#003f00"
+      }
+    },
+    {
+      "type": "Button",
+      "name": "stop",
+      "x": 0,
+      "y": 6,
+      "width": 1,
+      "height": 1,
+      "options": {
+        "active_color": "#ff0000",
+        "inactive_color": "#3f0000"
+      }
+    },
+    {
+      "type": "Button",
+      "name": "rewind",
+      "x": 0,
+      "y": 5,
+      "width": 1,
+      "height": 1,
+      "options": {
+        "active_color": "#00ffff",
+        "inactive_color": "#003f3f"
+      }
+    },
+    {
+      "type": "Button",
+      "name": "faster",
+      "x": 0,
+      "y": 4,
+      "width": 1,
+      "height": 1,
+      "options": {
+        "active_color": "#ffa500",
+        "inactive_color": "#3f2900"
+      }
+    },
+    {
+      "type": "Button",
+      "name": "slower",
+      "x": 0,
+      "y": 3,
+      "width": 1,
+      "height": 1,
+      "options": {
+        "active_color": "#ffa500",
+        "inactive_color": "#3f2900"
+      }
+    },
+    {
+      "type": "TapTempo",
+      "name": "tap",
+      "x": 0,
+      "y": 0,
+      "width": 1,
+      "height": 3,
+      "options": {}
+    }
+  ],
+  "links": [
+    {
+      "widget": "play",
+      "on": "Pressed",
+      "action": "transport.play"
+    },
+    {
+      "widget": "stop",
+      "on": "Pressed",
+      "action": "transport.stop"
+    },
+    {
+      "widget": "rewind",
+      "on": "Pressed",
+      "action": "transport.rewind"
+    },
+    {
+      "widget": "faster",
+      "on": "Pressed",
+      "action": "transport.tempo_add",
+      "value": 1
+    },
+    {
+      "widget": "slower",
+      "on": "Pressed",
+      "action": "transport.tempo_add",
+      "value": -1
+    },
+    {
+      "widget": "tap",
+      "on": "TempoTapped",
+      "action": "transport.tempo",
+      "value": {
+        "source": "bpm"
+      }
+    }
+  ]
+}

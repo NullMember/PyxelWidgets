@@ -1,0 +1,107 @@
+{
+  "format": "pyxelwidgets.snippet",
+  "title": "In-key keyboard",
+  "doc": "Only the notes of the key, rows a fourth apart (as on the Push); octave buttons on top",
+  "category": "Melody",
+  "size": [
+    8,
+    8
+  ],
+  "widgets": [
+    {
+      "type": "Keyboard",
+      "name": "keys",
+      "x": 0,
+      "y": 0,
+      "width": 8,
+      "height": 7,
+      "options": {
+        "type": "DiatonicVertical",
+        "octave": 3,
+        "fold": 4
+      }
+    },
+    {
+      "type": "Button",
+      "name": "octave_down",
+      "x": 0,
+      "y": 7,
+      "width": 1,
+      "height": 1,
+      "options": {
+        "active_color": "#ff00ff",
+        "inactive_color": "#3f003f"
+      }
+    },
+    {
+      "type": "Button",
+      "name": "octave_up",
+      "x": 1,
+      "y": 7,
+      "width": 1,
+      "height": 1,
+      "options": {
+        "active_color": "#ff00ff",
+        "inactive_color": "#3f003f"
+      }
+    }
+  ],
+  "links": [
+    {
+      "widget": "octave_up",
+      "on": "Pressed",
+      "target": "keys",
+      "option": "octave",
+      "change": "Add",
+      "value": 1,
+      "max": 8
+    },
+    {
+      "widget": "octave_down",
+      "on": "Pressed",
+      "target": "keys",
+      "option": "octave",
+      "change": "Add",
+      "value": -1,
+      "min": 0
+    }
+  ],
+  "mappings": [
+    {
+      "widget": "keys",
+      "on": "NoteOn",
+      "output": "midi",
+      "message": {
+        "type": "NoteOn",
+        "note": {
+          "source": "note"
+        },
+        "velocity": {
+          "source": "velocity"
+        },
+        "channel": 1
+      }
+    },
+    {
+      "widget": "keys",
+      "on": "NoteOff",
+      "output": "midi",
+      "message": {
+        "type": "NoteOff",
+        "note": {
+          "source": "note"
+        },
+        "velocity": 0,
+        "channel": 1
+      }
+    }
+  ],
+  "outputs": [
+    {
+      "name": "midi",
+      "type": "midi_port.MidiPort",
+      "virtual": "PyxelWidgets midi",
+      "options": {}
+    }
+  ]
+}

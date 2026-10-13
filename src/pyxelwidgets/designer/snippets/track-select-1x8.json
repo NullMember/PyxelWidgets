@@ -1,0 +1,294 @@
+{
+  "format": "pyxelwidgets.snippet",
+  "title": "Track select (Mackie)",
+  "doc": "Selects one of eight tracks in the DAW, top to bottom",
+  "category": "Mixing",
+  "size": [
+    1,
+    8
+  ],
+  "widgets": [
+    {
+      "type": "Button",
+      "name": "select1",
+      "x": 0,
+      "y": 7,
+      "width": 1,
+      "height": 1,
+      "options": {
+        "active_color": "#ffffff",
+        "inactive_color": "#303030",
+        "interactive": false
+      }
+    },
+    {
+      "type": "Button",
+      "name": "select2",
+      "x": 0,
+      "y": 6,
+      "width": 1,
+      "height": 1,
+      "options": {
+        "active_color": "#ffffff",
+        "inactive_color": "#303030",
+        "interactive": false
+      }
+    },
+    {
+      "type": "Button",
+      "name": "select3",
+      "x": 0,
+      "y": 5,
+      "width": 1,
+      "height": 1,
+      "options": {
+        "active_color": "#ffffff",
+        "inactive_color": "#303030",
+        "interactive": false
+      }
+    },
+    {
+      "type": "Button",
+      "name": "select4",
+      "x": 0,
+      "y": 4,
+      "width": 1,
+      "height": 1,
+      "options": {
+        "active_color": "#ffffff",
+        "inactive_color": "#303030",
+        "interactive": false
+      }
+    },
+    {
+      "type": "Button",
+      "name": "select5",
+      "x": 0,
+      "y": 3,
+      "width": 1,
+      "height": 1,
+      "options": {
+        "active_color": "#ffffff",
+        "inactive_color": "#303030",
+        "interactive": false
+      }
+    },
+    {
+      "type": "Button",
+      "name": "select6",
+      "x": 0,
+      "y": 2,
+      "width": 1,
+      "height": 1,
+      "options": {
+        "active_color": "#ffffff",
+        "inactive_color": "#303030",
+        "interactive": false
+      }
+    },
+    {
+      "type": "Button",
+      "name": "select7",
+      "x": 0,
+      "y": 1,
+      "width": 1,
+      "height": 1,
+      "options": {
+        "active_color": "#ffffff",
+        "inactive_color": "#303030",
+        "interactive": false
+      }
+    },
+    {
+      "type": "Button",
+      "name": "select8",
+      "x": 0,
+      "y": 0,
+      "width": 1,
+      "height": 1,
+      "options": {
+        "active_color": "#ffffff",
+        "inactive_color": "#303030",
+        "interactive": false
+      }
+    }
+  ],
+  "mappings": [
+    {
+      "widget": "select1",
+      "on": "Pressed",
+      "output": "daw",
+      "feedback": true,
+      "message": {
+        "type": "Command",
+        "name": "Select 1",
+        "value": 1
+      }
+    },
+    {
+      "widget": "select1",
+      "on": "Released",
+      "output": "daw",
+      "message": {
+        "type": "Command",
+        "name": "Select 1",
+        "value": 0
+      }
+    },
+    {
+      "widget": "select2",
+      "on": "Pressed",
+      "output": "daw",
+      "feedback": true,
+      "message": {
+        "type": "Command",
+        "name": "Select 2",
+        "value": 1
+      }
+    },
+    {
+      "widget": "select2",
+      "on": "Released",
+      "output": "daw",
+      "message": {
+        "type": "Command",
+        "name": "Select 2",
+        "value": 0
+      }
+    },
+    {
+      "widget": "select3",
+      "on": "Pressed",
+      "output": "daw",
+      "feedback": true,
+      "message": {
+        "type": "Command",
+        "name": "Select 3",
+        "value": 1
+      }
+    },
+    {
+      "widget": "select3",
+      "on": "Released",
+      "output": "daw",
+      "message": {
+        "type": "Command",
+        "name": "Select 3",
+        "value": 0
+      }
+    },
+    {
+      "widget": "select4",
+      "on": "Pressed",
+      "output": "daw",
+      "feedback": true,
+      "message": {
+        "type": "Command",
+        "name": "Select 4",
+        "value": 1
+      }
+    },
+    {
+      "widget": "select4",
+      "on": "Released",
+      "output": "daw",
+      "message": {
+        "type": "Command",
+        "name": "Select 4",
+        "value": 0
+      }
+    },
+    {
+      "widget": "select5",
+      "on": "Pressed",
+      "output": "daw",
+      "feedback": true,
+      "message": {
+        "type": "Command",
+        "name": "Select 5",
+        "value": 1
+      }
+    },
+    {
+      "widget": "select5",
+      "on": "Released",
+      "output": "daw",
+      "message": {
+        "type": "Command",
+        "name": "Select 5",
+        "value": 0
+      }
+    },
+    {
+      "widget": "select6",
+      "on": "Pressed",
+      "output": "daw",
+      "feedback": true,
+      "message": {
+        "type": "Command",
+        "name": "Select 6",
+        "value": 1
+      }
+    },
+    {
+      "widget": "select6",
+      "on": "Released",
+      "output": "daw",
+      "message": {
+        "type": "Command",
+        "name": "Select 6",
+        "value": 0
+      }
+    },
+    {
+      "widget": "select7",
+      "on": "Pressed",
+      "output": "daw",
+      "feedback": true,
+      "message": {
+        "type": "Command",
+        "name": "Select 7",
+        "value": 1
+      }
+    },
+    {
+      "widget": "select7",
+      "on": "Released",
+      "output": "daw",
+      "message": {
+        "type": "Command",
+        "name": "Select 7",
+        "value": 0
+      }
+    },
+    {
+      "widget": "select8",
+      "on": "Pressed",
+      "output": "daw",
+      "feedback": true,
+      "message": {
+        "type": "Command",
+        "name": "Select 8",
+        "value": 1
+      }
+    },
+    {
+      "widget": "select8",
+      "on": "Released",
+      "output": "daw",
+      "message": {
+        "type": "Command",
+        "name": "Select 8",
+        "value": 0
+      }
+    }
+  ],
+  "outputs": [
+    {
+      "name": "daw",
+      "type": "mackie.MackieControl",
+      "virtual": "PyxelWidgets MCU",
+      "options": {}
+    }
+  ]
+}
