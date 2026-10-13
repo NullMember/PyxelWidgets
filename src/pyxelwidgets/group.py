@@ -3,6 +3,7 @@ import pyxelwidgets.color
 import pyxelwidgets.events
 import pyxelwidgets.rectangle
 import pyxelwidgets.widgets
+import copy
 import dataclasses
 import enum
 
@@ -243,3 +244,134 @@ class Pages(Group):
         super().draw()
         for index, cell in enumerate(self._cells()):
             self.buffer[cell] = self.current_color if index == self._page else self.selector_color
+
+class Presets(Group):
+    """
+    A group that remembers what its widgets show (values, steps, pages...) in
+    slots, one per cell of its ``selector`` strip: press an empty cell to
+    store, a stored one to bring it back, hold one to store over it. Values
+    brought back are sent on (Changed), so outputs follow, unless ``send`` is
+    off. Emits PresetStored and PresetRecalled.
+    """
+
+    emits = (pyxelwidgets.events.PresetStored, pyxelwidgets.events.PresetRecalled)
+
+    actions = {'recall': 'int', 'store': 'int'}
+
+    def __init__(self, x: int = 0, y: int = 0, width: int = 1, height: int = 1, *,
+                 selector: Pages.Selector = Pages.Selector.Top,
+                 send: bool = True,
+                 current_color: pyxelwidgets.color.Color = pyxelwidgets.color.Colors.White,
+                 stored_color: pyxelwidgets.color.Color = pyxelwidgets.color.Color(0, 64, 96),
+                 empty_color: pyxelwidgets.color.Color = pyxelwidgets.color.Color(24, 24, 24),
+                 propagation: pyxelwidgets.widgets.Propagation = pyxelwidgets.widgets.Propagation.Stop,
+                 **kwargs):
+        """
+        selector: Pages.Selector = Pages.Selector.Top, optional
+            The side of the strip of slots (Off: only the ``store``/``recall`` actions).
+        send: bool = True, optional
+            Widgets brought back emit Changed with their values.
+        current_color, stored_color, empty_color: Color, optional
+            The slot brought back last, slots with something stored, empty ones.
+        """
+        self.selector = selector
+        self.send = send
+        self.current_color = current_color
+        self.stored_color = stored_color
+        self.empty_color = empty_color
+        #: What each slot stored: {slot: {widget path (names): state}}
+        self.presets = {}
+        #: The slot stored or brought back last, or None
+        self.preset = None
+        # The slot pressed, until let go (a hold stores instead)
+        self._pressed = None
+        super().__init__(x, y, width, height, propagation = propagation, **kwargs)
+
+    @property
+    def content(self) -> pyxelwidgets.rectangle.Rectangle2D:
+        """The area for widgets, relative to this one: everything but the strip."""
+        return Pages.content.fget(self)
+
+    def _cells(self) -> list:
+        w, h = self.rect.w, self.rect.h
+        return {
+            Pages.Selector.Top: [(i, h - 1) for i in range(w)],
+            Pages.Selector.Bottom: [(i, 0) for i in range(w)],
+            Pages.Selector.Left: [(0, h - 1 - i) for i in range(h)],
+            Pages.Selector.Right: [(w - 1, h - 1 - i) for i in range(h)],
+            Pages.Selector.Off: [],
+        }[self.selector]
+
+    def _widgets(self, group = None, path = ()):
+        """(path of names, widget) of every widget inside, groups' children included."""
+        for child in (group or self).children:
+            yield path + (child.name,), child
+            if isinstance(child, Group) and not isinstance(child, Presets):
+                yield from self._widgets(child, path + (child.name,))
+
+    def snapshot(self) -> dict:
+        """What the widgets inside show now, by path."""
+        return {path: copy.deepcopy(state) for path, widget in self._widgets() if (state := widget.save_state())}
+
+    def store(self, slot: int) -> None:
+        """Store what the widgets show in ``slot``."""
+        self.presets[int(slot)] = self.snapshot()
+        self.preset = int(slot)
+        self.updated = True
+        self.emit(pyxelwidgets.events.PresetStored(self, int(slot)))
+
+    def recall(self, slot: int) -> None:
+        """Bring back what ``slot`` stored (nothing if it's empty)."""
+        stored = self.presets.get(int(slot))
+        if stored is None:
+            return
+        widgets = dict(self._widgets())
+        for path, state in stored.items():
+            widget = widgets.get(path)
+            if widget is None:
+                continue
+            before = getattr(widget, 'value', None)
+            widget.load_state(copy.deepcopy(state))
+            if self.send and isinstance(widget, pyxelwidgets.widgets.ValueWidget) and widget.value != before:
+                widget.emit(pyxelwidgets.events.Changed(widget, widget.value))
+        self.preset = int(slot)
+        self.updated = True
+        self.emit(pyxelwidgets.events.PresetRecalled(self, int(slot)))
+
+    def save_state(self) -> dict:
+        return {'presets': copy.deepcopy(self.presets), 'preset': self.preset}
+
+    def load_state(self, state: dict) -> None:
+        if isinstance(state.get('presets'), dict):
+            self.presets = copy.deepcopy(state['presets'])
+            self.preset = state.get('preset')
+            self.updated = True
+
+    def input(self, event: pyxelwidgets.events.PadEvent) -> bool:
+        cells = self._cells()
+        if (event.x, event.y) not in cells:
+            return super().input(event)
+        slot = cells.index((event.x, event.y))
+        if isinstance(event, pyxelwidgets.events.PadPressed):
+            self._pressed = slot
+        elif isinstance(event, pyxelwidgets.events.PadHeld) and self._pressed == slot:
+            self._pressed = None
+            self.store(slot)
+        elif isinstance(event, pyxelwidgets.events.PadReleased) and self._pressed == slot:
+            self._pressed = None
+            if slot in self.presets:
+                self.recall(slot)
+            else:
+                self.store(slot)
+        return True
+
+    def draw(self) -> None:
+        super().draw()
+        for slot, cell in enumerate(self._cells()):
+            if slot == self.preset:
+                color = self.current_color
+            elif slot in self.presets:
+                color = self.stored_color
+            else:
+                color = self.empty_color
+            self.buffer[cell] = color

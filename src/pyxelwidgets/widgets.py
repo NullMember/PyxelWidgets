@@ -441,6 +441,148 @@ class ValueWidget(Widget):
             self.value = value
         self.emit(pyxelwidgets.events.Changed(self, value))
 
+class Scale(enum.Enum):
+    """A musical scale, for widgets laying out or choosing notes (Keyboard, PianoRoll, ChordPads...)."""
+    Major           = 0
+    Minor           = 1
+    Dorian          = 2
+    Mixolydian      = 3
+    Lydian          = 4
+    Phrygian        = 5
+    Locrian         = 6
+    Diminished      = 7
+    WholeHalf       = 8
+    WholeTone       = 9
+    MinorBlues      = 10
+    MinorPentatonic = 11
+    MajorPentatonic = 12
+    MinorHarmonic   = 13
+    MinorMelodic    = 14
+    Chromatic       = 15
+    MajorBlues      = 16
+    MajorHarmonic   = 17
+    PhrygianDominant = 18
+    HungarianMinor  = 19
+    DoubleHarmonic  = 20
+    BebopDominant   = 21
+    Hirajoshi       = 22
+    InSen           = 23
+    Iwato           = 24
+    Augmented       = 25
+
+#: Semitones from the root of each Scale, by name
+SCALES = {
+    'Major': [0, 2, 4, 5, 7, 9, 11],
+    'Minor': [0, 2, 3, 5, 7, 8, 10],
+    'Dorian': [0, 2, 3, 5, 7, 9, 10],
+    'Mixolydian': [0, 2, 4, 5, 7, 9, 10],
+    'Lydian': [0, 2, 4, 6, 7, 9, 11],
+    'Phrygian': [0, 1, 3, 5, 7, 8, 10],
+    'Locrian': [0, 1, 3, 5, 6, 8, 10],
+    'Diminished': [0, 1, 3, 4, 6, 7, 9, 10],
+    'WholeHalf': [0, 2, 3, 5, 6, 8, 9, 11],
+    'WholeTone': [0, 2, 4, 6, 8, 10],
+    'MinorBlues': [0, 3, 5, 6, 7, 10],
+    'MinorPentatonic': [0, 3, 5, 7, 10],
+    'MajorPentatonic': [0, 2, 4, 7, 9],
+    'MinorHarmonic': [0, 2, 3, 5, 7, 8, 11],
+    'MinorMelodic': [0, 2, 3, 5, 7, 9, 11],
+    'Chromatic': [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11],
+    'MajorBlues': [0, 2, 3, 4, 7, 9],
+    'MajorHarmonic': [0, 2, 4, 5, 7, 8, 11],
+    'PhrygianDominant': [0, 1, 4, 5, 7, 8, 10],
+    'HungarianMinor': [0, 2, 3, 6, 7, 8, 11],
+    'DoubleHarmonic': [0, 1, 4, 5, 7, 8, 11],
+    'BebopDominant': [0, 2, 4, 5, 7, 9, 10, 11],
+    'Hirajoshi': [0, 2, 3, 7, 8],
+    'InSen': [0, 1, 5, 7, 10],
+    'Iwato': [0, 1, 5, 6, 10],
+    'Augmented': [0, 3, 4, 7, 8, 11],
+}
+
+class Root(enum.Enum):
+    """The root note of a scale (CS is C sharp)."""
+    C   = 0
+    CS  = 1
+    D   = 2
+    DS  = 3
+    E   = 4
+    F   = 5
+    FS  = 6
+    G   = 7
+    GS  = 8
+    A   = 9
+    AS  = 10
+    B   = 11
+
+def scale_notes(scale: Scale, root: Root) -> list:
+    """Every MIDI note (0-127) in ``scale`` from ``root``, lowest first."""
+    steps = set(SCALES[scale.name])
+    return [note for note in range(128) if (note - root.value) % 12 in steps]
+
+class VelocityCurve(enum.Enum):
+    """
+    How hard a pad is hit becomes a note's velocity.
+
+    Linear: as hit. Soft: louder soft hits (for a light touch). Hard: softer
+    unless hit hard. Fixed: always the widget's ``fixed_velocity``.
+    """
+    Linear  = enum.auto()
+    Soft    = enum.auto()
+    Hard    = enum.auto()
+    Fixed   = enum.auto()
+
+class Velocity:
+    """
+    Mixin for widgets playing notes (Keyboard, DrumPads, Sequencer...): how
+    the velocity of the notes they play comes from the pads. ``velocity_of``
+    applies the curve to a hit, ``humanize`` the randomness to a played note.
+    """
+
+    def __init__(self, *args,
+                 velocity_curve: VelocityCurve = VelocityCurve.Linear,
+                 fixed_velocity: float = 1.0,
+                 velocity_random: float = 0.0,
+                 **kwargs):
+        """
+        velocity_curve: VelocityCurve = VelocityCurve.Linear, optional
+            How hard hits turn into velocities; Fixed plays every note at ``fixed_velocity``.
+        fixed_velocity: float = 1.0, optional
+            The velocity of every note with the Fixed curve, from 0 to 1.
+        velocity_random: float = 0.0, optional
+            Each note played is louder or softer by up to this much, at random (0 to 1).
+        """
+        if not 0.0 < fixed_velocity <= 1.0:
+            raise ValueError(f'fixed_velocity must be more than 0 and at most 1, got {fixed_velocity!r}')
+        if not 0.0 <= velocity_random <= 1.0:
+            raise ValueError(f'velocity_random must be from 0 to 1, got {velocity_random!r}')
+        self.velocity_curve = velocity_curve
+        self.fixed_velocity = fixed_velocity
+        self.velocity_random = velocity_random
+        if not hasattr(self, '_random'):
+            # Tests seed it
+            self._random = random.Random()
+        super().__init__(*args, **kwargs)
+
+    def velocity_of(self, velocity: float) -> float:
+        """The velocity a hit this hard gives, through ``velocity_curve``."""
+        velocity = min(max(float(velocity), 0.0), 1.0)
+        curve = self.velocity_curve
+        if curve == VelocityCurve.Fixed:
+            return float(self.fixed_velocity)
+        if curve == VelocityCurve.Soft:
+            return round(velocity ** 0.5, 6)
+        if curve == VelocityCurve.Hard:
+            return round(velocity ** 2, 6)
+        return velocity
+
+    def humanize(self, velocity: float) -> float:
+        """``velocity`` changed by up to ``velocity_random`` at random, kept above 0 (a note on stays one) and at most 1."""
+        spread = min(max(float(self.velocity_random), 0.0), 1.0)
+        if spread:
+            velocity += self._random.uniform(-spread, spread)
+        return round(min(max(velocity, 1 / 127), 1.0), 6)
+
 # Button class
 class Button(ValueWidget):
     """A pad area acting as one button: momentary (Button), toggle (Switch) or toggle on hold (Mixed)."""
@@ -452,39 +594,38 @@ class Button(ValueWidget):
     def __init__(self, x: int, y: int, width: int, height: int, *,
                  mode: Mode = Mode.Button,
                  **kwargs):
+        """
+        mode: Mode = Mode.Button, optional
+            Button: on while pressed. Switch: each press turns it on or off.
+            Mixed: on while pressed, but holding it keeps it on until the next hold.
+            The value is the press's velocity while on.
+        """
         super().__init__(x, y, width, height, **kwargs)
         self.mode = mode
         self.state = False
         self.is_hold = False
 
-    def handle_press(self, x: int, y: int, value: float):
+    def handle_press(self, x: int, y: int, velocity: float):
         if self.mode == Button.Mode.Button:
-            self.set_value(value)
+            self.set_value(velocity)
         elif self.mode == Button.Mode.Switch:
             if self.state:
                 self.set_value(0.0)
                 self.state = False
             else:
-                self.set_value(value)
+                self.set_value(velocity)
                 self.state = True
         elif self.mode == Button.Mode.Mixed:
-            if self.is_hold:
-                return
-            else:
-                self.set_value(value)
-    
-    def handle_release(self, x: int, y: int, value: float):
+            if not self.is_hold:
+                self.set_value(velocity)
+
+    def handle_release(self, x: int, y: int, velocity: float):
         if self.mode == Button.Mode.Button:
             self.set_value(0.0)
-        elif self.mode == Button.Mode.Switch:
-            pass
-        elif self.mode == Button.Mode.Mixed:
-            if self.is_hold:
-                return
-            else:
-                self.set_value(0.0)
-    
-    def handle_hold(self, x: int, y: int, value: float):
+        elif self.mode == Button.Mode.Mixed and not self.is_hold:
+            self.set_value(0.0)
+
+    def handle_hold(self, x: int, y: int, velocity: float):
         if self.mode == Button.Mode.Mixed:
             self.is_hold = not self.is_hold
 
@@ -523,29 +664,44 @@ class ButtonGroup(Widget):
 
     def __init__(self, x: int = 0, y: int = 0, width: int = 1, height: int = 1, *,
                  mode: Mode = Mode.Switch,
+                 allow_none: bool = False,
                  **kwargs):
-        self.state = numpy.ndarray((1, 1), dtype = numpy.bool_)
+        """
+        mode: Mode = Mode.Switch, optional
+            Switch: one cell on at a time (the bottom-left one at first).
+            Multi: each press turns a cell on or off. Button: cells are on while pressed.
+        allow_none: bool = False, optional
+            Switch: pressing the cell that's on turns it off, and none is on at first.
+        """
+        self.state = numpy.zeros((1, 1), dtype = numpy.bool_)
+        # The Switch's cell that's on
+        self._selected = None
         super().__init__(x=x, y=y, width=width, height=height, **kwargs)
         self.mode = mode
+        self.allow_none = allow_none
         self.state.fill(False)
-        self._old_button = [-1, -1]
-        if self.mode == ButtonGroup.Mode.Switch:
+        if self.mode == ButtonGroup.Mode.Switch and not allow_none:
             self.state[0, 0] = True
-            self._old_button = [0, 0]
+            self._selected = (0, 0)
 
-    def handle_press(self, x: int, y: int, value: float):
+    def handle_press(self, x: int, y: int, velocity: float):
         before = self.state.copy()
         if self.mode == ButtonGroup.Mode.Button:
             self.state[x, y] = True
-        if self.mode == ButtonGroup.Mode.Switch:
-            self.state[self._old_button[0], self._old_button[1]] = False
-            self._old_button = [x, y]
-            self.state[self._old_button[0], self._old_button[1]] = True
-        if self.mode == ButtonGroup.Mode.Multi:
+        elif self.mode == ButtonGroup.Mode.Switch:
+            if self._selected == (x, y) and self.allow_none:
+                self.state[x, y] = False
+                self._selected = None
+            else:
+                if self._selected is not None:
+                    self.state[self._selected] = False
+                self._selected = (x, y)
+                self.state[x, y] = True
+        elif self.mode == ButtonGroup.Mode.Multi:
             self.state[x, y] = not self.state[x, y]
         self._emit_toggled(before)
-    
-    def handle_release(self, x: int, y: int, value: float):
+
+    def handle_release(self, x: int, y: int, velocity: float):
         if self.mode == ButtonGroup.Mode.Button:
             before = self.state.copy()
             self.state[x, y] = False
@@ -563,7 +719,7 @@ class ButtonGroup(Widget):
             # One cell at most
             self.state.fill(False)
             self.state[tuple(on[0])] = True
-            self._old_button = [int(on[0][0]), int(on[0][1])]
+            self._selected = (int(on[0][0]), int(on[0][1]))
         self.updated = True
 
     def receive(self, values: dict) -> None:
@@ -579,7 +735,9 @@ class ButtonGroup(Widget):
         on = level > 0
         if self.mode == ButtonGroup.Mode.Switch and on:
             self.state.fill(False)
-            self._old_button = [x, y]
+            self._selected = (x, y)
+        elif self.mode == ButtonGroup.Mode.Switch and self._selected == (x, y):
+            self._selected = None
         self.state[x, y] = on
         self.updated = True
 
@@ -595,7 +753,9 @@ class ButtonGroup(Widget):
         self.buffer[area.slice] = numpy.where(self.state[(*area.slice, None)], self.active_color, self.inactive_color)
 
     def _resize(self, width, height):
-        self.state.resize((width, height), refcheck = False)
+        self.state = _fit(self.state, (width, height), False)
+        if self._selected is not None and not (self._selected[0] < width and self._selected[1] < height):
+            self._selected = None
         return True
 
 # Fader class
@@ -603,36 +763,25 @@ class Fader(ValueWidget):
     """A fader along a row or column (or across the whole area with Matrix grid), drawn in several styles."""
 
     class Direction(enum.Enum):
-        """
-        Description
-        ----
-        Vertical faders are bottom to top,
-        Horizontal faders are left to right.
-        
-        Enums
-        ----
-        Vertical\n
-        Horizontal
-        """
+        """Vertical faders go from the bottom to the top, horizontal ones from left to right."""
         Vertical    = enum.auto()
         Horizontal  = enum.auto()
 
     class Grid(enum.Enum):
         """
-        Description
-        ----
-        Determines how multi-width vertical faders
-        or multi-height horizontal faders will work
-        
-        Enums
-        ----
-        Simple\n
-        Matrix
+        How a fader thicker than one pad works. Simple: the extra pads repeat
+        (one value per row or column). Matrix: every pad is a part of the
+        range, row after row (or column after column).
         """
         Simple      = enum.auto()
         Matrix      = enum.auto()
 
     class Type(enum.Enum):
+        """
+        How the value is lit. Single: only the value's pad. BoostCut: from the
+        middle up or down. Wrap: from the start up to the value. Spread: from
+        the middle out both ways. Collapse: from both ends in.
+        """
         Single      = enum.auto()
         BoostCut    = enum.auto()
         Wrap        = enum.auto()
@@ -640,6 +789,13 @@ class Fader(ValueWidget):
         Collapse    = enum.auto()
 
     class Mode(enum.Enum):
+        """
+        What a press sets. Simple: the start of the pad's part of the range.
+        Multi: pressing the same pad again steps through its part
+        (``resolution`` steps). Magnitude: spread so the last pad is the top.
+        Sensitive: within the pad's part, by velocity. Relative: hold a pad
+        and press another to set a value within the held pad's part.
+        """
         Simple      = enum.auto()
         Multi       = enum.auto()
         Magnitude   = enum.auto()
@@ -654,75 +810,78 @@ class Fader(ValueWidget):
                  type: Type = Type.Wrap,
                  mode: Mode = Mode.Multi,
                  resolution: int = 4,
+                 slew: float = 0.0,
+                 clock: typing.Callable[[], float] = time.monotonic,
                  **kwargs):
         """
-        Description
-        ----
-        Fader class implements Widget class
+        direction: Direction = Direction.Vertical, optional
+            Bottom to top, or left to right.
+        grid: Grid = Grid.Simple, optional
+            How the pads across the direction work: repeating, or as more of the range.
+        type: Type = Type.Wrap, optional
+            How the value is lit.
+        mode: Mode = Mode.Multi, optional
+            What a press sets.
+        resolution: int = 4, optional
+            Multi mode: the steps within each pad.
+        slew: float = 0.0, optional
+            Seconds it takes to glide over the whole range to a pressed value
+            (emitting Changed on the way); 0 jumps there.
 
-        Parameters
-        ----
-        name: str
-            Unique widget name, used to find widgets registered on window.
-        x: int
-            x axis where widget will be placed on window, from left to right.
-            x value should be positive
-        y: int
-            y axis where widget will be placed on window, from bottom to top.
-            y value should be positive.
-        width: int
-            Widget width, should >= 1
-        height: int
-            Widget height, should >= 1
-        
-        Optional Parameters
-        ----
-        callback: function
-            If widget value is changed this function will be called.  
-            Should accept 3 parameters, (widget) name, event and value
-        active_color: [r: int, g: int, b: int] = [255, 255, 255]
-            If widget value is non-zero, this color will be used.
-        inactive_color: [r: int, g: int, b: int] = [0, 0, 0]
-            If widget value is zero, this color will be used.
-        value: int = 0.0
-            Default value of widget.
-        direction: Fader.Direction = Fader.Direction.Vertical
-            Can be Fader.Direction.Vertical or Fader.Direction.Horizontal.  
-            This will affect how widget rendered and value is calculated.  
-            Vertical faders from bottom to top, horizontal faders from left to right.
-        grid: Fader.Grid = Fader.Grid.Simple
-            Can be Fader.Grid.Simple or Fader.Grid.Matrix.  
-            Simple faders will use only one axis.  
-            Matrix faders will use both x and y axis.
-        type: Fader.Type = Fader.Type.Wrap
-            Single: Only corresponding pad will active.  
-            BoostCut: Corresponding pads from middle active.  
-            Wrap: Corresponding pads from bottom active.  
-            Spread: Corresponding pads from middle active symmetrically.  
+        Holding the first pad sets 0, the last 1, any other 0.5 (not in Relative mode).
         """
         self.direction = direction
         self.grid = grid
         self.type = type
         self.mode = mode
         self.resolution = resolution
+        self.slew = slew
+        self.clock = clock
+        # Where a slew is going, and when it last moved
+        self._target = None
+        self._last = None
         super().__init__(x, y, width, height, **kwargs)
         self._multi_step = 0
-        self._old_button = [-1, -1]
-        self._held_button = [-1, -1]
+        self._old_button = None
+        self._held_button = None
 
-    def handle_press(self, x: int, y: int, value: float):
+    def _go(self, value: float) -> None:
+        """Set ``value`` as input: at once, or gliding there with ``slew``."""
+        if self.slew > 0 and self.interactive:
+            self._target = self._clamp(value)
+            self._last = self.clock()
+            self.updated = True
+        else:
+            self._target = None
+            self.set_value(value)
+
+    def render(self, time = None) -> bool:
+        if self._target is not None:
+            now = self.clock()
+            elapsed, self._last = now - self._last, now
+            distance = self._target - self._value
+            move = elapsed / self.slew if self.slew > 0 else abs(distance)
+            if abs(distance) <= move:
+                value, self._target = self._target, None
+            else:
+                value = self._value + math.copysign(move, distance)
+            if value != self._value:
+                self.set_value(value)
+        return super().render(time)
+
+    def handle_press(self, x: int, y: int, velocity: float):
         if self.mode == Fader.Mode.Simple:
-            self.set_value(self._pressed_simple(x, y, value))
+            self._go(self._pressed_simple(x, y, velocity))
         elif self.mode == Fader.Mode.Multi:
-            self.set_value(self._pressed_multi(x, y, value))
+            self._go(self._pressed_multi(x, y, velocity))
         elif self.mode == Fader.Mode.Magnitude:
-            self.set_value(self._pressed_magnitude(x, y, value))
+            self._go(self._pressed_magnitude(x, y, velocity))
         elif self.mode == Fader.Mode.Sensitive:
-            self.set_value(self._pressed_sensitive(x, y, value))
+            self._go(self._pressed_sensitive(x, y, velocity))
         elif self.mode == Fader.Mode.Relative:
-            self.set_value(self._pressed_relative(x, y, value))
+            self._go(self._pressed_relative(x, y, velocity))
         self.updated = True
-    
+
     def _pressed_simple(self, x, y, value):
         if self.type == Fader.Type.BoostCut:
             if self._min_v[x][y] < 0.5:
@@ -733,35 +892,15 @@ class Fader(ValueWidget):
             return self._min_v[x][y]
 
     def _pressed_multi(self, x, y, value):
-        if self.type == Fader.Type.BoostCut:
-            if self._min_v[x][y] < 0.5:
-                if self._old_button[0] == x and self._old_button[1] == y:
-                    self._multi_step = (self._multi_step - 1) % self.resolution
-                else:
-                    self._old_button = [x, y]
-                    self._multi_step = self.resolution - 1
-                return self._calc_fader_value(x, y, self._multi_step / self.resolution)
-            else:
-                if self._old_button[0] == x and self._old_button[1] == y:
-                    self._multi_step = (self._multi_step + 1) % self.resolution
-                else:
-                    self._old_button = [x, y]
-                    self._multi_step = 0
-                return self._calc_fader_value(x, y, self._multi_step / self.resolution)
-        elif self.type == Fader.Type.Collapse:
-            if self._old_button[0] == x and self._old_button[1] == y:
-                self._multi_step = (self._multi_step - 1) % self.resolution
-            else:
-                self._old_button = [x, y]
-                self._multi_step = self.resolution - 1
-            return self._calc_fader_value(x, y, self._multi_step / self.resolution)
+        again = self._old_button == (x, y)
+        self._old_button = (x, y)
+        if self.type == Fader.Type.BoostCut and self._min_v[x][y] >= 0.5 or self.type not in (Fader.Type.BoostCut, Fader.Type.Collapse):
+            # Upwards: from the pad's start
+            self._multi_step = (self._multi_step + 1) % self.resolution if again else 0
         else:
-            if self._old_button[0] == x and self._old_button[1] == y:
-                self._multi_step = (self._multi_step + 1) % self.resolution
-            else:
-                self._old_button = [x, y]
-                self._multi_step = 0
-            return self._calc_fader_value(x, y, self._multi_step / self.resolution)
+            # Downwards (cuts, collapsing): from the pad's end
+            self._multi_step = (self._multi_step - 1) % self.resolution if again else self.resolution - 1
+        return self._calc_fader_value(x, y, self._multi_step / self.resolution)
 
     def _pressed_magnitude(self, x, y, value):
         return self._calc_fader_value(x, y, self._calc_fader_magnitude(x, y))
@@ -778,25 +917,24 @@ class Fader(ValueWidget):
             return self._calc_fader_value(x, y, value)
 
     def _pressed_relative(self, x, y, value):
-        if self._held_button[0] >= 0 and self._held_button[1] >= 0:
-            return self._calc_fader_value(self._held_button[0], self._held_button[1], self._calc_fader_magnitude(x, y))
-        else:
-            self._held_button = [x, y]
-            return self._calc_fader_value(x, y, self._calc_fader_magnitude(x, y))
+        if self._held_button is not None:
+            return self._calc_fader_value(*self._held_button, self._calc_fader_magnitude(x, y))
+        self._held_button = (x, y)
+        return self._calc_fader_value(x, y, self._calc_fader_magnitude(x, y))
 
-    def handle_hold(self, x: int, y: int, value: float):
+    def handle_hold(self, x: int, y: int, velocity: float):
         if self.mode != Fader.Mode.Relative:
             if x == 0 and y == 0:
-                self.set_value(0.0)
+                self._go(0.0)
             elif x == self.rect.w - 1 and y == self.rect.h - 1:
-                self.set_value(1.0)
+                self._go(1.0)
             else:
-                self.set_value(0.5)
+                self._go(0.5)
         self.updated = True
-    
-    def handle_release(self, x: int, y: int, value: float):
-        if self._held_button[0] == x and self._held_button[1] == y:
-            self._held_button = [-1, -1]
+
+    def handle_release(self, x: int, y: int, velocity: float):
+        if self._held_button == (x, y):
+            self._held_button = None
 
     def draw(self) -> None:
         halfval = self._value / 2.0
@@ -994,7 +1132,7 @@ class Fader(ValueWidget):
                 return 1.0 / self.rect.area
 
 # Keyboard class
-class Keyboard(Widget):
+class Keyboard(Velocity, Widget):
     """A playable note layout (piano, chromatic or in-scale) emitting NoteOn and NoteOff."""
 
     emits = (pyxelwidgets.events.NoteOn, pyxelwidgets.events.NoteOff)
@@ -1007,54 +1145,13 @@ class Keyboard(Widget):
         DiatonicVertical    = 4
         DiatonicHorizontal  = 5
 
-    class Scale(enum.Enum):
-        Major           = 0
-        Minor           = 1
-        Dorian          = 2
-        Mixolydian      = 3
-        Lydian          = 4
-        Phrygian        = 5
-        Locrian         = 6
-        Diminished      = 7
-        WholeHalf       = 8
-        WholeTone       = 9
-        MinorBlues      = 10
-        MinorPentatonic = 11
-        MajorPentatonic = 12
-        MinorHarmonic   = 13
-        MinorMelodic    = 14
-
-    class Root(enum.Enum):
-        C   = 0
-        CS  = 1
-        D   = 2
-        DS  = 3
-        E   = 4
-        F   = 5
-        FS  = 6
-        G   = 7
-        GS  = 8
-        A   = 9
-        AS  = 10
-        B   = 11
+    # The scales and roots are the module's (Keyboard.Scale is Scale)
+    Scale = Scale
+    Root = Root
 
     Scales = {
-        'Major': [0, 2, 4, 5, 7, 9, 11],
-        'Minor': [0, 2, 3, 5, 7, 8, 10],
-        'Dorian': [0, 2, 3, 5, 7, 9, 10],
-        'Mixolydian': [0, 2, 4, 5, 7, 9, 10],
-        'Lydian': [0, 2, 4, 6, 7, 9, 11],
-        'Phrygian': [0, 1, 3, 5, 7, 8, 10],
-        'Locrian': [0, 1, 3, 5, 6, 8, 10],
-        'Diminished': [0, 1, 3, 4, 6, 7, 9, 10],
-        'WholeHalf': [0, 2, 3, 5, 6, 8, 9, 11],
-        'WholeTone': [0, 2, 4, 6, 8, 10],
-        'MinorBlues': [0, 3, 5, 6, 7, 10],
-        'MinorPentatonic': [0, 3, 5, 7, 10],
-        'MajorPentatonic': [0, 2, 4, 7, 9],
-        'MinorHarmonic': [0, 2, 3, 5, 7, 8, 11],
-        'MinorMelodic': [0, 2, 3, 5, 7, 9, 11],
-
+        **SCALES,
+        # Rows of a piano: white keys, then black keys (-1 where there is none)
         'Keyboard': [0, 2, 4, 5, 7, 9, 11],
         'KeyboardUpper': [-1, 1, 3, -1, 6, 8, 10]
     }
@@ -1069,12 +1166,35 @@ class Keyboard(Widget):
                  keyboard_color: pyxelwidgets.color.Color = pyxelwidgets.color.Colors.Cyan,
                  non_scale_color: pyxelwidgets.color.Color = pyxelwidgets.color.Colors.Yellow,
                  active_color: pyxelwidgets.color.Color = pyxelwidgets.color.Colors.Green,
+                 transpose: int = 0,
                  **kwargs):
+        """
+        octave: int = 0, optional
+            Moves every note by octaves; octave 0 starts from MIDI note 0 (plus the root).
+        fold: int = 4, optional
+            Where rows repeat: the Chromatic types move each row by ``fold - 1``
+            semitones (6 makes rows of fourths, like a guitar or bass), the
+            Diatonic vertical and horizontal types by ``fold - 1`` scale notes
+            (4: in-key fourths, as on the Push).
+        type: Type = Type.Diatonic, optional
+            Keyboard: piano rows of white and black keys. Chromatic: every
+            semitone, rows moved by ``fold``. Diatonic: only the scale's notes,
+            each row an octave above the one below; the vertical and horizontal
+            variants overlap rows by ``fold``.
+        scale, root: optional
+            The notes in key: lit in ``keyboard_color`` (the root in
+            ``root_color``) and the only ones Diatonic types lay out.
+        transpose: int = 0, optional
+            Semitones added to the notes played, without moving the layout or its colors.
+        """
         self._octave = octave
+        self.transpose = transpose
+        # The note each held pad played, so it ends even if the layout changed since
+        self._held = {}
         self._fold = fold
         self._type: Keyboard.Type = type
-        self._scale: Keyboard.Scale = scale
-        self._root: Keyboard.Root = root
+        self._scale: Scale = scale
+        self._root: Root = root
         self._root_color: pyxelwidgets.color.Color = root_color
         self._keyboard_color: pyxelwidgets.color.Color = keyboard_color
         self._non_scale_color: pyxelwidgets.color.Color = non_scale_color
@@ -1164,22 +1284,27 @@ class Keyboard(Widget):
         self._resize(self.width, self.height)
         self.updated = True
 
-    def handle_press(self, x: int, y: int, value: float):
+    def handle_press(self, x: int, y: int, velocity: float):
         note = int(self.notes[x, y])
         if note >= 0:
             for button in self.buttons[note]:
                 self.states[button[0], button[1]] = True
             self.updated = True
-            self.emit(pyxelwidgets.events.NoteOn(self, note, value))
-    
-    def handle_release(self, x: int, y: int, value: float):
+            played = note + self.transpose
+            if 0 <= played <= 127:
+                self._held[(x, y)] = played
+                self.emit(pyxelwidgets.events.NoteOn(self, played, self.humanize(self.velocity_of(velocity))))
+
+    def handle_release(self, x: int, y: int, velocity: float):
         note = int(self.notes[x, y])
         if note >= 0:
             for button in self.buttons[note]:
                 self.states[button[0], button[1]] = False
             self.updated = True
-            self.emit(pyxelwidgets.events.NoteOff(self, note, value))
-    
+        played = self._held.pop((x, y), None)
+        if played is not None:
+            self.emit(pyxelwidgets.events.NoteOff(self, played, velocity))
+
     def draw(self) -> None:
         area = self.rect.origin
         for x in area.columns:
@@ -1263,45 +1388,64 @@ class Knob(ValueWidget):
     reshaping = ('type',)
 
     def __init__(self, x: int, y: int, width: int, height: int, *,
-                 coefficient: float = 0.05,
+                 speed: float = 1.5,
                  type: Type = Type.Wrap,
+                 clock: typing.Callable[[], float] = time.monotonic,
                  **kwargs):
+        """
+        speed: float = 1.5, optional
+            How fast a held pad turns the knob, in full turns per second at the
+            pads farthest from the top (pads nearer it turn slower). Pads on the
+            left (or bottom) half turn it down, on the right (or top) half up;
+            a pad on each side at once centres it.
+        type: Type = Type.Wrap, optional
+            How the value lights the ring, as Fader's types.
+        """
         super().__init__(x, y, width, height, **kwargs)
-        self.coefficient = coefficient
+        self.speed = speed
         self.type = type
+        self.clock = clock
+        #: Turning: a pad is held
         self.state = False
-        self._held = [-1, -1]
+        self._held = None
+        self._last = None
 
-    def handle_press(self, x: int, y: int, value: float):
-        if self._held == [-1, -1]:
-            if self._calc_knob_index(x, y) != -1:
-                self._held = [x, y]
+    def handle_press(self, x: int, y: int, velocity: float):
+        weight = self._calc_knob_weight(self._calc_knob_index(x, y))
+        if self._held is None:
+            if weight != 0.0:
+                self._held = (x, y)
                 self.state = True
+                self._last = self.clock()
                 self.updated = True
         else:
-            held_index = self._calc_knob_index(self._held[0], self._held[1])
-            cur_index = self._calc_knob_index(x, y)
-            half_perimeter = self.perimeter // 2
-            if held_index != -1 and cur_index != -1:
-                if (held_index < half_perimeter and cur_index >= half_perimeter) or (cur_index < half_perimeter and held_index >= half_perimeter):
-                    self.state = False
-                    self.set_value(0.5)
-    
-    def handle_release(self, x: int, y: int, value: float):
-        self._held = [-1, -1]
+            # A pad on the other side while one is held centres the value
+            held = self._calc_knob_weight(self._calc_knob_index(*self._held))
+            if held * weight < 0.0:
+                self.state = False
+                self.set_value(0.5)
+
+    def handle_release(self, x: int, y: int, velocity: float):
+        self._held = None
         self.state = False
-    
-    def tick(self):
+
+    def turn(self, seconds: float) -> None:
+        """Turn by what the held pad does in ``seconds`` (``render`` calls it while a pad is held)."""
+        if self.state and self._held is not None:
+            weight = self._calc_knob_weight(self._calc_knob_index(*self._held))
+            # Weights are at most 0.5
+            value = self._clamp(self._value + weight * 2.0 * self.speed * seconds)
+            if value != self._value:
+                self.set_value(value)
+
+    def render(self, time = None) -> bool:
         if self.state:
-            index = self._calc_knob_index(self._held[0], self._held[1])
-            if index != -1:
-                self.set_value(self._value + (self._calc_knob_weight(index) * self.coefficient))
+            now = self.clock()
+            elapsed, self._last = now - self._last, now
+            self.turn(elapsed)
+        return super().render(time)
 
     def draw(self) -> None:
-        if self.state:
-            # A held knob keeps turning every frame
-            self.tick()
-            self.updated = True
         halfval = self._value / 2.0
         halfvalpluspointfive = halfval + 0.5
         area = self.rect.origin
@@ -1312,6 +1456,9 @@ class Knob(ValueWidget):
                 max_v = self._max_v[index]
                 if index == -1:
                     self.buffer[x, y] = pyxelwidgets.color.Colors.Invisible
+                elif index >= self._pads:
+                    # The bottom middle pad of an odd width is where the ring ends
+                    self.buffer[x, y] = self.inactive_color
                 else:
                     if self.type == Knob.Type.Single:
                         if max_v < self._value:
@@ -1322,7 +1469,10 @@ class Knob(ValueWidget):
                             coefficient = self._calc_pixel_coefficient(self._value - min_v)
                             self.buffer[x, y] = self.active_color * coefficient
                     elif self.type == Knob.Type.BoostCut:
-                        if self._value > 0.5:
+                        if min_v < 0.5 < max_v:
+                            # A pad on the middle (odd widths) marks it
+                            self.buffer[x, y] = self.active_color
+                        elif self._value > 0.5:
                             if min_v < 0.5:
                                 self.buffer[x, y] = self.inactive_color
                             else:
@@ -1374,6 +1524,10 @@ class Knob(ValueWidget):
                             else:
                                 coefficient = 1.0 - self._calc_pixel_coefficient((1.0 - halfvalpluspointfive) - min_v)
                                 self.buffer[x, y] = self.active_color * coefficient
+                        else:
+                            # The pad on the middle (odd widths) fills first
+                            coefficient = min(1.0, self._calc_pixel_coefficient(self._value))
+                            self.buffer[x, y] = self.active_color * coefficient
                     elif self.type == Knob.Type.Collapse:
                         if halfval < 0.5:
                             if max_v <= 0.5:
@@ -1392,14 +1546,33 @@ class Knob(ValueWidget):
                                 else:
                                     coefficient = self._calc_pixel_coefficient((1.0 - halfval) - min_v)
                                     self.buffer[x, y] = self.active_color * coefficient
+                            else:
+                                # The pad on the middle (odd widths) empties last
+                                coefficient = min(1.0, self._calc_pixel_coefficient(1.0 - self._value))
+                                self.buffer[x, y] = self.active_color * coefficient
                         else:
                             self.buffer[x, y] = self.inactive_color
     
     def _resize(self, width, height):
         self.perimeter = self._calc_perimeter(width, height)
+        ring = width > 1 and height > 1
+        # Pads showing the value: around an odd width, all but the bottom middle
+        # one, so the top middle pad shows 0.5
+        self._pads = self.perimeter - 1 if ring and width % 2 else self.perimeter
         self.indexes = [[self._calc_knob_index(x, y) for y in range(height)] for x in range(width)]
         self._min_v = [self._calc_knob_value(index, 0.0) for index in range(self.perimeter)]
         self._max_v = [self._calc_knob_value(index, 1.0) for index in range(self.perimeter)]
+        # Turning speed per pad: minus on the first half, plus on the second,
+        # fastest at the ends and slowest next to the middle. With an odd
+        # number of pads, a pad centred on the middle (and around a border,
+        # the bottom pad centred on the ends) doesn't turn the knob.
+        offset = 1.0 if ring and width % 2 else 0.5
+        half = self.perimeter / 2
+        sides = [index + offset - half for index in range(self.perimeter)]
+        ranks = [0 if side in (0.0, half) else math.ceil(abs(side)) for side in sides]
+        fastest = 2 * max(ranks, default = 0)
+        self._weights = [round(math.copysign(rank / fastest, side), 6) if rank else 0.0
+                         for rank, side in zip(ranks, sides)]
         return True
 
     def _calc_knob_index(self, x: int, y: int) -> float:
@@ -1425,19 +1598,15 @@ class Knob(ValueWidget):
     def _calc_knob_value(self, index: int, value: float) -> float:
         if index == -1:
             return 0.0
-        return round(((index / self.perimeter) + (value / self.perimeter)), 6)
+        return round(((index / self._pads) + (value / self._pads)), 6)
     
     def _calc_knob_weight(self, index: int) -> float:
         if index == -1:
             return 0.0
-        halfperimeter = int(self.perimeter / 2)
-        if index < halfperimeter:
-            return round(-(0.5 - self._min_v[index]), 6)
-        else:
-            return round(self._max_v[index] - 0.5, 6)
+        return self._weights[index]
 
     def _calc_pixel_coefficient(self, value: float) -> float:
-        return value * self.perimeter
+        return value * self._pads
     
     def _calc_perimeter(self, width, height) -> float:    
         if width == 1:
@@ -1521,28 +1690,54 @@ class Timed:
         else:
             self.start()
 
-class Sequencer(Timed, Widget):
+def _fit(array: numpy.ndarray, shape: tuple, fill) -> numpy.ndarray:
+    """``array`` at ``shape``: the part that fits kept in place, the rest ``fill``."""
+    fitted = numpy.full(shape, fill, dtype = array.dtype)
+    _copy_overlap(fitted, array)
+    return fitted
+
+class Sequencer(Timed, Velocity, Widget):
     """
     Step sequencer. Each step plays when ``play(step)`` or ``advance()`` is
     called; its ``clock`` (the transport, one of its own, or none) does every
     ``rate``, with ``swing``. Emits StepPlayed, and StepEnded when an active
     step's ``gate`` ends. Steps beyond one screen are on pages: ``page`` is the
     one shown and edited.
+
+    Pressing a step turns it on (with the press's velocity); pressing an
+    active one turns it off when it's let go, unless it was edited while held:
+    link actions (``set_velocity``, ``set_probability``, ``set_ratchets``,
+    ``set_note``) change the held steps, or the last one pressed.
     """
 
     emits = (pyxelwidgets.events.StepPlayed, pyxelwidgets.events.StepEnded)
 
-    # Called 24 times a step, to time swing and gates
+    # Called 24 times a step, to time swing, gates and ratchets
     divisions = 24
 
-    actions = {'advance': None, 'play': 'int', 'reset': None, **Timed.clock_actions}
+    actions = {'advance': None, 'play': 'int', 'reset': None,
+               'set_velocity': 'float', 'set_probability': 'float', 'set_ratchets': 'int', 'set_note': 'int',
+               **Timed.clock_actions}
+
+    class Direction(enum.Enum):
+        """The order steps play in: forward, backward, forward then back (PingPong), or at random."""
+        Forward     = enum.auto()
+        Backward    = enum.auto()
+        PingPong    = enum.auto()
+        Random      = enum.auto()
+
+    #: The most hits a step can repeat in (``set_ratchets``)
+    MAX_RATCHETS = 8
 
     def __init__(self, x: int, y: int, width: int, height: int, *,
                  steps: int | None = None,
+                 length: int | None = None,
                  rate: Rate = '1/16',
                  step: int = 0,
                  page: int = 0,
                  follow: bool = True,
+                 direction: Direction = Direction.Forward,
+                 note: int = 36,
                  swing: float = 50.0,
                  gate: float = 0.5,
                  gate_random: float = 0.0,
@@ -1550,12 +1745,21 @@ class Sequencer(Timed, Widget):
                  current_active_color: pyxelwidgets.color.Color = pyxelwidgets.color.Colors.Red,
                  **kwargs):
         """
+        steps: int, optional
+            How many steps there are; more than the pads go on pages. Defaults to the pads.
+        length: int, optional
+            How many of them play before it starts over (the clock and
+            ``advance`` only); the rest keep what's on them. Defaults to ``steps``.
         step: int = 0, optional
             The current (playing) step.
         page: int = 0, optional
             The page shown and edited.
         follow: bool = True, optional
             Show the page of the playing step when it plays.
+        direction: Direction = Direction.Forward, optional
+            The order the clock and ``advance`` play steps in.
+        note: int = 36, optional
+            The note steps play (StepPlayed's ``note``) unless one has its own (``set_note``).
         swing: float = 50.0, optional
             Where every second step starts, in percent of a pair of steps: 50
             is straight, 66 a triplet feel, 75 the most. Needs a clock (calls
@@ -1572,9 +1776,13 @@ class Sequencer(Timed, Widget):
             raise ValueError(f'gate must be more than 0 and at most 1 step, got {gate!r}')
         if not 0.0 <= gate_random <= 1.0:
             raise ValueError(f'gate_random must be from 0 to 1 step, got {gate_random!r}')
+        if not 0 <= note <= 127:
+            raise ValueError(f'note must be from 0 to 127, got {note!r}')
         self.swing = swing
         self.gate = gate
         self.gate_random = gate_random
+        self.direction = direction
+        self.note = note
         self._random = random.Random()
         # Clock time in steps (its own clock counts while running), the swung step it played last,
         # the active step sounding and when (in steps) its gate ends
@@ -1584,14 +1792,28 @@ class Sequencer(Timed, Widget):
         self._sounding = None
         self._gate_length = 0.0
         self._gate_end = None
-        self.state = numpy.ndarray((1, 1), dtype = numpy.bool_)
+        # Ratchets of the sounding step still to come: (when the next one starts, how many, how far apart)
+        self._ratchet = None
+        # PingPong's way: +1 or -1
+        self._heading = 1
+        # Pads held: (x, y) → [step, turned off when let go]
+        self._held = {}
+        self._selected = None
+        self.state = numpy.zeros((1, 1), dtype = numpy.bool_)
+        #: Each step's velocity, chance to play (0-1), hits (ratchets) and note (-1: the widget's ``note``)
+        self.velocities = numpy.ones((1, 1))
+        self.probabilities = numpy.ones((1, 1))
+        self.ratchets = numpy.ones((1, 1), dtype = numpy.int8)
+        self.notes = numpy.full((1, 1), -1, dtype = numpy.int16)
         self._steps = steps if steps is not None else width * height
+        self._length = None
         self._step = 0
         self._page = 0
         self._page_count = 1
         self.current_page = 0
         super().__init__(x, y, width, height, **kwargs)
         self.state.fill(False)
+        self.length = length
         self.follow = follow
         self.rate = rate
         self.current_color = current_color
@@ -1631,12 +1853,18 @@ class Sequencer(Timed, Widget):
 
     @steps.setter
     def steps(self, value: int) -> None:
-        self._steps = value
-        self._page_count = int((self._steps - 1) / self.rect.area) + 1
-        self.state = numpy.zeros((self.rect.w, self.rect.h * self._page_count), dtype = numpy.bool_)
-        self._step %= self._steps
-        self._page %= self._page_count
-        self.current_page = self._step // self.rect.area
+        self._steps = max(int(value), 1)
+        self._fit_steps(self.rect.w, self.rect.h)
+        self.updated = True
+
+    @property
+    def length(self) -> int:
+        """How many steps play before it starts over (at most ``steps``)."""
+        return min(self._length, self._steps) if self._length is not None else self._steps
+
+    @length.setter
+    def length(self, value: int | None) -> None:
+        self._length = None if value is None else max(int(value), 1)
         self.updated = True
 
     @property
@@ -1648,9 +1876,22 @@ class Sequencer(Timed, Widget):
         self.state[self._tick_x(), self._tick_y()] = state
         self.updated = True
 
+    def _cell(self, step: int) -> tuple:
+        """Where ``step`` is in the step arrays."""
+        return step % self.rect.w, step // self.rect.w
+
+    def note_of(self, step: int) -> int:
+        """The note ``step`` plays."""
+        note = int(self.notes[self._cell(step)])
+        return note if note >= 0 else self.note
+
     def play(self, step: int) -> None:
-        """Move to ``step`` (wrapped to ``steps``) and emit StepPlayed; a sounding step ends first."""
+        """
+        Move to ``step`` (wrapped to ``steps``) and emit StepPlayed; a sounding
+        step ends first. An active step plays as its probability has it.
+        """
         self.silence()
+        self._ratchet = None
         self._step = int(step) % self._steps
         page = self._step // self.rect.area
         if page != self.current_page:
@@ -1658,31 +1899,38 @@ class Sequencer(Timed, Widget):
             if self.follow:
                 self._page = page
             self.emit(pyxelwidgets.events.PageChanged(self, self.current_page))
-        active = bool(self._is_tick_active())
-        gate = 0.0
+        cell = self._cell(self._step)
+        active = bool(self.state[cell])
+        if active and self.probabilities[cell] < 1.0:
+            active = self._random.random() < self.probabilities[cell]
+        gate = velocity = 0.0
         if active:
             spread = min(max(float(self.gate_random), 0.0), 1.0)
             gate = float(self.gate) + (self._random.uniform(-spread, spread) if spread else 0.0)
-            # At least one division, at most a step
-            gate = min(max(gate, 1 / self.divisions), 1.0)
+            # At least one division, at most a step; ratchets share it
+            gate = min(max(gate, 1 / self.divisions), 1.0) / max(int(self.ratchets[cell]), 1)
+            gate = max(gate, 1 / self.divisions)
+            velocity = self.humanize(float(self.velocities[cell]))
             self._sounding, self._gate_length, self._gate_end = self._step, gate, None
-        self.emit(pyxelwidgets.events.StepPlayed(self, self._step, active, gate))
+        self.emit(pyxelwidgets.events.StepPlayed(self, self._step, active, gate, velocity, self.note_of(self._step)))
         self.updated = True
 
     def silence(self) -> None:
         """End the sounding step's gate now (StepEnded), e.g. when the clock stops."""
         if self._sounding is not None:
             step, self._sounding, self._gate_end = self._sounding, None, None
-            self.emit(pyxelwidgets.events.StepEnded(self, step))
+            self.emit(pyxelwidgets.events.StepEnded(self, step, self.note_of(step)))
 
     def tick(self, count: int) -> None:
         """
         Called by its clock ``divisions`` times a step: plays steps (every second
-        one late by ``swing``) and ends gates. ``count`` counts divisions.
+        one late by ``swing``) in ``direction``, repeats ratchets and ends gates.
+        ``count`` counts divisions.
         """
         last, self._last_count = self._last_count, count
         if not self.running:
             self.silence()
+            self._ratchet = None
             # Its own clock resumes where it paused
             self._last_count = None
             return
@@ -1701,31 +1949,129 @@ class Sequencer(Timed, Widget):
             # Every second step starts late
             slot -= 1
         if slot == self._slot:
+            self._repeat()
             return
         self._slot = slot
         if self.clock == Clock.Transport:
-            self.play(slot)
+            self.play(self._order(slot))
         else:
             self.advance()
         if self._sounding is not None:
-            self._gate_end = slot + (delay if slot % 2 else 0.0) + self._gate_length
+            start = slot + (delay if slot % 2 else 0.0)
+            self._gate_end = start + self._gate_length
+            hits = int(self.ratchets[self._cell(self._sounding)])
+            if hits > 1:
+                # Until the next step starts: shorter after a late step, longer before one
+                length = 1.0 - delay if slot % 2 else 1.0 + delay
+                self._ratchet = (start + length / hits, hits - 1, length / hits)
+
+    def _repeat(self) -> None:
+        """Play the sounding step's next ratchet when its time comes."""
+        if self._ratchet is None or self._position < self._ratchet[0]:
+            return
+        start, left, apart = self._ratchet
+        step = self._step
+        self.silence()
+        cell = self._cell(step)
+        self._sounding, self._gate_end = step, start + self._gate_length
+        self._ratchet = (start + apart, left - 1, apart) if left > 1 else None
+        self.emit(pyxelwidgets.events.StepPlayed(self, step, True, self._gate_length,
+                                                 self.humanize(float(self.velocities[cell])), self.note_of(step)))
+
+    def _order(self, count: int) -> int:
+        """The step the transport's ``count``-th step is, in ``direction`` over ``length`` steps."""
+        length = self.length
+        if self.direction == Sequencer.Direction.Backward:
+            return length - 1 - count % length
+        if self.direction == Sequencer.Direction.PingPong:
+            if length == 1:
+                return 0
+            index = count % (2 * (length - 1))
+            return index if index < length else 2 * (length - 1) - index
+        if self.direction == Sequencer.Direction.Random:
+            return self._random.randrange(length)
+        return count % length
 
     def advance(self) -> None:
-        """Play the next step."""
-        self.play(self._step + 1)
+        """Play the next step, in ``direction`` over ``length`` steps."""
+        length, step = self.length, self._step
+        if self.direction == Sequencer.Direction.Backward:
+            following = step - 1 if 0 < step < length else length - 1
+        elif self.direction == Sequencer.Direction.PingPong:
+            if length == 1:
+                following = 0
+            else:
+                if not 0 <= step + self._heading < length:
+                    self._heading = -self._heading
+                following = min(max(step + self._heading, 0), length - 1)
+        elif self.direction == Sequencer.Direction.Random:
+            following = self._random.randrange(length)
+        else:
+            following = step + 1 if step + 1 < length else 0
+        self.play(following)
 
-    def handle_press(self, x: int, y: int, value: float):
-        if self._calc_tick_position(x, y) < self._steps:
-            page_y = y + (self.rect.h * self._tick_page())
-            self.state[x, page_y] = not self.state[x, page_y]
+    def handle_press(self, x: int, y: int, velocity: float):
+        step = self._calc_tick_position(x, y)
+        if step >= self._steps:
+            return
+        cell = self._cell(step)
+        self._selected = step
+        if self.state[cell]:
+            # Off when let go, unless edited while held
+            self._held[(x, y)] = [step, True]
+        else:
+            self.state[cell] = True
+            self.velocities[cell] = self.velocity_of(velocity)
+            self.probabilities[cell] = 1.0
+            self.ratchets[cell] = 1
+            self.notes[cell] = -1
+            self._held[(x, y)] = [step, False]
+        self.updated = True
+
+    def handle_release(self, x: int, y: int, velocity: float):
+        held = self._held.pop((x, y), None)
+        if held is not None and held[1]:
+            self.state[self._cell(held[0])] = False
             self.updated = True
 
+    def _edited(self) -> list:
+        """The steps an edit action changes: the held ones (kept on), else the last one pressed."""
+        if self._held:
+            for held in self._held.values():
+                held[1] = False
+            return [held[0] for held in self._held.values()]
+        return [self._selected] if self._selected is not None and self._selected < self._steps else []
+
+    def set_velocity(self, velocity: float) -> None:
+        """Set the velocity (0-1) of the held steps, or the last one pressed."""
+        for step in self._edited():
+            self.velocities[self._cell(step)] = min(max(float(velocity), 1 / 127), 1.0)
+        self.updated = True
+
+    def set_probability(self, probability: float) -> None:
+        """Set how likely (0-1) the held steps, or the last one pressed, play when their turn comes."""
+        for step in self._edited():
+            self.probabilities[self._cell(step)] = min(max(float(probability), 0.0), 1.0)
+
+    def set_ratchets(self, hits: int) -> None:
+        """Repeat the held steps, or the last one pressed, ``hits`` times within the step (needs a clock)."""
+        for step in self._edited():
+            self.ratchets[self._cell(step)] = min(max(int(hits), 1), Sequencer.MAX_RATCHETS)
+
+    def set_note(self, note: int) -> None:
+        """Give the held steps, or the last one pressed, a note of their own (-1: the widget's ``note``)."""
+        for step in self._edited():
+            self.notes[self._cell(step)] = min(max(int(note), -1), 127)
+
     def save_state(self) -> dict:
-        return {'cells': self.state.copy(), 'step': self._step, 'page': self._page}
+        return {'cells': self.state.copy(), 'velocities': self.velocities.copy(), 'probabilities': self.probabilities.copy(),
+                'ratchets': self.ratchets.copy(), 'notes': self.notes.copy(), 'step': self._step, 'page': self._page}
 
     def load_state(self, state: dict) -> None:
-        if 'cells' in state:
-            _copy_overlap(self.state, state['cells'])
+        for key, array in (('cells', self.state), ('velocities', self.velocities), ('probabilities', self.probabilities),
+                           ('ratchets', self.ratchets), ('notes', self.notes)):
+            if key in state:
+                _copy_overlap(array, state[key])
         if 'step' in state:
             self.step = state['step']
         if 'page' in state:
@@ -1735,27 +2081,45 @@ class Sequencer(Timed, Widget):
     def reset(self):
         """Clear every step."""
         self.state.fill(False)
+        self.velocities.fill(1.0)
+        self.probabilities.fill(1.0)
+        self.ratchets.fill(1)
+        self.notes.fill(-1)
         self.updated = True
 
     def draw(self) -> None:
-        area = self.rect.origin
-        tick_p = self._tick_page()
-        tick_x = self._tick_x()
-        tick_y = self._tick_y() % self.rect.h
-        state_area = area + pyxelwidgets.rectangle.Rectangle2D(0, self.rect.h * tick_p)
-        self.buffer[area.slice] = numpy.where(self.state[(*state_area.slice, None)], self.active_color, self.inactive_color)
-        if tick_p == self.current_page:
-            if numpy.array_equal(self.buffer[tick_x, tick_y], self.active_color):
-                self.buffer[tick_x, tick_y] = self.current_active_color
-            else:
-                self.buffer[tick_x, tick_y] = self.current_color
-    
-    def _resize(self, width, height):
+        page = self._page
+        length = self.length
+        for x in range(self.rect.w):
+            for y in range(self.rect.h):
+                step = self._calc_tick_position(x, y)
+                cell = (x, y + self.rect.h * page)
+                if self.state[cell]:
+                    # Softer steps are dimmer
+                    color = self.active_color * (0.25 + 0.75 * float(self.velocities[cell]))
+                else:
+                    color = self.inactive_color
+                if page == self.current_page and step == self._step:
+                    color = self.current_active_color if self.state[cell] else self.current_color
+                elif step >= length and self.state[cell]:
+                    # Past the length: kept, but not played
+                    color = color * 0.25
+                self.buffer[x, y] = color
+
+    def _fit_steps(self, width: int, height: int) -> None:
         self._page_count = int((self._steps - 1) / (width * height)) + 1
-        self.state.resize((width, height * self._page_count), refcheck = False)
+        shape = (width, height * self._page_count)
+        self.state = _fit(self.state, shape, False)
+        self.velocities = _fit(self.velocities, shape, 1.0)
+        self.probabilities = _fit(self.probabilities, shape, 1.0)
+        self.ratchets = _fit(self.ratchets, shape, 1)
+        self.notes = _fit(self.notes, shape, -1)
         self._step %= self._steps
         self._page %= self._page_count
         self.current_page = self._step // (width * height)
+
+    def _resize(self, width, height):
+        self._fit_steps(width, height)
         return True
     
     def _calc_tick_position(self, x, y):
@@ -1774,6 +2138,270 @@ class Sequencer(Timed, Widget):
     def _is_tick_active(self):
         return self.state[self._tick_x()][self._tick_y()]
     
+# PianoRoll class
+class PianoRoll(Timed, Velocity, Widget):
+    """
+    A melody editor: columns are steps, rows the notes of ``scale`` (the root's
+    rows tinted). Press a pad to add a note; hold a note's first pad and press
+    further along its row to make it longer; press a note to delete it. Plays
+    its notes (NoteOn, then NoteOff when they end) when ``play(step)`` or
+    ``advance()`` is called, its ``clock`` does every ``rate``.
+    """
+
+    emits = (pyxelwidgets.events.NoteOn, pyxelwidgets.events.NoteOff, pyxelwidgets.events.PageChanged)
+
+    actions = {'advance': None, 'play': 'int', 'reset': None, 'set_velocity': 'float', **Timed.clock_actions}
+
+    def __init__(self, x: int = 0, y: int = 0, width: int = 1, height: int = 1, *,
+                 steps: int = 16,
+                 rate: Rate = '1/16',
+                 step: int = 0,
+                 page: int = 0,
+                 follow: bool = True,
+                 octave: int = 4,
+                 row: int = 0,
+                 scale: Scale = Scale.Major,
+                 root: Root = Root.C,
+                 active_color: pyxelwidgets.color.Color = pyxelwidgets.color.Colors.Orange,
+                 root_color: pyxelwidgets.color.Color = pyxelwidgets.color.Color(32, 0, 48),
+                 current_color: pyxelwidgets.color.Color = pyxelwidgets.color.Color(0, 48, 0),
+                 current_active_color: pyxelwidgets.color.Color = pyxelwidgets.color.Colors.White,
+                 **kwargs):
+        """
+        steps: int = 16, optional
+            How many steps the melody has; more than the columns go on pages.
+        step: int = 0, optional
+            The current (playing) step.
+        page: int = 0, optional
+            The steps shown and edited, ``width`` per page.
+        follow: bool = True, optional
+            Show the page of the playing step when it plays.
+        octave: int = 4, optional
+            The bottom row is the root in this octave (4 with C: MIDI note 48)...
+        row: int = 0, optional
+            ...moved up (or down, as far as MIDI note 0) by this many rows of the scale.
+        scale, root: optional
+            The notes rows have: one row per note in the scale.
+        root_color: Color, optional
+            The background of the root's rows.
+        current_color, current_active_color: Color, optional
+            The playing step's column, and its notes.
+        """
+        if steps < 1:
+            raise ValueError(f'steps must be at least 1, got {steps!r}')
+        self.rate = rate
+        self.follow = follow
+        self.octave = octave
+        self.row = row
+        self.scale = scale
+        self.root = root
+        self.root_color = root_color
+        self.current_color = current_color
+        self.current_active_color = current_active_color
+        #: Notes by (first step, MIDI note): [length in steps, velocity]
+        self.notes = {}
+        # Notes sounding: MIDI note → steps left
+        self._sounding = {}
+        # Pads held: (x, y) → [first step, note, deleted when let go]
+        self._held = {}
+        self._selected = None
+        self._steps = steps
+        self._step = 0
+        self._page = 0
+        self.current_page = 0
+        super().__init__(x, y, width, height, active_color = active_color, **kwargs)
+        self.step = step
+        self.page = page
+
+    @property
+    def steps(self) -> int:
+        return self._steps
+
+    @steps.setter
+    def steps(self, value: int) -> None:
+        self._steps = max(int(value), 1)
+        self._step %= self._steps
+        self._page %= self.pages
+        self.updated = True
+
+    @property
+    def pages(self) -> int:
+        return (self._steps - 1) // self.rect.w + 1
+
+    @property
+    def page(self) -> int:
+        return self._page
+
+    @page.setter
+    def page(self, value: int) -> None:
+        self._page = int(value) % self.pages
+        self.updated = True
+
+    @property
+    def step(self) -> int:
+        """The current step; setting it moves there without playing it."""
+        return self._step
+
+    @step.setter
+    def step(self, value: int) -> None:
+        self._step = int(value) % self._steps
+        self.current_page = self._step // self.rect.w
+        if self.follow:
+            self._page = self.current_page
+        self.updated = True
+
+    def rows(self) -> list:
+        """The MIDI note of each row from the bottom, None past the highest note."""
+        notes = scale_notes(self.scale, self.root)
+        base = self.root.value + 12 * self.octave
+        # Never below the lowest note
+        bottom = max(next((index for index, note in enumerate(notes) if note >= base), len(notes)) + self.row, 0)
+        return [notes[bottom + y] if bottom + y < len(notes) else None for y in range(self.rect.h)]
+
+    def note_at(self, step: int, note: int):
+        """The first step of the note covering ``step`` on ``note``, or None."""
+        for (start, pitch), (length, _) in self.notes.items():
+            if pitch == note and start <= step < start + length:
+                return start
+        return None
+
+    def add_note(self, step: int, note: int, length: int = 1, velocity: float = 1.0) -> None:
+        """Add a note (replacing the ones it overlaps on its row)."""
+        for start, pitch in list(self.notes):
+            other = self.notes[(start, pitch)][0]
+            if pitch == note and start < step + length and step < start + other:
+                del self.notes[(start, pitch)]
+        self.notes[(int(step), int(note))] = [max(int(length), 1), float(velocity)]
+        self.updated = True
+
+    def handle_press(self, x: int, y: int, velocity: float) -> None:
+        step = self._page * self.rect.w + x
+        note = self.rows()[y]
+        if note is None or step >= self._steps:
+            return
+        # A note's first pad held: this pad makes it longer (or shorter)
+        for held in self._held.values():
+            start, pitch, _ = held
+            if pitch == note and start < step and (start, pitch) in self.notes:
+                self.notes[(start, pitch)][0] = step - start + 1
+                for other in list(self.notes):
+                    if other[1] == note and start < other[0] <= step:
+                        del self.notes[other]
+                held[2] = False
+                self.updated = True
+                return
+        start = self.note_at(step, note)
+        if start is not None:
+            # Deleted when let go, unless made longer or edited
+            self._held[(x, y)] = [start, note, True]
+        else:
+            self.add_note(step, note, 1, self.velocity_of(velocity))
+            self._held[(x, y)] = [step, note, False]
+            start = step
+        self._selected = (start, note)
+
+    def handle_release(self, x: int, y: int, velocity: float) -> None:
+        held = self._held.pop((x, y), None)
+        if held is not None and held[2]:
+            self.notes.pop((held[0], held[1]), None)
+            self.updated = True
+
+    def set_velocity(self, velocity: float) -> None:
+        """Set the velocity (0-1) of the held notes, or the last one pressed."""
+        if self._held:
+            for held in self._held.values():
+                held[2] = False
+            keys = [(held[0], held[1]) for held in self._held.values()]
+        else:
+            keys = [self._selected] if self._selected is not None else []
+        for key in keys:
+            if key in self.notes:
+                self.notes[key][1] = min(max(float(velocity), 1 / 127), 1.0)
+        self.updated = True
+
+    def play(self, step: int) -> None:
+        """Move to ``step`` (wrapped to ``steps``): notes ending there end (NoteOff), notes starting there start (NoteOn)."""
+        self._step = int(step) % self._steps
+        page = self._step // self.rect.w
+        if page != self.current_page:
+            self.current_page = page
+            if self.follow:
+                self._page = page
+            self.emit(pyxelwidgets.events.PageChanged(self, page))
+        for note in list(self._sounding):
+            self._sounding[note] -= 1
+            if self._sounding[note] <= 0:
+                del self._sounding[note]
+                self.emit(pyxelwidgets.events.NoteOff(self, note, 0.0))
+        for (start, note), (length, velocity) in sorted(self.notes.items()):
+            if start == self._step and 0 <= note <= 127:
+                if note in self._sounding:
+                    self.emit(pyxelwidgets.events.NoteOff(self, note, 0.0))
+                self._sounding[note] = length
+                self.emit(pyxelwidgets.events.NoteOn(self, note, self.humanize(velocity)))
+        self.updated = True
+
+    def advance(self) -> None:
+        """Play the next step."""
+        self.play(self._step + 1)
+
+    def silence(self) -> None:
+        """End every sounding note (NoteOff), e.g. when the clock stops."""
+        for note in list(self._sounding):
+            del self._sounding[note]
+            self.emit(pyxelwidgets.events.NoteOff(self, note, 0.0))
+
+    def reset(self) -> None:
+        """Delete every note."""
+        self.notes.clear()
+        self.updated = True
+
+    def save_state(self) -> dict:
+        return {'notes': {key: list(value) for key, value in self.notes.items()}, 'step': self._step, 'page': self._page}
+
+    def load_state(self, state: dict) -> None:
+        if isinstance(state.get('notes'), dict):
+            self.notes = {tuple(key): list(value) for key, value in state['notes'].items()}
+        for key in ('step', 'page'):
+            if key in state:
+                setattr(self, key, state[key])
+        self.updated = True
+
+    def draw(self) -> None:
+        covered = {}
+        for (start, note), (length, velocity) in self.notes.items():
+            for offset in range(length):
+                covered[(start + offset, note)] = (offset == 0, velocity)
+        rows = self.rows()
+        playing = self._page == self.current_page
+        for x in range(self.rect.w):
+            step = self._page * self.rect.w + x
+            for y, note in enumerate(rows):
+                if note is None or step >= self._steps:
+                    self.buffer[x, y] = pyxelwidgets.color.Colors.Black
+                    continue
+                cell = covered.get((step, note))
+                current = playing and step == self._step
+                if cell is not None:
+                    first, velocity = cell
+                    if current:
+                        color = self.current_active_color
+                    else:
+                        # A note's first pad by its velocity, the rest of it dimmer
+                        color = self.active_color * ((0.3 + 0.7 * velocity) if first else 0.35)
+                elif current:
+                    color = self.current_color
+                elif (note - self.root.value) % 12 == 0:
+                    color = self.root_color
+                else:
+                    color = self.inactive_color
+                self.buffer[x, y] = color
+
+    def _resize(self, width, height) -> bool:
+        self._page %= (self._steps - 1) // width + 1
+        self.current_page = self._step // width
+        return True
+
 # Sprite class
 class Sprite(Widget):
     """
@@ -1831,23 +2459,25 @@ class Sprite(Widget):
         self.buffer[:] = self.frames[self.frame]
 
 # Tracker class
-class Tracker(Timed, Widget):
+class Tracker(Timed, Velocity, Widget):
     """
     A scrolling step grid where rows are steps and columns are tracks. Rows
     play when ``play(row)`` or ``advance()`` is called; its ``clock`` does
-    every ``rate``. Emits RowPlayed. The rows shown and edited start at
-    ``bar`` (top) on ``page``.
+    every ``rate``. Emits RowPlayed, and for each active cell a NoteOn (its
+    track's note, ``note + column``, or its own) ending with a NoteOff when
+    the next row plays. The rows shown and edited start at ``bar`` (top) on
+    ``page``.
+
+    Pressing a cell turns it on (with the press's velocity); pressing an
+    active one turns it off when it's let go, unless it was edited while held
+    (``set_note``, ``set_velocity``: the held cells, or the last one pressed).
     """
 
-    emits = (pyxelwidgets.events.RowPlayed,)
+    emits = (pyxelwidgets.events.RowPlayed, pyxelwidgets.events.NoteOn, pyxelwidgets.events.NoteOff)
 
     reshaping = ('bars', 'pages')
 
-    actions = {'advance': None, 'play': 'int', **Timed.clock_actions}
-
-    # class Scroll(enum.Enum):
-    #     Continuous = enum.auto()
-    #     Page = enum.auto()
+    actions = {'advance': None, 'play': 'int', 'set_note': 'int', 'set_velocity': 'float', **Timed.clock_actions}
 
     def __init__(self, x: int = 0, y: int = 0, width: int = 1, height: int = 1, *,
                  bars: int = 64,
@@ -1857,10 +2487,15 @@ class Tracker(Timed, Widget):
                  page: int = 0,
                  bar: int = 0,
                  follow: bool = True,
+                 note: int = 36,
                  current_color: pyxelwidgets.color.Color = pyxelwidgets.color.Colors.Cyan,
                  current_active_color: pyxelwidgets.color.Color = pyxelwidgets.color.Colors.Magenta,
                  **kwargs):
         """
+        bars: int = 64, optional
+            Rows on each page.
+        pages: int = 1, optional
+            Pages of ``bars`` rows, played one after the other.
         step: int = 0, optional
             The current (playing) row over all pages: ``page * bars + bar``.
         page: int = 0, optional
@@ -1869,12 +2504,22 @@ class Tracker(Timed, Widget):
             The first row shown, at the top.
         follow: bool = True, optional
             Scroll to the playing row when it plays.
+        note: int = 36, optional
+            The first column's note; each column to the right plays the next one.
         """
         self.bars = bars
         self.bars = self.bars if self.bars >= height else height
         self.pages = pages
         self.pages = self.pages if self.pages > 0 else 1
-        self.states = numpy.ndarray((1, 1, 1), dtype = numpy.bool_)
+        self.note = note
+        self.states = numpy.zeros((1, 1, 1), dtype = numpy.bool_)
+        #: Each cell's note (-1: its column's) and velocity
+        self.notes = numpy.full((1, 1, 1), -1, dtype = numpy.int16)
+        self.velocities = numpy.ones((1, 1, 1))
+        # Notes sounding; pads held: (x, y) → [(page, column, row), turned off when let go]
+        self._sounding = []
+        self._held = {}
+        self._selected = None
         self.current_bar = 0
         self.current_page = 0
         self._page = 0
@@ -1926,17 +2571,72 @@ class Tracker(Timed, Widget):
     def current_bottom(self) -> int:
         return self._bar + self.rect.h - 1
 
-    def handle_press(self, x: int, y: int, value: float):
+    def note_of(self, page: int, column: int, row: int) -> int:
+        """The note of a cell: its own, or its column's."""
+        note = int(self.notes[page, column, row])
+        return note if note >= 0 else self.note + column
+
+    def handle_press(self, x: int, y: int, velocity: float):
         row = self.rect.h - 1 - y + self._bar
-        if row < self.bars:
-            self.states[self._page, x, row] = not self.states[self._page, x, row]
+        if row >= self.bars:
+            return
+        cell = (self._page, x, row)
+        self._selected = cell
+        if self.states[cell]:
+            # Off when let go, unless edited while held
+            self._held[(x, y)] = [cell, True]
+        else:
+            self.states[cell] = True
+            self.notes[cell] = -1
+            self.velocities[cell] = self.velocity_of(velocity)
+            self._held[(x, y)] = [cell, False]
+        self.updated = True
+
+    def handle_release(self, x: int, y: int, velocity: float):
+        held = self._held.pop((x, y), None)
+        if held is not None and held[1]:
+            self.states[held[0]] = False
             self.updated = True
 
+    def _edited(self) -> list:
+        if self._held:
+            for held in self._held.values():
+                held[1] = False
+            return [held[0] for held in self._held.values()]
+        return [self._selected] if self._selected is not None else []
+
+    def set_note(self, note: int) -> None:
+        """Give the held cells, or the last one pressed, a note of their own (-1: their column's)."""
+        for cell in self._edited():
+            self.notes[cell] = min(max(int(note), -1), 127)
+
+    def set_velocity(self, velocity: float) -> None:
+        """Set the velocity (0-1) of the held cells, or the last one pressed."""
+        for cell in self._edited():
+            self.velocities[cell] = min(max(float(velocity), 1 / 127), 1.0)
+
     def play(self, step: int) -> None:
-        """Move to ``step`` (wrapping through rows, then pages) and emit RowPlayed with the row's active columns."""
+        """
+        Move to ``step`` (wrapping through rows, then pages): the last row's
+        notes end, RowPlayed with the row's active columns, then their notes.
+        """
+        self.silence()
         self.scroll(step)
         row = self.states[self.current_page, :, self.current_bar]
-        self.emit(pyxelwidgets.events.RowPlayed(self, self.current_bar, tuple(int(i) for i in numpy.flatnonzero(row))))
+        columns = tuple(int(i) for i in numpy.flatnonzero(row))
+        notes = tuple(self.note_of(self.current_page, column, self.current_bar) for column in columns)
+        self.emit(pyxelwidgets.events.RowPlayed(self, self.current_bar, columns, notes))
+        for column, note in zip(columns, notes):
+            if 0 <= note <= 127 and note not in self._sounding:
+                self._sounding.append(note)
+                velocity = float(self.velocities[self.current_page, column, self.current_bar])
+                self.emit(pyxelwidgets.events.NoteOn(self, note, self.humanize(velocity)))
+
+    def silence(self) -> None:
+        """End the notes sounding (NoteOff)."""
+        for note in self._sounding:
+            self.emit(pyxelwidgets.events.NoteOff(self, note, 0.0))
+        self._sounding = []
 
     def advance(self) -> None:
         """Play the next row."""
@@ -1953,11 +2653,13 @@ class Tracker(Timed, Widget):
         self.updated = True
 
     def save_state(self) -> dict:
-        return {'cells': self.states.copy(), 'step': self.step, 'page': self._page, 'bar': self._bar}
+        return {'cells': self.states.copy(), 'notes': self.notes.copy(), 'velocities': self.velocities.copy(),
+                'step': self.step, 'page': self._page, 'bar': self._bar}
 
     def load_state(self, state: dict) -> None:
-        if 'cells' in state:
-            _copy_overlap(self.states, state['cells'])
+        for key, array in (('cells', self.states), ('notes', self.notes), ('velocities', self.velocities)):
+            if key in state:
+                _copy_overlap(array, state[key])
         for key in ('step', 'page', 'bar'):
             if key in state:
                 setattr(self, key, state[key])
@@ -1972,14 +2674,17 @@ class Tracker(Timed, Widget):
             self.buffer[:, self.current_bottom - self.current_bar] = numpy.where(self.states[self.current_page, :, self.current_bar, None], self.current_active_color, self.current_color)
 
     def _resize(self, width, height) -> bool:
-        self.states.resize((self.pages, width, self.bars), refcheck = False)
+        shape = (self.pages, width, self.bars)
+        self.states = _fit(self.states, shape, False)
+        self.notes = _fit(self.notes, shape, -1)
+        self.velocities = _fit(self.velocities, shape, 1.0)
         self._page %= self.pages
         self.scroll(self.step)
         self.bar = self._bar
         return True
 
 # DrumPads class
-class DrumPads(Widget):
+class DrumPads(Velocity, Widget):
     """
     Drum pads: one note per pad, ``note`` at the bottom-left, then left to
     right and up (4x4 from 36 is the General MIDI kit), moved by ``bank``
@@ -2018,6 +2723,7 @@ class DrumPads(Widget):
     def handle_press(self, x: int, y: int, velocity: float) -> None:
         note = self.note_at(x, y)
         if note is not None:
+            velocity = self.humanize(self.velocity_of(velocity))
             self._light(x, y, velocity)
             self.emit(pyxelwidgets.events.NoteOn(self, note, velocity))
 
@@ -2065,6 +2771,34 @@ class DrumPads(Widget):
     def _resize(self, width, height) -> bool:
         self.levels = numpy.zeros((width, height))
         return True
+
+def _meter_fall(meter, value: float, shown: float, peak: float, peak_time: float, now: float, elapsed: float) -> tuple:
+    """A meter's (shown level, peak, peak time) after ``elapsed`` seconds showing ``value`` (Meter, MeterBank)."""
+    if meter.falloff > 0 and value < shown:
+        shown = max(value, shown - meter.falloff * elapsed)
+    else:
+        shown = value
+    if shown >= peak:
+        peak, peak_time = shown, now
+    elif now - peak_time >= meter.hold:
+        peak = shown
+    return shown, peak, peak_time
+
+def _meter_bar(meter, shown: float, peak: float, cells: int) -> list:
+    """The colors of a meter's ``cells`` from the bottom (or left) showing ``shown`` and ``peak``."""
+    peak = min(int(peak * cells - 1e-9), cells - 1) if meter.hold > 0 and peak > shown else -1
+    colors = []
+    for index in range(cells):
+        # Each cell covers its part of the range; the top lit one is partly lit
+        lit = min(1.0, max(0.0, shown * cells - index))
+        level = (index + 0.5) / cells
+        color = meter.danger_color if level > meter.danger else meter.warning_color if level > meter.warning else meter.active_color
+        if lit > 0:
+            color = color * lit
+        elif index != peak:
+            color = meter.inactive_color
+        colors.append(color)
+    return colors
 
 # Meter class
 class Meter(ValueWidget):
@@ -2128,39 +2862,15 @@ class Meter(ValueWidget):
     def render(self, time = None) -> bool:
         now = self.clock()
         elapsed, self._last = now - self._last, now
-        shown, peak = self._shown, self._peak
-        if self.falloff > 0 and self._value < shown:
-            shown = max(self._value, shown - self.falloff * elapsed)
-        else:
-            shown = self._value
-        if shown >= peak:
-            peak, self._peak_time = shown, now
-        elif now - self._peak_time >= self.hold:
-            peak = shown
+        shown, peak, self._peak_time = _meter_fall(self, self._value, self._shown, self._peak, self._peak_time, now, elapsed)
         if (shown, peak) != (self._shown, self._peak):
             self._shown, self._peak = shown, peak
             self.updated = True
         return super().render(time)
 
-    def _color(self, level: float) -> pyxelwidgets.color.Color:
-        if level > self.danger:
-            return self.danger_color
-        if level > self.warning:
-            return self.warning_color
-        return self.active_color
-
     def draw(self) -> None:
         vertical = self.direction == Meter.Direction.Vertical
-        cells = self.rect.h if vertical else self.rect.w
-        peak = min(int(self._peak * cells - 1e-9), cells - 1) if self.hold > 0 and self._peak > self._shown else -1
-        for index in range(cells):
-            # Each cell covers its part of the range; the top lit one is partly lit
-            lit = min(1.0, max(0.0, self._shown * cells - index))
-            color = self._color((index + 0.5) / cells)
-            if lit > 0:
-                color = color * lit
-            elif index != peak:
-                color = self.inactive_color
+        for index, color in enumerate(_meter_bar(self, self._shown, self._peak, self.rect.h if vertical else self.rect.w)):
             if vertical:
                 self.buffer[:, index] = color
             else:
@@ -2330,19 +3040,32 @@ class ClipLauncher(Timed, Widget):
 class XY(ValueWidget):
     """A two dimensional value (x, y) set by pressing anywhere in the area."""
 
-    class Direction(enum.Enum):
-        Vertical    = enum.auto()
-        Horizontal  = enum.auto()
-
     def __init__(self, x: int, y: int, width: int, height: int, *,
                  x_color: pyxelwidgets.color.Color = pyxelwidgets.color.Colors.Cyan,
                  y_color: pyxelwidgets.color.Color = pyxelwidgets.color.Colors.Magenta,
                  value: tuple = (0.0, 0.0),
+                 spring: bool = False,
+                 rest: tuple = (0.5, 0.5),
                  **kwargs):
+        """
+        x_color, y_color: Color, optional
+            The column of the x value and the row of the y value.
+        value: tuple = (0.0, 0.0), optional
+            Initial (x, y), each from 0.0 to 1.0.
+        spring: bool = False, optional
+            Goes back to ``rest`` when every pad is let go, like a joystick.
+        rest: tuple = (0.5, 0.5), optional
+            Where ``spring`` brings it back to.
+
+        Holding a pad and pressing others sets values within the held pad.
+        """
         super().__init__(x, y, width, height, value = value, **kwargs)
         self.x_color = x_color
         self.y_color = y_color
-        self._held_button = [-1, -1]
+        self.spring = spring
+        self.rest = rest
+        self._held_button = None
+        self._pressed = set()
 
     def _clamp(self, value) -> tuple:
         return tuple(round(min(1.0, max(0.0, v)), 6) for v in value)
@@ -2350,20 +3073,24 @@ class XY(ValueWidget):
     def _delta(self, old, new) -> tuple:
         return tuple(n - o for o, n in zip(old, new))
 
-    def handle_press(self, x: int, y: int, value: float):
-        if self._held_button[0] >= 0 and self._held_button[1] >= 0:
-            self.set_value(self._calc_xy_value_with_magnitude(self._held_button[0], self._held_button[1], x, y))
+    def handle_press(self, x: int, y: int, velocity: float):
+        self._pressed.add((x, y))
+        if self._held_button is not None:
+            self.set_value(self._calc_xy_value_with_magnitude(*self._held_button, x, y))
         else:
-            self.set_value(self._calc_xy_value(x, y, value))
-    
-    def handle_hold(self, x: int, y: int, value: float):
-        if self._held_button[0] == -1 and self._held_button[1] == -1:
-            self._held_button = [x, y]
+            self.set_value(self._calc_xy_value(x, y, velocity))
+
+    def handle_hold(self, x: int, y: int, velocity: float):
+        if self._held_button is None:
+            self._held_button = (x, y)
             self.set_value(self._calc_xy_value_with_magnitude(x, y, x, y))
-    
-    def handle_release(self, x: int, y: int, value: float):
-        if self._held_button[0] == x and self._held_button[1] == y:
-            self._held_button = [-1, -1]
+
+    def handle_release(self, x: int, y: int, velocity: float):
+        self._pressed.discard((x, y))
+        if self._held_button == (x, y):
+            self._held_button = None
+        if self.spring and not self._pressed:
+            self.set_value(self.rest)
 
     def draw(self) -> None:
         area = self.rect.origin
@@ -2523,3 +3250,943 @@ class Text(Widget):
                 xs = numpy.flatnonzero(lit) + left
                 self.buffer[xs, y] = self.active_color
 
+# ChordPads class
+class ChordPads(Velocity, Widget):
+    """
+    Chords in key: columns are the degrees of ``scale`` (I, II, III... from the
+    left, then on in the next octave), rows kinds of chords built on them from
+    the scale's notes (``CHORDS``, from the bottom). A pad plays its chord's
+    notes (NoteOn, NoteOff); a note two chords share ends with the last one.
+    """
+
+    emits = (pyxelwidgets.events.NoteOn, pyxelwidgets.events.NoteOff)
+
+    #: Each row from the bottom: (name, the chord's notes in scale notes from the degree);
+    #: more rows repeat them an octave up
+    CHORDS = (('triad', (0, 2, 4)), ('seventh', (0, 2, 4, 6)), ('first inversion', (2, 4, 7)),
+              ('second inversion', (4, 7, 9)), ('sus2', (0, 1, 4)), ('sus4', (0, 3, 4)),
+              ('ninth', (0, 2, 4, 6, 8)), ('open', (0, 4, 9)))
+
+    def __init__(self, x: int = 0, y: int = 0, width: int = 1, height: int = 1, *,
+                 octave: int = 4,
+                 scale: Scale = Scale.Major,
+                 root: Root = Root.C,
+                 active_color: pyxelwidgets.color.Color = pyxelwidgets.color.Colors.Lime,
+                 inactive_color: pyxelwidgets.color.Color = pyxelwidgets.color.Color(0, 40, 64),
+                 root_color: pyxelwidgets.color.Color = pyxelwidgets.color.Color(80, 0, 80),
+                 **kwargs):
+        """
+        octave: int = 4, optional
+            The first column's chords start on the root in this octave (4 with C: MIDI note 48).
+        scale, root: optional
+            The key the chords are in.
+        root_color: Color, optional
+            The columns of the root (I).
+        """
+        self.octave = octave
+        self.scale = scale
+        self.root = root
+        self.root_color = root_color
+        # Pads held → the notes they play; notes sounding → how many pads play them
+        self._held = {}
+        self._counts = {}
+        super().__init__(x, y, width, height, active_color = active_color, inactive_color = inactive_color, **kwargs)
+
+    def chord_at(self, x: int, y: int) -> list:
+        """The notes of the pad at ``x``, ``y`` (those up to 127)."""
+        notes = scale_notes(self.scale, self.root)
+        base = self.root.value + 12 * self.octave
+        first = next((index for index, note in enumerate(notes) if note >= base), len(notes))
+        steps = len(SCALES[self.scale.name])
+        _, chord = ChordPads.CHORDS[y % len(ChordPads.CHORDS)]
+        first += x + (y // len(ChordPads.CHORDS)) * steps
+        return [notes[first + step] for step in chord if 0 <= first + step < len(notes)]
+
+    def handle_press(self, x: int, y: int, velocity: float) -> None:
+        notes = self.chord_at(x, y)
+        if not notes or (x, y) in self._held:
+            return
+        self._held[(x, y)] = notes
+        velocity = self.velocity_of(velocity)
+        for note in notes:
+            self._counts[note] = self._counts.get(note, 0) + 1
+            if self._counts[note] == 1:
+                self.emit(pyxelwidgets.events.NoteOn(self, note, self.humanize(velocity)))
+        self.updated = True
+
+    def handle_release(self, x: int, y: int, velocity: float) -> None:
+        for note in self._held.pop((x, y), []):
+            self._counts[note] -= 1
+            if not self._counts[note]:
+                del self._counts[note]
+                self.emit(pyxelwidgets.events.NoteOff(self, note, velocity))
+        self.updated = True
+
+    def draw(self) -> None:
+        steps = len(SCALES[self.scale.name])
+        for x in range(self.rect.w):
+            for y in range(self.rect.h):
+                if (x, y) in self._held:
+                    color = self.active_color
+                elif not self.chord_at(x, y):
+                    color = pyxelwidgets.color.Colors.Black
+                elif x % steps == 0:
+                    color = self.root_color
+                else:
+                    color = self.inactive_color
+                self.buffer[x, y] = color
+
+# Arpeggiator class
+class Arpeggiator(Timed, Velocity, Widget):
+    """
+    Plays the notes held on it one at a time, every ``rate``, in ``mode``
+    over ``octaves``. Its pads are the notes of ``scale`` (each row an octave
+    above the one below); notes can also come from links (``add``/``remove``,
+    e.g. a Keyboard's NoteOn/NoteOff). With ``latch`` notes keep playing when
+    let go, until new ones are pressed. Emits NoteOn and NoteOff.
+    """
+
+    emits = (pyxelwidgets.events.NoteOn, pyxelwidgets.events.NoteOff)
+
+    # Called 24 times a step, to time gates
+    divisions = 24
+
+    actions = {'advance': None, 'play': 'int', 'add': 'int', 'remove': 'int', 'clear': None, **Timed.clock_actions}
+
+    class Mode(enum.Enum):
+        """Up, Down, up then down (UpDown), at random, or in the order they were pressed (Played)."""
+        Up      = enum.auto()
+        Down    = enum.auto()
+        UpDown  = enum.auto()
+        Random  = enum.auto()
+        Played  = enum.auto()
+
+    def __init__(self, x: int = 0, y: int = 0, width: int = 1, height: int = 1, *,
+                 rate: Rate = '1/16',
+                 mode: Mode = Mode.Up,
+                 octaves: int = 1,
+                 gate: float = 0.5,
+                 latch: bool = False,
+                 octave: int = 4,
+                 scale: Scale = Scale.Major,
+                 root: Root = Root.C,
+                 active_color: pyxelwidgets.color.Color = pyxelwidgets.color.Colors.Cyan,
+                 inactive_color: pyxelwidgets.color.Color = pyxelwidgets.color.Color(24, 24, 24),
+                 root_color: pyxelwidgets.color.Color = pyxelwidgets.color.Color(64, 0, 64),
+                 current_color: pyxelwidgets.color.Color = pyxelwidgets.color.Colors.White,
+                 **kwargs):
+        """
+        mode: Mode = Mode.Up, optional
+            The order notes play in.
+        octaves: int = 1, optional
+            The notes play in this many octaves, one after the other (1 to 4).
+        gate: float = 0.5, optional
+            How long each note sounds, in steps (up to 1). Without a clock it ends when the next one plays.
+        latch: bool = False, optional
+            Notes keep playing when let go; pressing after letting go of every pad starts new ones.
+        octave: int = 4, optional
+            The bottom-left pad is the root in this octave (4 with C: MIDI note 48).
+        scale, root: optional
+            The notes of the pads.
+        root_color, current_color: Color, optional
+            The root's pads, and the note playing.
+        """
+        if not 1 <= octaves <= 4:
+            raise ValueError(f'octaves must be from 1 to 4, got {octaves!r}')
+        if not 0.0 < gate <= 1.0:
+            raise ValueError(f'gate must be more than 0 and at most 1 step, got {gate!r}')
+        self.rate = rate
+        self.mode = mode
+        self.octaves = octaves
+        self.gate = gate
+        self._latch = latch
+        self.octave = octave
+        self.scale = scale
+        self.root = root
+        self.root_color = root_color
+        self.current_color = current_color
+        #: The notes held, in the order they came
+        self.held = []
+        # Pads and links holding notes; velocities by note
+        self._fingers = 0
+        self._velocities = {}
+        self._index = -1
+        self._heading = 1
+        self._sounding = None
+        self._position = 0.0
+        self._last_count = None
+        self._slot = None
+        self._gate_end = None
+        super().__init__(x, y, width, height, active_color = active_color, inactive_color = inactive_color, **kwargs)
+
+    @property
+    def latch(self) -> bool:
+        return self._latch
+
+    @latch.setter
+    def latch(self, value: bool) -> None:
+        self._latch = bool(value)
+        if not self._latch and not self._fingers:
+            # Nothing holds the latched notes any more
+            self.clear()
+
+    def note_at(self, x: int, y: int) -> int | None:
+        """The note of the pad at ``x``, ``y``, or None past 127."""
+        notes = scale_notes(self.scale, self.root)
+        base = self.root.value + 12 * self.octave
+        index = next((i for i, note in enumerate(notes) if note >= base), len(notes)) + x + y * len(SCALES[self.scale.name])
+        return notes[index] if 0 <= index < len(notes) else None
+
+    def _sequence(self) -> list:
+        # (note, the held note it comes from) in the order they play
+        held = list(self.held) if self.mode == Arpeggiator.Mode.Played else sorted(self.held)
+        notes = [(note + 12 * octave, note) for octave in range(self.octaves) for note in held if note + 12 * octave <= 127]
+        if self.mode == Arpeggiator.Mode.Down:
+            notes.reverse()
+        elif self.mode == Arpeggiator.Mode.UpDown:
+            notes = notes + notes[-2:0:-1]
+        return notes
+
+    def sequence(self) -> list:
+        """The notes in the order they play (Random picks from them)."""
+        return [note for note, _ in self._sequence()]
+
+    def add(self, note: int, velocity: float = 1.0) -> None:
+        """Hold ``note`` (from a link or code), as a pad would."""
+        note = int(note)
+        if not 0 <= note <= 127:
+            return
+        if self._latch and not self._fingers:
+            # A new chord after letting go
+            self.held.clear()
+        self._fingers += 1
+        if note not in self.held:
+            self.held.append(note)
+        self._velocities[note] = self.velocity_of(velocity)
+        self.updated = True
+
+    def remove(self, note: int) -> None:
+        """Let go of ``note``; with ``latch`` it keeps playing."""
+        self._fingers = max(self._fingers - 1, 0)
+        if not self._latch and int(note) in self.held:
+            self.held.remove(int(note))
+            if not self.held:
+                self.silence()
+        self.updated = True
+
+    def clear(self) -> None:
+        """Stop playing every note."""
+        self.held.clear()
+        self.silence()
+        self.updated = True
+
+    def handle_press(self, x: int, y: int, velocity: float) -> None:
+        note = self.note_at(x, y)
+        if note is not None:
+            self.add(note, velocity)
+
+    def handle_release(self, x: int, y: int, velocity: float) -> None:
+        note = self.note_at(x, y)
+        if note is not None:
+            self.remove(note)
+
+    def play(self, count: int) -> None:
+        """Play the ``count``-th note of ``sequence`` (wrapped); the sounding one ends first."""
+        self.silence()
+        notes = self._sequence()
+        if not notes:
+            return
+        if self.mode == Arpeggiator.Mode.Random:
+            self._index = self._random.randrange(len(notes))
+        else:
+            self._index = int(count) % len(notes)
+        note, held = notes[self._index]
+        self._sounding = note
+        self.emit(pyxelwidgets.events.NoteOn(self, note, self.humanize(self._velocities.get(held, 1.0))))
+        self.updated = True
+
+    def advance(self) -> None:
+        """Play the next note."""
+        self.play(self._index + 1)
+
+    def silence(self) -> None:
+        """End the sounding note (NoteOff)."""
+        if self._sounding is not None:
+            note, self._sounding, self._gate_end = self._sounding, None, None
+            self.emit(pyxelwidgets.events.NoteOff(self, note, 0.0))
+            self.updated = True
+
+    def tick(self, count: int) -> None:
+        """Called by its clock ``divisions`` times a step: plays a note each step and ends it after ``gate``."""
+        last, self._last_count = self._last_count, count
+        if not self.running:
+            self.silence()
+            self._last_count = None
+            return
+        if self.clock == Clock.Transport:
+            self._position = count / self.divisions
+            if last is not None and count <= last:
+                self._slot = None
+        elif last is not None:
+            self._position += (count - last) / self.divisions
+        if self._gate_end is not None and self._position >= self._gate_end:
+            self.silence()
+        slot = math.floor(self._position)
+        if slot == self._slot:
+            return
+        self._slot = slot
+        if self.clock == Clock.Transport:
+            self.play(slot)
+        else:
+            self.advance()
+        if self._sounding is not None:
+            self._gate_end = slot + min(max(float(self.gate), 1 / self.divisions), 1.0)
+
+    def draw(self) -> None:
+        for x in range(self.rect.w):
+            for y in range(self.rect.h):
+                note = self.note_at(x, y)
+                if note is None:
+                    color = pyxelwidgets.color.Colors.Black
+                elif note == self._sounding:
+                    color = self.current_color
+                elif note in self.held:
+                    color = self.active_color
+                elif (note - self.root.value) % 12 == 0:
+                    color = self.root_color
+                else:
+                    color = self.inactive_color
+                self.buffer[x, y] = color
+
+# Euclidean class
+def euclidean(pulses: int, steps: int, rotation: int = 0) -> list:
+    """``pulses`` hits spread as evenly as they go over ``steps`` (a list of bools), moved right by ``rotation``."""
+    if steps <= 0:
+        return []
+    pulses = min(max(int(pulses), 0), steps)
+    pattern = [(index * pulses) % steps < pulses for index in range(steps)]
+    rotation %= steps
+    return pattern[-rotation:] + pattern[:-rotation] if rotation else pattern
+
+class Euclidean(Timed, Velocity, Widget):
+    """
+    Euclidean rhythms: each row is a voice playing ``pulses`` hits spread
+    evenly over its length (at most the width), every ``rate``. Press a pad
+    to set its row's hits to the pads up to it (again: none); press past the
+    row's end to make it longer; hold a pad and press another in its row to
+    turn the rhythm by the distance. Row ``y`` plays ``note + y`` (NoteOn, and
+    NoteOff on the next step).
+    """
+
+    emits = (pyxelwidgets.events.NoteOn, pyxelwidgets.events.NoteOff)
+
+    actions = {'advance': None, 'play': 'int', 'reset': None, 'set_pulses': 'int', 'set_rotation': 'int', 'set_length': 'int',
+               **Timed.clock_actions}
+
+    def __init__(self, x: int = 0, y: int = 0, width: int = 1, height: int = 1, *,
+                 rate: Rate = '1/16',
+                 note: int = 36,
+                 length: int | None = None,
+                 active_color: pyxelwidgets.color.Color = pyxelwidgets.color.Colors.Orange,
+                 inactive_color: pyxelwidgets.color.Color = pyxelwidgets.color.Color(24, 24, 24),
+                 current_color: pyxelwidgets.color.Color = pyxelwidgets.color.Color(0, 64, 0),
+                 current_active_color: pyxelwidgets.color.Color = pyxelwidgets.color.Colors.White,
+                 **kwargs):
+        """
+        note: int = 36, optional
+            The bottom row's note; each row above plays the next one.
+        length: int, optional
+            How many steps new rows have (up to the width). Defaults to the width.
+        current_color, current_active_color: Color, optional
+            Each row's playing step, without and with a hit.
+        """
+        self.rate = rate
+        self.note = note
+        self.length = length
+        self.current_color = current_color
+        self.current_active_color = current_active_color
+        #: Per row: hits, rotation and length (None: ``length``)
+        self.pulses = [0]
+        self.rotations = [0]
+        self.lengths = [None]
+        self._count = 0
+        self._sounding = set()
+        self._held = {}
+        self._selected = 0
+        super().__init__(x, y, width, height, active_color = active_color, inactive_color = inactive_color, **kwargs)
+
+    def row_length(self, row: int) -> int:
+        length = self.lengths[row] if self.lengths[row] is not None else (self.length or self.rect.w)
+        return min(max(int(length), 1), self.rect.w)
+
+    def pattern(self, row: int) -> list:
+        return euclidean(self.pulses[row], self.row_length(row), self.rotations[row])
+
+    def handle_press(self, x: int, y: int, velocity: float) -> None:
+        self._selected = y
+        for (held_x, held_y), held in self._held.items():
+            if held_y == y and held_x != x:
+                # Turn the rhythm by the distance
+                self.rotations[y] = (self.rotations[y] + x - held_x) % self.row_length(y)
+                held[0] = False
+                self.updated = True
+                return
+        self._held[(x, y)] = [True]
+
+    def handle_release(self, x: int, y: int, velocity: float) -> None:
+        held = self._held.pop((x, y), None)
+        if held is None or not held[0]:
+            return
+        if x >= self.row_length(y):
+            self.lengths[y] = x + 1
+        else:
+            self.pulses[y] = 0 if self.pulses[y] == x + 1 else x + 1
+        self.updated = True
+
+    def set_pulses(self, pulses: int) -> None:
+        """Set the hits of the last row pressed."""
+        self.pulses[self._selected] = min(max(int(pulses), 0), self.row_length(self._selected))
+        self.updated = True
+
+    def set_rotation(self, rotation: int) -> None:
+        """Set how far the last row pressed is turned."""
+        self.rotations[self._selected] = int(rotation) % self.row_length(self._selected)
+        self.updated = True
+
+    def set_length(self, length: int) -> None:
+        """Set the length of the last row pressed (up to the width)."""
+        self.lengths[self._selected] = min(max(int(length), 1), self.rect.w)
+        self.pulses[self._selected] = min(self.pulses[self._selected], self.lengths[self._selected])
+        self.updated = True
+
+    def play(self, count: int) -> None:
+        """Play step ``count`` of every row (each wrapped to its length): the last hits end, the new ones start."""
+        self.silence()
+        self._count = int(count)
+        for row in range(self.rect.h):
+            pattern = self.pattern(row)
+            note = self.note + row
+            if pattern and pattern[self._count % len(pattern)] and 0 <= note <= 127:
+                self._sounding.add(note)
+                self.emit(pyxelwidgets.events.NoteOn(self, note, self.humanize(self.velocity_of(1.0))))
+        self.updated = True
+
+    def advance(self) -> None:
+        self.play(self._count + 1)
+
+    def silence(self) -> None:
+        for note in sorted(self._sounding):
+            self.emit(pyxelwidgets.events.NoteOff(self, note, 0.0))
+        self._sounding.clear()
+
+    def reset(self) -> None:
+        """Take every row's hits away."""
+        self.pulses = [0] * self.rect.h
+        self.rotations = [0] * self.rect.h
+        self.updated = True
+
+    def save_state(self) -> dict:
+        return {'pulses': list(self.pulses), 'rotations': list(self.rotations), 'lengths': list(self.lengths)}
+
+    def load_state(self, state: dict) -> None:
+        for key in ('pulses', 'rotations', 'lengths'):
+            values = state.get(key)
+            if isinstance(values, list):
+                current = getattr(self, key)
+                current[:min(len(values), len(current))] = values[:len(current)]
+        self.updated = True
+
+    def draw(self) -> None:
+        for y in range(self.rect.h):
+            pattern = self.pattern(y)
+            playing = self._count % len(pattern) if pattern else -1
+            for x in range(self.rect.w):
+                if x >= len(pattern):
+                    color = pyxelwidgets.color.Colors.Black
+                elif x == playing:
+                    color = self.current_active_color if pattern[x] else self.current_color
+                else:
+                    color = self.active_color if pattern[x] else self.inactive_color
+                self.buffer[x, y] = color
+
+    def _resize(self, width, height) -> bool:
+        for name, fill in (('pulses', 0), ('rotations', 0), ('lengths', None)):
+            values = getattr(self, name)
+            setattr(self, name, (values + [fill] * height)[:height])
+        self._selected = min(self._selected, height - 1)
+        return True
+
+# Automaton class
+def parse_rule(rule: str) -> tuple:
+    """A life-like rule 'B3/S23' as (birth counts, survival counts)."""
+    parts = {part[0]: part[1:] for part in str(rule).replace(' ', '').upper().split('/') if part[:1] in ('B', 'S')}
+    try:
+        birth = {int(digit) for digit in parts['B']}
+        survive = {int(digit) for digit in parts.get('S', '')}
+    except (KeyError, ValueError):
+        raise ValueError(f'a rule is written like "B3/S23" (births, then survivals by neighbours), got {rule!r}') from None
+    if not birth <= set(range(9)) or not survive <= set(range(9)):
+        raise ValueError(f'neighbour counts are 0 to 8, got {rule!r}')
+    return birth, survive
+
+class Automaton(Timed, Velocity, Widget):
+    """
+    A cellular automaton (Conway's Life by default) making notes: every
+    ``rate`` a generation passes and cells born play the note of their row
+    (in ``scale``), louder to the right, up to ``max_notes`` at once (NoteOn,
+    NoteOff on the next generation). Press pads to turn cells on or off.
+    """
+
+    emits = (pyxelwidgets.events.NoteOn, pyxelwidgets.events.NoteOff)
+
+    actions = {'advance': None, 'randomize': None, 'clear': None, **Timed.clock_actions}
+
+    def __init__(self, x: int = 0, y: int = 0, width: int = 1, height: int = 1, *,
+                 rate: Rate = '1/8',
+                 rule: str = 'B3/S23',
+                 wrap: bool = True,
+                 reseed: bool = True,
+                 density: float = 0.3,
+                 max_notes: int = 4,
+                 octave: int = 4,
+                 scale: Scale = Scale.MinorPentatonic,
+                 root: Root = Root.C,
+                 active_color: pyxelwidgets.color.Color = pyxelwidgets.color.Colors.Lime,
+                 current_color: pyxelwidgets.color.Color = pyxelwidgets.color.Colors.White,
+                 **kwargs):
+        """
+        rule: str = 'B3/S23', optional
+            How many neighbours make a cell born (B) and keep one alive (S):
+            B3/S23 is Life, B36/S23 HighLife, B2/S Seeds, B3678/S34678 Day & Night.
+        wrap: bool = True, optional
+            Edges join the other side.
+        reseed: bool = True, optional
+            Start again at random when every cell dies or nothing changes any more.
+        density: float = 0.3, optional
+            How many cells ``randomize`` (and reseeding) turns on, from 0 to 1.
+        max_notes: int = 4, optional
+            The most notes a generation plays; the lowest rows first.
+        octave: int = 4, optional
+            The bottom row plays the root in this octave (4 with C: MIDI note 48).
+        scale, root: optional
+            The rows' notes, from the bottom.
+        current_color: Color, optional
+            Cells just born.
+        """
+        parse_rule(rule)
+        if not 0.0 <= density <= 1.0:
+            raise ValueError(f'density must be from 0 to 1, got {density!r}')
+        self.rate = rate
+        self.rule = rule
+        self.wrap = wrap
+        self.reseed = reseed
+        self.density = density
+        self.max_notes = max_notes
+        self.octave = octave
+        self.scale = scale
+        self.root = root
+        self.current_color = current_color
+        self.cells = numpy.zeros((1, 1), dtype = numpy.bool_)
+        self.born = numpy.zeros((1, 1), dtype = numpy.bool_)
+        # Generations before, to notice when nothing changes
+        self._history = []
+        self._sounding = []
+        self.generation = 0
+        super().__init__(x, y, width, height, active_color = active_color, **kwargs)
+
+    def row_note(self, y: int) -> int | None:
+        notes = scale_notes(self.scale, self.root)
+        index = next((i for i, note in enumerate(notes) if note >= self.root.value + 12 * self.octave), len(notes)) + y
+        return notes[index] if 0 <= index < len(notes) else None
+
+    def handle_press(self, x: int, y: int, velocity: float) -> None:
+        self.cells[x, y] = not self.cells[x, y]
+        self.born[x, y] = False
+        self._history.clear()
+        self.updated = True
+
+    def randomize(self) -> None:
+        """Turn cells on at random (``density`` of them)."""
+        self.cells = numpy.array([[self._random.random() < self.density for _ in range(self.rect.h)] for _ in range(self.rect.w)],
+                                 dtype = numpy.bool_)
+        self.born[:] = False
+        self._history.clear()
+        self.updated = True
+
+    def clear(self) -> None:
+        self.cells[:] = False
+        self.born[:] = False
+        self.silence()
+        self.updated = True
+
+    def _neighbours(self) -> numpy.ndarray:
+        cells = self.cells.astype(numpy.int8)
+        if self.wrap:
+            return sum(numpy.roll(numpy.roll(cells, dx, 0), dy, 1)
+                       for dx in (-1, 0, 1) for dy in (-1, 0, 1) if (dx, dy) != (0, 0))
+        padded = numpy.pad(cells, 1)
+        w, h = cells.shape
+        return sum(padded[1 + dx:1 + dx + w, 1 + dy:1 + dy + h] for dx in (-1, 0, 1) for dy in (-1, 0, 1) if (dx, dy) != (0, 0))
+
+    def play(self, count: int | None = None) -> None:
+        """Pass a generation and play the cells born."""
+        self.silence()
+        birth, survive = parse_rule(self.rule)
+        neighbours = self._neighbours()
+        cells = numpy.where(self.cells, numpy.isin(neighbours, list(survive)), numpy.isin(neighbours, list(birth)))
+        self.born = cells & ~self.cells
+        self.cells = cells
+        self.generation += 1
+        if self.reseed and (not cells.any() or any(numpy.array_equal(cells, old) for old in self._history)):
+            self.randomize()
+        else:
+            self._history = (self._history + [cells.copy()])[-2:]
+        played = set()
+        for y in range(self.rect.h):
+            columns = numpy.flatnonzero(self.born[:, y])
+            note = self.row_note(y)
+            if not len(columns) or note is None or note in played or len(played) >= self.max_notes:
+                continue
+            played.add(note)
+            # Louder to the right
+            hit = 0.4 + 0.6 * (columns.max() / max(self.rect.w - 1, 1))
+            self._sounding.append(note)
+            self.emit(pyxelwidgets.events.NoteOn(self, note, self.humanize(self.velocity_of(hit))))
+        self.updated = True
+
+    def advance(self) -> None:
+        self.play()
+
+    def silence(self) -> None:
+        for note in self._sounding:
+            self.emit(pyxelwidgets.events.NoteOff(self, note, 0.0))
+        self._sounding = []
+
+    def save_state(self) -> dict:
+        return {'cells': self.cells.copy()}
+
+    def load_state(self, state: dict) -> None:
+        if 'cells' in state:
+            _copy_overlap(self.cells, state['cells'])
+            self.updated = True
+
+    def draw(self) -> None:
+        self.buffer[:] = self.inactive_color
+        self.buffer[self.cells] = self.active_color
+        self.buffer[self.born & self.cells] = self.current_color
+
+    def _resize(self, width, height) -> bool:
+        self.cells = _fit(self.cells, (width, height), False)
+        self.born = numpy.zeros((width, height), dtype = numpy.bool_)
+        self._history = []
+        return True
+
+# TapTempo class
+class TapTempo(Widget):
+    """
+    Tap it in time: emits TempoTapped with the tempo of the last ``taps``
+    taps (link it to the transport's tempo). It blinks on the beat, and on taps.
+    """
+
+    emits = (pyxelwidgets.events.TempoTapped,)
+
+    actions = {'reset': None}
+
+    def __init__(self, x: int = 0, y: int = 0, width: int = 1, height: int = 1, *,
+                 taps: int = 4,
+                 timeout: float = 2.0,
+                 minimum: float = 30.0,
+                 maximum: float = 300.0,
+                 active_color: pyxelwidgets.color.Color = pyxelwidgets.color.Colors.Red,
+                 inactive_color: pyxelwidgets.color.Color = pyxelwidgets.color.Color(48, 0, 0),
+                 clock: typing.Callable[[], float] = time.monotonic,
+                 **kwargs):
+        """
+        taps: int = 4, optional
+            How many of the last taps the tempo comes from (at least 2).
+        timeout: float = 2.0, optional
+            Seconds without a tap after which tapping starts over.
+        minimum, maximum: float, optional
+            The slowest and fastest tempo it gives.
+        """
+        if taps < 2:
+            raise ValueError(f'taps must be at least 2, got {taps!r}')
+        self.taps = taps
+        self.timeout = timeout
+        self.minimum = minimum
+        self.maximum = maximum
+        self.clock = clock
+        #: The tempo tapped last, or None
+        self.bpm = None
+        self._times = []
+        self._lit = False
+        super().__init__(x, y, width, height, active_color = active_color, inactive_color = inactive_color, **kwargs)
+
+    def handle_press(self, x: int, y: int, velocity: float) -> None:
+        now = self.clock()
+        if self._times and now - self._times[-1] > self.timeout:
+            self._times = []
+        self._times = (self._times + [now])[-self.taps:]
+        self.updated = True
+        if len(self._times) < 2:
+            return
+        interval = (self._times[-1] - self._times[0]) / (len(self._times) - 1)
+        if interval <= 0:
+            return
+        self.bpm = round(min(max(60.0 / interval, self.minimum), self.maximum), 2)
+        self.emit(pyxelwidgets.events.TempoTapped(self, self.bpm))
+
+    def reset(self) -> None:
+        """Forget the taps."""
+        self._times = []
+
+    def render(self, time = None) -> bool:
+        time = time if time is not None else pyxelwidgets.animation.now()
+        tapped = bool(self._times) and self.clock() - self._times[-1] < 0.1
+        lit = tapped or time.beats % 1.0 < 0.15
+        if lit != self._lit:
+            self._lit = lit
+            self.updated = True
+        return super().render(time)
+
+    def draw(self) -> None:
+        self.buffer[:] = self.active_color if self._lit else self.inactive_color
+
+# Stepper class
+class Stepper(ValueWidget):
+    """
+    A whole number from ``minimum`` to ``maximum`` (``number``) changed a step
+    at a time: the first pad (left or bottom) goes down, the last up, the
+    pads between show where it is and jump there. Holding a step pad repeats.
+    ``value`` is the number as 0.0-1.0; link Changed with ``minimum``/``maximum``
+    as the range to get the number.
+    """
+
+    actions = {'increment': None, 'decrement': None}
+
+    class Direction(enum.Enum):
+        Horizontal  = enum.auto()
+        Vertical    = enum.auto()
+
+    def __init__(self, x: int = 0, y: int = 0, width: int = 1, height: int = 1, *,
+                 minimum: int = 0,
+                 maximum: int = 7,
+                 wrap: bool = False,
+                 direction: Direction = Direction.Horizontal,
+                 repeat: float = 0.1,
+                 active_color: pyxelwidgets.color.Color = pyxelwidgets.color.Colors.Yellow,
+                 clock: typing.Callable[[], float] = time.monotonic,
+                 **kwargs):
+        """
+        minimum, maximum: int, optional
+            The range of the number.
+        wrap: bool = False, optional
+            Going past one end comes back at the other.
+        direction: Direction = Direction.Horizontal, optional
+            Down on the left and up on the right, or down at the bottom and up on top.
+        repeat: float = 0.1, optional
+            Seconds between steps while a step pad is held (after the device's
+            hold time); 0 doesn't repeat.
+        """
+        if maximum <= minimum:
+            raise ValueError(f'maximum must be more than minimum, got {minimum!r} and {maximum!r}')
+        self.minimum = minimum
+        self.maximum = maximum
+        self.wrap = wrap
+        self.direction = direction
+        self.repeat = repeat
+        self.clock = clock
+        # The step pad repeating (-1 or +1) and when it next steps
+        self._repeating = None
+        super().__init__(x, y, width, height, active_color = active_color, **kwargs)
+
+    def _clamp(self, value):
+        # Only the numbers' places
+        span = max(getattr(self, 'maximum', 1) - getattr(self, 'minimum', 0), 1)
+        return round(round(min(1.0, max(0.0, value)) * span) / span, 6)
+
+    @property
+    def number(self) -> int:
+        return self.minimum + round(self._value * (self.maximum - self.minimum))
+
+    def set_number(self, number: int) -> None:
+        """Set the number as input would (emits Changed)."""
+        span = self.maximum - self.minimum
+        number = int(number)
+        if self.wrap:
+            number = self.minimum + (number - self.minimum) % (span + 1)
+        number = min(max(number, self.minimum), self.maximum)
+        self.set_value((number - self.minimum) / span)
+
+    def increment(self) -> None:
+        self.set_number(self.number + 1)
+
+    def decrement(self) -> None:
+        self.set_number(self.number - 1)
+
+    def _pads(self) -> int:
+        return self.rect.w if self.direction == Stepper.Direction.Horizontal else self.rect.h
+
+    def _index(self, x: int, y: int) -> int:
+        return x if self.direction == Stepper.Direction.Horizontal else y
+
+    def handle_press(self, x: int, y: int, velocity: float) -> None:
+        index, pads = self._index(x, y), self._pads()
+        if pads == 1 or index == pads - 1:
+            self.increment()
+        elif index == 0:
+            self.decrement()
+        elif pads > 3:
+            # The pads between: where the number is
+            span = self.maximum - self.minimum
+            self.set_number(self.minimum + round((index - 1) / (pads - 3) * span))
+
+    def handle_hold(self, x: int, y: int, velocity: float) -> None:
+        index, pads = self._index(x, y), self._pads()
+        if self.repeat > 0 and (index == 0 or index == pads - 1):
+            self._repeating = (1 if pads == 1 or index == pads - 1 else -1, self.clock() + self.repeat)
+
+    def handle_release(self, x: int, y: int, velocity: float) -> None:
+        self._repeating = None
+
+    def render(self, time = None) -> bool:
+        if self._repeating is not None:
+            way, due = self._repeating
+            now = self.clock()
+            if now >= due:
+                self.set_number(self.number + way)
+                self._repeating = (way, now + self.repeat)
+        return super().render(time)
+
+    def draw(self) -> None:
+        pads = self._pads()
+        span = self.maximum - self.minimum
+        colors = [self.inactive_color] * pads
+        if pads <= 2:
+            colors = [self.active_color * (0.2 + 0.8 * self._value)] * pads
+        else:
+            # The ends step, dim where they can't go further
+            colors[0] = self.active_color * (0.15 if self.number == self.minimum and not self.wrap else 0.4)
+            colors[-1] = self.active_color * (0.15 if self.number == self.maximum and not self.wrap else 0.4)
+            between = pads - 2
+            if between == 1:
+                colors[1] = self.active_color * (0.2 + 0.8 * self._value)
+            else:
+                colors[1 + round((self.number - self.minimum) / span * (between - 1))] = self.active_color
+        for index, color in enumerate(colors):
+            if self.direction == Stepper.Direction.Horizontal:
+                self.buffer[index, :] = color
+            else:
+                self.buffer[:, index] = color
+
+# MeterBank class
+class MeterBank(Widget):
+    """
+    A row of level meters, one per column (or per row, Horizontal), e.g. a
+    mixer's tracks: each works like a Meter (``warning``, ``danger``, peak
+    ``hold``, ``falloff``). Levels come from mappings (a received ``x`` or
+    ``cell`` picks the meter: ``Meter {x+1}`` for Mackie meters), links or
+    ``set_level``. Display only.
+    """
+
+    actions = {'reset': None}
+
+    Direction = Meter.Direction
+
+    def __init__(self, x: int = 0, y: int = 0, width: int = 1, height: int = 1, *,
+                 direction: Meter.Direction = Meter.Direction.Vertical,
+                 warning: float = 0.6,
+                 danger: float = 0.85,
+                 hold: float = 1.0,
+                 falloff: float = 0.0,
+                 active_color: pyxelwidgets.color.Color = pyxelwidgets.color.Colors.Lime,
+                 warning_color: pyxelwidgets.color.Color = pyxelwidgets.color.Colors.Yellow,
+                 danger_color: pyxelwidgets.color.Color = pyxelwidgets.color.Colors.Red,
+                 propagation: Propagation = Propagation.Pass,
+                 clock: typing.Callable[[], float] = time.monotonic,
+                 **kwargs):
+        """
+        direction: Direction = Direction.Vertical, optional
+            Vertical: a meter per column, rising from the bottom. Horizontal: one per row, from the left.
+        warning, danger: float, optional
+            Levels (0.0-1.0) where bars turn ``warning_color`` and ``danger_color``.
+        hold: float = 1.0, optional
+            Seconds peaks stay lit; 0 doesn't show them.
+        falloff: float = 0.0, optional
+            How fast bars fall, in full heights per second; 0 falls at once.
+        """
+        self.direction = direction
+        self.warning = warning
+        self.danger = danger
+        self.hold = hold
+        self.falloff = falloff
+        self.warning_color = warning_color
+        self.danger_color = danger_color
+        self.clock = clock
+        self._last = clock()
+        self.levels = [0.0]
+        self._shown = [0.0]
+        self._peaks = [0.0]
+        self._peak_times = [self._last]
+        super().__init__(x, y, width, height, active_color = active_color, propagation = propagation, **kwargs)
+
+    @property
+    def channels(self) -> int:
+        return self.rect.w if self.direction == Meter.Direction.Vertical else self.rect.h
+
+    def set_level(self, channel: int, level: float) -> None:
+        """Show ``level`` (0.0-1.0) on meter ``channel`` (from the left, or the bottom)."""
+        if 0 <= channel < len(self.levels):
+            self.levels[channel] = round(min(max(float(level), 0.0), 1.0), 6)
+            self.updated = True
+
+    def reset(self) -> None:
+        """Every meter to 0."""
+        for channel in range(len(self.levels)):
+            self.levels[channel] = 0.0
+        self.updated = True
+
+    def receive(self, values: dict) -> None:
+        """Show a received level on the meter of its ``x`` (or ``cell``, or ``y`` when Horizontal)."""
+        super().receive(values)
+        level = _level(values)
+        if level is None:
+            return
+        if 'cell' in values:
+            channel = int(values['cell'])
+        else:
+            channel = int(values.get('x' if self.direction == Meter.Direction.Vertical else 'y', values.get('x', 0)))
+        self.set_level(channel, level)
+
+    def save_state(self) -> dict:
+        return {'levels': list(self.levels)}
+
+    def load_state(self, state: dict) -> None:
+        for channel, level in enumerate(state.get('levels', [])[:len(self.levels)]):
+            self.set_level(channel, level)
+
+    def render(self, time = None) -> bool:
+        now = self.clock()
+        elapsed, self._last = now - self._last, now
+        for channel, level in enumerate(self.levels):
+            shown, peak, self._peak_times[channel] = _meter_fall(self, level, self._shown[channel], self._peaks[channel],
+                                                                 self._peak_times[channel], now, elapsed)
+            if (shown, peak) != (self._shown[channel], self._peaks[channel]):
+                self._shown[channel], self._peaks[channel] = shown, peak
+                self.updated = True
+        return super().render(time)
+
+    def draw(self) -> None:
+        vertical = self.direction == Meter.Direction.Vertical
+        cells = self.rect.h if vertical else self.rect.w
+        for channel in range(self.channels):
+            for index, color in enumerate(_meter_bar(self, self._shown[channel], self._peaks[channel], cells)):
+                self.buffer[(channel, index) if vertical else (index, channel)] = color
+
+    def _resize(self, width, height) -> bool:
+        channels = self.channels
+        now = self.clock()
+        for name, fill in (('levels', 0.0), ('_shown', 0.0), ('_peaks', 0.0), ('_peak_times', now)):
+            values = getattr(self, name)
+            setattr(self, name, (values + [fill] * channels)[:channels])
+        return True

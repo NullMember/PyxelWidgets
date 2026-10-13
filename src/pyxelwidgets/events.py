@@ -116,17 +116,22 @@ class NoteOff(WidgetEvent):
 @dataclasses.dataclass(frozen = True)
 class StepPlayed(WidgetEvent):
     """
-    The Sequencer playhead moved to ``step``; ``active`` if that step is on.
-    ``gate`` is how long an active step sounds, in steps (StepEnded follows).
+    The Sequencer playhead moved to ``step``; ``active`` if that step plays.
+    ``gate`` is how long it sounds, in steps (StepEnded follows), ``velocity``
+    how loud (0 when it doesn't play) and ``note`` its note. A step with
+    ratchets plays several times.
     """
     step: int
     active: bool
     gate: float = 1.0
+    velocity: float = 1.0
+    note: int = 36
 
 @dataclasses.dataclass(frozen = True)
 class StepEnded(WidgetEvent):
-    """The gate of an active Sequencer ``step`` ended: send a NoteOff on it."""
+    """The gate of an active Sequencer ``step`` ended: send a NoteOff on its ``note``."""
     step: int
+    note: int = 36
 
 @dataclasses.dataclass(frozen = True)
 class PageChanged(WidgetEvent):
@@ -134,9 +139,10 @@ class PageChanged(WidgetEvent):
 
 @dataclasses.dataclass(frozen = True)
 class RowPlayed(WidgetEvent):
-    """The Tracker playhead moved to ``row``; ``columns`` lists the active cells in it."""
+    """The Tracker playhead moved to ``row``; ``columns`` lists the active cells in it, ``notes`` their notes."""
     row: int
     columns: tuple
+    notes: tuple = ()
 
 @dataclasses.dataclass(frozen = True)
 class ClipQueued(WidgetEvent):
@@ -156,6 +162,21 @@ class ClipStopped(WidgetEvent):
     """A ClipLauncher clip stopped."""
     x: int
     y: int
+
+@dataclasses.dataclass(frozen = True)
+class TempoTapped(WidgetEvent):
+    """A TapTempo was tapped in time: ``bpm`` is the tempo of the taps."""
+    bpm: float
+
+@dataclasses.dataclass(frozen = True)
+class PresetRecalled(WidgetEvent):
+    """A Presets group brought back what it stored in ``slot``."""
+    slot: int
+
+@dataclasses.dataclass(frozen = True)
+class PresetStored(WidgetEvent):
+    """A Presets group stored its widgets' state in ``slot``."""
+    slot: int
 
 # Device events
 
