@@ -320,10 +320,15 @@ class MackieControl(pyxelwidgets.devices.plugins.PluginParameters, _ControlSurfa
         """The plug-ins on ``track`` (a name from ``scan_tracks``), as the DAW's plug-in mode shows them."""
         with self._navigation:
             self._show_plugins(track)
-            names = self._plugin_names()
-            strips = [strip for strip, name in enumerate(names) if name]
-            self._plugins[track] = list(zip(pyxelwidgets.devices.plugins.labels([names[strip] for strip in strips]), strips))
-            return [label for label, _ in self._plugins[track]]
+            return self._read_plugins(track)
+
+    def _read_plugins(self, track: str) -> list:
+        """The plug-ins the display shows for ``track``, kept as (label, strip, name)."""
+        names = self._plugin_names()
+        strips = [strip for strip, name in enumerate(names) if name]
+        labels = pyxelwidgets.devices.plugins.labels([names[strip] for strip in strips])
+        self._plugins[track] = [(label, strip, names[strip]) for label, strip in zip(labels, strips)]
+        return labels
 
     def scan_parameters(self, track: str, plugin: str) -> list:
         """The parameters of ``plugin`` on ``track``: opens it and pages through its parameters, 8 at a time."""
@@ -438,19 +443,26 @@ class MackieControl(pyxelwidgets.devices.plugins.PluginParameters, _ControlSurfa
         """Show the parameters of ``plugin`` on ``track`` (first page)."""
         if self._view == 'parameters' and self._focus is not None and self._focus[:2] == (track, plugin):
             return
-        plugins = dict(self._plugins.get(track) or [])
-        if plugin not in plugins:
-            self.scan_plugins(track)
-            plugins = dict(self._plugins[track])
-            if plugin not in plugins:
-                raise LookupError(f'no plug-in {plugin!r} on {track!r} (plug-ins: {", ".join(plugins) or "none found"})')
-        else:
+        if plugin in self._plugin_strips(track):
             self._show_plugins(track)
+            strip, name = self._plugin_strips(track)[plugin]
+            if self._plugin_names()[strip] != name:
+                # Plug-ins were added, removed or moved on the track: read them again
+                self._read_plugins(track)
+        else:
+            self.scan_plugins(track)
+        plugins = self._plugin_strips(track)
+        if plugin not in plugins:
+            raise LookupError(f'no plug-in {plugin!r} on {track!r} (plug-ins: {", ".join(plugins) or "none found"})')
         shown = self.row(0)
-        if not self._tap(f'V-Select {plugins[plugin] + 1}', lambda: self.row(0) != shown):
+        if not self._tap(f'V-Select {plugins[plugin][0] + 1}', lambda: self.row(0) != shown):
             self._view = None
             raise LookupError(f'the DAW didn\'t show the parameters of {plugin!r} when its V-Pot was pressed')
         self._view, self._focus = 'parameters', (track, plugin, 0)
+
+    def _plugin_strips(self, track: str) -> dict:
+        """Scanned plug-ins of ``track``: label → (strip, name as shown)."""
+        return {label: (strip, name) for label, strip, name in self._plugins.get(track) or []}
 
     def _show_plugins(self, track: str) -> None:
         """Select ``track`` and show its plug-ins on the strips."""
