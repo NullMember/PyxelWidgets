@@ -748,6 +748,19 @@ Mackie Control's plug-in mode (a knob's or fader's `delta`) and the
 position 0.0-1.0 for REAPER's OSC (a widget's `value`); received, it is
 the parameter's position 0.0-1.0.
 
+### `TrackParameter` (Message)
+
+```python
+TrackParameter(track: str = '', parameter: str = 'Volume', value: Any = Source(name='value', min=None, max=None, offset=0))
+```
+
+A track's `Volume`, `Pan`, `Mute`, `Solo` or `Record` (arm), by
+the track's name as the output scanned it (`scan_tracks`), wherever the
+track is shown. `value`: Volume is the fader's position 0.0-1.0; Pan is
+V-Pot steps for Mackie Control (a `delta`) and the position 0.0-1.0 for
+REAPER; Mute, Solo and Record are on above 0.5. Received, every value is
+0.0-1.0.
+
 ### `Hotkey` (Message)
 
 ```python
@@ -2630,13 +2643,14 @@ Sends MidiMessages with `send`; received channel messages are emitted as Message
 
 ## `pyxelwidgets.devices.plugins`
 
-Shared by the outputs that reach a DAW's plug-in parameters by name
-(`mackie.MackieControl`, `osc.REAPER`): the names scans found, and a
-thread that drives the DAW to a parameter, so `send` never blocks.
+Shared by the outputs that reach a DAW's tracks and plug-in parameters by
+name (`mackie.MackieControl`, `osc.REAPER`): the names scans found, and a
+thread that drives the DAW there, so `send` never blocks.
 
 An output mixes in `PluginParameters` and provides `scan_tracks()`,
-`scan_plugins(track)`, `scan_parameters(track, plugin)` and
-`_turn(track, plugin, parameter, value)`.
+`scan_plugins(track)`, `scan_parameters(track, plugin)`,
+`_turn(track, plugin, parameter, value)` (PluginParameter) and
+`_set_track(track, parameter, value)` (TrackParameter).
 
 ### `PluginParameters`
 
