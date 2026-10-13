@@ -2785,7 +2785,11 @@ local listen port 8000 (`send_port`).
 Plug-in parameters by name: REAPER sends a device the names in its banks
 (tracks 8 at a time, a plug-in's parameters 16 at a time) and only what
 changed, so the output keeps all it was sent (`state`, after a refresh
-of the surfaces on the first scan) and goes through the banks. Setting a
+of the surfaces on the first scan) and goes through the banks. REAPER
+addresses tracks and plug-ins by their place, so before setting a
+parameter the output checks the names there and scans again when they
+moved: name every track, each differently (`warning` lists the ones
+that aren't). Setting a
 parameter selects its track in the device (`/track/...` without a
 number then means that track). REAPER sends a parameter's changes back
 only while its track is in the device's bank of tracks (the first 8,
@@ -2794,7 +2798,7 @@ unless the bank was moved) and the parameter among the 16 shown.
 - classmethod **`describe()`**
 - **`connect()`**
 - **`send(message)`**
-- **`scan_tracks()`**: REAPER's track names, then 'MASTER' (repeated names get " (2)"). Blocks for a while; don't call it from an OSC or widget event handler.
+- **`scan_tracks()`**: REAPER's track names, then 'MASTER' (repeated names get " (2)"). Blocks for a while; don't call it from an OSC or widget event handler. Tracks are found by name when they move: unnamed tracks (REAPER calls them "Track 4" by their place) and repeated names are listed in `warning`.
 - **`scan_plugins(track: str)`**: The plug-ins on `track` (a name from `scan_tracks`), in their order.
 - **`scan_parameters(track: str, plugin: str)`**: The parameters of `plugin` on `track`: goes through its banks of parameters.
 
