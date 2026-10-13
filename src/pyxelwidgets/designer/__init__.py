@@ -254,14 +254,6 @@ class _PreviewActions:
     def bpm(self, value: float) -> None:
         self.preview.set_tempo(value)
 
-def _entries(widgets, found = None) -> dict:
-    """Layout widget entries by name, nested ones included."""
-    found = {} if found is None else found
-    for entry in widgets or []:
-        found[entry.get('name')] = entry
-        _entries(entry.get('widgets'), found)
-    return found
-
 def _layout_value(entry: dict | None, key: str):
     """A widget entry's position, size or option ``key`` (None: the default)."""
     entry = entry or {}
@@ -271,7 +263,8 @@ def _layout_value(entry: dict | None, key: str):
 
 def _carry_state(old_ui, old_layout: dict, ui, layout: dict) -> None:
     """Give the widgets of a rebuilt layout the state of the ones they replace (same name and type)."""
-    before, after = _entries(old_layout.get('widgets')), _entries(layout.get('widgets'))
+    entries = pyxelwidgets.parser.widget_entries
+    before, after = entries(old_layout.get('widgets')), entries(layout.get('widgets'))
     linked = {(link.get('target'), link.get('option')) for link in layout.get('links') or []}
     for name, widget in ui.widgets.items():
         old = old_ui.widgets.get(name)
@@ -382,7 +375,7 @@ class Preview:
             self._hide(before, self.hidden)
 
     def _hide(self, before: set, after: set) -> None:
-        widgets = _entries(self.layout.get('widgets'))
+        widgets = pyxelwidgets.parser.widget_entries(self.layout.get('widgets'))
         with self.ui.surface.lock:
             for name in before | after:
                 widget = self.ui.widgets.get(name)
@@ -394,7 +387,11 @@ class Preview:
                     widget.visible = ((widgets.get(name) or {}).get('options') or {}).get('visible', True)
 
     def _record(self, event) -> None:
-        self._append(_event_json(event))
+        entry = _event_json(event)
+        if isinstance(event, pyxelwidgets.events.PresetStored) and event.widget.save:
+            # The page puts them in the layout, so saving keeps them
+            entry['presets'] = event.widget.stored()
+        self._append(entry)
 
     def _log(self, name: str, kind: str, fields: dict) -> None:
         self._append({'event': kind, 'widget': name, **fields})

@@ -333,6 +333,7 @@ export function renderProperties() {
         el('p', { class: 'hint' }, `Page ${currentPage(widget) + 1} of ${widget.widgets?.length || 0} shown. Widgets added from the palette go on it; select a widget in Layers to show its page.`),
         el('div', { class: 'actions' }, el('button', { onclick: () => addPage(path) }, 'Add page')),
       ] : isGroup(widget) ? el('p', { class: 'hint' }, 'Widgets added from the palette go inside this group.') : null,
+      widget.type === 'Presets' ? presetsFields(widget) : null,
       ]),
       widget.type === 'Sprite' ? group('frames', 'Frames', spriteEditor(widget)) : null,
       group('behaviour', 'Behaviour', [
@@ -399,6 +400,24 @@ export function renderProperties() {
     el('h4', {}, 'Transport controls'),
     transportControls(),
   );
+}
+
+// What a Presets group stored (kept in the layout while its save option is on), and a way to forget it
+function presetsFields(widget) {
+  const slots = Object.keys(widget.options?.presets || {}).length;
+  const save = widget.options?.save ?? true;
+  return [
+    el('p', { class: 'hint', id: 'presets-stored' }, slots
+      ? `${slots} stored preset${slots === 1 ? '' : 's'} kept in the layout.`
+      : save ? 'Presets stored in Try mode (or on a device) are kept in the layout.' : 'Stored presets are not kept in the layout (save is off).'),
+    slots ? el('div', { class: 'actions' }, el('button', {
+      id: 'presets-clear',
+      onclick: () => change(() => {
+        const { presets, ...options } = widget.options;
+        widget.options = options;
+      }),
+    }, 'Clear stored presets')) : null,
+  ];
 }
 
 // The transport following a DAW's MIDI clock (transport.sync): a virtual port or an input port

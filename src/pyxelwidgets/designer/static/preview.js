@@ -3,7 +3,8 @@
 import { state, $, api } from './core.js';
 import { renderOutputs } from './mappings.js';
 import { renderDrawer, renderEvents } from './drawer.js';
-import { flushSync, setStatus } from './history.js';
+import { widgetNamed } from './links.js';
+import { change, flushSync, setStatus } from './history.js';
 import { startMarquee } from './board.js';
 import { renderDevices, syncStatus, renderToolbar } from './properties.js';
 
@@ -47,12 +48,28 @@ function paint(frame) {
 
 function addEvents(events) {
   if (!events.length) return;
+  const stored = new Map();
   for (const event of events) {
     state.lastEvent = Math.max(state.lastEvent, event.id);
+    if (event.presets) {
+      stored.set(event.widget, event.presets);
+      delete event.presets;
+    }
     state.eventLog.push(event);
   }
+  if (stored.size) keepPresets(stored);
   if (state.eventLog.length > 500) state.eventLog.splice(0, state.eventLog.length - 500);
   renderEvents();
+}
+
+// Presets groups (with save on) stored something: it goes in the layout, so saving keeps it
+function keepPresets(stored) {
+  change((layout) => {
+    for (const [name, presets] of stored) {
+      const widget = widgetNamed(name);
+      if (widget) widget.options = { ...widget.options, presets };
+    }
+  });
 }
 
 // Input goes in order, and after any pending layout change: rebuilding the preview resets widget state

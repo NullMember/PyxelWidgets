@@ -20,8 +20,8 @@ def load_module(name: str) -> None:
         sys.path.insert(0, str(pathlib.Path.cwd()))
         importlib.import_module(name)
 
-def main() -> None:
-    parser = argparse.ArgumentParser(prog = 'python -m pyxelwidgets.designer', description = 'Design PyxelWidgets layouts in the browser.')
+def main(argv = None, prog = 'pyxelwidgets-designer') -> None:
+    parser = argparse.ArgumentParser(prog = prog, description = 'Design PyxelWidgets layouts in the browser.')
     parser.add_argument('layout', nargs = '?', help = 'layout file to open and save (created on first save)')
     parser.add_argument('--port', type = int, default = 8765)
     parser.add_argument('--no-browser', action = 'store_true', help = "don't open a browser")
@@ -30,7 +30,7 @@ def main() -> None:
                         help = 'a module (or .py file) registering widgets or devices of your own with parser.register; repeatable')
     parser.add_argument('--snippets', metavar = 'FOLDER', help = 'where snippets you save go (default ~/.pyxelwidgets/snippets)')
     parser.add_argument('--no-dialogs', action = 'store_true', help = "type file paths in the page instead of the system's file dialogs")
-    args = parser.parse_args()
+    args = parser.parse_args(argv)
     for module in args.imports:
         load_module(module)
     server = pyxelwidgets.designer.serve(args.layout, args.port, connect = not args.offline, snippets = args.snippets, dialogs = not args.no_dialogs)
