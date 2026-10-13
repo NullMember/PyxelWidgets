@@ -28,15 +28,18 @@ and ``PluginParameter`` messages turn a parameter's V-Pot::
     surface.map(knob, mackie, PluginParameter('Bass', 'ReaComp', 'Ratio'), on = Changed, feedback = True)
 
 Works with Logic Pro (its plug-in views, cursor paging and passing messages
-are handled); REAPER's own Mackie Control support has no plug-in mode.
+are handled); REAPER's own Mackie Control support has no plug-in mode (its
+OSC has: ``osc.REAPER``).
 """
 
 import enum
+import operator
 import re
 import threading
 import time
 
 import pyxelwidgets.devices.midi_port
+import pyxelwidgets.devices.plugins
 import pyxelwidgets.events
 import pyxelwidgets.message
 
@@ -86,7 +89,7 @@ _MCU_NOTES = {note: name for name, note in _MCU_BUTTONS.items()}
 _MCU_FADERS = {**{f'Fader {i + 1}': i for i in range(8)}, 'Master Fader': 8}
 _MCU_RELATIVE = {**{f'V-Pot {i + 1}': 0x10 + i for i in range(8)}, 'Jog': 0x3C}
 
-class MackieControl(_ControlSurface):
+class MackieControl(pyxelwidgets.devices.plugins.PluginParameters, _ControlSurface):
     """
     Mackie Control Universal (or Logic Control, or an extender, by ``mode``):
     8 channel strips, transport and function buttons, the jog wheel, and
@@ -160,14 +163,9 @@ class MackieControl(_ControlSurface):
         self._real_changes = 0
         self.timecode = [' '] * 10
         self.assignment = [' ', ' ']
-        #: What went wrong reaching a plug-in parameter last, if anything
-        self.warning = None
-        # Scans: track names (as the display shows them) and labels (made unique), plug-ins as
+        # Scans: track names as the display shows them (labels are made unique), plug-ins as
         # (label, strip) by track, parameters as (label, page, strip) by (track, plugin)
         self._track_names = []
-        self.tracks = []
-        self._plugins = {}
-        self._parameters = {}
         # What the DAW shows: 'channels', 'plugins', 'parameters' or None (not known), the bank
         # of tracks in the channels view, and (track, plugin, page) in the parameters view
         self._view = None
@@ -178,13 +176,6 @@ class MackieControl(_ControlSurface):
         self._display = threading.Condition()
         self._display_changes = 0
         self._display_time = 0.0
-        self._navigation = threading.RLock()
-        # Parameter turns waiting for the DAW to get there: (track, plugin, parameter) → steps
-        self._turns = {}
-        self._turns_lock = threading.Lock()
-        self._turned = threading.Event()
-        self._worker = None
-        self._closing = False
 
     @property
     def header(self) -> list:
@@ -192,7 +183,11 @@ class MackieControl(_ControlSurface):
 
     def send(self, message) -> None:
         if isinstance(message, pyxelwidgets.message.PluginParameter):
-            return self._turn_later(message)
+            # V-Pot steps, summed while the DAW gets there
+            steps = 0 if isinstance(message.value, str) else int(round(float(message.value)))
+            if steps:
+                self._turn_later(message, steps, operator.add)
+            return
         if not isinstance(message, pyxelwidgets.message.Command):
             return super().send(message)
         if self._midi_output is None:
@@ -289,11 +284,6 @@ class MackieControl(_ControlSurface):
 
     # Plug-in parameters: the DAW's plug-in mode, driven by buttons and read from the display
 
-    def close(self) -> None:
-        self._closing = True
-        self._turned.set()
-        super().close()
-
     def row(self, line: int = 0) -> list:
         """
         The 8 strips' texts on the display's top (0) or bottom (1) line; the top
@@ -301,14 +291,6 @@ class MackieControl(_ControlSurface):
         """
         text = ''.join(self._real_top if line == 0 else self.lcd[56:])
         return [text[strip * 7:strip * 7 + 7].strip() for strip in range(8)]
-
-    def scanned(self) -> dict:
-        """What the scans found: ``tracks``, ``plugins`` by track and ``parameters`` by track and plug-in."""
-        with self._navigation:
-            return {'tracks': list(self.tracks),
-                    'plugins': {track: [label for label, _ in plugins] for track, plugins in self._plugins.items()},
-                    'parameters': {f'{track}/{plugin}': [label for label, _, _ in parameters]
-                                   for (track, plugin), parameters in self._parameters.items()}}
 
     def scan_tracks(self) -> list:
         """
@@ -330,7 +312,7 @@ class MackieControl(_ControlSurface):
             while names and not names[-1]:
                 names.pop()
             self._track_names = [name or f'Track {index + 1}' for index, name in enumerate(names)]
-            self.tracks = _labels(self._track_names)
+            self.tracks = pyxelwidgets.devices.plugins.labels(self._track_names)
             self._plugins, self._parameters = {}, {}
             return list(self.tracks)
 
@@ -340,7 +322,7 @@ class MackieControl(_ControlSurface):
             self._show_plugins(track)
             names = self._plugin_names()
             strips = [strip for strip, name in enumerate(names) if name]
-            self._plugins[track] = list(zip(_labels([names[strip] for strip in strips]), strips))
+            self._plugins[track] = list(zip(pyxelwidgets.devices.plugins.labels([names[strip] for strip in strips]), strips))
             return [label for label, _ in self._plugins[track]]
 
     def scan_parameters(self, track: str, plugin: str) -> list:
@@ -358,7 +340,7 @@ class MackieControl(_ControlSurface):
                     break
                 previous = (shown, values)
                 self._focus = (track, plugin, page + 1)
-            labels = _labels([name for name, _, _ in found])
+            labels = pyxelwidgets.devices.plugins.labels([name for name, _, _ in found])
             self._parameters[(track, plugin)] = [(label, page, strip) for label, (_, page, strip) in zip(labels, found)]
             self._to_page(0)
             return labels
@@ -525,35 +507,6 @@ class MackieControl(_ControlSurface):
                 return track, plugin, label
         return None
 
-    def _turn_later(self, message) -> None:
-        """Queue a parameter turn: the DAW is driven there on a thread of its own (it takes a while)."""
-        if isinstance(message.value, str) or self._closing:
-            return
-        steps = int(round(float(message.value)))
-        if not steps:
-            return
-        key = (message.track, message.plugin, message.parameter)
-        with self._turns_lock:
-            self._turns[key] = self._turns.get(key, 0) + steps
-            if self._worker is None:
-                self._worker = threading.Thread(target = self._work, name = 'MackiePlugins', daemon = True)
-                self._worker.start()
-        self._turned.set()
-
-    def _work(self) -> None:
-        while True:
-            self._turned.wait()
-            if self._closing:
-                return
-            with self._turns_lock:
-                turns, self._turns = self._turns, {}
-                self._turned.clear()
-            for (track, plugin, parameter), steps in turns.items():
-                try:
-                    self._turn(track, plugin, parameter, steps)
-                except Exception as error:
-                    self.warning = f'{track} / {plugin} / {parameter}: {error}'
-
     def _turn(self, track: str, plugin: str, parameter: str, steps: int) -> None:
         with self._navigation:
             self._require()
@@ -569,7 +522,6 @@ class MackieControl(_ControlSurface):
                 step = max(-63, min(63, steps))
                 self.send(pyxelwidgets.message.Command(f'V-Pot {strip + 1}', step))
                 steps -= step
-            self.warning = None
 
 # Logic's page message, which may fit the strips ("   Page 10/12")
 _PAGE_MESSAGE = re.compile(r'Page\s+\d+\s*/\s*\d+')
@@ -595,14 +547,6 @@ def _overlap(previous, page) -> int:
         if all(previous[line][8 - count:] == page[line][:count] for line in (0, 1)) and any(page[0][:count]):
             return count
     return 0
-
-def _labels(names: list) -> list:
-    """Names made unique: a repeated one gets " (2)", " (3)"..."""
-    counts, labels = {}, []
-    for name in names:
-        counts[name] = counts.get(name, 0) + 1
-        labels.append(name if counts[name] == 1 else f'{name} ({counts[name]})')
-    return labels
 
 # HUI: switches are (zone, port) pairs
 
