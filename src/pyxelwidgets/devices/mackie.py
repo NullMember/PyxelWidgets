@@ -167,6 +167,9 @@ class MackieControl(pyxelwidgets.devices.plugins.PluginParameters, _ControlSurfa
         self.assignment = [' ', ' ']
         #: Button LEDs the DAW lit: name → 1.0 (on), 0.0 (off)
         self.leds = {}
+        # The strips' faders and V-Pot rings as the DAW last sent them: strip → 0.0-1.0
+        self._faders = {}
+        self._pans = {}
         # Scans: track names as the display shows them (labels are made unique), plug-ins as
         # (label, strip) by track, parameters as (label, page, strip) by (track, plugin)
         self._track_names = []
@@ -248,7 +251,8 @@ class MackieControl(pyxelwidgets.devices.plugins.PluginParameters, _ControlSurfa
             name = 'Master Fader' if channel == 8 else f'Fader {channel + 1}'
             self._received(name, (midi[1] | (midi[2] << 7)) / 16383)
             if channel < 8:
-                self._track_feedback(channel, 'Volume', (midi[1] | (midi[2] << 7)) / 16383)
+                self._faders[channel] = (midi[1] | (midi[2] << 7)) / 16383
+                self._track_feedback(channel, 'Volume', self._faders[channel])
         elif status == 0xB0 and len(midi) == 3:
             self._control(midi[1], midi[2])
         elif status == 0xD0 and len(midi) >= 2:
@@ -262,6 +266,7 @@ class MackieControl(pyxelwidgets.devices.plugins.PluginParameters, _ControlSurfa
             position = value & 0x0F
             strip = number - 0x30
             self._received(f'V-Pot {strip + 1}', (position - 1) / 10 if position else 0.0)
+            self._pans[strip] = (position - 1) / 10 if position else 0.0
             if not self._cubase:
                 return self._ring(strip, position)
             # Cubase sends a page's rings before its header: checked once the display settled
@@ -526,6 +531,15 @@ class MackieControl(pyxelwidgets.devices.plugins.PluginParameters, _ControlSurfa
             # The tracks changed in the DAW: scan them again
             self.scan_tracks()
             index = self._track_index(track)
+        # The DAW sent the bank's faders and lights while it changed: now known as the tracks'
+        for shown in range(8):
+            if shown in self._faders:
+                self._track_feedback(shown, 'Volume', self._faders[shown])
+            if shown in self._pans:
+                self._track_feedback(shown, 'Pan', self._pans[shown])
+            for button, parameter in _TRACK_BUTTONS.items():
+                if f'{button} {shown + 1}' in self.leds:
+                    self._track_feedback(shown, parameter, self.leds[f'{button} {shown + 1}'])
         return strip
 
     def _set_track(self, track: str, parameter: str, value) -> None:
@@ -552,10 +566,12 @@ class MackieControl(pyxelwidgets.devices.plugins.PluginParameters, _ControlSurfa
         if self._view != 'channels' or self._bank is None:
             return None
         shown = self.row(self._names_line)[strip]
-        for index, place in enumerate(self._track_places):
-            if place == (self._bank, strip) and self._track_names[index] == shown:
+        named = [index for index, name in enumerate(self._track_names) if name == shown]
+        for index in named:
+            if self._track_places[index] == (self._bank, strip):
                 return self.tracks[index]
-        return None
+        # Shown again in Cubase's last bank (scanned in the bank before): known by its name if only one has it
+        return self.tracks[named[0]] if len(named) == 1 else None
 
     def _track_feedback(self, strip: int, parameter: str, value: float) -> None:
         """A strip's fader, V-Pot ring (pan) or button LED, received as the track's TrackParameter."""
