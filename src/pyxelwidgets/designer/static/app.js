@@ -1042,10 +1042,46 @@ function conditionEditor(link, option, id, edit, change) {
   ];
 }
 
+// "by <event value> pick from <values...>": the value's index (whole numbers) or place (0.0-1.0) in the list
+function choiceEditor(link, option, id, edit, change) {
+  const choice = link.value;
+  const sources = sourceNames(link.on).filter((name) => name !== 'text');
+  const by = choice.by?.source ?? choice.by;
+  const entry = (index) => {
+    const commit = (value) => edit(() => { link.value.choose[index] = value; });
+    if (change === 'Add' || option.action) {
+      return el('input', {
+        type: 'number', class: 'small', id: id(`choose-${index}`), value: choice.choose[index] ?? 0, step: option.kind === 'float' || option.action ? 'any' : 1,
+        onchange: (e) => commit(Number(e.target.value)),
+      });
+    }
+    return optionControl(option, choice.choose[index], (value) => { if (value !== undefined) commit(value); }, id(`choose-${index}`))[0];
+  };
+  return [
+    el('div', { class: 'cond-row' },
+      el('span', { class: 'word' }, 'by'),
+      el('select', {
+        id: id('by'), title: 'The event value picking one: a whole number (x, cell...) is the place in the list from 0, a 0.0-1.0 value spreads over it',
+        onchange: (e) => edit(() => { link.value.by = e.target.value; }),
+      }, sources.map((name) => el('option', { value: name, selected: name === by }, name)),
+      by && !sources.includes(by) ? el('option', { value: by, selected: true }, `${by} (not available)`) : null)),
+    ...choice.choose.map((_, index) => el('div', { class: 'cond-row' },
+      el('span', { class: 'word' }, String(index)), entry(index),
+      choice.choose.length > 1 ? el('button', {
+        class: 'small', title: 'Remove this one', onclick: () => edit(() => { link.value.choose.splice(index, 1); }),
+      }, '−') : null)),
+    el('div', { class: 'cond-row' }, el('span', { class: 'word' }), el('button', {
+      class: 'small', id: id('choose-add'), title: 'Add a value to the list',
+      onclick: () => edit(() => { link.value.choose.push(JSON.parse(JSON.stringify(choice.choose[choice.choose.length - 1]))); }),
+    }, '+ value')),
+  ];
+}
+
 // A link's value in words: "cell == 3 ? true : false", "{value}", "1"
 function describeValue(link) {
   const value = link.value;
   if (value && typeof value === 'object' && 'if' in value) return `${value.if.source} ${value.op || '=='} ${value.to} ? ${value.then} : ${value.else}`;
+  if (value && typeof value === 'object' && 'choose' in value) return `[${value.choose.join(', ')}] by ${value.by?.source ?? value.by}`;
   if (value && typeof value === 'object') return `{${value.source}}`;
   return value === undefined ? '' : String(value);
 }
@@ -1054,10 +1090,11 @@ function linkValueEditor(link, option, id, edit) {
   const change = link.change || 'Set';
   const sources = linkSources(link.on, option.kind, change);
   const isCondition = !!(link.value && typeof link.value === 'object' && 'if' in link.value);
-  const isSource = !isCondition && link.value && typeof link.value === 'object' && !Array.isArray(link.value);
+  const isChoice = !!(link.value && typeof link.value === 'object' && 'choose' in link.value);
+  const isSource = !isCondition && !isChoice && link.value && typeof link.value === 'object' && !Array.isArray(link.value);
   const constant = change === 'Add' ? 1 : option.action ? 0 : layoutValue(widgetNamed(link.target), option);
   const mode = el('select', {
-    id: id('value'), title: 'A constant, a value from the event, or a condition choosing between two values',
+    id: id('value'), title: 'A constant, a value from the event, a condition choosing between two values, or a list an event value picks from',
     onchange: (e) => edit(() => {
       delete link.min;
       delete link.max;
@@ -1069,12 +1106,21 @@ function linkValueEditor(link, option, id, edit) {
         link.value = { if: { source: first }, op: '==', to: 0, then: onOff ? true : constant, else: onOff ? false : (option.action ? 0 : option.default ?? constant) };
         return;
       }
+      if (e.target.value === '\u0000choose') {
+        // Picked by a whole number first (x: a row of pads), starting with two values
+        const all = sourceNames(link.on).filter((name) => name !== 'text');
+        const by = all.includes('x') ? 'x' : all.find((name) => INTEGER_SOURCES.has(name)) || all[0];
+        const enumChoices = option.kind === 'enum' ? option.choices.slice(0, 2) : null;
+        link.value = { choose: enumChoices || (option.kind === 'bool' ? [false, true] : [constant, constant]), by };
+        return;
+      }
       link.value = e.target.value === '' ? constant : { source: e.target.value };
       if (change === 'Set' && option.kind === 'str' && !INTEGER_SOURCES.has(e.target.value)) Object.assign(link, { min: 0, max: 100 });
     }),
   },
-  el('option', { value: '', selected: !isSource && !isCondition }, 'constant'),
+  el('option', { value: '', selected: !isSource && !isCondition && !isChoice }, 'constant'),
   el('option', { value: '\u0000if', selected: isCondition }, 'condition…'),
+  el('option', { value: '\u0000choose', selected: isChoice }, 'list…'),
   sources.map((name) => el('option', { value: name, selected: isSource && link.value.source === name }, name)),
   isSource && !sources.includes(link.value.source) ? el('option', { value: link.value.source, selected: true }, `${link.value.source} (not available)`) : null);
   const number = (key, placeholder, attrs = {}) => el('input', {
@@ -1087,6 +1133,9 @@ function linkValueEditor(link, option, id, edit) {
   let detail = null;
   if (isCondition) {
     return el('div', { class: 'control value condition' }, mode, conditionEditor(link, option, id, edit, change));
+  }
+  if (isChoice) {
+    return el('div', { class: 'control value condition' }, mode, choiceEditor(link, option, id, edit, change));
   }
   if (!isSource) {
     if (change === 'Add') {
@@ -1354,6 +1403,7 @@ function ruleWidgets() {
 function fieldText(value) {
   if (value && typeof value === 'object' && !Array.isArray(value)) {
     if ('if' in value) return `(${value.if?.source} ${value.op || '=='} ${value.to} ? ${value.then} : ${value.else})`;
+    if ('choose' in value) return `([${value.choose.join(', ')}] by ${value.by?.source ?? value.by})`;
     return `{${value.source}${value.offset ? `${value.offset > 0 ? '+' : ''}${value.offset}` : ''}}`;
   }
   if (Array.isArray(value)) return value.map(fieldText).join(' ');
@@ -1458,7 +1508,7 @@ function closeRules() {
 // Paths of the values that differ between two rules: a message's fields, a link's value...
 // (event values, conditions and lists count as one value)
 function leafPaths(a, b, path = [], found = []) {
-  const leaf = (value) => value === null || typeof value !== 'object' || Array.isArray(value) || 'source' in value || 'if' in value;
+  const leaf = (value) => value === null || typeof value !== 'object' || Array.isArray(value) || 'source' in value || 'if' in value || 'choose' in value;
   if (a !== undefined && b !== undefined && !leaf(a) && !leaf(b)) {
     for (const key of new Set([...Object.keys(a), ...Object.keys(b)])) leafPaths(a[key], b[key], [...path, key], found);
   } else if (JSON.stringify(a) !== JSON.stringify(b)) {
@@ -1613,7 +1663,7 @@ function adaptRule(kind, rule, widget) {
   const copy = { ...JSON.parse(JSON.stringify(rule)), widget: widget.name };
   const events = state.catalog.widgets[widget.type]?.events || [];
   const needs = kind === 'mapping' ? messageSources(copy.message)
-    : [copy.value?.source, copy.value?.if?.source].filter(Boolean);
+    : [copy.value?.source, copy.value?.if?.source, copy.value?.by?.source ?? copy.value?.by].filter(Boolean);
   if (kind === 'mapping' && !outputsOf().some((output) => output.name === copy.output)) return null;
   if (kind === 'link' && copy.target !== undefined) {
     // A link changing its own widget changes the new one

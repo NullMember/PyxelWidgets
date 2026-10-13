@@ -1,0 +1,182 @@
+{
+  "format": "pyxelwidgets.snippet",
+  "title": "Step editor",
+  "doc": "A 32-step drum sequencer whose steps each have a sound, velocity, chance and ratchets: hold steps, then tap the velocity (row 4), chance (row 3), ratchets (row 2, 1-8 hits) or sound row (kick, snare, hats, clap, tom, crash, ride)",
+  "category": "Sequencing",
+  "size": [
+    8,
+    8
+  ],
+  "widgets": [
+    {
+      "type": "Sequencer",
+      "name": "steps",
+      "x": 0,
+      "y": 4,
+      "width": 8,
+      "height": 4,
+      "options": {
+        "active_color": "#ff4500"
+      }
+    },
+    {
+      "type": "ButtonGroup",
+      "name": "velocity",
+      "x": 0,
+      "y": 3,
+      "width": 8,
+      "height": 1,
+      "options": {
+        "mode": "Button",
+        "active_color": "#ffff00",
+        "inactive_color": "#303000"
+      }
+    },
+    {
+      "type": "ButtonGroup",
+      "name": "chance",
+      "x": 0,
+      "y": 2,
+      "width": 8,
+      "height": 1,
+      "options": {
+        "mode": "Button",
+        "active_color": "#00ffff",
+        "inactive_color": "#003030"
+      }
+    },
+    {
+      "type": "ButtonGroup",
+      "name": "ratchets",
+      "x": 0,
+      "y": 1,
+      "width": 8,
+      "height": 1,
+      "options": {
+        "mode": "Button",
+        "active_color": "#ff00ff",
+        "inactive_color": "#300030"
+      }
+    },
+    {
+      "type": "ButtonGroup",
+      "name": "sound",
+      "x": 0,
+      "y": 0,
+      "width": 8,
+      "height": 1,
+      "options": {
+        "mode": "Button",
+        "active_color": "#ffffff",
+        "inactive_color": "#402010"
+      }
+    }
+  ],
+  "links": [
+    {
+      "widget": "velocity",
+      "on": "Pressed",
+      "target": "steps",
+      "action": "set_velocity",
+      "value": {
+        "choose": [
+          0.125,
+          0.25,
+          0.375,
+          0.5,
+          0.625,
+          0.75,
+          0.875,
+          1.0
+        ],
+        "by": "x"
+      }
+    },
+    {
+      "widget": "chance",
+      "on": "Pressed",
+      "target": "steps",
+      "action": "set_probability",
+      "value": {
+        "choose": [
+          0.125,
+          0.25,
+          0.375,
+          0.5,
+          0.625,
+          0.75,
+          0.875,
+          1.0
+        ],
+        "by": "x"
+      }
+    },
+    {
+      "widget": "ratchets",
+      "on": "Pressed",
+      "target": "steps",
+      "action": "set_ratchets",
+      "value": {
+        "source": "x",
+        "offset": 1
+      }
+    },
+    {
+      "widget": "sound",
+      "on": "Pressed",
+      "target": "steps",
+      "action": "set_note",
+      "value": {
+        "choose": [
+          36,
+          38,
+          42,
+          46,
+          39,
+          41,
+          49,
+          51
+        ],
+        "by": "x"
+      }
+    }
+  ],
+  "mappings": [
+    {
+      "widget": "steps",
+      "on": "StepPlayed",
+      "output": "midi",
+      "message": {
+        "type": "NoteOn",
+        "note": {
+          "source": "note"
+        },
+        "velocity": {
+          "source": "velocity"
+        },
+        "channel": 10
+      }
+    },
+    {
+      "widget": "steps",
+      "on": "StepEnded",
+      "output": "midi",
+      "message": {
+        "type": "NoteOff",
+        "note": {
+          "source": "note"
+        },
+        "velocity": 0,
+        "channel": 10
+      }
+    }
+  ],
+  "outputs": [
+    {
+      "name": "midi",
+      "type": "midi_port.MidiPort",
+      "virtual": "PyxelWidgets midi",
+      "options": {}
+    }
+  ]
+}

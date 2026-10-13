@@ -1,0 +1,167 @@
+{
+  "format": "pyxelwidgets.snippet",
+  "title": "Euclidean workstation",
+  "doc": "Four Euclidean voices (notes 36-39) with controls: pick a voice (top left), then set its hits, rotation and length on the rows below; play on the right",
+  "category": "Drums",
+  "size": [
+    8,
+    8
+  ],
+  "widgets": [
+    {
+      "type": "Euclidean",
+      "name": "euclid",
+      "x": 0,
+      "y": 4,
+      "width": 8,
+      "height": 4,
+      "options": {}
+    },
+    {
+      "type": "ButtonGroup",
+      "name": "voice",
+      "x": 0,
+      "y": 3,
+      "width": 4,
+      "height": 1,
+      "options": {
+        "active_color": "#ffffff",
+        "inactive_color": "#282828"
+      }
+    },
+    {
+      "type": "Button",
+      "name": "play",
+      "x": 7,
+      "y": 3,
+      "width": 1,
+      "height": 1,
+      "options": {
+        "active_color": "#00ff00",
+        "inactive_color": "#003f00"
+      }
+    },
+    {
+      "type": "ButtonGroup",
+      "name": "hits",
+      "x": 0,
+      "y": 2,
+      "width": 8,
+      "height": 1,
+      "options": {
+        "mode": "Button",
+        "active_color": "#ffa500",
+        "inactive_color": "#302000"
+      }
+    },
+    {
+      "type": "ButtonGroup",
+      "name": "rotate",
+      "x": 0,
+      "y": 1,
+      "width": 8,
+      "height": 1,
+      "options": {
+        "mode": "Button",
+        "active_color": "#ff00ff",
+        "inactive_color": "#300030"
+      }
+    },
+    {
+      "type": "ButtonGroup",
+      "name": "steps",
+      "x": 0,
+      "y": 0,
+      "width": 8,
+      "height": 1,
+      "options": {
+        "mode": "Button",
+        "active_color": "#00ffff",
+        "inactive_color": "#003030"
+      }
+    }
+  ],
+  "links": [
+    {
+      "widget": "voice",
+      "on": "Toggled",
+      "target": "euclid",
+      "action": "select",
+      "value": {
+        "source": "x"
+      }
+    },
+    {
+      "widget": "play",
+      "on": "Pressed",
+      "action": "transport.toggle"
+    },
+    {
+      "widget": "hits",
+      "on": "Pressed",
+      "target": "euclid",
+      "action": "set_pulses",
+      "value": {
+        "source": "x",
+        "offset": 1
+      }
+    },
+    {
+      "widget": "rotate",
+      "on": "Pressed",
+      "target": "euclid",
+      "action": "set_rotation",
+      "value": {
+        "source": "x"
+      }
+    },
+    {
+      "widget": "steps",
+      "on": "Pressed",
+      "target": "euclid",
+      "action": "set_length",
+      "value": {
+        "source": "x",
+        "offset": 1
+      }
+    }
+  ],
+  "mappings": [
+    {
+      "widget": "euclid",
+      "on": "NoteOn",
+      "output": "midi",
+      "message": {
+        "type": "NoteOn",
+        "note": {
+          "source": "note"
+        },
+        "velocity": {
+          "source": "velocity"
+        },
+        "channel": 10
+      }
+    },
+    {
+      "widget": "euclid",
+      "on": "NoteOff",
+      "output": "midi",
+      "message": {
+        "type": "NoteOff",
+        "note": {
+          "source": "note"
+        },
+        "velocity": 0,
+        "channel": 10
+      }
+    }
+  ],
+  "outputs": [
+    {
+      "name": "midi",
+      "type": "midi_port.MidiPort",
+      "virtual": "PyxelWidgets midi",
+      "options": {}
+    }
+  ]
+}

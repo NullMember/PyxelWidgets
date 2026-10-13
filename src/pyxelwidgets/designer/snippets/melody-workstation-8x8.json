@@ -1,0 +1,195 @@
+{
+  "format": "pyxelwidgets.snippet",
+  "title": "Melody workstation",
+  "doc": "A piano roll with its scale on a row of pads (major, minor, dorian, mixolydian, phrygian, the pentatonics, harmonic minor), an octave stepper, scrolling, tap tempo and play",
+  "category": "Melody",
+  "size": [
+    8,
+    8
+  ],
+  "widgets": [
+    {
+      "type": "PianoRoll",
+      "name": "roll",
+      "x": 0,
+      "y": 2,
+      "width": 8,
+      "height": 6,
+      "options": {
+        "steps": 32
+      }
+    },
+    {
+      "type": "ButtonGroup",
+      "name": "scale",
+      "x": 0,
+      "y": 1,
+      "width": 8,
+      "height": 1,
+      "options": {
+        "active_color": "#ff00ff",
+        "inactive_color": "#300030"
+      }
+    },
+    {
+      "type": "Stepper",
+      "name": "octave",
+      "x": 0,
+      "y": 0,
+      "width": 4,
+      "height": 1,
+      "options": {
+        "minimum": 2,
+        "maximum": 6,
+        "value": 0.5,
+        "active_color": "#ffa500"
+      }
+    },
+    {
+      "type": "Button",
+      "name": "row_down",
+      "x": 4,
+      "y": 0,
+      "width": 1,
+      "height": 1,
+      "options": {
+        "active_color": "#00ffff",
+        "inactive_color": "#003030"
+      }
+    },
+    {
+      "type": "Button",
+      "name": "row_up",
+      "x": 5,
+      "y": 0,
+      "width": 1,
+      "height": 1,
+      "options": {
+        "active_color": "#00ffff",
+        "inactive_color": "#003030"
+      }
+    },
+    {
+      "type": "TapTempo",
+      "name": "tap",
+      "x": 6,
+      "y": 0,
+      "width": 1,
+      "height": 1,
+      "options": {}
+    },
+    {
+      "type": "Button",
+      "name": "play",
+      "x": 7,
+      "y": 0,
+      "width": 1,
+      "height": 1,
+      "options": {
+        "active_color": "#00ff00",
+        "inactive_color": "#003f00"
+      }
+    }
+  ],
+  "links": [
+    {
+      "widget": "scale",
+      "on": "Toggled",
+      "target": "roll",
+      "option": "scale",
+      "value": {
+        "choose": [
+          "Major",
+          "Minor",
+          "Dorian",
+          "Mixolydian",
+          "Phrygian",
+          "MajorPentatonic",
+          "MinorPentatonic",
+          "MinorHarmonic"
+        ],
+        "by": "x"
+      }
+    },
+    {
+      "widget": "octave",
+      "on": "Changed",
+      "target": "roll",
+      "option": "octave",
+      "value": {
+        "source": "value"
+      },
+      "min": 2,
+      "max": 6
+    },
+    {
+      "widget": "row_down",
+      "on": "Pressed",
+      "target": "roll",
+      "option": "row",
+      "change": "Add",
+      "value": -1,
+      "min": -20
+    },
+    {
+      "widget": "row_up",
+      "on": "Pressed",
+      "target": "roll",
+      "option": "row",
+      "change": "Add",
+      "value": 1,
+      "max": 40
+    },
+    {
+      "widget": "tap",
+      "on": "TempoTapped",
+      "action": "transport.tempo",
+      "value": {
+        "source": "bpm"
+      }
+    },
+    {
+      "widget": "play",
+      "on": "Pressed",
+      "action": "transport.toggle"
+    }
+  ],
+  "mappings": [
+    {
+      "widget": "roll",
+      "on": "NoteOn",
+      "output": "midi",
+      "message": {
+        "type": "NoteOn",
+        "note": {
+          "source": "note"
+        },
+        "velocity": {
+          "source": "velocity"
+        },
+        "channel": 1
+      }
+    },
+    {
+      "widget": "roll",
+      "on": "NoteOff",
+      "output": "midi",
+      "message": {
+        "type": "NoteOff",
+        "note": {
+          "source": "note"
+        },
+        "velocity": 0,
+        "channel": 1
+      }
+    }
+  ],
+  "outputs": [
+    {
+      "name": "midi",
+      "type": "midi_port.MidiPort",
+      "virtual": "PyxelWidgets midi",
+      "options": {}
+    }
+  ]
+}

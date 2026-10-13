@@ -1,0 +1,239 @@
+{
+  "format": "pyxelwidgets.snippet",
+  "title": "Arp station",
+  "doc": "An in-key keyboard playing an arpeggiator (the row under it shows and holds its notes). Controls: mode (up, down, both, random, as played), octaves (1-3), gate, latch, clear, tap tempo, play",
+  "category": "Chords",
+  "size": [
+    8,
+    8
+  ],
+  "widgets": [
+    {
+      "type": "Keyboard",
+      "name": "keys",
+      "x": 0,
+      "y": 3,
+      "width": 8,
+      "height": 5,
+      "options": {
+        "type": "DiatonicVertical",
+        "octave": 4
+      }
+    },
+    {
+      "type": "Arpeggiator",
+      "name": "arp",
+      "x": 0,
+      "y": 2,
+      "width": 8,
+      "height": 1,
+      "options": {
+        "octave": 4,
+        "gate": 0.5
+      }
+    },
+    {
+      "type": "ButtonGroup",
+      "name": "mode",
+      "x": 0,
+      "y": 1,
+      "width": 5,
+      "height": 1,
+      "options": {
+        "active_color": "#00ffff",
+        "inactive_color": "#003030"
+      }
+    },
+    {
+      "type": "ButtonGroup",
+      "name": "octaves",
+      "x": 5,
+      "y": 1,
+      "width": 3,
+      "height": 1,
+      "options": {
+        "active_color": "#ff00ff",
+        "inactive_color": "#300030"
+      }
+    },
+    {
+      "type": "ButtonGroup",
+      "name": "gate",
+      "x": 0,
+      "y": 0,
+      "width": 4,
+      "height": 1,
+      "options": {
+        "selected": 2,
+        "active_color": "#00ff00",
+        "inactive_color": "#003000"
+      }
+    },
+    {
+      "type": "Button",
+      "name": "latch",
+      "x": 4,
+      "y": 0,
+      "width": 1,
+      "height": 1,
+      "options": {
+        "active_color": "#ffa500",
+        "inactive_color": "#302000",
+        "mode": "Switch"
+      }
+    },
+    {
+      "type": "Button",
+      "name": "clear",
+      "x": 5,
+      "y": 0,
+      "width": 1,
+      "height": 1,
+      "options": {
+        "active_color": "#ff0000",
+        "inactive_color": "#3f0000"
+      }
+    },
+    {
+      "type": "TapTempo",
+      "name": "tap",
+      "x": 6,
+      "y": 0,
+      "width": 1,
+      "height": 1,
+      "options": {}
+    },
+    {
+      "type": "Button",
+      "name": "play",
+      "x": 7,
+      "y": 0,
+      "width": 1,
+      "height": 1,
+      "options": {
+        "active_color": "#00ff00",
+        "inactive_color": "#003f00"
+      }
+    }
+  ],
+  "links": [
+    {
+      "widget": "keys",
+      "on": "NoteOn",
+      "target": "arp",
+      "action": "add",
+      "value": {
+        "source": "note"
+      }
+    },
+    {
+      "widget": "keys",
+      "on": "NoteOff",
+      "target": "arp",
+      "action": "remove",
+      "value": {
+        "source": "note"
+      }
+    },
+    {
+      "widget": "mode",
+      "on": "Toggled",
+      "target": "arp",
+      "option": "mode",
+      "value": {
+        "source": "x"
+      }
+    },
+    {
+      "widget": "octaves",
+      "on": "Toggled",
+      "target": "arp",
+      "option": "octaves",
+      "value": {
+        "source": "x",
+        "offset": 1
+      }
+    },
+    {
+      "widget": "gate",
+      "on": "Toggled",
+      "target": "arp",
+      "option": "gate",
+      "value": {
+        "choose": [
+          0.1,
+          0.25,
+          0.5,
+          0.9
+        ],
+        "by": "x"
+      }
+    },
+    {
+      "widget": "latch",
+      "on": "Changed",
+      "target": "arp",
+      "option": "latch",
+      "value": {
+        "source": "value"
+      }
+    },
+    {
+      "widget": "clear",
+      "on": "Pressed",
+      "target": "arp",
+      "action": "clear"
+    },
+    {
+      "widget": "tap",
+      "on": "TempoTapped",
+      "action": "transport.tempo",
+      "value": {
+        "source": "bpm"
+      }
+    },
+    {
+      "widget": "play",
+      "on": "Pressed",
+      "action": "transport.toggle"
+    }
+  ],
+  "mappings": [
+    {
+      "widget": "arp",
+      "on": "NoteOn",
+      "output": "midi",
+      "message": {
+        "type": "NoteOn",
+        "note": {
+          "source": "note"
+        },
+        "velocity": {
+          "source": "velocity"
+        },
+        "channel": 1
+      }
+    },
+    {
+      "widget": "arp",
+      "on": "NoteOff",
+      "output": "midi",
+      "message": {
+        "type": "NoteOff",
+        "note": {
+          "source": "note"
+        },
+        "velocity": 0,
+        "channel": 1
+      }
+    }
+  ],
+  "outputs": [
+    {
+      "name": "midi",
+      "type": "midi_port.MidiPort",
+      "virtual": "PyxelWidgets midi",
+      "options": {}
+    }
+  ]
+}

@@ -1,0 +1,2554 @@
+{
+  "format": "pyxelwidgets.snippet",
+  "title": "16 sequencers",
+  "doc": "Sixteen 32-step drum sequencers (notes 36-51), one shown at a time: the 4x4 pads bottom left pick it. Its rows on the bottom right: length (8, 16, 24, 32), direction (forward, back, ping-pong, random), swing, gate. All sixteen keep playing.",
+  "category": "Sequencing",
+  "size": [
+    8,
+    8
+  ],
+  "widgets": [
+    {
+      "type": "Pages",
+      "name": "tracks",
+      "x": 0,
+      "y": 0,
+      "width": 8,
+      "height": 8,
+      "options": {
+        "selector": "Off"
+      },
+      "widgets": [
+        {
+          "type": "Group",
+          "name": "track1",
+          "x": 0,
+          "y": 0,
+          "width": 8,
+          "height": 8,
+          "options": {},
+          "widgets": [
+            {
+              "type": "Sequencer",
+              "name": "seq1",
+              "x": 0,
+              "y": 4,
+              "width": 8,
+              "height": 4,
+              "options": {
+                "note": 36,
+                "active_color": "#ff0000",
+                "inactive_color": "#1f0000"
+              }
+            },
+            {
+              "type": "ButtonGroup",
+              "name": "length1",
+              "x": 4,
+              "y": 3,
+              "width": 4,
+              "height": 1,
+              "options": {
+                "active_color": "#00ffff",
+                "inactive_color": "#003040",
+                "selected": 3
+              }
+            },
+            {
+              "type": "ButtonGroup",
+              "name": "direction1",
+              "x": 4,
+              "y": 2,
+              "width": 4,
+              "height": 1,
+              "options": {
+                "active_color": "#ff00ff",
+                "inactive_color": "#300030"
+              }
+            },
+            {
+              "type": "ButtonGroup",
+              "name": "swing1",
+              "x": 4,
+              "y": 1,
+              "width": 4,
+              "height": 1,
+              "options": {
+                "active_color": "#ffa500",
+                "inactive_color": "#302000"
+              }
+            },
+            {
+              "type": "ButtonGroup",
+              "name": "gate1",
+              "x": 4,
+              "y": 0,
+              "width": 4,
+              "height": 1,
+              "options": {
+                "active_color": "#00ff00",
+                "inactive_color": "#003000",
+                "selected": 2
+              }
+            }
+          ]
+        },
+        {
+          "type": "Group",
+          "name": "track2",
+          "x": 0,
+          "y": 0,
+          "width": 8,
+          "height": 8,
+          "options": {},
+          "widgets": [
+            {
+              "type": "Sequencer",
+              "name": "seq2",
+              "x": 0,
+              "y": 4,
+              "width": 8,
+              "height": 4,
+              "options": {
+                "note": 37,
+                "active_color": "#ff6000",
+                "inactive_color": "#1f0b00"
+              }
+            },
+            {
+              "type": "ButtonGroup",
+              "name": "length2",
+              "x": 4,
+              "y": 3,
+              "width": 4,
+              "height": 1,
+              "options": {
+                "active_color": "#00ffff",
+                "inactive_color": "#003040",
+                "selected": 3
+              }
+            },
+            {
+              "type": "ButtonGroup",
+              "name": "direction2",
+              "x": 4,
+              "y": 2,
+              "width": 4,
+              "height": 1,
+              "options": {
+                "active_color": "#ff00ff",
+                "inactive_color": "#300030"
+              }
+            },
+            {
+              "type": "ButtonGroup",
+              "name": "swing2",
+              "x": 4,
+              "y": 1,
+              "width": 4,
+              "height": 1,
+              "options": {
+                "active_color": "#ffa500",
+                "inactive_color": "#302000"
+              }
+            },
+            {
+              "type": "ButtonGroup",
+              "name": "gate2",
+              "x": 4,
+              "y": 0,
+              "width": 4,
+              "height": 1,
+              "options": {
+                "active_color": "#00ff00",
+                "inactive_color": "#003000",
+                "selected": 2
+              }
+            }
+          ]
+        },
+        {
+          "type": "Group",
+          "name": "track3",
+          "x": 0,
+          "y": 0,
+          "width": 8,
+          "height": 8,
+          "options": {},
+          "widgets": [
+            {
+              "type": "Sequencer",
+              "name": "seq3",
+              "x": 0,
+              "y": 4,
+              "width": 8,
+              "height": 4,
+              "options": {
+                "note": 38,
+                "active_color": "#ffbf00",
+                "inactive_color": "#1f1700"
+              }
+            },
+            {
+              "type": "ButtonGroup",
+              "name": "length3",
+              "x": 4,
+              "y": 3,
+              "width": 4,
+              "height": 1,
+              "options": {
+                "active_color": "#00ffff",
+                "inactive_color": "#003040",
+                "selected": 3
+              }
+            },
+            {
+              "type": "ButtonGroup",
+              "name": "direction3",
+              "x": 4,
+              "y": 2,
+              "width": 4,
+              "height": 1,
+              "options": {
+                "active_color": "#ff00ff",
+                "inactive_color": "#300030"
+              }
+            },
+            {
+              "type": "ButtonGroup",
+              "name": "swing3",
+              "x": 4,
+              "y": 1,
+              "width": 4,
+              "height": 1,
+              "options": {
+                "active_color": "#ffa500",
+                "inactive_color": "#302000"
+              }
+            },
+            {
+              "type": "ButtonGroup",
+              "name": "gate3",
+              "x": 4,
+              "y": 0,
+              "width": 4,
+              "height": 1,
+              "options": {
+                "active_color": "#00ff00",
+                "inactive_color": "#003000",
+                "selected": 2
+              }
+            }
+          ]
+        },
+        {
+          "type": "Group",
+          "name": "track4",
+          "x": 0,
+          "y": 0,
+          "width": 8,
+          "height": 8,
+          "options": {},
+          "widgets": [
+            {
+              "type": "Sequencer",
+              "name": "seq4",
+              "x": 0,
+              "y": 4,
+              "width": 8,
+              "height": 4,
+              "options": {
+                "note": 39,
+                "active_color": "#dfff00",
+                "inactive_color": "#1b1f00"
+              }
+            },
+            {
+              "type": "ButtonGroup",
+              "name": "length4",
+              "x": 4,
+              "y": 3,
+              "width": 4,
+              "height": 1,
+              "options": {
+                "active_color": "#00ffff",
+                "inactive_color": "#003040",
+                "selected": 3
+              }
+            },
+            {
+              "type": "ButtonGroup",
+              "name": "direction4",
+              "x": 4,
+              "y": 2,
+              "width": 4,
+              "height": 1,
+              "options": {
+                "active_color": "#ff00ff",
+                "inactive_color": "#300030"
+              }
+            },
+            {
+              "type": "ButtonGroup",
+              "name": "swing4",
+              "x": 4,
+              "y": 1,
+              "width": 4,
+              "height": 1,
+              "options": {
+                "active_color": "#ffa500",
+                "inactive_color": "#302000"
+              }
+            },
+            {
+              "type": "ButtonGroup",
+              "name": "gate4",
+              "x": 4,
+              "y": 0,
+              "width": 4,
+              "height": 1,
+              "options": {
+                "active_color": "#00ff00",
+                "inactive_color": "#003000",
+                "selected": 2
+              }
+            }
+          ]
+        },
+        {
+          "type": "Group",
+          "name": "track5",
+          "x": 0,
+          "y": 0,
+          "width": 8,
+          "height": 8,
+          "options": {},
+          "widgets": [
+            {
+              "type": "Sequencer",
+              "name": "seq5",
+              "x": 0,
+              "y": 4,
+              "width": 8,
+              "height": 4,
+              "options": {
+                "note": 40,
+                "active_color": "#80ff00",
+                "inactive_color": "#0f1f00"
+              }
+            },
+            {
+              "type": "ButtonGroup",
+              "name": "length5",
+              "x": 4,
+              "y": 3,
+              "width": 4,
+              "height": 1,
+              "options": {
+                "active_color": "#00ffff",
+                "inactive_color": "#003040",
+                "selected": 3
+              }
+            },
+            {
+              "type": "ButtonGroup",
+              "name": "direction5",
+              "x": 4,
+              "y": 2,
+              "width": 4,
+              "height": 1,
+              "options": {
+                "active_color": "#ff00ff",
+                "inactive_color": "#300030"
+              }
+            },
+            {
+              "type": "ButtonGroup",
+              "name": "swing5",
+              "x": 4,
+              "y": 1,
+              "width": 4,
+              "height": 1,
+              "options": {
+                "active_color": "#ffa500",
+                "inactive_color": "#302000"
+              }
+            },
+            {
+              "type": "ButtonGroup",
+              "name": "gate5",
+              "x": 4,
+              "y": 0,
+              "width": 4,
+              "height": 1,
+              "options": {
+                "active_color": "#00ff00",
+                "inactive_color": "#003000",
+                "selected": 2
+              }
+            }
+          ]
+        },
+        {
+          "type": "Group",
+          "name": "track6",
+          "x": 0,
+          "y": 0,
+          "width": 8,
+          "height": 8,
+          "options": {},
+          "widgets": [
+            {
+              "type": "Sequencer",
+              "name": "seq6",
+              "x": 0,
+              "y": 4,
+              "width": 8,
+              "height": 4,
+              "options": {
+                "note": 41,
+                "active_color": "#20ff00",
+                "inactive_color": "#041f00"
+              }
+            },
+            {
+              "type": "ButtonGroup",
+              "name": "length6",
+              "x": 4,
+              "y": 3,
+              "width": 4,
+              "height": 1,
+              "options": {
+                "active_color": "#00ffff",
+                "inactive_color": "#003040",
+                "selected": 3
+              }
+            },
+            {
+              "type": "ButtonGroup",
+              "name": "direction6",
+              "x": 4,
+              "y": 2,
+              "width": 4,
+              "height": 1,
+              "options": {
+                "active_color": "#ff00ff",
+                "inactive_color": "#300030"
+              }
+            },
+            {
+              "type": "ButtonGroup",
+              "name": "swing6",
+              "x": 4,
+              "y": 1,
+              "width": 4,
+              "height": 1,
+              "options": {
+                "active_color": "#ffa500",
+                "inactive_color": "#302000"
+              }
+            },
+            {
+              "type": "ButtonGroup",
+              "name": "gate6",
+              "x": 4,
+              "y": 0,
+              "width": 4,
+              "height": 1,
+              "options": {
+                "active_color": "#00ff00",
+                "inactive_color": "#003000",
+                "selected": 2
+              }
+            }
+          ]
+        },
+        {
+          "type": "Group",
+          "name": "track7",
+          "x": 0,
+          "y": 0,
+          "width": 8,
+          "height": 8,
+          "options": {},
+          "widgets": [
+            {
+              "type": "Sequencer",
+              "name": "seq7",
+              "x": 0,
+              "y": 4,
+              "width": 8,
+              "height": 4,
+              "options": {
+                "note": 42,
+                "active_color": "#00ff40",
+                "inactive_color": "#001f08"
+              }
+            },
+            {
+              "type": "ButtonGroup",
+              "name": "length7",
+              "x": 4,
+              "y": 3,
+              "width": 4,
+              "height": 1,
+              "options": {
+                "active_color": "#00ffff",
+                "inactive_color": "#003040",
+                "selected": 3
+              }
+            },
+            {
+              "type": "ButtonGroup",
+              "name": "direction7",
+              "x": 4,
+              "y": 2,
+              "width": 4,
+              "height": 1,
+              "options": {
+                "active_color": "#ff00ff",
+                "inactive_color": "#300030"
+              }
+            },
+            {
+              "type": "ButtonGroup",
+              "name": "swing7",
+              "x": 4,
+              "y": 1,
+              "width": 4,
+              "height": 1,
+              "options": {
+                "active_color": "#ffa500",
+                "inactive_color": "#302000"
+              }
+            },
+            {
+              "type": "ButtonGroup",
+              "name": "gate7",
+              "x": 4,
+              "y": 0,
+              "width": 4,
+              "height": 1,
+              "options": {
+                "active_color": "#00ff00",
+                "inactive_color": "#003000",
+                "selected": 2
+              }
+            }
+          ]
+        },
+        {
+          "type": "Group",
+          "name": "track8",
+          "x": 0,
+          "y": 0,
+          "width": 8,
+          "height": 8,
+          "options": {},
+          "widgets": [
+            {
+              "type": "Sequencer",
+              "name": "seq8",
+              "x": 0,
+              "y": 4,
+              "width": 8,
+              "height": 4,
+              "options": {
+                "note": 43,
+                "active_color": "#00ff9f",
+                "inactive_color": "#001f13"
+              }
+            },
+            {
+              "type": "ButtonGroup",
+              "name": "length8",
+              "x": 4,
+              "y": 3,
+              "width": 4,
+              "height": 1,
+              "options": {
+                "active_color": "#00ffff",
+                "inactive_color": "#003040",
+                "selected": 3
+              }
+            },
+            {
+              "type": "ButtonGroup",
+              "name": "direction8",
+              "x": 4,
+              "y": 2,
+              "width": 4,
+              "height": 1,
+              "options": {
+                "active_color": "#ff00ff",
+                "inactive_color": "#300030"
+              }
+            },
+            {
+              "type": "ButtonGroup",
+              "name": "swing8",
+              "x": 4,
+              "y": 1,
+              "width": 4,
+              "height": 1,
+              "options": {
+                "active_color": "#ffa500",
+                "inactive_color": "#302000"
+              }
+            },
+            {
+              "type": "ButtonGroup",
+              "name": "gate8",
+              "x": 4,
+              "y": 0,
+              "width": 4,
+              "height": 1,
+              "options": {
+                "active_color": "#00ff00",
+                "inactive_color": "#003000",
+                "selected": 2
+              }
+            }
+          ]
+        },
+        {
+          "type": "Group",
+          "name": "track9",
+          "x": 0,
+          "y": 0,
+          "width": 8,
+          "height": 8,
+          "options": {},
+          "widgets": [
+            {
+              "type": "Sequencer",
+              "name": "seq9",
+              "x": 0,
+              "y": 4,
+              "width": 8,
+              "height": 4,
+              "options": {
+                "note": 44,
+                "active_color": "#00ffff",
+                "inactive_color": "#001f1f"
+              }
+            },
+            {
+              "type": "ButtonGroup",
+              "name": "length9",
+              "x": 4,
+              "y": 3,
+              "width": 4,
+              "height": 1,
+              "options": {
+                "active_color": "#00ffff",
+                "inactive_color": "#003040",
+                "selected": 3
+              }
+            },
+            {
+              "type": "ButtonGroup",
+              "name": "direction9",
+              "x": 4,
+              "y": 2,
+              "width": 4,
+              "height": 1,
+              "options": {
+                "active_color": "#ff00ff",
+                "inactive_color": "#300030"
+              }
+            },
+            {
+              "type": "ButtonGroup",
+              "name": "swing9",
+              "x": 4,
+              "y": 1,
+              "width": 4,
+              "height": 1,
+              "options": {
+                "active_color": "#ffa500",
+                "inactive_color": "#302000"
+              }
+            },
+            {
+              "type": "ButtonGroup",
+              "name": "gate9",
+              "x": 4,
+              "y": 0,
+              "width": 4,
+              "height": 1,
+              "options": {
+                "active_color": "#00ff00",
+                "inactive_color": "#003000",
+                "selected": 2
+              }
+            }
+          ]
+        },
+        {
+          "type": "Group",
+          "name": "track10",
+          "x": 0,
+          "y": 0,
+          "width": 8,
+          "height": 8,
+          "options": {},
+          "widgets": [
+            {
+              "type": "Sequencer",
+              "name": "seq10",
+              "x": 0,
+              "y": 4,
+              "width": 8,
+              "height": 4,
+              "options": {
+                "note": 45,
+                "active_color": "#009fff",
+                "inactive_color": "#00131f"
+              }
+            },
+            {
+              "type": "ButtonGroup",
+              "name": "length10",
+              "x": 4,
+              "y": 3,
+              "width": 4,
+              "height": 1,
+              "options": {
+                "active_color": "#00ffff",
+                "inactive_color": "#003040",
+                "selected": 3
+              }
+            },
+            {
+              "type": "ButtonGroup",
+              "name": "direction10",
+              "x": 4,
+              "y": 2,
+              "width": 4,
+              "height": 1,
+              "options": {
+                "active_color": "#ff00ff",
+                "inactive_color": "#300030"
+              }
+            },
+            {
+              "type": "ButtonGroup",
+              "name": "swing10",
+              "x": 4,
+              "y": 1,
+              "width": 4,
+              "height": 1,
+              "options": {
+                "active_color": "#ffa500",
+                "inactive_color": "#302000"
+              }
+            },
+            {
+              "type": "ButtonGroup",
+              "name": "gate10",
+              "x": 4,
+              "y": 0,
+              "width": 4,
+              "height": 1,
+              "options": {
+                "active_color": "#00ff00",
+                "inactive_color": "#003000",
+                "selected": 2
+              }
+            }
+          ]
+        },
+        {
+          "type": "Group",
+          "name": "track11",
+          "x": 0,
+          "y": 0,
+          "width": 8,
+          "height": 8,
+          "options": {},
+          "widgets": [
+            {
+              "type": "Sequencer",
+              "name": "seq11",
+              "x": 0,
+              "y": 4,
+              "width": 8,
+              "height": 4,
+              "options": {
+                "note": 46,
+                "active_color": "#0040ff",
+                "inactive_color": "#00081f"
+              }
+            },
+            {
+              "type": "ButtonGroup",
+              "name": "length11",
+              "x": 4,
+              "y": 3,
+              "width": 4,
+              "height": 1,
+              "options": {
+                "active_color": "#00ffff",
+                "inactive_color": "#003040",
+                "selected": 3
+              }
+            },
+            {
+              "type": "ButtonGroup",
+              "name": "direction11",
+              "x": 4,
+              "y": 2,
+              "width": 4,
+              "height": 1,
+              "options": {
+                "active_color": "#ff00ff",
+                "inactive_color": "#300030"
+              }
+            },
+            {
+              "type": "ButtonGroup",
+              "name": "swing11",
+              "x": 4,
+              "y": 1,
+              "width": 4,
+              "height": 1,
+              "options": {
+                "active_color": "#ffa500",
+                "inactive_color": "#302000"
+              }
+            },
+            {
+              "type": "ButtonGroup",
+              "name": "gate11",
+              "x": 4,
+              "y": 0,
+              "width": 4,
+              "height": 1,
+              "options": {
+                "active_color": "#00ff00",
+                "inactive_color": "#003000",
+                "selected": 2
+              }
+            }
+          ]
+        },
+        {
+          "type": "Group",
+          "name": "track12",
+          "x": 0,
+          "y": 0,
+          "width": 8,
+          "height": 8,
+          "options": {},
+          "widgets": [
+            {
+              "type": "Sequencer",
+              "name": "seq12",
+              "x": 0,
+              "y": 4,
+              "width": 8,
+              "height": 4,
+              "options": {
+                "note": 47,
+                "active_color": "#2000ff",
+                "inactive_color": "#04001f"
+              }
+            },
+            {
+              "type": "ButtonGroup",
+              "name": "length12",
+              "x": 4,
+              "y": 3,
+              "width": 4,
+              "height": 1,
+              "options": {
+                "active_color": "#00ffff",
+                "inactive_color": "#003040",
+                "selected": 3
+              }
+            },
+            {
+              "type": "ButtonGroup",
+              "name": "direction12",
+              "x": 4,
+              "y": 2,
+              "width": 4,
+              "height": 1,
+              "options": {
+                "active_color": "#ff00ff",
+                "inactive_color": "#300030"
+              }
+            },
+            {
+              "type": "ButtonGroup",
+              "name": "swing12",
+              "x": 4,
+              "y": 1,
+              "width": 4,
+              "height": 1,
+              "options": {
+                "active_color": "#ffa500",
+                "inactive_color": "#302000"
+              }
+            },
+            {
+              "type": "ButtonGroup",
+              "name": "gate12",
+              "x": 4,
+              "y": 0,
+              "width": 4,
+              "height": 1,
+              "options": {
+                "active_color": "#00ff00",
+                "inactive_color": "#003000",
+                "selected": 2
+              }
+            }
+          ]
+        },
+        {
+          "type": "Group",
+          "name": "track13",
+          "x": 0,
+          "y": 0,
+          "width": 8,
+          "height": 8,
+          "options": {},
+          "widgets": [
+            {
+              "type": "Sequencer",
+              "name": "seq13",
+              "x": 0,
+              "y": 4,
+              "width": 8,
+              "height": 4,
+              "options": {
+                "note": 48,
+                "active_color": "#8000ff",
+                "inactive_color": "#0f001f"
+              }
+            },
+            {
+              "type": "ButtonGroup",
+              "name": "length13",
+              "x": 4,
+              "y": 3,
+              "width": 4,
+              "height": 1,
+              "options": {
+                "active_color": "#00ffff",
+                "inactive_color": "#003040",
+                "selected": 3
+              }
+            },
+            {
+              "type": "ButtonGroup",
+              "name": "direction13",
+              "x": 4,
+              "y": 2,
+              "width": 4,
+              "height": 1,
+              "options": {
+                "active_color": "#ff00ff",
+                "inactive_color": "#300030"
+              }
+            },
+            {
+              "type": "ButtonGroup",
+              "name": "swing13",
+              "x": 4,
+              "y": 1,
+              "width": 4,
+              "height": 1,
+              "options": {
+                "active_color": "#ffa500",
+                "inactive_color": "#302000"
+              }
+            },
+            {
+              "type": "ButtonGroup",
+              "name": "gate13",
+              "x": 4,
+              "y": 0,
+              "width": 4,
+              "height": 1,
+              "options": {
+                "active_color": "#00ff00",
+                "inactive_color": "#003000",
+                "selected": 2
+              }
+            }
+          ]
+        },
+        {
+          "type": "Group",
+          "name": "track14",
+          "x": 0,
+          "y": 0,
+          "width": 8,
+          "height": 8,
+          "options": {},
+          "widgets": [
+            {
+              "type": "Sequencer",
+              "name": "seq14",
+              "x": 0,
+              "y": 4,
+              "width": 8,
+              "height": 4,
+              "options": {
+                "note": 49,
+                "active_color": "#df00ff",
+                "inactive_color": "#1b001f"
+              }
+            },
+            {
+              "type": "ButtonGroup",
+              "name": "length14",
+              "x": 4,
+              "y": 3,
+              "width": 4,
+              "height": 1,
+              "options": {
+                "active_color": "#00ffff",
+                "inactive_color": "#003040",
+                "selected": 3
+              }
+            },
+            {
+              "type": "ButtonGroup",
+              "name": "direction14",
+              "x": 4,
+              "y": 2,
+              "width": 4,
+              "height": 1,
+              "options": {
+                "active_color": "#ff00ff",
+                "inactive_color": "#300030"
+              }
+            },
+            {
+              "type": "ButtonGroup",
+              "name": "swing14",
+              "x": 4,
+              "y": 1,
+              "width": 4,
+              "height": 1,
+              "options": {
+                "active_color": "#ffa500",
+                "inactive_color": "#302000"
+              }
+            },
+            {
+              "type": "ButtonGroup",
+              "name": "gate14",
+              "x": 4,
+              "y": 0,
+              "width": 4,
+              "height": 1,
+              "options": {
+                "active_color": "#00ff00",
+                "inactive_color": "#003000",
+                "selected": 2
+              }
+            }
+          ]
+        },
+        {
+          "type": "Group",
+          "name": "track15",
+          "x": 0,
+          "y": 0,
+          "width": 8,
+          "height": 8,
+          "options": {},
+          "widgets": [
+            {
+              "type": "Sequencer",
+              "name": "seq15",
+              "x": 0,
+              "y": 4,
+              "width": 8,
+              "height": 4,
+              "options": {
+                "note": 50,
+                "active_color": "#ff00bf",
+                "inactive_color": "#1f0017"
+              }
+            },
+            {
+              "type": "ButtonGroup",
+              "name": "length15",
+              "x": 4,
+              "y": 3,
+              "width": 4,
+              "height": 1,
+              "options": {
+                "active_color": "#00ffff",
+                "inactive_color": "#003040",
+                "selected": 3
+              }
+            },
+            {
+              "type": "ButtonGroup",
+              "name": "direction15",
+              "x": 4,
+              "y": 2,
+              "width": 4,
+              "height": 1,
+              "options": {
+                "active_color": "#ff00ff",
+                "inactive_color": "#300030"
+              }
+            },
+            {
+              "type": "ButtonGroup",
+              "name": "swing15",
+              "x": 4,
+              "y": 1,
+              "width": 4,
+              "height": 1,
+              "options": {
+                "active_color": "#ffa500",
+                "inactive_color": "#302000"
+              }
+            },
+            {
+              "type": "ButtonGroup",
+              "name": "gate15",
+              "x": 4,
+              "y": 0,
+              "width": 4,
+              "height": 1,
+              "options": {
+                "active_color": "#00ff00",
+                "inactive_color": "#003000",
+                "selected": 2
+              }
+            }
+          ]
+        },
+        {
+          "type": "Group",
+          "name": "track16",
+          "x": 0,
+          "y": 0,
+          "width": 8,
+          "height": 8,
+          "options": {},
+          "widgets": [
+            {
+              "type": "Sequencer",
+              "name": "seq16",
+              "x": 0,
+              "y": 4,
+              "width": 8,
+              "height": 4,
+              "options": {
+                "note": 51,
+                "active_color": "#ff0060",
+                "inactive_color": "#1f000b"
+              }
+            },
+            {
+              "type": "ButtonGroup",
+              "name": "length16",
+              "x": 4,
+              "y": 3,
+              "width": 4,
+              "height": 1,
+              "options": {
+                "active_color": "#00ffff",
+                "inactive_color": "#003040",
+                "selected": 3
+              }
+            },
+            {
+              "type": "ButtonGroup",
+              "name": "direction16",
+              "x": 4,
+              "y": 2,
+              "width": 4,
+              "height": 1,
+              "options": {
+                "active_color": "#ff00ff",
+                "inactive_color": "#300030"
+              }
+            },
+            {
+              "type": "ButtonGroup",
+              "name": "swing16",
+              "x": 4,
+              "y": 1,
+              "width": 4,
+              "height": 1,
+              "options": {
+                "active_color": "#ffa500",
+                "inactive_color": "#302000"
+              }
+            },
+            {
+              "type": "ButtonGroup",
+              "name": "gate16",
+              "x": 4,
+              "y": 0,
+              "width": 4,
+              "height": 1,
+              "options": {
+                "active_color": "#00ff00",
+                "inactive_color": "#003000",
+                "selected": 2
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "type": "ButtonGroup",
+      "name": "track_select",
+      "x": 0,
+      "y": 0,
+      "width": 4,
+      "height": 4,
+      "options": {
+        "active_color": "#ffffff",
+        "inactive_color": "#282828"
+      }
+    }
+  ],
+  "links": [
+    {
+      "widget": "track_select",
+      "on": "Toggled",
+      "target": "tracks",
+      "option": "page",
+      "value": {
+        "source": "cell"
+      }
+    },
+    {
+      "widget": "length1",
+      "on": "Toggled",
+      "target": "seq1",
+      "option": "length",
+      "value": {
+        "choose": [
+          8,
+          16,
+          24,
+          32
+        ],
+        "by": "x"
+      }
+    },
+    {
+      "widget": "direction1",
+      "on": "Toggled",
+      "target": "seq1",
+      "option": "direction",
+      "value": {
+        "source": "x"
+      }
+    },
+    {
+      "widget": "swing1",
+      "on": "Toggled",
+      "target": "seq1",
+      "option": "swing",
+      "value": {
+        "choose": [
+          50.0,
+          54.0,
+          58.0,
+          66.0
+        ],
+        "by": "x"
+      }
+    },
+    {
+      "widget": "gate1",
+      "on": "Toggled",
+      "target": "seq1",
+      "option": "gate",
+      "value": {
+        "choose": [
+          0.1,
+          0.25,
+          0.5,
+          1.0
+        ],
+        "by": "x"
+      }
+    },
+    {
+      "widget": "length2",
+      "on": "Toggled",
+      "target": "seq2",
+      "option": "length",
+      "value": {
+        "choose": [
+          8,
+          16,
+          24,
+          32
+        ],
+        "by": "x"
+      }
+    },
+    {
+      "widget": "direction2",
+      "on": "Toggled",
+      "target": "seq2",
+      "option": "direction",
+      "value": {
+        "source": "x"
+      }
+    },
+    {
+      "widget": "swing2",
+      "on": "Toggled",
+      "target": "seq2",
+      "option": "swing",
+      "value": {
+        "choose": [
+          50.0,
+          54.0,
+          58.0,
+          66.0
+        ],
+        "by": "x"
+      }
+    },
+    {
+      "widget": "gate2",
+      "on": "Toggled",
+      "target": "seq2",
+      "option": "gate",
+      "value": {
+        "choose": [
+          0.1,
+          0.25,
+          0.5,
+          1.0
+        ],
+        "by": "x"
+      }
+    },
+    {
+      "widget": "length3",
+      "on": "Toggled",
+      "target": "seq3",
+      "option": "length",
+      "value": {
+        "choose": [
+          8,
+          16,
+          24,
+          32
+        ],
+        "by": "x"
+      }
+    },
+    {
+      "widget": "direction3",
+      "on": "Toggled",
+      "target": "seq3",
+      "option": "direction",
+      "value": {
+        "source": "x"
+      }
+    },
+    {
+      "widget": "swing3",
+      "on": "Toggled",
+      "target": "seq3",
+      "option": "swing",
+      "value": {
+        "choose": [
+          50.0,
+          54.0,
+          58.0,
+          66.0
+        ],
+        "by": "x"
+      }
+    },
+    {
+      "widget": "gate3",
+      "on": "Toggled",
+      "target": "seq3",
+      "option": "gate",
+      "value": {
+        "choose": [
+          0.1,
+          0.25,
+          0.5,
+          1.0
+        ],
+        "by": "x"
+      }
+    },
+    {
+      "widget": "length4",
+      "on": "Toggled",
+      "target": "seq4",
+      "option": "length",
+      "value": {
+        "choose": [
+          8,
+          16,
+          24,
+          32
+        ],
+        "by": "x"
+      }
+    },
+    {
+      "widget": "direction4",
+      "on": "Toggled",
+      "target": "seq4",
+      "option": "direction",
+      "value": {
+        "source": "x"
+      }
+    },
+    {
+      "widget": "swing4",
+      "on": "Toggled",
+      "target": "seq4",
+      "option": "swing",
+      "value": {
+        "choose": [
+          50.0,
+          54.0,
+          58.0,
+          66.0
+        ],
+        "by": "x"
+      }
+    },
+    {
+      "widget": "gate4",
+      "on": "Toggled",
+      "target": "seq4",
+      "option": "gate",
+      "value": {
+        "choose": [
+          0.1,
+          0.25,
+          0.5,
+          1.0
+        ],
+        "by": "x"
+      }
+    },
+    {
+      "widget": "length5",
+      "on": "Toggled",
+      "target": "seq5",
+      "option": "length",
+      "value": {
+        "choose": [
+          8,
+          16,
+          24,
+          32
+        ],
+        "by": "x"
+      }
+    },
+    {
+      "widget": "direction5",
+      "on": "Toggled",
+      "target": "seq5",
+      "option": "direction",
+      "value": {
+        "source": "x"
+      }
+    },
+    {
+      "widget": "swing5",
+      "on": "Toggled",
+      "target": "seq5",
+      "option": "swing",
+      "value": {
+        "choose": [
+          50.0,
+          54.0,
+          58.0,
+          66.0
+        ],
+        "by": "x"
+      }
+    },
+    {
+      "widget": "gate5",
+      "on": "Toggled",
+      "target": "seq5",
+      "option": "gate",
+      "value": {
+        "choose": [
+          0.1,
+          0.25,
+          0.5,
+          1.0
+        ],
+        "by": "x"
+      }
+    },
+    {
+      "widget": "length6",
+      "on": "Toggled",
+      "target": "seq6",
+      "option": "length",
+      "value": {
+        "choose": [
+          8,
+          16,
+          24,
+          32
+        ],
+        "by": "x"
+      }
+    },
+    {
+      "widget": "direction6",
+      "on": "Toggled",
+      "target": "seq6",
+      "option": "direction",
+      "value": {
+        "source": "x"
+      }
+    },
+    {
+      "widget": "swing6",
+      "on": "Toggled",
+      "target": "seq6",
+      "option": "swing",
+      "value": {
+        "choose": [
+          50.0,
+          54.0,
+          58.0,
+          66.0
+        ],
+        "by": "x"
+      }
+    },
+    {
+      "widget": "gate6",
+      "on": "Toggled",
+      "target": "seq6",
+      "option": "gate",
+      "value": {
+        "choose": [
+          0.1,
+          0.25,
+          0.5,
+          1.0
+        ],
+        "by": "x"
+      }
+    },
+    {
+      "widget": "length7",
+      "on": "Toggled",
+      "target": "seq7",
+      "option": "length",
+      "value": {
+        "choose": [
+          8,
+          16,
+          24,
+          32
+        ],
+        "by": "x"
+      }
+    },
+    {
+      "widget": "direction7",
+      "on": "Toggled",
+      "target": "seq7",
+      "option": "direction",
+      "value": {
+        "source": "x"
+      }
+    },
+    {
+      "widget": "swing7",
+      "on": "Toggled",
+      "target": "seq7",
+      "option": "swing",
+      "value": {
+        "choose": [
+          50.0,
+          54.0,
+          58.0,
+          66.0
+        ],
+        "by": "x"
+      }
+    },
+    {
+      "widget": "gate7",
+      "on": "Toggled",
+      "target": "seq7",
+      "option": "gate",
+      "value": {
+        "choose": [
+          0.1,
+          0.25,
+          0.5,
+          1.0
+        ],
+        "by": "x"
+      }
+    },
+    {
+      "widget": "length8",
+      "on": "Toggled",
+      "target": "seq8",
+      "option": "length",
+      "value": {
+        "choose": [
+          8,
+          16,
+          24,
+          32
+        ],
+        "by": "x"
+      }
+    },
+    {
+      "widget": "direction8",
+      "on": "Toggled",
+      "target": "seq8",
+      "option": "direction",
+      "value": {
+        "source": "x"
+      }
+    },
+    {
+      "widget": "swing8",
+      "on": "Toggled",
+      "target": "seq8",
+      "option": "swing",
+      "value": {
+        "choose": [
+          50.0,
+          54.0,
+          58.0,
+          66.0
+        ],
+        "by": "x"
+      }
+    },
+    {
+      "widget": "gate8",
+      "on": "Toggled",
+      "target": "seq8",
+      "option": "gate",
+      "value": {
+        "choose": [
+          0.1,
+          0.25,
+          0.5,
+          1.0
+        ],
+        "by": "x"
+      }
+    },
+    {
+      "widget": "length9",
+      "on": "Toggled",
+      "target": "seq9",
+      "option": "length",
+      "value": {
+        "choose": [
+          8,
+          16,
+          24,
+          32
+        ],
+        "by": "x"
+      }
+    },
+    {
+      "widget": "direction9",
+      "on": "Toggled",
+      "target": "seq9",
+      "option": "direction",
+      "value": {
+        "source": "x"
+      }
+    },
+    {
+      "widget": "swing9",
+      "on": "Toggled",
+      "target": "seq9",
+      "option": "swing",
+      "value": {
+        "choose": [
+          50.0,
+          54.0,
+          58.0,
+          66.0
+        ],
+        "by": "x"
+      }
+    },
+    {
+      "widget": "gate9",
+      "on": "Toggled",
+      "target": "seq9",
+      "option": "gate",
+      "value": {
+        "choose": [
+          0.1,
+          0.25,
+          0.5,
+          1.0
+        ],
+        "by": "x"
+      }
+    },
+    {
+      "widget": "length10",
+      "on": "Toggled",
+      "target": "seq10",
+      "option": "length",
+      "value": {
+        "choose": [
+          8,
+          16,
+          24,
+          32
+        ],
+        "by": "x"
+      }
+    },
+    {
+      "widget": "direction10",
+      "on": "Toggled",
+      "target": "seq10",
+      "option": "direction",
+      "value": {
+        "source": "x"
+      }
+    },
+    {
+      "widget": "swing10",
+      "on": "Toggled",
+      "target": "seq10",
+      "option": "swing",
+      "value": {
+        "choose": [
+          50.0,
+          54.0,
+          58.0,
+          66.0
+        ],
+        "by": "x"
+      }
+    },
+    {
+      "widget": "gate10",
+      "on": "Toggled",
+      "target": "seq10",
+      "option": "gate",
+      "value": {
+        "choose": [
+          0.1,
+          0.25,
+          0.5,
+          1.0
+        ],
+        "by": "x"
+      }
+    },
+    {
+      "widget": "length11",
+      "on": "Toggled",
+      "target": "seq11",
+      "option": "length",
+      "value": {
+        "choose": [
+          8,
+          16,
+          24,
+          32
+        ],
+        "by": "x"
+      }
+    },
+    {
+      "widget": "direction11",
+      "on": "Toggled",
+      "target": "seq11",
+      "option": "direction",
+      "value": {
+        "source": "x"
+      }
+    },
+    {
+      "widget": "swing11",
+      "on": "Toggled",
+      "target": "seq11",
+      "option": "swing",
+      "value": {
+        "choose": [
+          50.0,
+          54.0,
+          58.0,
+          66.0
+        ],
+        "by": "x"
+      }
+    },
+    {
+      "widget": "gate11",
+      "on": "Toggled",
+      "target": "seq11",
+      "option": "gate",
+      "value": {
+        "choose": [
+          0.1,
+          0.25,
+          0.5,
+          1.0
+        ],
+        "by": "x"
+      }
+    },
+    {
+      "widget": "length12",
+      "on": "Toggled",
+      "target": "seq12",
+      "option": "length",
+      "value": {
+        "choose": [
+          8,
+          16,
+          24,
+          32
+        ],
+        "by": "x"
+      }
+    },
+    {
+      "widget": "direction12",
+      "on": "Toggled",
+      "target": "seq12",
+      "option": "direction",
+      "value": {
+        "source": "x"
+      }
+    },
+    {
+      "widget": "swing12",
+      "on": "Toggled",
+      "target": "seq12",
+      "option": "swing",
+      "value": {
+        "choose": [
+          50.0,
+          54.0,
+          58.0,
+          66.0
+        ],
+        "by": "x"
+      }
+    },
+    {
+      "widget": "gate12",
+      "on": "Toggled",
+      "target": "seq12",
+      "option": "gate",
+      "value": {
+        "choose": [
+          0.1,
+          0.25,
+          0.5,
+          1.0
+        ],
+        "by": "x"
+      }
+    },
+    {
+      "widget": "length13",
+      "on": "Toggled",
+      "target": "seq13",
+      "option": "length",
+      "value": {
+        "choose": [
+          8,
+          16,
+          24,
+          32
+        ],
+        "by": "x"
+      }
+    },
+    {
+      "widget": "direction13",
+      "on": "Toggled",
+      "target": "seq13",
+      "option": "direction",
+      "value": {
+        "source": "x"
+      }
+    },
+    {
+      "widget": "swing13",
+      "on": "Toggled",
+      "target": "seq13",
+      "option": "swing",
+      "value": {
+        "choose": [
+          50.0,
+          54.0,
+          58.0,
+          66.0
+        ],
+        "by": "x"
+      }
+    },
+    {
+      "widget": "gate13",
+      "on": "Toggled",
+      "target": "seq13",
+      "option": "gate",
+      "value": {
+        "choose": [
+          0.1,
+          0.25,
+          0.5,
+          1.0
+        ],
+        "by": "x"
+      }
+    },
+    {
+      "widget": "length14",
+      "on": "Toggled",
+      "target": "seq14",
+      "option": "length",
+      "value": {
+        "choose": [
+          8,
+          16,
+          24,
+          32
+        ],
+        "by": "x"
+      }
+    },
+    {
+      "widget": "direction14",
+      "on": "Toggled",
+      "target": "seq14",
+      "option": "direction",
+      "value": {
+        "source": "x"
+      }
+    },
+    {
+      "widget": "swing14",
+      "on": "Toggled",
+      "target": "seq14",
+      "option": "swing",
+      "value": {
+        "choose": [
+          50.0,
+          54.0,
+          58.0,
+          66.0
+        ],
+        "by": "x"
+      }
+    },
+    {
+      "widget": "gate14",
+      "on": "Toggled",
+      "target": "seq14",
+      "option": "gate",
+      "value": {
+        "choose": [
+          0.1,
+          0.25,
+          0.5,
+          1.0
+        ],
+        "by": "x"
+      }
+    },
+    {
+      "widget": "length15",
+      "on": "Toggled",
+      "target": "seq15",
+      "option": "length",
+      "value": {
+        "choose": [
+          8,
+          16,
+          24,
+          32
+        ],
+        "by": "x"
+      }
+    },
+    {
+      "widget": "direction15",
+      "on": "Toggled",
+      "target": "seq15",
+      "option": "direction",
+      "value": {
+        "source": "x"
+      }
+    },
+    {
+      "widget": "swing15",
+      "on": "Toggled",
+      "target": "seq15",
+      "option": "swing",
+      "value": {
+        "choose": [
+          50.0,
+          54.0,
+          58.0,
+          66.0
+        ],
+        "by": "x"
+      }
+    },
+    {
+      "widget": "gate15",
+      "on": "Toggled",
+      "target": "seq15",
+      "option": "gate",
+      "value": {
+        "choose": [
+          0.1,
+          0.25,
+          0.5,
+          1.0
+        ],
+        "by": "x"
+      }
+    },
+    {
+      "widget": "length16",
+      "on": "Toggled",
+      "target": "seq16",
+      "option": "length",
+      "value": {
+        "choose": [
+          8,
+          16,
+          24,
+          32
+        ],
+        "by": "x"
+      }
+    },
+    {
+      "widget": "direction16",
+      "on": "Toggled",
+      "target": "seq16",
+      "option": "direction",
+      "value": {
+        "source": "x"
+      }
+    },
+    {
+      "widget": "swing16",
+      "on": "Toggled",
+      "target": "seq16",
+      "option": "swing",
+      "value": {
+        "choose": [
+          50.0,
+          54.0,
+          58.0,
+          66.0
+        ],
+        "by": "x"
+      }
+    },
+    {
+      "widget": "gate16",
+      "on": "Toggled",
+      "target": "seq16",
+      "option": "gate",
+      "value": {
+        "choose": [
+          0.1,
+          0.25,
+          0.5,
+          1.0
+        ],
+        "by": "x"
+      }
+    }
+  ],
+  "mappings": [
+    {
+      "widget": "seq1",
+      "on": "StepPlayed",
+      "output": "midi",
+      "message": {
+        "type": "NoteOn",
+        "note": {
+          "source": "note"
+        },
+        "velocity": {
+          "source": "velocity"
+        },
+        "channel": 10
+      }
+    },
+    {
+      "widget": "seq1",
+      "on": "StepEnded",
+      "output": "midi",
+      "message": {
+        "type": "NoteOff",
+        "note": {
+          "source": "note"
+        },
+        "velocity": 0,
+        "channel": 10
+      }
+    },
+    {
+      "widget": "seq2",
+      "on": "StepPlayed",
+      "output": "midi",
+      "message": {
+        "type": "NoteOn",
+        "note": {
+          "source": "note"
+        },
+        "velocity": {
+          "source": "velocity"
+        },
+        "channel": 10
+      }
+    },
+    {
+      "widget": "seq2",
+      "on": "StepEnded",
+      "output": "midi",
+      "message": {
+        "type": "NoteOff",
+        "note": {
+          "source": "note"
+        },
+        "velocity": 0,
+        "channel": 10
+      }
+    },
+    {
+      "widget": "seq3",
+      "on": "StepPlayed",
+      "output": "midi",
+      "message": {
+        "type": "NoteOn",
+        "note": {
+          "source": "note"
+        },
+        "velocity": {
+          "source": "velocity"
+        },
+        "channel": 10
+      }
+    },
+    {
+      "widget": "seq3",
+      "on": "StepEnded",
+      "output": "midi",
+      "message": {
+        "type": "NoteOff",
+        "note": {
+          "source": "note"
+        },
+        "velocity": 0,
+        "channel": 10
+      }
+    },
+    {
+      "widget": "seq4",
+      "on": "StepPlayed",
+      "output": "midi",
+      "message": {
+        "type": "NoteOn",
+        "note": {
+          "source": "note"
+        },
+        "velocity": {
+          "source": "velocity"
+        },
+        "channel": 10
+      }
+    },
+    {
+      "widget": "seq4",
+      "on": "StepEnded",
+      "output": "midi",
+      "message": {
+        "type": "NoteOff",
+        "note": {
+          "source": "note"
+        },
+        "velocity": 0,
+        "channel": 10
+      }
+    },
+    {
+      "widget": "seq5",
+      "on": "StepPlayed",
+      "output": "midi",
+      "message": {
+        "type": "NoteOn",
+        "note": {
+          "source": "note"
+        },
+        "velocity": {
+          "source": "velocity"
+        },
+        "channel": 10
+      }
+    },
+    {
+      "widget": "seq5",
+      "on": "StepEnded",
+      "output": "midi",
+      "message": {
+        "type": "NoteOff",
+        "note": {
+          "source": "note"
+        },
+        "velocity": 0,
+        "channel": 10
+      }
+    },
+    {
+      "widget": "seq6",
+      "on": "StepPlayed",
+      "output": "midi",
+      "message": {
+        "type": "NoteOn",
+        "note": {
+          "source": "note"
+        },
+        "velocity": {
+          "source": "velocity"
+        },
+        "channel": 10
+      }
+    },
+    {
+      "widget": "seq6",
+      "on": "StepEnded",
+      "output": "midi",
+      "message": {
+        "type": "NoteOff",
+        "note": {
+          "source": "note"
+        },
+        "velocity": 0,
+        "channel": 10
+      }
+    },
+    {
+      "widget": "seq7",
+      "on": "StepPlayed",
+      "output": "midi",
+      "message": {
+        "type": "NoteOn",
+        "note": {
+          "source": "note"
+        },
+        "velocity": {
+          "source": "velocity"
+        },
+        "channel": 10
+      }
+    },
+    {
+      "widget": "seq7",
+      "on": "StepEnded",
+      "output": "midi",
+      "message": {
+        "type": "NoteOff",
+        "note": {
+          "source": "note"
+        },
+        "velocity": 0,
+        "channel": 10
+      }
+    },
+    {
+      "widget": "seq8",
+      "on": "StepPlayed",
+      "output": "midi",
+      "message": {
+        "type": "NoteOn",
+        "note": {
+          "source": "note"
+        },
+        "velocity": {
+          "source": "velocity"
+        },
+        "channel": 10
+      }
+    },
+    {
+      "widget": "seq8",
+      "on": "StepEnded",
+      "output": "midi",
+      "message": {
+        "type": "NoteOff",
+        "note": {
+          "source": "note"
+        },
+        "velocity": 0,
+        "channel": 10
+      }
+    },
+    {
+      "widget": "seq9",
+      "on": "StepPlayed",
+      "output": "midi",
+      "message": {
+        "type": "NoteOn",
+        "note": {
+          "source": "note"
+        },
+        "velocity": {
+          "source": "velocity"
+        },
+        "channel": 10
+      }
+    },
+    {
+      "widget": "seq9",
+      "on": "StepEnded",
+      "output": "midi",
+      "message": {
+        "type": "NoteOff",
+        "note": {
+          "source": "note"
+        },
+        "velocity": 0,
+        "channel": 10
+      }
+    },
+    {
+      "widget": "seq10",
+      "on": "StepPlayed",
+      "output": "midi",
+      "message": {
+        "type": "NoteOn",
+        "note": {
+          "source": "note"
+        },
+        "velocity": {
+          "source": "velocity"
+        },
+        "channel": 10
+      }
+    },
+    {
+      "widget": "seq10",
+      "on": "StepEnded",
+      "output": "midi",
+      "message": {
+        "type": "NoteOff",
+        "note": {
+          "source": "note"
+        },
+        "velocity": 0,
+        "channel": 10
+      }
+    },
+    {
+      "widget": "seq11",
+      "on": "StepPlayed",
+      "output": "midi",
+      "message": {
+        "type": "NoteOn",
+        "note": {
+          "source": "note"
+        },
+        "velocity": {
+          "source": "velocity"
+        },
+        "channel": 10
+      }
+    },
+    {
+      "widget": "seq11",
+      "on": "StepEnded",
+      "output": "midi",
+      "message": {
+        "type": "NoteOff",
+        "note": {
+          "source": "note"
+        },
+        "velocity": 0,
+        "channel": 10
+      }
+    },
+    {
+      "widget": "seq12",
+      "on": "StepPlayed",
+      "output": "midi",
+      "message": {
+        "type": "NoteOn",
+        "note": {
+          "source": "note"
+        },
+        "velocity": {
+          "source": "velocity"
+        },
+        "channel": 10
+      }
+    },
+    {
+      "widget": "seq12",
+      "on": "StepEnded",
+      "output": "midi",
+      "message": {
+        "type": "NoteOff",
+        "note": {
+          "source": "note"
+        },
+        "velocity": 0,
+        "channel": 10
+      }
+    },
+    {
+      "widget": "seq13",
+      "on": "StepPlayed",
+      "output": "midi",
+      "message": {
+        "type": "NoteOn",
+        "note": {
+          "source": "note"
+        },
+        "velocity": {
+          "source": "velocity"
+        },
+        "channel": 10
+      }
+    },
+    {
+      "widget": "seq13",
+      "on": "StepEnded",
+      "output": "midi",
+      "message": {
+        "type": "NoteOff",
+        "note": {
+          "source": "note"
+        },
+        "velocity": 0,
+        "channel": 10
+      }
+    },
+    {
+      "widget": "seq14",
+      "on": "StepPlayed",
+      "output": "midi",
+      "message": {
+        "type": "NoteOn",
+        "note": {
+          "source": "note"
+        },
+        "velocity": {
+          "source": "velocity"
+        },
+        "channel": 10
+      }
+    },
+    {
+      "widget": "seq14",
+      "on": "StepEnded",
+      "output": "midi",
+      "message": {
+        "type": "NoteOff",
+        "note": {
+          "source": "note"
+        },
+        "velocity": 0,
+        "channel": 10
+      }
+    },
+    {
+      "widget": "seq15",
+      "on": "StepPlayed",
+      "output": "midi",
+      "message": {
+        "type": "NoteOn",
+        "note": {
+          "source": "note"
+        },
+        "velocity": {
+          "source": "velocity"
+        },
+        "channel": 10
+      }
+    },
+    {
+      "widget": "seq15",
+      "on": "StepEnded",
+      "output": "midi",
+      "message": {
+        "type": "NoteOff",
+        "note": {
+          "source": "note"
+        },
+        "velocity": 0,
+        "channel": 10
+      }
+    },
+    {
+      "widget": "seq16",
+      "on": "StepPlayed",
+      "output": "midi",
+      "message": {
+        "type": "NoteOn",
+        "note": {
+          "source": "note"
+        },
+        "velocity": {
+          "source": "velocity"
+        },
+        "channel": 10
+      }
+    },
+    {
+      "widget": "seq16",
+      "on": "StepEnded",
+      "output": "midi",
+      "message": {
+        "type": "NoteOff",
+        "note": {
+          "source": "note"
+        },
+        "velocity": 0,
+        "channel": 10
+      }
+    }
+  ],
+  "outputs": [
+    {
+      "name": "midi",
+      "type": "midi_port.MidiPort",
+      "virtual": "PyxelWidgets midi",
+      "options": {}
+    }
+  ]
+}

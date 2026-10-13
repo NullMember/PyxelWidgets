@@ -1,0 +1,249 @@
+{
+  "format": "pyxelwidgets.snippet",
+  "title": "Snapshot mixer",
+  "doc": "Eight faders (CC 20-27) under a strip of eight snapshots: press an empty one to store, a stored one to bring the faders back (sending their values), hold one to store over it",
+  "category": "Mixing",
+  "size": [
+    8,
+    8
+  ],
+  "widgets": [
+    {
+      "type": "Presets",
+      "name": "snapshots",
+      "x": 0,
+      "y": 0,
+      "width": 8,
+      "height": 8,
+      "options": {},
+      "widgets": [
+        {
+          "type": "Fader",
+          "name": "level1",
+          "x": 0,
+          "y": 0,
+          "width": 1,
+          "height": 7,
+          "options": {
+            "mode": "Magnitude",
+            "slew": 0.3,
+            "active_color": "#ff0000"
+          }
+        },
+        {
+          "type": "Fader",
+          "name": "level2",
+          "x": 1,
+          "y": 0,
+          "width": 1,
+          "height": 7,
+          "options": {
+            "mode": "Magnitude",
+            "slew": 0.3,
+            "active_color": "#ffbf00"
+          }
+        },
+        {
+          "type": "Fader",
+          "name": "level3",
+          "x": 2,
+          "y": 0,
+          "width": 1,
+          "height": 7,
+          "options": {
+            "mode": "Magnitude",
+            "slew": 0.3,
+            "active_color": "#80ff00"
+          }
+        },
+        {
+          "type": "Fader",
+          "name": "level4",
+          "x": 3,
+          "y": 0,
+          "width": 1,
+          "height": 7,
+          "options": {
+            "mode": "Magnitude",
+            "slew": 0.3,
+            "active_color": "#00ff40"
+          }
+        },
+        {
+          "type": "Fader",
+          "name": "level5",
+          "x": 4,
+          "y": 0,
+          "width": 1,
+          "height": 7,
+          "options": {
+            "mode": "Magnitude",
+            "slew": 0.3,
+            "active_color": "#00ffff"
+          }
+        },
+        {
+          "type": "Fader",
+          "name": "level6",
+          "x": 5,
+          "y": 0,
+          "width": 1,
+          "height": 7,
+          "options": {
+            "mode": "Magnitude",
+            "slew": 0.3,
+            "active_color": "#0040ff"
+          }
+        },
+        {
+          "type": "Fader",
+          "name": "level7",
+          "x": 6,
+          "y": 0,
+          "width": 1,
+          "height": 7,
+          "options": {
+            "mode": "Magnitude",
+            "slew": 0.3,
+            "active_color": "#8000ff"
+          }
+        },
+        {
+          "type": "Fader",
+          "name": "level8",
+          "x": 7,
+          "y": 0,
+          "width": 1,
+          "height": 7,
+          "options": {
+            "mode": "Magnitude",
+            "slew": 0.3,
+            "active_color": "#ff00bf"
+          }
+        }
+      ]
+    }
+  ],
+  "mappings": [
+    {
+      "widget": "level1",
+      "on": "Changed",
+      "output": "midi",
+      "feedback": true,
+      "message": {
+        "type": "ControlChange",
+        "control": 20,
+        "value": {
+          "source": "value"
+        },
+        "channel": 1
+      }
+    },
+    {
+      "widget": "level2",
+      "on": "Changed",
+      "output": "midi",
+      "feedback": true,
+      "message": {
+        "type": "ControlChange",
+        "control": 21,
+        "value": {
+          "source": "value"
+        },
+        "channel": 1
+      }
+    },
+    {
+      "widget": "level3",
+      "on": "Changed",
+      "output": "midi",
+      "feedback": true,
+      "message": {
+        "type": "ControlChange",
+        "control": 22,
+        "value": {
+          "source": "value"
+        },
+        "channel": 1
+      }
+    },
+    {
+      "widget": "level4",
+      "on": "Changed",
+      "output": "midi",
+      "feedback": true,
+      "message": {
+        "type": "ControlChange",
+        "control": 23,
+        "value": {
+          "source": "value"
+        },
+        "channel": 1
+      }
+    },
+    {
+      "widget": "level5",
+      "on": "Changed",
+      "output": "midi",
+      "feedback": true,
+      "message": {
+        "type": "ControlChange",
+        "control": 24,
+        "value": {
+          "source": "value"
+        },
+        "channel": 1
+      }
+    },
+    {
+      "widget": "level6",
+      "on": "Changed",
+      "output": "midi",
+      "feedback": true,
+      "message": {
+        "type": "ControlChange",
+        "control": 25,
+        "value": {
+          "source": "value"
+        },
+        "channel": 1
+      }
+    },
+    {
+      "widget": "level7",
+      "on": "Changed",
+      "output": "midi",
+      "feedback": true,
+      "message": {
+        "type": "ControlChange",
+        "control": 26,
+        "value": {
+          "source": "value"
+        },
+        "channel": 1
+      }
+    },
+    {
+      "widget": "level8",
+      "on": "Changed",
+      "output": "midi",
+      "feedback": true,
+      "message": {
+        "type": "ControlChange",
+        "control": 27,
+        "value": {
+          "source": "value"
+        },
+        "channel": 1
+      }
+    }
+  ],
+  "outputs": [
+    {
+      "name": "midi",
+      "type": "midi_port.MidiPort",
+      "virtual": "PyxelWidgets midi",
+      "options": {}
+    }
+  ]
+}
