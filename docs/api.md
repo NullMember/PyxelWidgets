@@ -2686,7 +2686,9 @@ and `PluginParameter` messages turn a parameter's V-Pot:
     surface.map(knob, mackie, PluginParameter('Bass', 'ReaComp', 'Ratio'), on = Changed, feedback = True)
 
 Works with Logic Pro (its plug-in views, cursor paging and passing messages
-are handled); REAPER's own Mackie Control support has no plug-in mode (its
+are handled) and Cubase (track names on the bottom line, one insert slot at a
+time picked with V-Pot 1, Channel Left/Right paging, names cut to 7
+characters); REAPER's own Mackie Control support has no plug-in mode (its
 OSC has: `osc.REAPER`).
 
 ### `MackieControl` (PluginParameters, _ControlSurface)
