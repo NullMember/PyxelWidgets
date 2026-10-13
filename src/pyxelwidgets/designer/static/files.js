@@ -1,4 +1,4 @@
-// Files (new, open, save, download), dialogs and the welcome card
+// Files (new, open, save, download), dialogs and detecting devices
 
 import { state, $, fill, el, api } from './core.js';
 import { prefs, savePrefs, sendHidden } from './prefs.js';
@@ -8,6 +8,7 @@ import { held, padUp } from './preview.js';
 import { render } from './board.js';
 import { renderToolbar, renderDirty } from './properties.js';
 import { hidePadInfo } from './padinfo.js';
+import { openStart } from './start.js';
 
 function dirty() {
   return JSON.stringify(state.layout) !== state.saved;
@@ -126,31 +127,20 @@ async function openPath(path) {
   setStatus(`Opened ${reply.file}`, 'ok');
 }
 
-async function newLayout(template = null) {
-  if (!(await confirmDiscard())) return;
+export async function newLayout(template = null) {
+  if (!(await confirmDiscard())) return false;
   const reply = await api('POST', '/api/new', { template });
   if (!reply.ok) return setStatus(reply.error, 'error');
   useLayout(reply);
   setStatus(template ? `New layout from the ${template} template: Save asks where to keep it` : 'New layout', 'ok');
+  return true;
 }
 
-async function templates() {
+export async function templates() {
   state.templates ||= (await api('GET', '/api/templates')).templates || [];
   return state.templates;
 }
 
-async function showNew() {
-  const list = await templates();
-  const dialog = newDialog();
-  fill(dialog,
-    el('h3', {}, 'New layout'),
-    el('div', { class: 'choices' },
-      el('button', { onclick: () => { dialog.close(); newLayout(); } }, el('b', {}, 'Empty'), el('small', {}, 'A 9x9 grid, nothing on it')),
-      list.map((template) => el('button', { dataset: { template: template.name }, onclick: () => { dialog.close(); newLayout(template.name); } },
-        el('b', {}, template.title), el('small', {}, template.doc)))),
-    el('div', { class: 'buttons' }, el('button', { onclick: () => dialog.close() }, 'Cancel')));
-  dialog.showModal();
-}
 
 export async function showOpen() {
   const picked = await pickFile('open', state.file || prefs.lastDirectory || null);
@@ -198,7 +188,7 @@ export function showFileMenu() {
     label, keys ? el('span', { class: 'keys' }, keys) : null);
   const recent = (prefs.recent || []).filter((file) => file !== state.file);
   fill(list,
-    item('New…', showNew, null, { id: 'menu-new' }),
+    item('New…', openStart, null, { id: 'menu-new' }),
     item('Open…', showOpen, null, { id: 'menu-open' }),
     recent.length ? [el('div', { class: 'head' }, 'Recent'), recent.map((file) => item(file, () => openPath(file), null, { class: 'recent', title: file }))] : null,
     el('hr'),
@@ -216,7 +206,7 @@ export function showFileMenu() {
 
 // ---------------------------------------------------------------- starting out
 
-async function detectDevices() {
+export async function detectDevices() {
   const { devices } = await api('GET', '/api/detect');
   return devices || [];
 }
@@ -241,32 +231,6 @@ export async function showDetect() {
   dialog.showModal();
 }
 
-// An empty layout invites a template, the device you play on, or the palette
-export async function renderWelcome() {
-  const empty = !state.layout.widgets.length && !state.layout.devices.length && state.mode === 'edit' && !state.welcomeClosed;
-  let card = document.querySelector('.welcome');
-  if (!empty) return card?.remove();
-  if (card) return;
-  card = el('div', { class: 'welcome' });
-  $('stage').append(card);
-  const list = await templates();
-  fill(card, el('div', { class: 'card' },
-    el('div', { class: 'props-head' }, el('h3', {}, 'Start a layout'),
-      el('button', { class: 'link', title: 'Close', onclick: () => { state.welcomeClosed = true; card.remove(); } }, '✕')),
-    el('p', { class: 'hint' }, 'From a template:'),
-    el('div', { class: 'choices' }, list.map((template) => el('button', { dataset: { template: template.name }, onclick: () => newLayout(template.name) },
-      el('b', {}, template.title), el('small', {}, template.doc)))),
-    el('p', { class: 'hint' }, 'Or add the device you play on, then drag widgets from the palette onto the grid.'),
-    el('div', { class: 'found' }, el('button', {
-      id: 'welcome-detect',
-      onclick: async (event) => {
-        const found = await detectDevices();
-        event.target.replaceWith(found.length
-          ? el('div', { class: 'found' }, found.map((device) => el('button', { onclick: () => addDeviceOfType(device.type) }, `Add ${device.model}`)))
-          : el('p', { class: 'hint' }, 'No device found: plug one in, or pick one under Devices.'));
-      },
-    }, 'Detect connected devices'))));
-}
 
 export function setMode(mode) {
   state.mode = mode;

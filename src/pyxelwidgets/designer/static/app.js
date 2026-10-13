@@ -21,6 +21,7 @@ import { addWidget, clearGhost, dragOver, drop, addDevice, removeSelection, dupl
   pasteWidgets, groupSelection, ungroup, selectAll, nudge } from './editing.js';
 import { showPaletteTab, loadSnippets, renderSnippets, saveSnippet } from './snippets.js';
 import { stopLearning } from './learn.js';
+import { openStart, closeStart } from './start.js';
 import { addRecent, save, saveAs, showOpen, importFile, showFileMenu, showDetect, setMode } from './files.js';
 
 function bindToolbar() {
@@ -54,7 +55,7 @@ function bindToolbar() {
   $('detect-devices').onclick = showDetect;
   $('open-file').onchange = (e) => { if (e.target.files[0]) importFile(e.target.files[0]); e.target.value = ''; };
   $('add-device').onclick = addDevice;
-  $('add-output').onclick = addOutput;
+  $('add-output').onclick = () => addOutput();
   $('snippet-size').onchange = (event) => {
     prefs.snippetSize = event.target.value;
     savePrefs();
@@ -79,6 +80,7 @@ function bindToolbar() {
     if (event.target.closest('input, select, textarea')) return;
     if (event.target.closest('dialog')) return;
     if (event.key === 'Escape' && state.learning) return stopLearning();
+    if (event.key === 'Escape' && state.start?.open) return closeStart();
     if (state.rules.open && state.rules.focused && rulesKey(event)) return;
     const mod = event.ctrlKey || event.metaKey;
     const key = event.key.toLowerCase();
@@ -241,6 +243,8 @@ async function start() {
   render();
   sendHidden();
   poll();
+  // An empty layout starts with the start window
+  if (!state.layout.widgets.length && !state.layout.devices.length) openStart();
 }
 
 start();

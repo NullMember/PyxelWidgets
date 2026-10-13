@@ -12,7 +12,7 @@ import { padDown, pressAt, padUp } from './preview.js';
 import { showPadInfo, hidePadInfo } from './padinfo.js';
 import { renderTree } from './layers.js';
 import { renderDevices, select, renderProperties, renderCode, renderToolbar, renderDirty } from './properties.js';
-import { renderWelcome } from './files.js';
+import { renderStart } from './start.js';
 
 export function render() {
   renderBoard();
@@ -25,7 +25,7 @@ export function render() {
   renderToolbar();
   renderDirty();
   renderDrawer();
-  renderWelcome();
+  renderStart();
   renderRules();
 }
 

@@ -28,8 +28,7 @@ export function uniqueOutputName(base) {
   for (let i = 2; ; i++) if (!taken.has(`${base}${i}`)) return `${base}${i}`;
 }
 
-export function addOutput() {
-  const type = $('output-type').value;
+export function addOutput(type = $('output-type').value) {
   const info = state.catalog.outputs.find((output) => output.type === type);
   const base = { 'mackie.MackieControl': 'mackie', 'mackie.HUI': 'hui', 'osc.REAPER': 'reaper', 'osc.OSC': 'osc', 'desktop.Desktop': 'desktop' }[type] || 'midi';
   change((layout) => {

@@ -145,8 +145,9 @@ h2 {
   display: grid; place-items: center; font-size: 11px; font-weight: 700; flex: none;
 }
 /* A widget drawn small by the real widget */
-.palette .thumb { width: 30px; height: 30px; display: grid; gap: 1px; place-content: center; flex: none; }
-.palette .thumb i { display: block; border-radius: 1px; }
+.palette .thumb, .start-window .thumb { width: 30px; height: 30px; display: grid; gap: 1px; place-content: center; flex: none; }
+.palette .thumb i, .start-window .thumb i { display: block; border-radius: 1px; }
+.start-window .thumb { width: 40px; height: 40px; }
 /* Widgets and Snippets share the palette section */
 .palette-tabs { display: flex; gap: 10px; }
 .palette-tabs button { background: none; border: none; padding: 0; font: inherit; letter-spacing: inherit; text-transform: inherit; color: var(--muted); cursor: pointer; }
@@ -346,17 +347,21 @@ kbd { background: var(--panel-2); border: 1px solid var(--line); border-bottom-w
 .choices button { text-align: left; padding: 10px; display: flex; flex-direction: column; gap: 2px; }
 .choices button small { color: var(--muted); }
 
-/* Starting out: shown on an empty layout */
-.welcome {
-  position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; pointer-events: none; z-index: 10;
+/* The start window: floats over the page on an empty layout and for File > New */
+.start-window {
+  position: fixed; z-index: 40; left: 50%; top: 50%; transform: translate(-50%, -50%); width: min(680px, calc(100vw - 32px));
+  max-height: calc(100vh - 32px); overflow: auto; background: rgba(27, 30, 36, 0.98); border: 1px solid var(--line); border-radius: 12px;
+  padding: 16px 20px; box-shadow: 0 16px 48px rgba(0, 0, 0, 0.55);
 }
-.welcome .card {
-  pointer-events: auto; background: rgba(27, 30, 36, 0.96); border: 1px solid var(--line); border-radius: 12px; padding: 18px 20px;
-  max-width: 440px; box-shadow: 0 12px 40px rgba(0, 0, 0, 0.5);
-}
-.welcome h3 { margin: 0 0 10px; font-size: 15px; }
-.welcome .choices { margin: 10px 0; }
-.welcome .found { margin: 6px 0; display: flex; flex-direction: column; gap: 4px; }
+.start-window .start-head { display: flex; align-items: center; justify-content: space-between; }
+.start-window h3 { margin: 0; font-size: 16px; }
+.start-window h4 { margin: 14px 0 6px; font-size: 11px; text-transform: uppercase; letter-spacing: 0.6px; color: var(--muted); }
+.start-window .choices button[data-template=""] { border-color: var(--accent); }
+.start-window .found { margin: 6px 0; display: flex; flex-direction: column; gap: 4px; align-items: flex-start; }
+.start-window .snippet-choices { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 8px; }
+.start-window .snippet-choices button { display: flex; flex-direction: column; align-items: center; gap: 4px; padding: 8px; }
+.start-window .snippet-choices small { color: var(--muted); }
+.start-window .buttons { display: flex; justify-content: flex-end; margin-top: 14px; }
 
 @media (max-width: 1000px) {
   /* Stacked: the page scrolls instead of each panel */
@@ -390,7 +395,7 @@ dialog input[type=text] { width: 100%; }
 dialog .recent-list { list-style: none; margin: 8px 0 0; padding: 0; max-height: 200px; overflow: auto; }
 dialog .recent-list li { padding: 4px 6px; border-radius: 5px; cursor: pointer; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 dialog .recent-list li:hover { background: var(--accent-soft); }
-body.dragging .welcome { display: none; }
+body.dragging #start { display: none; }
 .events li.debug { color: var(--text); }
 .events li.debug .kind { color: var(--device); }
 .control.value.condition { flex-direction: column; align-items: stretch; }
