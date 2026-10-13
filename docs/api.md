@@ -262,19 +262,21 @@ NoteOff(widget: 'typing.Any', note: 'int', velocity: 'float')
 ### `StepPlayed` (WidgetEvent)
 
 ```python
-StepPlayed(widget: typing.Any, step: int, active: bool, gate: float = 1.0)
+StepPlayed(widget: typing.Any, step: int, active: bool, gate: float = 1.0, velocity: float = 1.0, note: int = 36)
 ```
 
-The Sequencer playhead moved to `step`; `active` if that step is on.
-`gate` is how long an active step sounds, in steps (StepEnded follows).
+The Sequencer playhead moved to `step`; `active` if that step plays.
+`gate` is how long it sounds, in steps (StepEnded follows), `velocity`
+how loud (0 when it doesn't play) and `note` its note. A step with
+ratchets plays several times.
 
 ### `StepEnded` (WidgetEvent)
 
 ```python
-StepEnded(widget: typing.Any, step: int)
+StepEnded(widget: typing.Any, step: int, note: int = 36)
 ```
 
-The gate of an active Sequencer `step` ended: send a NoteOff on it.
+The gate of an active Sequencer `step` ended: send a NoteOff on its `note`.
 
 ### `PageChanged` (WidgetEvent)
 
@@ -287,10 +289,10 @@ PageChanged(widget: 'typing.Any', page: 'int')
 ### `RowPlayed` (WidgetEvent)
 
 ```python
-RowPlayed(widget: typing.Any, row: int, columns: tuple)
+RowPlayed(widget: typing.Any, row: int, columns: tuple, notes: tuple = ())
 ```
 
-The Tracker playhead moved to `row`; `columns` lists the active cells in it.
+The Tracker playhead moved to `row`; `columns` lists the active cells in it, `notes` their notes.
 
 ### `ClipQueued` (WidgetEvent)
 
@@ -315,6 +317,30 @@ ClipStopped(widget: typing.Any, x: int, y: int)
 ```
 
 A ClipLauncher clip stopped.
+
+### `TempoTapped` (WidgetEvent)
+
+```python
+TempoTapped(widget: typing.Any, bpm: float)
+```
+
+A TapTempo was tapped in time: `bpm` is the tempo of the taps.
+
+### `PresetRecalled` (WidgetEvent)
+
+```python
+PresetRecalled(widget: typing.Any, slot: int)
+```
+
+A Presets group brought back what it stored in `slot`.
+
+### `PresetStored` (WidgetEvent)
+
+```python
+PresetStored(widget: typing.Any, slot: int)
+```
+
+A Presets group stored its widgets' state in `slot`.
 
 ### `PadEvent` (Event)
 
@@ -912,6 +938,48 @@ Input emits `Changed`; setting `value` from code doesn't.
 - **`receive(values: dict)`**: Take `value` (or `value_x`/`value_y`, or another 0.0-1.0 state) without emitting `Changed`.
 - **`set_value(value)`**: Set the value as input would: respects `interactive` and emits `Changed`.
 
+### `Scale` (Enum)
+
+A musical scale, for widgets laying out or choosing notes (Keyboard, PianoRoll, ChordPads...).
+
+Members: `Major`, `Minor`, `Dorian`, `Mixolydian`, `Lydian`, `Phrygian`, `Locrian`, `Diminished`, `WholeHalf`, `WholeTone`, `MinorBlues`, `MinorPentatonic`, `MajorPentatonic`, `MinorHarmonic`, `MinorMelodic`, `Chromatic`, `MajorBlues`, `MajorHarmonic`, `PhrygianDominant`, `HungarianMinor`, `DoubleHarmonic`, `BebopDominant`, `Hirajoshi`, `InSen`, `Iwato`, `Augmented`.
+
+### `Root` (Enum)
+
+The root note of a scale (CS is C sharp).
+
+Members: `C`, `CS`, `D`, `DS`, `E`, `F`, `FS`, `G`, `GS`, `A`, `AS`, `B`.
+
+### `scale_notes(scale: Scale, root: Root)`
+
+Every MIDI note (0-127) in `scale` from `root`, lowest first.
+
+### `VelocityCurve` (Enum)
+
+How hard a pad is hit becomes a note's velocity.
+
+Linear: as hit. Soft: louder soft hits (for a light touch). Hard: softer
+unless hit hard. Fixed: always the widget's `fixed_velocity`.
+
+Members: `Linear`, `Soft`, `Hard`, `Fixed`.
+
+### `Velocity`
+
+```python
+Velocity(*args, velocity_curve: VelocityCurve = VelocityCurve.Linear, fixed_velocity: float = 1.0, velocity_random: float = 0.0, **kwargs)
+```
+
+Mixin for widgets playing notes (Keyboard, DrumPads, Sequencer...): how
+the velocity of the notes they play comes from the pads. `velocity_of`
+applies the curve to a hit, `humanize` the randomness to a played note.
+
+- `velocity_curve: VelocityCurve = VelocityCurve.Linear, optional`: How hard hits turn into velocities; Fixed plays every note at `fixed_velocity`.
+- `fixed_velocity: float = 1.0, optional`: The velocity of every note with the Fixed curve, from 0 to 1.
+- `velocity_random: float = 0.0, optional`: Each note played is louder or softer by up to this much, at random (0 to 1).
+
+- **`velocity_of(velocity: float)`**: The velocity a hit this hard gives, through `velocity_curve`.
+- **`humanize(velocity: float)`**: `velocity` changed by up to `velocity_random` at random, kept above 0 (a note on stays one) and at most 1.
+
 ### `Button` (ValueWidget)
 
 ```python
@@ -920,9 +988,11 @@ Button(x: int, y: int, width: int, height: int, *, mode: Button.Mode = Button.Mo
 
 A pad area acting as one button: momentary (Button), toggle (Switch) or toggle on hold (Mixed).
 
-- **`handle_press(x: int, y: int, value: float)`**
-- **`handle_release(x: int, y: int, value: float)`**
-- **`handle_hold(x: int, y: int, value: float)`**
+- `mode: Mode = Mode.Button, optional`: Button: on while pressed. Switch: each press turns it on or off. Mixed: on while pressed, but holding it keeps it on until the next hold. The value is the press's velocity while on.
+
+- **`handle_press(x: int, y: int, velocity: float)`**
+- **`handle_release(x: int, y: int, velocity: float)`**
+- **`handle_hold(x: int, y: int, velocity: float)`**
 - **`receive(values: dict)`**
 - **`save_state()`**
 - **`load_state(state: dict)`**
@@ -937,13 +1007,16 @@ Members: `Button`, `Switch`, `Mixed`.
 ### `ButtonGroup` (Widget)
 
 ```python
-ButtonGroup(x: int = 0, y: int = 0, width: int = 1, height: int = 1, *, mode: ButtonGroup.Mode = ButtonGroup.Mode.Switch, **kwargs)
+ButtonGroup(x: int = 0, y: int = 0, width: int = 1, height: int = 1, *, mode: ButtonGroup.Mode = ButtonGroup.Mode.Switch, allow_none: bool = False, **kwargs)
 ```
 
 A grid of buttons: one selected at a time (Switch), toggles (Multi) or momentary (Button); emits Toggled.
 
-- **`handle_press(x: int, y: int, value: float)`**
-- **`handle_release(x: int, y: int, value: float)`**
+- `mode: Mode = Mode.Switch, optional`: Switch: one cell on at a time (the bottom-left one at first). Multi: each press turns a cell on or off. Button: cells are on while pressed.
+- `allow_none: bool = False, optional`: Switch: pressing the cell that's on turns it off, and none is on at first.
+
+- **`handle_press(x: int, y: int, velocity: float)`**
+- **`handle_release(x: int, y: int, velocity: float)`**
 - **`save_state()`**
 - **`load_state(state: dict)`**
 - **`receive(values: dict)`**: Turn the cell at `x`, `y` (or `cell`) on or off without emitting Toggled.
@@ -958,87 +1031,71 @@ Members: `Button`, `Switch`, `Multi`.
 ### `Fader` (ValueWidget)
 
 ```python
-Fader(x: int, y: int, width: int, height: int, *, direction: Fader.Direction = Fader.Direction.Vertical, grid: Fader.Grid = Fader.Grid.Simple, type: Fader.Type = Fader.Type.Wrap, mode: Fader.Mode = Fader.Mode.Multi, resolution: int = 4, **kwargs)
+Fader(x: int, y: int, width: int, height: int, *, direction: Fader.Direction = Fader.Direction.Vertical, grid: Fader.Grid = Fader.Grid.Simple, type: Fader.Type = Fader.Type.Wrap, mode: Fader.Mode = Fader.Mode.Multi, resolution: int = 4, slew: float = 0.0, clock: Callable[[], float] = time.monotonic, **kwargs)
 ```
 
 A fader along a row or column (or across the whole area with Matrix grid), drawn in several styles.
 
-**Description**
+- `direction: Direction = Direction.Vertical, optional`: Bottom to top, or left to right.
+- `grid: Grid = Grid.Simple, optional`: How the pads across the direction work: repeating, or as more of the range.
+- `type: Type = Type.Wrap, optional`: How the value is lit.
+- `mode: Mode = Mode.Multi, optional`: What a press sets.
+- `resolution: int = 4, optional`: Multi mode: the steps within each pad.
+- `slew: float = 0.0, optional`: Seconds it takes to glide over the whole range to a pressed value (emitting Changed on the way); 0 jumps there.
 
-Fader class implements Widget class
+Holding the first pad sets 0, the last 1, any other 0.5 (not in Relative mode).
 
-**Parameters**
-
-- `name: str`: Unique widget name, used to find widgets registered on window.
-- `x: int`: x axis where widget will be placed on window, from left to right. x value should be positive
-- `y: int`: y axis where widget will be placed on window, from bottom to top. y value should be positive.
-- `width: int`: Widget width, should >= 1
-- `height: int`: Widget height, should >= 1
-
-**Optional Parameters**
-
-- `callback: function`: If widget value is changed this function will be called. Should accept 3 parameters, (widget) name, event and value
-- `active_color: [r: int, g: int, b: int] = [255, 255, 255]`: If widget value is non-zero, this color will be used.
-- `inactive_color: [r: int, g: int, b: int] = [0, 0, 0]`: If widget value is zero, this color will be used.
-- `value: int = 0.0`: Default value of widget.
-- `direction: Fader.Direction = Fader.Direction.Vertical`: Can be Fader.Direction.Vertical or Fader.Direction.Horizontal. This will affect how widget rendered and value is calculated. Vertical faders from bottom to top, horizontal faders from left to right.
-- `grid: Fader.Grid = Fader.Grid.Simple`: Can be Fader.Grid.Simple or Fader.Grid.Matrix. Simple faders will use only one axis. Matrix faders will use both x and y axis.
-- `type: Fader.Type = Fader.Type.Wrap`: Single: Only corresponding pad will active. BoostCut: Corresponding pads from middle active. Wrap: Corresponding pads from bottom active. Spread: Corresponding pads from middle active symmetrically.
-
-- **`handle_press(x: int, y: int, value: float)`**
-- **`handle_hold(x: int, y: int, value: float)`**
-- **`handle_release(x: int, y: int, value: float)`**
+- **`render(time = None)`**
+- **`handle_press(x: int, y: int, velocity: float)`**
+- **`handle_hold(x: int, y: int, velocity: float)`**
+- **`handle_release(x: int, y: int, velocity: float)`**
 - **`draw()`**
 
 #### `Direction` (Enum)
 
-**Description**
-
-Vertical faders are bottom to top,
-Horizontal faders are left to right.
-
-**Enums**
-
-Vertical
-
-Horizontal
+Vertical faders go from the bottom to the top, horizontal ones from left to right.
 
 Members: `Vertical`, `Horizontal`.
 
 #### `Grid` (Enum)
 
-**Description**
-
-Determines how multi-width vertical faders
-or multi-height horizontal faders will work
-
-**Enums**
-
-Simple
-
-Matrix
+How a fader thicker than one pad works. Simple: the extra pads repeat
+(one value per row or column). Matrix: every pad is a part of the
+range, row after row (or column after column).
 
 Members: `Simple`, `Matrix`.
 
 #### `Type` (Enum)
 
-An enum.
+How the value is lit. Single: only the value's pad. BoostCut: from the
+middle up or down. Wrap: from the start up to the value. Spread: from
+the middle out both ways. Collapse: from both ends in.
 
 Members: `Single`, `BoostCut`, `Wrap`, `Spread`, `Collapse`.
 
 #### `Mode` (Enum)
 
-An enum.
+What a press sets. Simple: the start of the pad's part of the range.
+Multi: pressing the same pad again steps through its part
+(`resolution` steps). Magnitude: spread so the last pad is the top.
+Sensitive: within the pad's part, by velocity. Relative: hold a pad
+and press another to set a value within the held pad's part.
 
 Members: `Simple`, `Multi`, `Magnitude`, `Sensitive`, `Relative`.
 
-### `Keyboard` (Widget)
+### `Keyboard` (Velocity, Widget)
 
 ```python
-Keyboard(x: int = 0, y: int = 0, width: int = 1, height: int = 1, *, octave: int = 0, fold: int = 4, type: Keyboard.Type = Keyboard.Type.Diatonic, scale: Keyboard.Scale = Keyboard.Scale.Major, root: Keyboard.Root = Keyboard.Root.C, root_color: Color = Colors.Fuchsia, keyboard_color: Color = Colors.Aqua, non_scale_color: Color = Colors.Yellow, active_color: Color = Colors.Green, **kwargs)
+Keyboard(x: int = 0, y: int = 0, width: int = 1, height: int = 1, *, octave: int = 0, fold: int = 4, type: Keyboard.Type = Keyboard.Type.Diatonic, scale: Scale = Scale.Major, root: Root = Root.C, root_color: Color = Colors.Fuchsia, keyboard_color: Color = Colors.Aqua, non_scale_color: Color = Colors.Yellow, active_color: Color = Colors.Green, transpose: int = 0, **kwargs)
 ```
 
 A playable note layout (piano, chromatic or in-scale) emitting NoteOn and NoteOff.
+
+- `octave: int = 0, optional`: Moves every note by octaves; octave 0 starts from MIDI note 0 (plus the root).
+- `fold: int = 4, optional`: Where rows repeat: the Chromatic types move each row by `fold - 1` semitones (6 makes rows of fourths, like a guitar or bass), the Diatonic vertical and horizontal types by `fold - 1` scale notes (4: in-key fourths, as on the Push).
+- `type: Type = Type.Diatonic, optional`: Keyboard: piano rows of white and black keys. Chromatic: every semitone, rows moved by `fold`. Diatonic: only the scale's notes, each row an octave above the one below; the vertical and horizontal variants overlap rows by `fold`.
+- `scale, root: optional`: The notes in key: lit in `keyboard_color` (the root in `root_color`) and the only ones Diatonic types lay out.
+- `transpose: int = 0, optional`: Semitones added to the notes played, without moving the layout or its colors.
 
 - **`octave`** (settable)
 - **`fold`** (settable)
@@ -1048,8 +1105,8 @@ A playable note layout (piano, chromatic or in-scale) emitting NoteOn and NoteOf
 - **`root_color`** (settable)
 - **`keyboard_color`** (settable)
 - **`non_scale_color`** (settable)
-- **`handle_press(x: int, y: int, value: float)`**
-- **`handle_release(x: int, y: int, value: float)`**
+- **`handle_press(x: int, y: int, velocity: float)`**
+- **`handle_release(x: int, y: int, velocity: float)`**
 - **`draw()`**
 
 #### `Type` (Enum)
@@ -1060,27 +1117,31 @@ Members: `Keyboard`, `ChromaticVertical`, `ChromaticHorizontal`, `Diatonic`, `Di
 
 #### `Scale` (Enum)
 
-An enum.
+A musical scale, for widgets laying out or choosing notes (Keyboard, PianoRoll, ChordPads...).
 
-Members: `Major`, `Minor`, `Dorian`, `Mixolydian`, `Lydian`, `Phrygian`, `Locrian`, `Diminished`, `WholeHalf`, `WholeTone`, `MinorBlues`, `MinorPentatonic`, `MajorPentatonic`, `MinorHarmonic`, `MinorMelodic`.
+Members: `Major`, `Minor`, `Dorian`, `Mixolydian`, `Lydian`, `Phrygian`, `Locrian`, `Diminished`, `WholeHalf`, `WholeTone`, `MinorBlues`, `MinorPentatonic`, `MajorPentatonic`, `MinorHarmonic`, `MinorMelodic`, `Chromatic`, `MajorBlues`, `MajorHarmonic`, `PhrygianDominant`, `HungarianMinor`, `DoubleHarmonic`, `BebopDominant`, `Hirajoshi`, `InSen`, `Iwato`, `Augmented`.
 
 #### `Root` (Enum)
 
-An enum.
+The root note of a scale (CS is C sharp).
 
 Members: `C`, `CS`, `D`, `DS`, `E`, `F`, `FS`, `G`, `GS`, `A`, `AS`, `B`.
 
 ### `Knob` (ValueWidget)
 
 ```python
-Knob(x: int, y: int, width: int, height: int, *, coefficient: float = 0.05, type: Knob.Type = Knob.Type.Wrap, **kwargs)
+Knob(x: int, y: int, width: int, height: int, *, speed: float = 1.5, type: Knob.Type = Knob.Type.Wrap, clock: Callable[[], float] = time.monotonic, **kwargs)
 ```
 
 A value shown around the border of the area; holding a pad turns it continuously.
 
-- **`handle_press(x: int, y: int, value: float)`**
-- **`handle_release(x: int, y: int, value: float)`**
-- **`tick()`**
+- `speed: float = 1.5, optional`: How fast a held pad turns the knob, in full turns per second at the pads farthest from the top (pads nearer it turn slower). Pads on the left (or bottom) half turn it down, on the right (or top) half up; a pad on each side at once centres it.
+- `type: Type = Type.Wrap, optional`: How the value lights the ring, as Fader's types.
+
+- **`handle_press(x: int, y: int, velocity: float)`**
+- **`handle_release(x: int, y: int, velocity: float)`**
+- **`turn(seconds: float)`**: Turn by what the held pad does in `seconds` (`render` calls it while a pad is held).
+- **`render(time = None)`**
 - **`draw()`**
 
 #### `Type` (Enum)
@@ -1119,10 +1180,10 @@ from the transport or from a clock of the widget's own.
 - **`stop()`**
 - **`toggle()`**
 
-### `Sequencer` (Timed, Widget)
+### `Sequencer` (Timed, Velocity, Widget)
 
 ```python
-Sequencer(x: int, y: int, width: int, height: int, *, steps: int | None = None, rate: rate.Rate = '1/16', step: int = 0, page: int = 0, follow: bool = True, swing: float = 50.0, gate: float = 0.5, gate_random: float = 0.0, current_color: Color = Colors.Lime, current_active_color: Color = Colors.Red, **kwargs)
+Sequencer(x: int, y: int, width: int, height: int, *, steps: int | None = None, length: int | None = None, rate: rate.Rate = '1/16', step: int = 0, page: int = 0, follow: bool = True, direction: Sequencer.Direction = Sequencer.Direction.Forward, note: int = 36, swing: float = 50.0, gate: float = 0.5, gate_random: float = 0.0, current_color: Color = Colors.Lime, current_active_color: Color = Colors.Red, **kwargs)
 ```
 
 Step sequencer. Each step plays when `play(step)` or `advance()` is
@@ -1131,9 +1192,18 @@ called; its `clock` (the transport, one of its own, or none) does every
 step's `gate` ends. Steps beyond one screen are on pages: `page` is the
 one shown and edited.
 
+Pressing a step turns it on (with the press's velocity); pressing an
+active one turns it off when it's let go, unless it was edited while held:
+link actions (`set_velocity`, `set_probability`, `set_ratchets`,
+`set_note`) change the held steps, or the last one pressed.
+
+- `steps: int, optional`: How many steps there are; more than the pads go on pages. Defaults to the pads.
+- `length: int, optional`: How many of them play before it starts over (the clock and `advance` only); the rest keep what's on them. Defaults to `steps`.
 - `step: int = 0, optional`: The current (playing) step.
 - `page: int = 0, optional`: The page shown and edited.
 - `follow: bool = True, optional`: Show the page of the playing step when it plays.
+- `direction: Direction = Direction.Forward, optional`: The order the clock and `advance` play steps in.
+- `note: int = 36, optional`: The note steps play (StepPlayed's `note`) unless one has its own (`set_note`).
 - `swing: float = 50.0, optional`: Where every second step starts, in percent of a pair of steps: 50 is straight, 66 a triplet feel, 75 the most. Needs a clock (calls of `play`/`advance` aren't delayed).
 - `gate: float = 0.5, optional`: How long an active step sounds, in steps (up to 1): StepEnded then. Without a clock it ends when the next step plays.
 - `gate_random: float = 0.0, optional`: Each hit's gate is longer or shorter by up to this many steps, at random.
@@ -1142,15 +1212,68 @@ one shown and edited.
 - **`page`** (settable)
 - **`step`** (settable): The current step; setting it moves there without playing it.
 - **`steps`** (settable)
+- **`length`** (settable): How many steps play before it starts over (at most `steps`).
 - **`current`** (settable)
-- **`play(step: int)`**: Move to `step` (wrapped to `steps`) and emit StepPlayed; a sounding step ends first.
+- **`note_of(step: int)`**: The note `step` plays.
+- **`play(step: int)`**: Move to `step` (wrapped to `steps`) and emit StepPlayed; a sounding step ends first. An active step plays as its probability has it.
 - **`silence()`**: End the sounding step's gate now (StepEnded), e.g. when the clock stops.
-- **`tick(count: int)`**: Called by its clock `divisions` times a step: plays steps (every second one late by `swing`) and ends gates. `count` counts divisions.
-- **`advance()`**: Play the next step.
-- **`handle_press(x: int, y: int, value: float)`**
+- **`tick(count: int)`**: Called by its clock `divisions` times a step: plays steps (every second one late by `swing`) in `direction`, repeats ratchets and ends gates. `count` counts divisions.
+- **`advance()`**: Play the next step, in `direction` over `length` steps.
+- **`handle_press(x: int, y: int, velocity: float)`**
+- **`handle_release(x: int, y: int, velocity: float)`**
+- **`set_velocity(velocity: float)`**: Set the velocity (0-1) of the held steps, or the last one pressed.
+- **`set_probability(probability: float)`**: Set how likely (0-1) the held steps, or the last one pressed, play when their turn comes.
+- **`set_ratchets(hits: int)`**: Repeat the held steps, or the last one pressed, `hits` times within the step (needs a clock).
+- **`set_note(note: int)`**: Give the held steps, or the last one pressed, a note of their own (-1: the widget's `note`).
 - **`save_state()`**
 - **`load_state(state: dict)`**
 - **`reset()`**: Clear every step.
+- **`draw()`**
+
+#### `Direction` (Enum)
+
+The order steps play in: forward, backward, forward then back (PingPong), or at random.
+
+Members: `Forward`, `Backward`, `PingPong`, `Random`.
+
+### `PianoRoll` (Timed, Velocity, Widget)
+
+```python
+PianoRoll(x: int = 0, y: int = 0, width: int = 1, height: int = 1, *, steps: int = 16, rate: rate.Rate = '1/16', step: int = 0, page: int = 0, follow: bool = True, octave: int = 4, row: int = 0, scale: Scale = Scale.Major, root: Root = Root.C, active_color: Color = Colors.Orange, root_color: Color = Color(32, 0, 48), current_color: Color = Color(0, 48, 0), current_active_color: Color = Colors.White, **kwargs)
+```
+
+A melody editor: columns are steps, rows the notes of `scale` (the root's
+rows tinted). Press a pad to add a note; hold a note's first pad and press
+further along its row to make it longer; press a note to delete it. Plays
+its notes (NoteOn, then NoteOff when they end) when `play(step)` or
+`advance()` is called, its `clock` does every `rate`.
+
+- `steps: int = 16, optional`: How many steps the melody has; more than the columns go on pages.
+- `step: int = 0, optional`: The current (playing) step.
+- `page: int = 0, optional`: The steps shown and edited, `width` per page.
+- `follow: bool = True, optional`: Show the page of the playing step when it plays.
+- `octave: int = 4, optional`: The bottom row is the root in this octave (4 with C: MIDI note 48)...
+- `row: int = 0, optional`: ...moved up (or down, as far as MIDI note 0) by this many rows of the scale.
+- `scale, root: optional`: The notes rows have: one row per note in the scale.
+- `root_color: Color, optional`: The background of the root's rows.
+- `current_color, current_active_color: Color, optional`: The playing step's column, and its notes.
+
+- **`steps`** (settable)
+- **`pages`**
+- **`page`** (settable)
+- **`step`** (settable): The current step; setting it moves there without playing it.
+- **`rows()`**: The MIDI note of each row from the bottom, None past the highest note.
+- **`note_at(step: int, note: int)`**: The first step of the note covering `step` on `note`, or None.
+- **`add_note(step: int, note: int, length: int = 1, velocity: float = 1.0)`**: Add a note (replacing the ones it overlaps on its row).
+- **`handle_press(x: int, y: int, velocity: float)`**
+- **`handle_release(x: int, y: int, velocity: float)`**
+- **`set_velocity(velocity: float)`**: Set the velocity (0-1) of the held notes, or the last one pressed.
+- **`play(step: int)`**: Move to `step` (wrapped to `steps`): notes ending there end (NoteOff), notes starting there start (NoteOn).
+- **`advance()`**: Play the next step.
+- **`silence()`**: End every sounding note (NoteOff), e.g. when the clock stops.
+- **`reset()`**: Delete every note.
+- **`save_state()`**
+- **`load_state(state: dict)`**
 - **`draw()`**
 
 ### `Sprite` (Widget)
@@ -1165,36 +1288,50 @@ Shows a picture, or animates through `frames` changing every `rate`
 - **`render(time: animation.Time | None = None)`**
 - **`draw()`**
 
-### `Tracker` (Timed, Widget)
+### `Tracker` (Timed, Velocity, Widget)
 
 ```python
-Tracker(x: int = 0, y: int = 0, width: int = 1, height: int = 1, *, bars: int = 64, pages: int = 1, rate: rate.Rate = '1/16', step: int = 0, page: int = 0, bar: int = 0, follow: bool = True, current_color: Color = Colors.Aqua, current_active_color: Color = Colors.Fuchsia, **kwargs)
+Tracker(x: int = 0, y: int = 0, width: int = 1, height: int = 1, *, bars: int = 64, pages: int = 1, rate: rate.Rate = '1/16', step: int = 0, page: int = 0, bar: int = 0, follow: bool = True, note: int = 36, current_color: Color = Colors.Aqua, current_active_color: Color = Colors.Fuchsia, **kwargs)
 ```
 
 A scrolling step grid where rows are steps and columns are tracks. Rows
 play when `play(row)` or `advance()` is called; its `clock` does
-every `rate`. Emits RowPlayed. The rows shown and edited start at
-`bar` (top) on `page`.
+every `rate`. Emits RowPlayed, and for each active cell a NoteOn (its
+track's note, `note + column`, or its own) ending with a NoteOff when
+the next row plays. The rows shown and edited start at `bar` (top) on
+`page`.
 
+Pressing a cell turns it on (with the press's velocity); pressing an
+active one turns it off when it's let go, unless it was edited while held
+(`set_note`, `set_velocity`: the held cells, or the last one pressed).
+
+- `bars: int = 64, optional`: Rows on each page.
+- `pages: int = 1, optional`: Pages of `bars` rows, played one after the other.
 - `step: int = 0, optional`: The current (playing) row over all pages: `page * bars + bar`.
 - `page: int = 0, optional`: The page shown and edited.
 - `bar: int = 0, optional`: The first row shown, at the top.
 - `follow: bool = True, optional`: Scroll to the playing row when it plays.
+- `note: int = 36, optional`: The first column's note; each column to the right plays the next one.
 
 - **`step`** (settable): The current row over all pages: `current_page * bars + current_bar`; setting it moves there without playing it.
 - **`page`** (settable): The page shown and edited.
 - **`bar`** (settable): The first row shown (at the top), from 0 to `bars - height`.
 - **`current_top`**
 - **`current_bottom`**
-- **`handle_press(x: int, y: int, value: float)`**
-- **`play(step: int)`**: Move to `step` (wrapping through rows, then pages) and emit RowPlayed with the row's active columns.
+- **`note_of(page: int, column: int, row: int)`**: The note of a cell: its own, or its column's.
+- **`handle_press(x: int, y: int, velocity: float)`**
+- **`handle_release(x: int, y: int, velocity: float)`**
+- **`set_note(note: int)`**: Give the held cells, or the last one pressed, a note of their own (-1: their column's).
+- **`set_velocity(velocity: float)`**: Set the velocity (0-1) of the held cells, or the last one pressed.
+- **`play(step: int)`**: Move to `step` (wrapping through rows, then pages): the last row's notes end, RowPlayed with the row's active columns, then their notes.
+- **`silence()`**: End the notes sounding (NoteOff).
 - **`advance()`**: Play the next row.
 - **`scroll(step: int)`**: Move to `step` without playing it; with `follow` the view keeps the row in the middle.
 - **`save_state()`**
 - **`load_state(state: dict)`**
 - **`draw()`**
 
-### `DrumPads` (Widget)
+### `DrumPads` (Velocity, Widget)
 
 ```python
 DrumPads(x: int = 0, y: int = 0, width: int = 1, height: int = 1, *, note: int = 36, bank: int = 0, velocity: bool = True, active_color: Color = Colors.Orange, inactive_color: Color = Color(64, 32, 0), **kwargs)
@@ -1276,21 +1413,22 @@ ClipStarted and ClipStopped.
 ### `XY` (ValueWidget)
 
 ```python
-XY(x: int, y: int, width: int, height: int, *, x_color: Color = Colors.Aqua, y_color: Color = Colors.Fuchsia, value: tuple = (0.0, 0.0), **kwargs)
+XY(x: int, y: int, width: int, height: int, *, x_color: Color = Colors.Aqua, y_color: Color = Colors.Fuchsia, value: tuple = (0.0, 0.0), spring: bool = False, rest: tuple = (0.5, 0.5), **kwargs)
 ```
 
 A two dimensional value (x, y) set by pressing anywhere in the area.
 
-- **`handle_press(x: int, y: int, value: float)`**
-- **`handle_hold(x: int, y: int, value: float)`**
-- **`handle_release(x: int, y: int, value: float)`**
+- `x_color, y_color: Color, optional`: The column of the x value and the row of the y value.
+- `value: tuple = (0.0, 0.0), optional`: Initial (x, y), each from 0.0 to 1.0.
+- `spring: bool = False, optional`: Goes back to `rest` when every pad is let go, like a joystick.
+- `rest: tuple = (0.5, 0.5), optional`: Where `spring` brings it back to.
+
+Holding a pad and pressing others sets values within the held pad.
+
+- **`handle_press(x: int, y: int, velocity: float)`**
+- **`handle_hold(x: int, y: int, velocity: float)`**
+- **`handle_release(x: int, y: int, velocity: float)`**
 - **`draw()`**
-
-#### `Direction` (Enum)
-
-An enum.
-
-Members: `Vertical`, `Horizontal`.
 
 ### `Text` (Widget)
 
@@ -1321,6 +1459,220 @@ Members: `Left`, `Center`, `Right`.
 An enum.
 
 Members: `Auto`, `Always`, `Off`.
+
+### `ChordPads` (Velocity, Widget)
+
+```python
+ChordPads(x: int = 0, y: int = 0, width: int = 1, height: int = 1, *, octave: int = 4, scale: Scale = Scale.Major, root: Root = Root.C, active_color: Color = Colors.Lime, inactive_color: Color = Color(0, 40, 64), root_color: Color = Color(80, 0, 80), **kwargs)
+```
+
+Chords in key: columns are the degrees of `scale` (I, II, III... from the
+left, then on in the next octave), rows kinds of chords built on them from
+the scale's notes (`CHORDS`, from the bottom). A pad plays its chord's
+notes (NoteOn, NoteOff); a note two chords share ends with the last one.
+
+- `octave: int = 4, optional`: The first column's chords start on the root in this octave (4 with C: MIDI note 48).
+- `scale, root: optional`: The key the chords are in.
+- `root_color: Color, optional`: The columns of the root (I).
+
+- **`chord_at(x: int, y: int)`**: The notes of the pad at `x`, `y` (those up to 127).
+- **`handle_press(x: int, y: int, velocity: float)`**
+- **`handle_release(x: int, y: int, velocity: float)`**
+- **`draw()`**
+
+### `Arpeggiator` (Timed, Velocity, Widget)
+
+```python
+Arpeggiator(x: int = 0, y: int = 0, width: int = 1, height: int = 1, *, rate: rate.Rate = '1/16', mode: Arpeggiator.Mode = Arpeggiator.Mode.Up, octaves: int = 1, gate: float = 0.5, latch: bool = False, octave: int = 4, scale: Scale = Scale.Major, root: Root = Root.C, active_color: Color = Colors.Aqua, inactive_color: Color = Color(24, 24, 24), root_color: Color = Color(64, 0, 64), current_color: Color = Colors.White, **kwargs)
+```
+
+Plays the notes held on it one at a time, every `rate`, in `mode`
+over `octaves`. Its pads are the notes of `scale` (each row an octave
+above the one below); notes can also come from links (`add`/`remove`,
+e.g. a Keyboard's NoteOn/NoteOff). With `latch` notes keep playing when
+let go, until new ones are pressed. Emits NoteOn and NoteOff.
+
+- `mode: Mode = Mode.Up, optional`: The order notes play in.
+- `octaves: int = 1, optional`: The notes play in this many octaves, one after the other (1 to 4).
+- `gate: float = 0.5, optional`: How long each note sounds, in steps (up to 1). Without a clock it ends when the next one plays.
+- `latch: bool = False, optional`: Notes keep playing when let go; pressing after letting go of every pad starts new ones.
+- `octave: int = 4, optional`: The bottom-left pad is the root in this octave (4 with C: MIDI note 48).
+- `scale, root: optional`: The notes of the pads.
+- `root_color, current_color: Color, optional`: The root's pads, and the note playing.
+
+- **`latch`** (settable)
+- **`note_at(x: int, y: int)`**: The note of the pad at `x`, `y`, or None past 127.
+- **`sequence()`**: The notes in the order they play (Random picks from them).
+- **`add(note: int, velocity: float = 1.0)`**: Hold `note` (from a link or code), as a pad would.
+- **`remove(note: int)`**: Let go of `note`; with `latch` it keeps playing.
+- **`clear()`**: Stop playing every note.
+- **`handle_press(x: int, y: int, velocity: float)`**
+- **`handle_release(x: int, y: int, velocity: float)`**
+- **`play(count: int)`**: Play the `count`-th note of `sequence` (wrapped); the sounding one ends first.
+- **`advance()`**: Play the next note.
+- **`silence()`**: End the sounding note (NoteOff).
+- **`tick(count: int)`**: Called by its clock `divisions` times a step: plays a note each step and ends it after `gate`.
+- **`draw()`**
+
+#### `Mode` (Enum)
+
+Up, Down, up then down (UpDown), at random, or in the order they were pressed (Played).
+
+Members: `Up`, `Down`, `UpDown`, `Random`, `Played`.
+
+### `euclidean(pulses: int, steps: int, rotation: int = 0)`
+
+`pulses` hits spread as evenly as they go over `steps` (a list of bools), moved right by `rotation`.
+
+### `Euclidean` (Timed, Velocity, Widget)
+
+```python
+Euclidean(x: int = 0, y: int = 0, width: int = 1, height: int = 1, *, rate: rate.Rate = '1/16', note: int = 36, length: int | None = None, active_color: Color = Colors.Orange, inactive_color: Color = Color(24, 24, 24), current_color: Color = Color(0, 64, 0), current_active_color: Color = Colors.White, **kwargs)
+```
+
+Euclidean rhythms: each row is a voice playing `pulses` hits spread
+evenly over its length (at most the width), every `rate`. Press a pad
+to set its row's hits to the pads up to it (again: none); press past the
+row's end to make it longer; hold a pad and press another in its row to
+turn the rhythm by the distance. Row `y` plays `note + y` (NoteOn, and
+NoteOff on the next step).
+
+- `note: int = 36, optional`: The bottom row's note; each row above plays the next one.
+- `length: int, optional`: How many steps new rows have (up to the width). Defaults to the width.
+- `current_color, current_active_color: Color, optional`: Each row's playing step, without and with a hit.
+
+- **`row_length(row: int)`**
+- **`pattern(row: int)`**
+- **`handle_press(x: int, y: int, velocity: float)`**
+- **`handle_release(x: int, y: int, velocity: float)`**
+- **`set_pulses(pulses: int)`**: Set the hits of the last row pressed.
+- **`set_rotation(rotation: int)`**: Set how far the last row pressed is turned.
+- **`set_length(length: int)`**: Set the length of the last row pressed (up to the width).
+- **`play(count: int)`**: Play step `count` of every row (each wrapped to its length): the last hits end, the new ones start.
+- **`advance()`**
+- **`silence()`**
+- **`reset()`**: Take every row's hits away.
+- **`save_state()`**
+- **`load_state(state: dict)`**
+- **`draw()`**
+
+### `parse_rule(rule: str)`
+
+A life-like rule 'B3/S23' as (birth counts, survival counts).
+
+### `Automaton` (Timed, Velocity, Widget)
+
+```python
+Automaton(x: int = 0, y: int = 0, width: int = 1, height: int = 1, *, rate: rate.Rate = '1/8', rule: str = 'B3/S23', wrap: bool = True, reseed: bool = True, density: float = 0.3, max_notes: int = 4, octave: int = 4, scale: Scale = Scale.MinorPentatonic, root: Root = Root.C, active_color: Color = Colors.Lime, current_color: Color = Colors.White, **kwargs)
+```
+
+A cellular automaton (Conway's Life by default) making notes: every
+`rate` a generation passes and cells born play the note of their row
+(in `scale`), louder to the right, up to `max_notes` at once (NoteOn,
+NoteOff on the next generation). Press pads to turn cells on or off.
+
+- `rule: str = 'B3/S23', optional`: How many neighbours make a cell born (B) and keep one alive (S): B3/S23 is Life, B36/S23 HighLife, B2/S Seeds, B3678/S34678 Day & Night.
+- `wrap: bool = True, optional`: Edges join the other side.
+- `reseed: bool = True, optional`: Start again at random when every cell dies or nothing changes any more.
+- `density: float = 0.3, optional`: How many cells `randomize` (and reseeding) turns on, from 0 to 1.
+- `max_notes: int = 4, optional`: The most notes a generation plays; the lowest rows first.
+- `octave: int = 4, optional`: The bottom row plays the root in this octave (4 with C: MIDI note 48).
+- `scale, root: optional`: The rows' notes, from the bottom.
+- `current_color: Color, optional`: Cells just born.
+
+- **`row_note(y: int)`**
+- **`handle_press(x: int, y: int, velocity: float)`**
+- **`randomize()`**: Turn cells on at random (`density` of them).
+- **`clear()`**
+- **`play(count: int | None = None)`**: Pass a generation and play the cells born.
+- **`advance()`**
+- **`silence()`**
+- **`save_state()`**
+- **`load_state(state: dict)`**
+- **`draw()`**
+
+### `TapTempo` (Widget)
+
+```python
+TapTempo(x: int = 0, y: int = 0, width: int = 1, height: int = 1, *, taps: int = 4, timeout: float = 2.0, minimum: float = 30.0, maximum: float = 300.0, active_color: Color = Colors.Red, inactive_color: Color = Color(48, 0, 0), clock: Callable[[], float] = time.monotonic, **kwargs)
+```
+
+Tap it in time: emits TempoTapped with the tempo of the last `taps`
+taps (link it to the transport's tempo). It blinks on the beat, and on taps.
+
+- `taps: int = 4, optional`: How many of the last taps the tempo comes from (at least 2).
+- `timeout: float = 2.0, optional`: Seconds without a tap after which tapping starts over.
+- `minimum, maximum: float, optional`: The slowest and fastest tempo it gives.
+
+- **`handle_press(x: int, y: int, velocity: float)`**
+- **`reset()`**: Forget the taps.
+- **`render(time = None)`**
+- **`draw()`**
+
+### `Stepper` (ValueWidget)
+
+```python
+Stepper(x: int = 0, y: int = 0, width: int = 1, height: int = 1, *, minimum: int = 0, maximum: int = 7, wrap: bool = False, direction: Stepper.Direction = Stepper.Direction.Horizontal, repeat: float = 0.1, active_color: Color = Colors.Yellow, clock: Callable[[], float] = time.monotonic, **kwargs)
+```
+
+A whole number from `minimum` to `maximum` (`number`) changed a step
+at a time: the first pad (left or bottom) goes down, the last up, the
+pads between show where it is and jump there. Holding a step pad repeats.
+`value` is the number as 0.0-1.0; link Changed with `minimum`/`maximum`
+as the range to get the number.
+
+- `minimum, maximum: int, optional`: The range of the number.
+- `wrap: bool = False, optional`: Going past one end comes back at the other.
+- `direction: Direction = Direction.Horizontal, optional`: Down on the left and up on the right, or down at the bottom and up on top.
+- `repeat: float = 0.1, optional`: Seconds between steps while a step pad is held (after the device's hold time); 0 doesn't repeat.
+
+- **`number`**
+- **`set_number(number: int)`**: Set the number as input would (emits Changed).
+- **`increment()`**
+- **`decrement()`**
+- **`handle_press(x: int, y: int, velocity: float)`**
+- **`handle_hold(x: int, y: int, velocity: float)`**
+- **`handle_release(x: int, y: int, velocity: float)`**
+- **`render(time = None)`**
+- **`draw()`**
+
+#### `Direction` (Enum)
+
+An enum.
+
+Members: `Horizontal`, `Vertical`.
+
+### `MeterBank` (Widget)
+
+```python
+MeterBank(x: int = 0, y: int = 0, width: int = 1, height: int = 1, *, direction: Meter.Direction = Meter.Direction.Vertical, warning: float = 0.6, danger: float = 0.85, hold: float = 1.0, falloff: float = 0.0, active_color: Color = Colors.Lime, warning_color: Color = Colors.Yellow, danger_color: Color = Colors.Red, propagation: Propagation = Propagation.Pass, clock: Callable[[], float] = time.monotonic, **kwargs)
+```
+
+A row of level meters, one per column (or per row, Horizontal), e.g. a
+mixer's tracks: each works like a Meter (`warning`, `danger`, peak
+`hold`, `falloff`). Levels come from mappings (a received `x` or
+`cell` picks the meter: `Meter {x+1}` for Mackie meters), links or
+`set_level`. Display only.
+
+- `direction: Direction = Direction.Vertical, optional`: Vertical: a meter per column, rising from the bottom. Horizontal: one per row, from the left.
+- `warning, danger: float, optional`: Levels (0.0-1.0) where bars turn `warning_color` and `danger_color`.
+- `hold: float = 1.0, optional`: Seconds peaks stay lit; 0 doesn't show them.
+- `falloff: float = 0.0, optional`: How fast bars fall, in full heights per second; 0 falls at once.
+
+- **`channels`**
+- **`set_level(channel: int, level: float)`**: Show `level` (0.0-1.0) on meter `channel` (from the left, or the bottom).
+- **`reset()`**: Every meter to 0.
+- **`receive(values: dict)`**: Show a received level on the meter of its `x` (or `cell`, or `y` when Horizontal).
+- **`save_state()`**
+- **`load_state(state: dict)`**
+- **`render(time = None)`**
+- **`draw()`**
+
+#### `Direction` (Enum)
+
+An enum.
+
+Members: `Vertical`, `Horizontal`.
 
 ## `pyxelwidgets.group`
 
@@ -1381,6 +1733,31 @@ Pages usually fill `content`, the area besides the selector.
 An enum.
 
 Members: `Off`, `Top`, `Bottom`, `Left`, `Right`.
+
+### `Presets` (Group)
+
+```python
+Presets(x: int = 0, y: int = 0, width: int = 1, height: int = 1, *, selector: Pages.Selector = Pages.Selector.Top, send: bool = True, current_color: Color = Colors.White, stored_color: Color = Color(0, 64, 96), empty_color: Color = Color(24, 24, 24), propagation: Propagation = Propagation.Stop, **kwargs)
+```
+
+A group that remembers what its widgets show (values, steps, pages...) in
+slots, one per cell of its `selector` strip: press an empty cell to
+store, a stored one to bring it back, hold one to store over it. Values
+brought back are sent on (Changed), so outputs follow, unless `send` is
+off. Emits PresetStored and PresetRecalled.
+
+- `selector: Pages.Selector = Pages.Selector.Top, optional`: The side of the strip of slots (Off: only the `store`/`recall` actions).
+- `send: bool = True, optional`: Widgets brought back emit Changed with their values.
+- `current_color, stored_color, empty_color: Color, optional`: The slot brought back last, slots with something stored, empty ones.
+
+- **`content`**: The area for widgets, relative to this one: everything but the strip.
+- **`snapshot()`**: What the widgets inside show now, by path.
+- **`store(slot: int)`**: Store what the widgets show in `slot`.
+- **`recall(slot: int)`**: Bring back what `slot` stored (nothing if it's empty).
+- **`save_state()`**
+- **`load_state(state: dict)`**
+- **`input(event: PadEvent)`**
+- **`draw()`**
 
 # Time, controls and outputs
 
