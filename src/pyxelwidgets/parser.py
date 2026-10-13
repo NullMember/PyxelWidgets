@@ -43,7 +43,8 @@ tempo, start, stop and position (song position) then come from there.
 
 Bindings connect a device's named controls (by the device's index in
 ``devices``) to a widget, with Binding options (``takeover``, ``glide_time``,
-``step``, ``axis``), or to an action (see ``ACTIONS``).
+``step``, ``axis``), or to an action (see ``ACTIONS``; ``surface.reveal``
+shows where the widgets are on the devices for a moment).
 Device inputs/outputs are optional port names; without them devices are found
 by their port names.
 
@@ -114,6 +115,11 @@ ACTIONS = {
     'transport.stop': lambda transport: transport.stop,
     'transport.toggle': lambda transport: transport.toggle,
     'transport.rewind': lambda transport: (lambda: transport.locate(0)),
+}
+
+# Binding actions on the surface itself
+SURFACE_ACTIONS = {
+    'surface.reveal': lambda surface: surface.reveal,
 }
 
 # Transport actions links can call with a number (tempo in bpm, or bpm to add)
@@ -340,7 +346,7 @@ def schema() -> dict:
               for cls in widget_types().values() for event in cls.events()}
     return {'format': FORMAT, 'version': VERSION, 'widgets': widgets,
             'animations': {name: {'doc': _doc(cls), 'options': option_schema(cls)} for name, cls in ANIMATIONS.items()},
-            'binding': {'options': option_schema(pyxelwidgets.binding.Binding), 'actions': list(ACTIONS)},
+            'binding': {'options': option_schema(pyxelwidgets.binding.Binding), 'actions': [*ACTIONS, *SURFACE_ACTIONS]},
             'events': events, 'messages': message_schema(),
             'link': {'changes': {name: sorted(kinds) if kinds else None for name, kinds in LINK_CHANGES.items()},
                      'sources': sorted(LINK_SOURCES),
@@ -1097,8 +1103,8 @@ class Parser():
                 raise LayoutError(f'{where}: needs either "widget" or "action"')
             if widget is not None and widget not in self.widgets:
                 raise LayoutError(f'{where}.widget: no widget named {widget!r}')
-            if action is not None and action not in ACTIONS:
-                raise LayoutError(f'{where}.action: unknown action {action!r} (actions: {", ".join(ACTIONS)})')
+            if action is not None and action not in ACTIONS and action not in SURFACE_ACTIONS:
+                raise LayoutError(f'{where}.action: unknown action {action!r} (actions: {", ".join([*ACTIONS, *SURFACE_ACTIONS])})')
             settings.append((device, control, widget, action, _options(pyxelwidgets.binding.Binding, binding.get('options'), where)))
         return settings
 
@@ -1115,6 +1121,8 @@ class Parser():
                 continue
             if widget is not None and widgets:
                 created.append(self.surface.bind(device, control, self.widgets[widget], **options))
+            elif action in SURFACE_ACTIONS and transport is not None:
+                created.append(self.surface.bind(device, control, SURFACE_ACTIONS[action](self.surface)))
             elif action is not None and transport is not None:
                 created.append(self.surface.bind(device, control, ACTIONS[action](transport)))
         return created
