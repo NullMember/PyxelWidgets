@@ -910,8 +910,9 @@ function mappingCard(widget, mapping, index) {
           const next = { type };
           for (const field of fields) if (field.name in mapping.message && field.kind !== 'list') next[field.name] = mapping.message[field.name];
           if (type === 'OscMessage') Object.assign(next, { address: mapping.message.address || '/', args: mapping.message.args || [] });
-          // A knob or fader turns a plug-in parameter by its steps
-          if (type === 'PluginParameter' && sourceNames(mapping.on).includes('delta')) next.value = { source: 'delta' };
+          // A knob or fader turns a plug-in parameter by its steps (Mackie Control), or sets it (REAPER)
+          const value = info?.parameter_value || 'delta';
+          if (type === 'PluginParameter' && sourceNames(mapping.on).includes(value)) next.value = { source: value };
           mapping.message = next;
         }),
       }, (info?.messages || Object.keys(state.catalog.messages)).map((type) => el('option', { value: type, selected: type === message.type }, type)))),
