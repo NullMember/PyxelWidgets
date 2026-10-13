@@ -665,6 +665,7 @@ class ButtonGroup(Widget):
     def __init__(self, x: int = 0, y: int = 0, width: int = 1, height: int = 1, *,
                  mode: Mode = Mode.Switch,
                  allow_none: bool = False,
+                 selected: int | None = None,
                  **kwargs):
         """
         mode: Mode = Mode.Switch, optional
@@ -672,6 +673,10 @@ class ButtonGroup(Widget):
             Multi: each press turns a cell on or off. Button: cells are on while pressed.
         allow_none: bool = False, optional
             Switch: pressing the cell that's on turns it off, and none is on at first.
+        selected: int, optional
+            Switch: the cell on (0 is the bottom-left, then left to right and up);
+            setting it (``configure``, links) moves there without emitting Toggled.
+            Defaults to the first cell, or none with ``allow_none``.
         """
         self.state = numpy.zeros((1, 1), dtype = numpy.bool_)
         # The Switch's cell that's on
@@ -680,9 +685,28 @@ class ButtonGroup(Widget):
         self.mode = mode
         self.allow_none = allow_none
         self.state.fill(False)
-        if self.mode == ButtonGroup.Mode.Switch and not allow_none:
-            self.state[0, 0] = True
-            self._selected = (0, 0)
+        if self.mode == ButtonGroup.Mode.Switch:
+            self._select(selected if selected is not None else (None if allow_none else 0))
+
+    @property
+    def selected(self) -> int | None:
+        """The Switch's cell that's on (0 is the bottom-left), or None."""
+        return None if self._selected is None else self._selected[0] + self._selected[1] * self.rect.w
+
+    def _select(self, cell: int | None) -> None:
+        if self._selected is not None:
+            self.state[self._selected] = False
+        self._selected = None
+        if cell is not None and 0 <= int(cell) < self.rect.area:
+            self._selected = (int(cell) % self.rect.w, int(cell) // self.rect.w)
+            self.state[self._selected] = True
+        self.updated = True
+
+    def _configure(self, name: str, value) -> None:
+        if name == 'selected':
+            self._select(value)
+        else:
+            super()._configure(name, value)
 
     def handle_press(self, x: int, y: int, velocity: float):
         before = self.state.copy()
@@ -3580,8 +3604,8 @@ class Euclidean(Timed, Velocity, Widget):
 
     emits = (pyxelwidgets.events.NoteOn, pyxelwidgets.events.NoteOff)
 
-    actions = {'advance': None, 'play': 'int', 'reset': None, 'set_pulses': 'int', 'set_rotation': 'int', 'set_length': 'int',
-               **Timed.clock_actions}
+    actions = {'advance': None, 'play': 'int', 'reset': None, 'select': 'int', 'set_pulses': 'int', 'set_rotation': 'int',
+               'set_length': 'int', **Timed.clock_actions}
 
     def __init__(self, x: int = 0, y: int = 0, width: int = 1, height: int = 1, *,
                  rate: Rate = '1/16',
@@ -3643,8 +3667,12 @@ class Euclidean(Timed, Velocity, Widget):
             self.pulses[y] = 0 if self.pulses[y] == x + 1 else x + 1
         self.updated = True
 
+    def select(self, row: int) -> None:
+        """Make ``row`` (0 at the bottom) the one ``set_pulses``, ``set_rotation`` and ``set_length`` change."""
+        self._selected = min(max(int(row), 0), self.rect.h - 1)
+
     def set_pulses(self, pulses: int) -> None:
-        """Set the hits of the last row pressed."""
+        """Set the hits of the last row pressed (or selected)."""
         self.pulses[self._selected] = min(max(int(pulses), 0), self.row_length(self._selected))
         self.updated = True
 
