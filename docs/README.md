@@ -1,5 +1,7 @@
 # PyxelWidgets documentation
 
+- [Getting started](getting-started.md): your first controller in the designer, no code, then playing it.
+- [Snippets](snippets.md): the ready-made pieces in the designer, with pictures.
 - [Writing a widget](writing-a-widget.md): a die you press to roll, from its options to the designer.
 - [Writing a driver](writing-a-driver.md): a MIDI pad controller, its colors, controls and tests.
 - [Threads](threads.md): what runs where, and the one lock.
@@ -36,4 +38,5 @@ color, rectangle, events, font, rate, message
   and `parser.load` builds them.
 
 The API reference is generated: run `python docs/build_api.py` after
-changing docstrings.
+changing docstrings, and `python docs/build_guide.py` after changing snippets
+or the designer (the snippets page and the guide's screenshots).
