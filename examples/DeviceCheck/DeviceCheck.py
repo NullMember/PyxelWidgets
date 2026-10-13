@@ -16,6 +16,7 @@ import time
 
 import pyxelwidgets.devices.akai
 import pyxelwidgets.devices.ableton
+import pyxelwidgets.devices.arturia
 import pyxelwidgets.devices.novation
 import pyxelwidgets.devices.presonus
 from pyxelwidgets import buffer
@@ -24,7 +25,8 @@ from pyxelwidgets.devices.midi import MIDI
 from pyxelwidgets.events import ControlEvent, PadEvent, PadPressed, PadReleased
 
 DEVICES = {cls.__name__: cls for module in (pyxelwidgets.devices.novation, pyxelwidgets.devices.akai,
-                                            pyxelwidgets.devices.ableton, pyxelwidgets.devices.presonus)
+                                            pyxelwidgets.devices.ableton, pyxelwidgets.devices.arturia,
+                                            pyxelwidgets.devices.presonus)
            for cls in vars(module).values() if isinstance(cls, type) and issubclass(cls, MIDI) and cls.__module__.startswith(module.__name__)}
 
 def pattern(width, height):
