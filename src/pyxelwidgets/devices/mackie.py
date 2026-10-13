@@ -26,9 +26,13 @@ and ``PluginParameter`` messages turn a parameter's V-Pot::
     mackie.scan_plugins('Bass')                # ['ReaEQ', 'ReaComp']
     mackie.scan_parameters('Bass', 'ReaComp')  # ['Thresh', 'Ratio', ...]
     surface.map(knob, mackie, PluginParameter('Bass', 'ReaComp', 'Ratio'), on = Changed, feedback = True)
+
+Works with Logic Pro (its plug-in views, cursor paging and passing messages
+are handled); REAPER's own Mackie Control support has no plug-in mode.
 """
 
 import enum
+import re
 import threading
 import time
 
@@ -119,6 +123,8 @@ class MackieControl(_ControlSurface):
     settle = 0.15
     #: Seconds to wait for the DAW to answer a button at all
     timeout = 0.8
+    #: Seconds a passing message may hide the display (Logic's last 2)
+    message_time = 3.0
     #: The most banks of tracks, or pages of parameters, a scan goes through
     most_pages = 64
 
@@ -149,6 +155,9 @@ class MackieControl(_ControlSurface):
         self.next_page = next_page
         self.previous_page = previous_page
         self.lcd = [' '] * 112
+        # The top line without the DAW's passing messages (Logic's "Page 2/12")
+        self._real_top = [' '] * 56
+        self._real_changes = 0
         self.timecode = [' '] * 10
         self.assignment = [' ', ' ']
         #: What went wrong reaching a plug-in parameter last, if anything
@@ -164,6 +173,8 @@ class MackieControl(_ControlSurface):
         self._view = None
         self._bank = None
         self._focus = None
+        # The buttons that page parameters (next, previous), once found
+        self._paging = None
         self._display = threading.Condition()
         self._display_changes = 0
         self._display_time = 0.0
@@ -261,6 +272,9 @@ class MackieControl(_ControlSurface):
             for i, code in enumerate(body[1:]):
                 if 0 <= offset + i < len(self.lcd):
                     self.lcd[offset + i] = chr(code) if 0x20 <= code < 0x7F else ' '
+            if self.lcd[:56] != before[:56] and not _has_message(self.lcd[:56]):
+                self._real_top = self.lcd[:56]
+                self._real_changes += 1
             if self.lcd != before:
                 with self._display:
                     self._display_changes += 1
@@ -281,8 +295,11 @@ class MackieControl(_ControlSurface):
         super().close()
 
     def row(self, line: int = 0) -> list:
-        """The 8 strips' texts on the display's top (0) or bottom (1) line."""
-        text = ''.join(self.lcd[56 * line:56 * line + 56])
+        """
+        The 8 strips' texts on the display's top (0) or bottom (1) line; the top
+        line without a passing message over it (Logic's "Page 2/12" for 2 seconds).
+        """
+        text = ''.join(self._real_top if line == 0 else self.lcd[56:])
         return [text[strip * 7:strip * 7 + 7].strip() for strip in range(8)]
 
     def scanned(self) -> dict:
@@ -320,14 +337,8 @@ class MackieControl(_ControlSurface):
     def scan_plugins(self, track: str) -> list:
         """The plug-ins on ``track`` (a name from ``scan_tracks``), as the DAW's plug-in mode shows them."""
         with self._navigation:
-            self._select(track)
-            shown = (self.row(0), self.row(1))
-            if not self._tap(self.plugin_button, lambda: (self.row(0), self.row(1)) != shown):
-                self._view = None
-                raise LookupError(f'the DAW showed no plug-ins after {self.plugin_button} (it may have no plug-in mode for '
-                                  'Mackie Control: REAPER\'s own support has none, its CSI or Klinke extensions do)')
-            self._view = 'plugins'
-            names = self.row(0)
+            self._show_plugins(track)
+            names = self._plugin_names()
             strips = [strip for strip, name in enumerate(names) if name]
             self._plugins[track] = list(zip(_labels([names[strip] for strip in strips]), strips))
             return [label for label, _ in self._plugins[track]]
@@ -336,12 +347,16 @@ class MackieControl(_ControlSurface):
         """The parameters of ``plugin`` on ``track``: opens it and pages through its parameters, 8 at a time."""
         with self._navigation:
             self._open(track, plugin)
-            found = []
+            found, previous = [], None
             for page in range(self.most_pages):
-                shown = self.row(0)
-                found += [(name, page, strip) for strip, name in enumerate(shown) if name]
-                if not self._tap(self.next_page, lambda: self.row(0) != shown):
+                shown, values = self.row(0), self.row(1)
+                last = not self._next_page(shown)
+                # Logic's last page ends at the last parameter, showing some of the page before again
+                skip = _overlap(previous, (shown, values)) if last else 0
+                found += [(name, page, strip) for strip, name in enumerate(shown) if name and strip >= skip]
+                if last:
                     break
+                previous = (shown, values)
                 self._focus = (track, plugin, page + 1)
             labels = _labels([name for name, _, _ in found])
             self._parameters[(track, plugin)] = [(label, page, strip) for label, (_, page, strip) in zip(labels, found)]
@@ -352,13 +367,16 @@ class MackieControl(_ControlSurface):
         if self._midi_output is None or self._midi_input is None:
             raise ConnectionError('Mackie Control is not connected to the DAW')
 
-    def _tap(self, name: str, changed = None) -> bool:
+    def _tap(self, name: str, changed = None, *, read: bool = True) -> bool:
         """
         Press and release ``name``; True once the DAW changed its display and
-        settled (and ``changed()`` says it changed what matters), False if it didn't answer.
+        settled (and ``changed()`` says it changed what matters), False if it
+        didn't answer. To ``read`` the result, a passing message hiding it
+        (Logic's "Page 2/12") is waited out.
         """
         with self._display:
             before = self._display_changes
+            real_before = self._real_changes
         self.send(pyxelwidgets.message.Command(name, 1.0))
         self.send(pyxelwidgets.message.Command(name, 0.0))
         start = time.monotonic()
@@ -375,6 +393,11 @@ class MackieControl(_ControlSurface):
                     return False
                 else:
                     self._display.wait(self.timeout - (now - start))
+            if read and self._real_changes == real_before and _has_message(self.lcd[:56]):
+                # What changed is under a message: it shows when the message goes
+                end = time.monotonic() + self.message_time
+                while _has_message(self.lcd[:56]) and time.monotonic() < end:
+                    self._display.wait(end - time.monotonic())
         return changed() if changed is not None else True
 
     def _press(self, name: str) -> None:
@@ -387,6 +410,10 @@ class MackieControl(_ControlSurface):
         if self._view != 'channels':
             shown = self.row(0)
             self._tap(self.channel_button, lambda: self.row(0) != shown)
+            if self.assignment[-1].endswith('.'):
+                # Logic: a dot is its one-track view, and the button switches between them
+                shown = self.row(0)
+                self._tap(self.channel_button, lambda: self.row(0) != shown)
             self._view, self._focus = 'channels', None
 
     def _first_bank(self) -> None:
@@ -436,23 +463,54 @@ class MackieControl(_ControlSurface):
             if plugin not in plugins:
                 raise LookupError(f'no plug-in {plugin!r} on {track!r} (plug-ins: {", ".join(plugins) or "none found"})')
         else:
-            self._select(track)
-            shown = self.row(0)
-            self._tap(self.plugin_button, lambda: self.row(0) != shown)
-            self._view = 'plugins'
+            self._show_plugins(track)
         shown = self.row(0)
         if not self._tap(f'V-Select {plugins[plugin] + 1}', lambda: self.row(0) != shown):
             self._view = None
             raise LookupError(f'the DAW didn\'t show the parameters of {plugin!r} when its V-Pot was pressed')
         self._view, self._focus = 'parameters', (track, plugin, 0)
 
+    def _show_plugins(self, track: str) -> None:
+        """Select ``track`` and show its plug-ins on the strips."""
+        self._select(track)
+        tracks = self.row(0)
+        shown = (self.row(0), self.row(1))
+        if not self._tap(self.plugin_button, lambda: (self.row(0), self.row(1)) != shown):
+            self._view = None
+            raise LookupError(f'the DAW showed no plug-ins after {self.plugin_button} (it may have no plug-in mode for '
+                              'Mackie Control: REAPER\'s own support has none, its CSI or Klinke extensions do)')
+        if sum(name == shown and bool(name) for name, shown in zip(self.row(0), tracks)) >= 2:
+            # Still the tracks, with one insert slot of each (Logic's plug-in mixer): again
+            # for the selected track's plug-ins
+            shown = (self.row(0), self.row(1))
+            self._tap(self.plugin_button, lambda: (self.row(0), self.row(1)) != shown)
+        self._view = 'plugins'
+
+    def _plugin_names(self) -> list:
+        """The plug-ins on the strips: on the bottom line if it has them (Logic labels the slots on top)."""
+        def names(line):
+            return ['' if name in _EMPTY_SLOTS else name for name in self.row(line)]
+        bottom = names(1)
+        return bottom if any(bottom) else names(0)
+
+    def _next_page(self, shown: list) -> bool:
+        """Show the next page of parameters; False if there is none. The cursor buttons page in Logic."""
+        if self._paging is not None:
+            return self._tap(self._paging[0], lambda: self.row(0) != shown)
+        for paging in ((self.next_page, self.previous_page), ('Right', 'Left')):
+            if self._tap(paging[0], lambda: self.row(0) != shown):
+                self._paging = paging
+                return True
+        return False
+
     def _to_page(self, page: int) -> None:
         track, plugin, shown = self._focus
+        forward, back = self._paging or (self.next_page, self.previous_page)
         while shown < page:
-            self._tap(self.next_page)
+            self._tap(forward, read = False)
             shown += 1
         while shown > page:
-            self._tap(self.previous_page)
+            self._tap(back, read = False)
             shown -= 1
         self._focus = (track, plugin, page)
 
@@ -512,6 +570,31 @@ class MackieControl(_ControlSurface):
                 self.send(pyxelwidgets.message.Command(f'V-Pot {strip + 1}', step))
                 steps -= step
             self.warning = None
+
+# Logic's page message, which may fit the strips ("   Page 10/12")
+_PAGE_MESSAGE = re.compile(r'Page\s+\d+\s*/\s*\d+')
+
+# What DAWs show for an empty insert slot
+_EMPTY_SLOTS = {'-', '--', '---'}
+
+def _has_message(top: list) -> bool:
+    """
+    Whether the top line shows a passing message (Logic's "Page 2/12", "Pan/Surround
+    parameter: Pan"): text running across a border between strips, which names
+    (6 characters and a space) don't.
+    """
+    if _PAGE_MESSAGE.search(''.join(top)):
+        return True
+    return any(top[border - 1] != ' ' and top[border] != ' ' for border in range(7, 56, 7))
+
+def _overlap(previous, page) -> int:
+    """How many strips at the start of ``page`` (names, values) repeat the end of the ``previous`` one."""
+    if previous is None:
+        return 0
+    for count in range(7, 0, -1):
+        if all(previous[line][8 - count:] == page[line][:count] for line in (0, 1)) and any(page[0][:count]):
+            return count
+    return 0
 
 def _labels(names: list) -> list:
     """Names made unique: a repeated one gets " (2)", " (3)"..."""
