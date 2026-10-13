@@ -480,6 +480,14 @@ def _options(cls, options: dict, where: str) -> dict:
         kwargs[key] = value
     return kwargs
 
+def widget_entries(widgets, found = None) -> dict:
+    """Layout widget entries by name, nested ones included."""
+    found = {} if found is None else found
+    for entry in widgets or []:
+        found[entry.get('name')] = entry
+        widget_entries(entry.get('widgets'), found)
+    return found
+
 def device_class(device: dict, where: str = 'device') -> type:
     """The class of a layout ``device`` entry, e.g. ``"novation.LaunchpadMiniMK3"`` (or a registered one)."""
     kind = device.get('type', '')
@@ -521,15 +529,21 @@ class Parser():
 
     With ``devices = False`` the devices aren't created (no ports are opened),
     e.g. to validate or preview a layout.
+
+    A layout loaded from a file (``path``) keeps what its Presets groups store
+    in that file, unless their ``save`` option is off.
     """
 
     def __init__(self, layout, *, devices: bool = True) -> None:
+        #: The layout file, or None for JSON text or a dict
+        self.path = None
         if isinstance(layout, dict):
             self.json = layout
         elif isinstance(layout, str) and layout.lstrip().startswith('{'):
             self.json = json.loads(layout)
         else:
-            self.json = json.loads(pathlib.Path(layout).read_text())
+            self.path = pathlib.Path(layout)
+            self.json = json.loads(self.path.read_text())
         self.json = upgrade(self.json)
         self.transport_settings()
         self.sync_settings()
@@ -546,6 +560,7 @@ class Parser():
         if devices:
             self.get_devices()
         self.get_widgets()
+        self.keep_presets()
         self.binding_settings()
         self.bindings = self.bind(self.devices) if devices else []
         self.outputs = {}
@@ -605,6 +620,35 @@ class Parser():
                 if not isinstance(widget, pyxelwidgets.group.Group):
                     raise LayoutError(f'{path}.widgets: only a Group can contain widgets')
                 self._add_widgets(widget, item['widgets'], f'{path}.widgets')
+
+    def keep_presets(self) -> None:
+        """Write what Presets groups store (with ``save`` on) into ``path``, the layout file."""
+        if self.path is None:
+            return
+        for name, widget in self.widgets.items():
+            if isinstance(widget, pyxelwidgets.group.Presets):
+                widget.on(pyxelwidgets.events.PresetStored, lambda event, name = name: self.save_presets(name))
+
+    def save_presets(self, name: str) -> None:
+        """
+        Write the presets of the Presets group ``name`` into its ``presets``
+        option in ``path``. The file is read again first, so changes made to it
+        meanwhile (e.g. saved by the designer) are kept. Failures are printed.
+        """
+        widget = self.widgets[name]
+        if self.path is None or not widget.save:
+            return
+        try:
+            layout = json.loads(self.path.read_text())
+            entry = widget_entries(layout.get('widgets')).get(name)
+            if entry is None:
+                raise LayoutError(f'no widget {name!r} in it any more')
+            entry.setdefault('options', {})['presets'] = widget.stored()
+            temporary = self.path.with_name(self.path.name + '.saving')
+            temporary.write_text(json.dumps(layout, indent = 2) + '\n')
+            temporary.replace(self.path)
+        except (OSError, ValueError) as error:
+            print(f'{name}: presets not saved to {self.path}: {error}', flush = True)
 
     def _animation(self, entry, where: str):
         if not isinstance(entry, dict) or entry.get('type') not in ANIMATIONS:
