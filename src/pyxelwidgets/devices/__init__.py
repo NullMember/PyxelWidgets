@@ -5,7 +5,7 @@ with ``on`` and show frames on it with ``show``. A Surface connects devices to
 widgets.
 
 Concrete devices live in submodules (``pyxelwidgets.devices.novation``,
-``.akai``, ``.ableton``, ``.presonus``, ``.virtual``); importing this package
+``.akai``, ``.ableton``, ``.arturia``, ``.presonus``, ``.virtual``); importing this package
 doesn't load MIDI or GUI libraries.
 """
 
