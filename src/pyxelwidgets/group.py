@@ -251,7 +251,8 @@ class Presets(Group):
     slots, one per cell of its ``selector`` strip: press an empty cell to
     store, a stored one to bring it back, hold one to store over it. Values
     brought back are sent on (Changed), so outputs follow, unless ``send`` is
-    off. Emits PresetStored and PresetRecalled.
+    off. Emits PresetStored and PresetRecalled. A layout loaded from a file
+    keeps what is stored in that file unless ``save`` is off.
     """
 
     emits = (pyxelwidgets.events.PresetStored, pyxelwidgets.events.PresetRecalled)
@@ -261,6 +262,8 @@ class Presets(Group):
     def __init__(self, x: int = 0, y: int = 0, width: int = 1, height: int = 1, *,
                  selector: Pages.Selector = Pages.Selector.Top,
                  send: bool = True,
+                 save: bool = True,
+                 presets: dict | None = None,
                  current_color: pyxelwidgets.color.Color = pyxelwidgets.color.Colors.White,
                  stored_color: pyxelwidgets.color.Color = pyxelwidgets.color.Color(0, 64, 96),
                  empty_color: pyxelwidgets.color.Color = pyxelwidgets.color.Color(24, 24, 24),
@@ -271,16 +274,23 @@ class Presets(Group):
             The side of the strip of slots (Off: only the ``store``/``recall`` actions).
         send: bool = True, optional
             Widgets brought back emit Changed with their values.
+        save: bool = True, optional
+            Keep stored presets in the layout file (``parser.load`` of a file
+            writes them there; the designer puts them in the layout it saves).
+        presets: dict, optional
+            What the slots hold: ``{slot: {widget path: state}}``, as ``presets``
+            holds it, or as ``stored()`` gives it for a layout.
         current_color, stored_color, empty_color: Color, optional
             The slot brought back last, slots with something stored, empty ones.
         """
         self.selector = selector
         self.send = send
+        self.save = save
         self.current_color = current_color
         self.stored_color = stored_color
         self.empty_color = empty_color
         #: What each slot stored: {slot: {widget path (names): state}}
-        self.presets = {}
+        self.presets = self._decode(presets)
         #: The slot stored or brought back last, or None
         self.preset = None
         # The slot pressed, until let go (a hold stores instead)
@@ -308,6 +318,25 @@ class Presets(Group):
             yield path + (child.name,), child
             if isinstance(child, Group) and not isinstance(child, Presets):
                 yield from self._widgets(child, path + (child.name,))
+
+    @staticmethod
+    def _decode(presets) -> dict:
+        """Presets as ``stored()`` gives them (or as ``presets`` holds them) to ``presets``."""
+        decoded = {}
+        for slot, stored in (presets or {}).items():
+            decoded[int(slot)] = {tuple(path.split('/')) if isinstance(path, str) else tuple(path):
+                                  pyxelwidgets.widgets.state_from_json(state) for path, state in stored.items()}
+        return decoded
+
+    def stored(self) -> dict:
+        """What the slots hold as JSON data, for a layout's ``presets`` option: widget paths as ``'group/name'``."""
+        return {str(slot): {'/'.join(path): pyxelwidgets.widgets.state_to_json(state) for path, state in stored.items()}
+                for slot, stored in sorted(self.presets.items())}
+
+    def _configure(self, name: str, value) -> None:
+        if name == 'presets':
+            value = self._decode(value)
+        super()._configure(name, value)
 
     def snapshot(self) -> dict:
         """What the widgets inside show now, by path."""

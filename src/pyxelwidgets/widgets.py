@@ -27,6 +27,44 @@ def _copy_overlap(target: numpy.ndarray, source) -> None:
     area = tuple(slice(0, min(a, b)) for a, b in zip(target.shape, source.shape))
     target[area] = source[area]
 
+def state_to_json(state):
+    """
+    A ``save_state()`` result as JSON data: numpy arrays become
+    ``{"$array": rows, "dtype": ...}``, tuples ``{"$tuple": [...]}`` and dicts
+    with keys other than text ``{"$items": [[key, value], ...]}``.
+    ``state_from_json`` turns it back.
+    """
+    if isinstance(state, numpy.ndarray):
+        return {'$array': state.tolist(), 'dtype': str(state.dtype)}
+    if isinstance(state, numpy.generic):
+        return state.item()
+    if isinstance(state, tuple):
+        return {'$tuple': [state_to_json(item) for item in state]}
+    if isinstance(state, list):
+        return [state_to_json(item) for item in state]
+    if isinstance(state, dict):
+        if all(isinstance(key, str) for key in state):
+            return {key: state_to_json(value) for key, value in state.items()}
+        return {'$items': [[state_to_json(key), state_to_json(value)] for key, value in state.items()]}
+    return state
+
+def state_from_json(data):
+    """A widget state from ``state_to_json`` data (anything else is returned as it is)."""
+    if isinstance(data, list):
+        return [state_from_json(item) for item in data]
+    if not isinstance(data, dict):
+        return data
+    if set(data) == {'$array', 'dtype'}:
+        return numpy.array(data['$array'], dtype = data['dtype'])
+    if set(data) == {'$tuple'}:
+        return tuple(state_from_json(item) for item in data['$tuple'])
+    if set(data) == {'$items'}:
+        return {_hashable(state_from_json(key)): state_from_json(value) for key, value in data['$items']}
+    return {key: state_from_json(value) for key, value in data.items()}
+
+def _hashable(key):
+    return tuple(_hashable(item) for item in key) if isinstance(key, list) else key
+
 def _level(values: dict) -> float | None:
     """The 0.0-1.0 state a received message carries, if any."""
     for key in ('value', 'state', 'velocity', 'pressure', 'active'):
