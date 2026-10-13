@@ -276,6 +276,7 @@ details.more > .fields { margin-top: 6px; }
 .fields { display: grid; grid-template-columns: 92px 1fr; gap: 6px 8px; align-items: center; }
 .fields label { color: var(--muted); font-size: 12px; overflow: hidden; text-overflow: ellipsis; }
 .fields label.changed { color: var(--text); font-weight: 600; }
+.fields label.documented { cursor: help; text-decoration: underline dotted color-mix(in srgb, var(--muted) 60%, transparent); text-underline-offset: 3px; }
 .fields label.changed::before { content: '●'; color: var(--accent); font-size: 8px; vertical-align: 2px; margin-right: 4px; }
 .fields .control { display: flex; gap: 6px; align-items: center; min-width: 0; }
 .fields .control > input[type=text], .fields .control > select { flex: 1; width: 100%; }

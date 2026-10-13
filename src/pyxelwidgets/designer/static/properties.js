@@ -93,7 +93,9 @@ export function optionField(target, option, prefix = 'option', apply = null) {
   const id = `${prefix}-${option.name}`;
   const [control, suggestions] = optionControl(option, value, commit, id);
   return [
-    el('label', { for: id, class: set ? 'changed' : '', title: option.name }, option.name.replace(/_/g, ' ')),
+    // What the option is for (from the constructor's docstring) shows on hover
+    el('label', { for: id, class: [set ? 'changed' : '', option.doc ? 'documented' : ''].join(' ').trim(), title: option.doc ? `${option.name}: ${option.doc}` : option.name },
+      option.name.replace(/_/g, ' ')),
     el('div', { class: 'control' }, control, suggestions,
       el('button', { class: 'link reset', title: `Reset to ${JSON.stringify(option.default)}`, onclick: () => commit(undefined) }, 'reset')),
   ];
