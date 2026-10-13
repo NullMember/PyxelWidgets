@@ -397,7 +397,7 @@ export function renderProperties() {
       }))),
     el('p', { class: 'hint' }, 'Select a widget to edit it; Shift+click or drag on empty pads to select several. Drag a device by its name. In Try mode, click pads to press them; hold for a Held event.'),
     syncFields(),
-    el('h4', {}, 'Transport controls'),
+    el('h4', {}, 'Transport and surface controls'),
     transportControls(),
   );
 }

@@ -141,7 +141,7 @@ export function transportControls() {
     const binding = (state.layout.bindings || []).find((b) => b.action === action);
     const id = `action-${action.replace('.', '-')}`;
     return [
-      el('label', { for: id }, action.replace('transport.', '')),
+      el('label', { for: id, title: action === 'surface.reveal' ? 'Shows where each widget is on the devices for 2 seconds' : null }, action === 'surface.reveal' ? 'show widgets' : action.replace('transport.', '')),
       el('div', { class: 'control learnable' }, controlSelect(id, binding, (device, control) => setBinding(
         (b) => b.action === action, device === null ? null : { device, control, action })),
       learnButton(id, 'control', (event) => setBinding((b) => b.action === action, { device: event._device, control: event.control, action }))),

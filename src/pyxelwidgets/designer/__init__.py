@@ -230,6 +230,11 @@ class _PreviewActions:
     def __init__(self, preview):
         self.preview = preview
 
+    @property
+    def playing(self) -> bool:
+        # Lights bound play/toggle buttons (Surface.control_light)
+        return self.preview.playing
+
     # Called from device threads holding the surface lock; play/stop take the preview lock first
     def _later(self, action) -> None:
         threading.Thread(target = action, daemon = True).start()
