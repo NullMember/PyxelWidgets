@@ -330,11 +330,12 @@ class Command(Message):
 @dataclasses.dataclass(frozen = True)
 class PluginParameter(Message):
     """
-    A plug-in parameter, through a control surface's plug-in mode (Mackie
-    Control): ``track``, ``plugin`` and ``parameter`` are names as the
-    surface scanned them from the DAW (``scan_tracks``, ``scan_plugins``,
-    ``scan_parameters``). ``value`` is V-Pot steps (a knob's or fader's
-    ``delta``); received, it is the parameter's position 0.0-1.0.
+    A plug-in parameter, by name: ``track``, ``plugin`` and ``parameter`` are
+    names as the output scanned them from the DAW (``scan_tracks``,
+    ``scan_plugins``, ``scan_parameters``). ``value`` is V-Pot steps for
+    Mackie Control's plug-in mode (a knob's or fader's ``delta``) and the
+    position 0.0-1.0 for REAPER's OSC (a widget's ``value``); received, it is
+    the parameter's position 0.0-1.0.
     """
     track: str = ''
     plugin: str = ''
