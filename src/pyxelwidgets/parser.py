@@ -87,6 +87,7 @@ import importlib
 import inspect
 import json
 import pathlib
+import re
 import types
 import typing
 
@@ -216,6 +217,34 @@ def _parameters(cls) -> list:
             break
     return found
 
+def option_docs(cls) -> dict:
+    """
+    What each constructor option of ``cls`` is for, from the ``__init__``
+    docstrings (``name: type = default, optional`` and indented lines below;
+    a subclass's text wins over its bases'), as one line per option.
+    """
+    docs = {}
+    for klass in cls.__mro__:
+        init = klass.__dict__.get('__init__')
+        if init is None or not init.__doc__:
+            continue
+        names, text = None, []
+        def done():
+            for name in names or ():
+                docs.setdefault(name, ' '.join(text).replace('``', ''))
+        for line in inspect.cleandoc(init.__doc__).splitlines():
+            header = re.match(r'([A-Za-z_][\w]*(?:, [A-Za-z_][\w]*)*)\s*:', line)
+            if header and not line[:1].isspace():
+                done()
+                names, text = header.group(1).split(', '), []
+            elif line[:1].isspace() and names:
+                text.append(line.strip())
+            else:
+                done()
+                names, text = None, []
+        done()
+    return docs
+
 def _kind(parameter) -> tuple:
     """(kind, enum class or None) of a constructor parameter; a rate's second value is True if it also takes seconds."""
     annotation, default = parameter.annotation, parameter.default
@@ -300,12 +329,15 @@ def _encode(value, kind):
 def option_schema(cls) -> list:
     """Layout options of a widget or device class: name, kind, default and enum choices."""
     options = []
+    docs = option_docs(cls)
     for parameter in _parameters(cls):
         kind, extra = _kind(parameter)
         if kind == 'json':
             # Not representable in a layout (e.g. Sprite frames)
             continue
         option = {'name': parameter.name, 'kind': kind}
+        if docs.get(parameter.name):
+            option['doc'] = docs[parameter.name]
         if parameter.default is not parameter.empty:
             option['default'] = None if parameter.default is None else _encode(parameter.default, kind)
         if kind == 'enum':
