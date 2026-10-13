@@ -810,7 +810,14 @@ function mappingCard(widget, mapping, index) {
   const id = (name) => `mapping-${index}-${name}`;
   const edit = (mutate) => change(() => mutate(mapping));
   const sources = sourceNames(mapping.on);
-  const setField = (name) => (value) => edit(() => { mapping.message[name] = value; });
+  const setField = (name) => (value) => edit(() => {
+    mapping.message[name] = value;
+    // A track's volume follows a value, its pan steps or a value, mute/solo/record a state
+    if (mapping.message.type === 'TrackParameter' && name === 'parameter') {
+      const source = trackValueSource(value, info, sourceNames(mapping.on));
+      if (source) mapping.message.value = { source };
+    }
+  });
   const fieldEditors = (schema?.fields || []).flatMap((field) => {
     if (field.kind === 'list') {
       // OSC arguments
@@ -913,6 +920,10 @@ function mappingCard(widget, mapping, index) {
           // A knob or fader turns a plug-in parameter by its steps (Mackie Control), or sets it (REAPER)
           const value = info?.parameter_value || 'delta';
           if (type === 'PluginParameter' && sourceNames(mapping.on).includes(value)) next.value = { source: value };
+          if (type === 'TrackParameter') {
+            const source = trackValueSource(next.parameter || 'Volume', info, sourceNames(mapping.on));
+            if (source) next.value = { source };
+          }
           mapping.message = next;
         }),
       }, (info?.messages || Object.keys(state.catalog.messages)).map((type) => el('option', { value: type, selected: type === message.type }, type)))),
@@ -1452,6 +1463,14 @@ function renderConnections() {
 }
 
 // Things that won't work as the layout is: [level ('error' or 'warning'), text, select]
+// The event value a TrackParameter's parameter takes on an output (null: the event has none that fits)
+function trackValueSource(parameter, info, sources) {
+  const wanted = parameter === 'Volume' ? ['value']
+    : parameter === 'Pan' ? [info?.parameter_value || 'delta']
+    : ['state', 'value'];
+  return wanted.find((name) => sources.includes(name)) || null;
+}
+
 function findProblems() {
   const problems = [];
   if (state.error) problems.push(['error', state.error, null]);
@@ -1459,6 +1478,9 @@ function findProblems() {
     const message = mapping.message || {};
     if (message.type === 'PluginParameter' && !(message.track && message.plugin && message.parameter)) {
       problems.push(['warning', `${mapping.widget}: pick the track, plug-in and parameter it controls`, () => selectWidgetNamed(mapping.widget)]);
+    }
+    if (message.type === 'TrackParameter' && !message.track) {
+      problems.push(['warning', `${mapping.widget}: pick the track it controls`, () => selectWidgetNamed(mapping.widget)]);
     }
   }
   if (state.hardware.sync?.error) problems.push(['warning', `Sync to a DAW: ${state.hardware.sync.error}`, () => select(null)]);
