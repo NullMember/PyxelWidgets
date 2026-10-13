@@ -28,6 +28,7 @@ const state = {
   zoom: 1, // pad size relative to the size that fits the window
   pan: { x: 0, y: 0 }, // the board moved from the middle of the stage, in pixels
   layerDrag: null, // paths of the layers being dragged in the Layers panel
+  renaming: null, // the layer being renamed in place: {path, value}
   error: null,
   frameSize: [0, 0],
   spriteFrame: 0, // the Sprite frame being painted
@@ -2187,6 +2188,7 @@ const SHORTCUTS = [
   ['Ctrl/Cmd + A', 'select everything in the group'],
   ['Shift + click, drag on empty pads', 'select several on the grid'],
   ['Shift + click, Ctrl/Cmd + click in Layers', 'select a range of layers, add or remove one'],
+  ['Double-click a layer name, F2', 'rename the widget'],
   ['Ctrl/Cmd + G, Ctrl/Cmd + Shift + G', 'group, ungroup'],
   ['Arrows, Shift + arrows', 'move, resize'],
   ['Delete', 'delete'],
@@ -2771,6 +2773,63 @@ function icon(name) {
   return span;
 }
 
+// Renames a widget and what refers to it (bindings, messages, links, view sets)
+function renameWidget(widget, name) {
+  name = name.trim();
+  if (name === widget.name) return render();
+  if (!name || allWidgets().some((item) => item.widget !== widget && item.widget.name === name)) {
+    setStatus(`Widget name "${name}" is empty or already used`, 'error');
+    return render();
+  }
+  renameInViews(widget.name, name);
+  change((layout) => {
+    for (const binding of layout.bindings || []) if (binding.widget === widget.name) binding.widget = name;
+    for (const mapping of layout.mappings || []) if (mapping.widget === widget.name) mapping.widget = name;
+    for (const link of layout.links || []) {
+      if (link.widget === widget.name) link.widget = name;
+      if (link.target === widget.name) link.target = name;
+    }
+    widget.name = name;
+  });
+}
+
+// Renaming in Layers: double-click a name, or F2 for the selected widget
+function startRename(path) {
+  const widget = widgetAt(path);
+  if (!widget) return;
+  state.renaming = { path, value: widget.name, fresh: true };
+  renderTree();
+}
+
+function finishRename(keep) {
+  const renaming = state.renaming;
+  if (!renaming) return;
+  state.renaming = null;
+  const widget = widgetAt(renaming.path);
+  if (keep && widget) renameWidget(widget, renaming.value);
+  else renderTree();
+}
+
+function renameInput() {
+  const renaming = state.renaming;
+  return el('input', {
+    type: 'text', class: 'rename', value: renaming.value, 'aria-label': 'Widget name',
+    oninput: (event) => {
+      renaming.value = event.target.value;
+      renaming.caret = [event.target.selectionStart, event.target.selectionEnd];
+    },
+    onkeydown: (event) => {
+      event.stopPropagation();
+      if (event.key === 'Enter') finishRename(true);
+      if (event.key === 'Escape') finishRename(false);
+    },
+    onblur: (event) => { if (event.target.isConnected && state.renaming === renaming) finishRename(true); },
+    onclick: (event) => event.stopPropagation(),
+    ondblclick: (event) => event.stopPropagation(),
+    onpointerdown: (event) => event.stopPropagation(),
+  });
+}
+
 function renderTree() {
   const collapsed = viewSet('collapsed');
   const hiddenHere = viewSet('hidden');
@@ -2794,11 +2853,12 @@ function renderTree() {
     const folded = children && collapsed.has(widget.name) && !query && !open.has(widget.name);
     const offPage = widget.type !== undefined && prefix.length && widgetAt(prefix).type === 'Pages' && index !== currentPage(widgetAt(prefix));
     const here = hiddenHere.has(widget.name);
+    const renaming = state.renaming && samePath(state.renaming.path, path);
     return el('li', {},
       el('div', {
         class: `node${selected ? ' selected' : ''}${offPage ? ' off-page' : ''}${here ? ' hidden-here' : ''}`,
         title: offPage ? 'Another page: selecting it shows that page' : 'Drag to reorder, or onto a group to move it inside',
-        draggable: 'true',
+        draggable: renaming ? 'false' : 'true',
         dataset: { path: path.join('.') },
         ondragstart: (event) => {
           // Dragging a selected layer moves the whole selection
@@ -2841,7 +2901,13 @@ function renderTree() {
             if (children) toggleView('collapsed', widget.name);
           },
         }, folded ? '▸' : '▾'),
-        el('span', { class: 'name' }, widget.name),
+        renaming ? renameInput() : el('span', {
+          class: 'name', title: 'Double-click to rename',
+          ondblclick: (event) => {
+            event.stopPropagation();
+            startRename(path);
+          },
+        }, widget.name),
         el('span', { class: 'type' }, folded ? `${widget.type} · ${children}` : widget.type),
         toggle('hidden', widget.name, here, ['Hide in the designer (the layout keeps it)', 'Show in the designer'], ['eye', 'eyeOff']),
         toggle('locked', widget.name, locked.has(widget.name), ['Lock: no dragging it on the grid', 'Unlock'], ['lock', 'lock'])),
@@ -2851,6 +2917,14 @@ function renderTree() {
   tree.replaceChildren(...build(state.layout.widgets, []).children);
   if (!state.layout.widgets.length) tree.append(el('li', { class: 'hint' }, 'No widgets yet.'));
   else if (!tree.children.length) tree.append(el('li', { class: 'hint' }, `Nothing matches "${query}".`));
+  const input = tree.querySelector('input.rename');
+  if (input) {
+    // Rebuilt while typing: keep the caret where it was
+    input.focus();
+    if (state.renaming.fresh) input.select();
+    else if (state.renaming.caret) input.setSelectionRange(...state.renaming.caret);
+    state.renaming.fresh = false;
+  } else if (state.renaming) state.renaming = null; // its layer went away
 }
 
 // Shift+click in Layers: every layer shown between the one clicked before and this one
@@ -3386,23 +3460,7 @@ function renderProperties() {
         el('label', { for: 'widget-name' }, 'name'),
         el('div', { class: 'control' }, el('input', {
           type: 'text', id: 'widget-name', value: widget.name,
-          onchange: (e) => {
-            const name = e.target.value.trim();
-            if (!name || allWidgets().some((item) => item.widget !== widget && item.widget.name === name)) {
-              setStatus(`Widget name "${name}" is empty or already used`, 'error');
-              return render();
-            }
-            renameInViews(widget.name, name);
-            change((layout) => {
-              for (const binding of layout.bindings || []) if (binding.widget === widget.name) binding.widget = name;
-              for (const mapping of layout.mappings || []) if (mapping.widget === widget.name) mapping.widget = name;
-              for (const link of layout.links || []) {
-                if (link.widget === widget.name) link.widget = name;
-                if (link.target === widget.name) link.target = name;
-              }
-              widget.name = name;
-            });
-          },
+          onchange: (e) => renameWidget(widget, e.target.value),
         })),
         optionFields(widget, (info?.options || []).filter((option) => !ADVANCED.has(option.name))),
         info?.bindable ? bindingFields(widget) : null),
@@ -4246,6 +4304,7 @@ function bindToolbar() {
     if (key === 'f') return toggleFocus();
     if (key === '`') { drawerPrefs().open = !drawerPrefs().open; savePrefs(); return renderDrawer(); }
     if (key === 'm') return state.rules.open ? closeRules() : openRules();
+    if (key === 'f2' && state.selection?.kind === 'widget' && state.mode === 'edit') { event.preventDefault(); return startRename(state.selection.path); }
     if (key === 'e') return setMode('edit');
     if (key === 't') return setMode('try');
     if (key === 'escape') return select(null);
