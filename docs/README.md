@@ -18,9 +18,9 @@ app, parser, designer       glue: run a surface, read layout files, edit them
 surface                     maps a widget tree onto devices; bindings, mappings, links
 group                       containers: Group, Pages
 widgets | devices.* | transport | binding | mapping
-link                        widgets changing widgets
+link                        widgets changing widgets, options kept computed (formulas)
 buffer, animation
-color, rectangle, events, font, rate, message
+color, rectangle, events, font, rate, message, expression
 ```
 
 - **Widgets** draw into their own buffer and emit events (`Pressed`,

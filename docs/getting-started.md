@@ -103,6 +103,12 @@ plugged in yet, and reconnects one that was unplugged. Press Ctrl+C to stop.
 - **Links** (*Add link* in Behaviour): one widget changing another, such as a
   button showing a page, a knob moving a keyboard's octave, or a pad picking which
   sequencer is shown.
+- **Formulas:** press *ƒ* next to an option to compute it from other
+  widgets' options, e.g. a Stepper's maximum `{roll.steps - roll.width}`
+  for scrolling a 32-step PianoRoll named `roll` column by column; it keeps up
+  when the roll changes. Text options take formulas inside them (`Step
+  {roll.column + 1}`), and link values and message fields can be formulas of
+  the event's values too (*formula…* in their value list: `{note + 12}`).
 - **Pages and Presets:** *Pages* shows one page of widgets at a time; *Presets*
   stores what the widgets inside show and brings it back, and keeps it in the
   layout file.

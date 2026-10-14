@@ -21,7 +21,7 @@ import pyxelwidgets.color  # noqa: E402
 
 # In layer order, as in the architecture: small pieces first
 SECTIONS = [
-    ('Basics', ['color', 'rectangle', 'rate', 'events', 'font', 'buffer', 'animation', 'message']),
+    ('Basics', ['color', 'rectangle', 'rate', 'events', 'font', 'buffer', 'animation', 'message', 'expression']),
     ('Widgets', ['widgets', 'group']),
     ('Time, controls and outputs', ['transport', 'binding', 'mapping', 'link']),
     ('Putting it together', ['surface', 'app', 'parser', 'codegen']),

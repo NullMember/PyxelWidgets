@@ -11,6 +11,7 @@ Generated from the docstrings by `docs/build_api.py`; see the [guides](README.md
   - [`pyxelwidgets.buffer`](#pyxelwidgetsbuffer)
   - [`pyxelwidgets.animation`](#pyxelwidgetsanimation)
   - [`pyxelwidgets.message`](#pyxelwidgetsmessage)
+  - [`pyxelwidgets.expression`](#pyxelwidgetsexpression)
 - Widgets
   - [`pyxelwidgets.widgets`](#pyxelwidgetswidgets)
   - [`pyxelwidgets.group`](#pyxelwidgetsgroup)
@@ -295,6 +296,25 @@ PageShown(widget: typing.Any, page: int, first: bool, last: bool)
 The widget shows `page` (from 0) of its pages, whatever changed it: a
 press, a link, an action or following the playing step. `first` and
 `last` tell whether it's at an end, e.g. to dim page buttons.
+
+### `ColumnChanged` (WidgetEvent)
+
+```python
+ColumnChanged(widget: typing.Any, column: int, first: bool, last: bool)
+```
+
+The widget's `column` changed, whatever changed it (PianoRoll: the first
+step shown). `first` and `last` tell whether it can't go further.
+
+### `RowChanged` (WidgetEvent)
+
+```python
+RowChanged(widget: typing.Any, row: int, first: bool, last: bool)
+```
+
+The widget's `row` changed, whatever changed it (Sequencer: the first
+row of steps shown; PianoRoll: the rows of the scale it's moved by).
+`first` and `last` tell whether it can't go further.
 
 ### `RowPlayed` (WidgetEvent)
 
@@ -642,6 +662,12 @@ Values: `velocity`, `value`, `pressure`, `state`... are 0.0-1.0 and are
 scaled to a field's range (`min`/`max` narrow it); `x`, `y`, `cell`,
 `note`, `step`, `delta`... are whole numbers, moved by `offset`.
 
+A field can also be computed: anything with `evaluate(sources)` and
+`free` (the event values it needs), e.g. a `pyxelwidgets.expression.Expression`
+such as `{note + 12}` or `{velocity * 100}` (event values as the event
+has them; the result is rounded and clamped to the field's range). Computed
+fields take whatever is received (they carry nothing back).
+
 ### `Source`
 
 ```python
@@ -663,6 +689,7 @@ Base of message templates; a template with constants only is a concrete message.
 - **`resolve(sources: dict)`**: The concrete message for an event's `sources`.
 - **`match(message: Message)`**: The values `message` carries if it is this message (constants equal), else None.
 - **`sources`**
+- **`needs`**: Names of the event values it takes: its sources' and its computed fields'.
 
 ### `MidiMessage` (Message)
 
@@ -867,6 +894,71 @@ Scroll by `dx`, `dy` steps (positive dy is up), e.g. a knob's `delta`.
 ### `parse_keys(keys: str)`
 
 `'ctrl+shift+s'` → `('ctrl', 'shift', 's')`; raises ValueError for unknown keys.
+
+## `pyxelwidgets.expression`
+
+Expressions: small formulas in braces that options, links and messages
+compute from other widgets' options and from event values:
+
+    {roll.steps - roll.width}                 # options of the widget named roll
+    {value * 8}                               # an event value (links, messages)
+    {min(x, 3) + 1}
+    {'on' if state else 'off'}
+    Step {roll.column + 1} of {roll.steps}    # a text: each part filled in
+
+`Expression` is one formula (with or without its braces), `Template` a
+text with formulas in it (`{{` and `}}` are braces). Both take `names`:
+what names other than event values stand for (widgets by name, `self`,
+`transport`), and `evaluate(values)` with the event's values, which come
+first. Event values are as the event has them: `velocity`/`value` 0.0-1.0,
+`x`/`cell`/`step` whole numbers.
+
+Allowed: numbers, text in quotes, true/false, names, `name.option` (an
+option or property, never a method or a name starting with `_`; choices
+read as their name, `roll.follow == 'Page'`), `+ - * / // % **`,
+comparisons, `and`/`or`/`not`, `a if test else b` and the
+`FUNCTIONS`. Python's `eval` is not used: nothing else runs.
+
+### `Expression`
+
+```python
+Expression(text: str, names: dict | None = None)
+```
+
+One formula, e.g. `Expression('roll.steps - roll.width', {'roll': roll})`.
+Raises ExpressionError if it doesn't parse or uses what isn't allowed.
+
+- **`free`**: The names it uses that aren't `names` or constants: event values it needs.
+- **`bound`**: The `names` it uses.
+- **`references()`**: `(name, option)` for each `name.option` it reads (option None for a bare name).
+- **`evaluate(values: dict | None = None)`**: The result, with event `values` (looked up before `names`).
+
+### `Template`
+
+```python
+Template(text: str, names: dict | None = None)
+```
+
+A text with `{formula}` parts, e.g. `Template('Step {roll.column + 1}', {'roll': roll})`;
+`{{` and `}}` are braces.
+
+- **`expressions`**
+- **`free`**
+- **`bound`**
+- **`references()`**
+- **`evaluate(values: dict | None = None, *, keep_unknown: bool = False, show = pyxelwidgets.expression._text)`**: The text filled in; with `keep_unknown` a part that can't be computed stays as written.
+
+### `ExpressionError` (ValueError)
+
+An expression that doesn't parse, or can't be computed (an unknown name, a division by zero...).
+
+### `parse(text, names: dict | None = None)`
+
+An Expression for text that is one `{formula}`, a Template for text with formulas in it, else None.
+
+### `is_expression(value)`
+
+Whether `value` is text holding just one `{formula}`.
 
 # Widgets
 
@@ -1292,6 +1384,16 @@ link actions (`set_velocity`, `set_probability`, `set_ratchets`,
 - **`reset()`**: Clear every step.
 - **`draw()`**
 
+#### `RowChanged` (WidgetEvent)
+
+```python
+RowChanged(widget: typing.Any, row: int, first: bool, last: bool)
+```
+
+The widget's `row` changed, whatever changed it (Sequencer: the first
+row of steps shown; PianoRoll: the rows of the scale it's moved by).
+`first` and `last` tell whether it can't go further.
+
 #### `Follow` (Enum)
 
 How the view of a PianoRoll or Sequencer follows the playing step.
@@ -1336,6 +1438,7 @@ than the columns scroll a column at a time (`column`) or a page at a time.
 - **`steps`** (settable)
 - **`column`** (settable): The first step shown (at the left), from 0 to `steps` less the width.
 - **`step`** (settable): The current step; setting it moves there without playing it.
+- **`row`** (settable): Rows of the scale the notes are moved up by (down when negative); RowChanged when it changes.
 - **`rows()`**: The MIDI note of each row from the bottom, None past the highest note.
 - **`note_at(step: int, note: int)`**: The first step of the note covering `step` on `note`, or None.
 - **`add_note(step: int, note: int, length: int = 1, velocity: float = 1.0)`**: Add a note (replacing the ones it overlaps on its row).
@@ -1349,6 +1452,15 @@ than the columns scroll a column at a time (`column`) or a page at a time.
 - **`save_state()`**
 - **`load_state(state: dict)`**
 - **`draw()`**
+
+#### `ColumnChanged` (WidgetEvent)
+
+```python
+ColumnChanged(widget: typing.Any, column: int, first: bool, last: bool)
+```
+
+The widget's `column` changed, whatever changed it (PianoRoll: the first
+step shown). `first` and `last` tell whether it can't go further.
 
 #### `Follow` (Enum)
 
@@ -1718,7 +1830,8 @@ Stepper(x: int = 0, y: int = 0, width: int = 1, height: int = 1, *, minimum: int
 A whole number from `minimum` to `maximum` (`number`) changed a step
 at a time: the first pad (left or bottom) goes down, the last up, the
 pads between show where it is and jump there: a point of light moves along
-them, lighting the nearest pads by how near it is. Holding a step pad repeats.
+them (along the two step pads when there are only two), lighting the
+nearest pads by how near it is. Holding a step pad repeats.
 `value` is the number as 0.0-1.0; link Changed with `minimum`/`maximum`
 as the range to get the number.
 
@@ -2093,6 +2206,23 @@ A text value is filled in from the event: `'pad {x},{y} at {velocity}'`;
 
     Link(pads, print, value = 'pressed {cell}', on = Pressed)
 
+The value can be an `Expression` (`pyxelwidgets.expression`) of the
+event's values and other widgets' options, or for text a `Template`:
+
+    Link(pads, roll, 'column', Expression('x * 4'), on = Pressed)
+    Link(fader, roll, 'column', Expression('round(value * (roll.steps - roll.width))', {'roll': roll}), on = Changed)
+    Link(roll, label, 'text', Template('{column + 1}/{roll.steps}', {'roll': roll}), on = ColumnChanged)
+
+Its result is turned into what the option holds (whole numbers rounded,
+choices by name or index, colors from "#rrggbb"); minimum and maximum clamp
+numbers. An expression that can't be computed for an event is printed and
+changes nothing.
+
+A `Formula` keeps an option at what an expression computes, whenever it
+changes (`surface.formula` creates one updated every frame):
+
+    Formula(stepper, 'maximum', Expression('roll.steps - roll.width', {'roll': roll}))
+
 Options change through `target.configure`, which doesn't emit events, so
 links don't trigger each other in loops (Pages emits PageChanged for a new
 page; a link doesn't run again while it is running).
@@ -2144,6 +2274,19 @@ list; past either end it takes the first or last.
 - **`index(sources: dict)`**
 - **`choose(sources: dict)`**
 
+### `Formula`
+
+```python
+Formula(target, option: str, expression)
+```
+
+Keeps `option` of `target` at what `expression` (an Expression, or
+a Template for text) computes: `refresh()` changes it (through
+`configure`) when the result differs. `error` says why the last
+refresh couldn't (and the option stays as it was), else None.
+
+- **`refresh()`**: Compute the option again; True if it changed.
+
 # Putting it together
 
 ## `pyxelwidgets.surface`
@@ -2164,7 +2307,8 @@ offset, so several devices can form one larger surface.
 Emits `Frame` before rendering each frame, and re-emits every device's
 control events (ControlPressed, ControlChanged, ...). `bind` connects a
 device's controls to widgets or actions, `map` sends widget events to
-other software and `link` lets widgets change each other's options.
+other software and `link` lets widgets change each other's options;
+`formula` keeps an option at what an expression of others computes.
 
 `lock` is held while processing input and rendering. Hold it when changing
 widgets from another thread, e.g. a MIDI callback of your own.
@@ -2180,6 +2324,8 @@ widgets from another thread, e.g. a MIDI callback of your own.
 - **`unmap(mapping: pyxelwidgets.mapping.Mapping)`**
 - **`link(widget, target, option: str | None = None, value = None, *, on: type, **kwargs)`**: Change `option` of `target` on each `on` event of `widget`; see `pyxelwidgets.link` for `value`, `change`, `minimum` and `maximum`.
 - **`unlink(link: pyxelwidgets.link.Link)`**
+- **`formula(target, option: str, expression)`**: Keep `option` of `target` at what `expression` computes (see `pyxelwidgets.link.Formula`): now, and on every `update()`.
+- **`remove_formula(formula: pyxelwidgets.link.Formula)`**
 - **`check_devices(devices = None)`**: Let `devices` (default: the surface's devices and its mappings' outputs) notice being unplugged and plugged back in, with their `check()` (MIDI devices have one). Ports are listed once, outside the lock; each check holds it. Returns the devices whose connection changed. App calls this about once a second.
 - **`force_update()`**: Resend every pixel on the next update, e.g. after a device reconnected.
 - **`update()`**: Render changed widgets and send changed pixels to every device.
@@ -2288,6 +2434,15 @@ number: `transport.tempo`, `transport.tempo_add`), or `debug`, which
 writes its `value`, a text filled in from the event (`"pad {x}"`,
 `{all}`: every value; the default), to `Parser.debug`.
 
+Expressions (`pyxelwidgets.expression`): a widget option, a link value
+or a message field can be a formula in braces instead of a constant, e.g.
+`"maximum": "{roll.steps - roll.width}"`. Names are widgets (their options
+after a dot), `self` (options: the widget itself), `transport` (`bpm`,
+`playing`...) and, in links and messages, the event's values (`value`,
+`x`...). A widget option keeps up with what it's computed from (a
+`Formula`, refreshed every frame); text options take text with formulas
+in it (`"Step {roll.column + 1}"`, `{{`/`}}` for braces).
+
 Load a layout and attach behaviour by widget name:
 
     ui = pyxelwidgets.parser.load('layout.json')
@@ -2345,6 +2500,10 @@ Layout options of a widget or device class: name, kind, default and enum choices
 
 Options of a widget class a link can change: its position and size, then its options (not Sprite frames).
 
+### `readable(cls)`
+
+Properties of a widget class that aren't options (`number`, `pages`...): expressions read them too.
+
 ### `schema()`
 
 Widget types with their options (kind, default, enum choices), for building editors.
@@ -2357,9 +2516,10 @@ Mapping message types with their fields: name, default (encoded) and range (whol
 
 A mapping message as layout JSON.
 
-### `message_from_json(data, where: str = 'message')`
+### `message_from_json(data, where: str = 'message', expressions: dict | None = None)`
 
 A mapping message from layout JSON; raises LayoutError naming the field.
+`expressions` (what names stand for: widgets by name...) allows `"{formula}"` in fields that aren't text.
 
 ### `widget_entries(widgets, found = None)`
 
@@ -2396,6 +2556,9 @@ in that file, unless their `save` option is off.
 - **`get_surface()`**
 - **`get_devices()`**
 - **`get_widgets()`**
+- **`names()`**: What names in expressions stand for: widgets by name, and `transport` (the surface's, once it has one).
+- **`formulate()`**: Create the Formulas of widget options written as formulas (`self` is the widget).
+- **`formula_settings()`**: The widget options written as formulas: (widget name, option, Expression or Template).
 - **`keep_presets()`**: Write what Presets groups store (with `save` on) into `path`, the layout file.
 - **`save_presets(name: str)`**: Write the presets of the Presets group `name` into its `presets` option in `path`. The file is read again first, so changes made to it meanwhile (e.g. saved by the designer) are kept. Failures are printed.
 - **`sync_settings()`**: The layout's `transport.sync`: `{"input": port}` or `{"virtual": port}`, the MIDI port a DAW's clock comes in through; None if the transport keeps its own time.
