@@ -65,7 +65,7 @@ export function bindSplitters() {
 }
 
 const SHORTCUTS = [
-  ['E / T', 'Edit or Try mode'],
+  ['E / T / P', 'Edit, Try or Perform mode (Perform: no grid drawn, play on your devices)'],
   ['Alt + click', 'press a pad while editing'],
   ['Space', 'play or stop the transport'],
   ['Ctrl/Cmd + Z, Ctrl/Cmd + Shift + Z', 'undo, redo'],

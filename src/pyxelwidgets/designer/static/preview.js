@@ -11,8 +11,10 @@ import { renderDevices, renderProperties, syncStatus, renderToolbar } from './pr
 
 export async function poll() {
   try {
-    const frame = await api('GET', `/api/frame?since=${state.lastEvent}`);
-    paint(frame);
+    // Perform mode shows no grid: the server renders nothing for the browser
+    const performing = state.mode === 'perform';
+    const frame = await api('GET', `/api/frame?since=${state.lastEvent}${performing ? '&pixels=0' : ''}`);
+    if (frame.pixels) paint(frame);
     addEvents(frame.events);
     if (frame.playing !== state.playing || frame.synced !== state.synced) {
       state.playing = frame.playing;
@@ -35,7 +37,7 @@ export async function poll() {
   } catch {
     setStatus('Lost connection to the designer server', 'error');
   }
-  setTimeout(poll, document.hidden ? 500 : 80);
+  setTimeout(poll, document.hidden ? 500 : state.mode === 'perform' ? 250 : 80);
 }
 
 function paint(frame) {

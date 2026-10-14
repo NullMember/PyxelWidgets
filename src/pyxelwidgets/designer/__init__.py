@@ -547,7 +547,11 @@ class Preview:
         for entries in (*pool.values(), *outputs.values()):
             for entry in entries:
                 entry.close()
-        if any(entry['device'] is not None for entry in self.hardware) and self._render_stop is None:
+        if any(entry['device'] is not None for entry in self.hardware):
+            self._start_render()
+
+    def _start_render(self) -> None:
+        if self._render_stop is None:
             self._render_stop = threading.Event()
             threading.Thread(target = self._render, args = (self._render_stop,), name = 'DesignerHardware', daemon = True).start()
 
@@ -716,7 +720,7 @@ class Preview:
                 self._log(device.name, f'device {state}', {})
 
     def _render(self, stop: threading.Event) -> None:
-        """Send frames to the hardware (the browser only renders when it asks for a frame)."""
+        """Send frames to the hardware (the browser only renders when it asks for a frame; in Perform mode it doesn't)."""
         while not stop.wait(1.0 / self.fps):
             with self.lock:
                 if stop.is_set():
@@ -737,14 +741,24 @@ class Preview:
                 self._render_stop.set()
                 self._render_stop = None
 
-    def frame(self, since: int = 0) -> dict:
-        """Render; pixels are ``#rrggbb`` rows from the top, plus events after ``since``."""
+    def frame(self, since: int = 0, pixels: bool = True) -> dict:
+        """
+        Render; pixels are ``#rrggbb`` rows from the top, plus events after
+        ``since``. Without ``pixels`` (the designer's Perform mode, no grid
+        shown) nothing is rendered for the browser and pixels is None: the
+        render thread keeps the widgets updating at ``fps`` instead.
+        """
         with self.lock:
             surface = self.ui.surface
-            surface.update()
+            if pixels:
+                surface.update()
+            else:
+                self._start_render()
             buffer = surface.buffer
-            rows = [[f'#{int(buffer[x, y, 0]):02x}{int(buffer[x, y, 1]):02x}{int(buffer[x, y, 2]):02x}' for x in range(buffer.shape[0])]
-                    for y in reversed(range(buffer.shape[1]))]
+            rows = None
+            if pixels:
+                rows = [[f'#{int(buffer[x, y, 0]):02x}{int(buffer[x, y, 1]):02x}{int(buffer[x, y, 2]):02x}' for x in range(buffer.shape[0])]
+                        for y in reversed(range(buffer.shape[1]))]
             with self._events_lock:
                 events = [dict(event, id = number) for number, event in self.events if number > since]
             playing = self.playing
@@ -1105,8 +1119,9 @@ class Handler(http.server.BaseHTTPRequestHandler):
         elif url.path == '/api/check':
             self._json({'check': preview.check_status()})
         elif url.path == '/api/frame':
-            since = int(urllib.parse.parse_qs(url.query).get('since', ['0'])[0])
-            self._json(preview.frame(since))
+            query = urllib.parse.parse_qs(url.query)
+            since = int(query.get('since', ['0'])[0])
+            self._json(preview.frame(since, query.get('pixels', ['1'])[0] != '0'))
         else:
             name = 'index.html' if url.path in ('/', '/index.html') else url.path.lstrip('/')
             resource = self.static / name

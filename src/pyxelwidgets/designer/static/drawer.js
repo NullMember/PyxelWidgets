@@ -183,6 +183,8 @@ function renderProblems(problems = findProblems()) {
 
 export function renderEvents() {
   if (state.eventsPaused) return;
+  // Perform mode saves the work while the log isn't shown (opening it renders it)
+  if (state.mode === 'perform' && !(drawerPrefs().open && drawerPrefs().tab === 'events')) return;
   const filter = drawerPrefs().filter;
   const selected = state.selection?.kind === 'widget' ? new Set(selectedPaths().map((path) => widgetAt(path)?.name)) : new Set();
   const shown = state.eventLog.filter((event) => filter === 'all'

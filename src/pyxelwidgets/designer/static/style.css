@@ -241,6 +241,16 @@ body.try .pad:active { transform: scale(0.96); }
 body.try .outline.widget { pointer-events: none; border-color: transparent; box-shadow: none; }
 body.try .outline .tag, body.try .handle { display: none !important; }
 
+/* Perform mode: the grid isn't drawn (hidden, not removed, so its place and zoom stay) */
+body.perform #board { visibility: hidden; }
+.perform-note { display: none; }
+body.perform .perform-note {
+  position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center;
+  gap: 8px; padding: 16px; text-align: center; color: var(--muted); pointer-events: none;
+}
+.perform-note b { color: var(--text); font-size: 18px; }
+.perform-note span { max-width: 420px; }
+
 #status { position: absolute; left: 50%; bottom: 10px; transform: translateX(-50%); width: min(640px, 90%); min-height: 18px; color: var(--muted); text-align: center; pointer-events: none; z-index: 3; }
 #status.error { color: var(--danger); }
 #status.ok { color: var(--ok); }

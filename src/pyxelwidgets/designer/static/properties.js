@@ -507,7 +507,9 @@ export function renderCode() {
 export function renderToolbar() {
   $('mode-edit').classList.toggle('active', state.mode === 'edit');
   $('mode-try').classList.toggle('active', state.mode === 'try');
+  $('mode-perform').classList.toggle('active', state.mode === 'perform');
   document.body.classList.toggle('try', state.mode === 'try');
+  document.body.classList.toggle('perform', state.mode === 'perform');
   $('undo').disabled = !state.history.length;
   $('redo').disabled = !state.future.length;
   $('save').title = state.file ? `Save to ${state.file} (Ctrl+S)` : 'Save: choose where to keep it (Ctrl+S)';

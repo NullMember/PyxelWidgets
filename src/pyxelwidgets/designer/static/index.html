@@ -17,6 +17,7 @@
       <div class="segmented" role="group" aria-label="Mode">
         <button id="mode-edit" class="active" title="Place and configure widgets (E)">Edit</button>
         <button id="mode-try" title="Press pads to try the widgets (T)">Try</button>
+        <button id="mode-perform" title="Play on your devices without drawing the grid here, to spare the computer's CPU and GPU (P)">Perform</button>
       </div>
       <button id="play" title="Play the transport so Sequencers and Trackers play (Space)">▶ Play</button>
       <span id="position" class="position" aria-live="off"></span>
@@ -95,6 +96,11 @@
         <div id="board">
           <div id="pads"></div>
           <div id="overlay"></div>
+        </div>
+        <div id="perform-note" class="perform-note">
+          <b>Perform mode</b>
+          <span>The grid isn't drawn here, to spare the computer: play on your devices. Connected devices, outputs and the transport keep running.</span>
+          <span class="hint">E to edit, T to try</span>
         </div>
         <div id="status" role="status"></div>
       </section>

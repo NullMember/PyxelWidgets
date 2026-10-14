@@ -27,6 +27,7 @@ import { addRecent, save, saveAs, showOpen, importFile, showFileMenu, showDetect
 function bindToolbar() {
   $('mode-edit').onclick = () => setMode('edit');
   $('mode-try').onclick = () => setMode('try');
+  $('mode-perform').onclick = () => setMode('perform');
   const board = $('board');
   board.addEventListener('dragover', dragOver);
   board.addEventListener('drop', drop);
@@ -111,6 +112,7 @@ function bindToolbar() {
     if (key === 'f2' && state.selection?.kind === 'widget' && state.mode === 'edit') { event.preventDefault(); return startRename(state.selection.path); }
     if (key === 'e') return setMode('edit');
     if (key === 't') return setMode('try');
+    if (key === 'p') return setMode('perform');
     if (key === 'escape') return select(null);
     // A focused button handles Space itself
     if (key === ' ' && !event.target.closest('button')) { event.preventDefault(); return $('play').click(); }
