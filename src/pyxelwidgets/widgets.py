@@ -1742,6 +1742,9 @@ class Scrolled(Paged):
     #: Link actions to scroll a lane at a time
     scroll_actions = {'scroll_forward': None, 'scroll_back': None}
 
+    #: Emitted with (first lane shown, at the start, at the end) when the view or its end moves
+    scroll_event = None
+
     def _last_first(self) -> int:
         return max(self._lanes() - self._screen(), 0)
 
@@ -1749,6 +1752,10 @@ class Scrolled(Paged):
         self._first = min(max(int(first), 0), self._last_first())
         self.updated = True
         self._page_shown()
+        scrolled = (self._first, self._first == 0, self._first >= self._last_first())
+        if scrolled != self.__dict__.get('_scrolled'):
+            self._scrolled = scrolled
+            self.emit(self.scroll_event(self, *scrolled))
 
     def scroll_forward(self) -> None:
         """Show one more lane at the end (right or top); nothing at the last."""
@@ -1887,7 +1894,10 @@ class Sequencer(Timed, Scrolled, Velocity, Widget):
     ``set_note``) change the held steps, or the last one pressed.
     """
 
-    emits = (pyxelwidgets.events.StepPlayed, pyxelwidgets.events.StepEnded, pyxelwidgets.events.PageChanged)
+    emits = (pyxelwidgets.events.StepPlayed, pyxelwidgets.events.StepEnded, pyxelwidgets.events.PageChanged,
+             pyxelwidgets.events.RowChanged)
+
+    scroll_event = pyxelwidgets.events.RowChanged
 
     # Called 24 times a step, to time swing, gates and ratchets
     divisions = 24
@@ -2335,7 +2345,10 @@ class PianoRoll(Timed, Scrolled, Velocity, Widget):
     than the columns scroll a column at a time (``column``) or a page at a time.
     """
 
-    emits = (pyxelwidgets.events.NoteOn, pyxelwidgets.events.NoteOff, pyxelwidgets.events.PageChanged)
+    emits = (pyxelwidgets.events.NoteOn, pyxelwidgets.events.NoteOff, pyxelwidgets.events.PageChanged,
+             pyxelwidgets.events.ColumnChanged, pyxelwidgets.events.RowChanged)
+
+    scroll_event = pyxelwidgets.events.ColumnChanged
 
     actions = {'advance': None, 'play': 'int', 'reset': None, 'set_velocity': 'float',
                **Paged.page_actions, **Scrolled.scroll_actions, **Timed.clock_actions}
@@ -2448,12 +2461,32 @@ class PianoRoll(Timed, Scrolled, Velocity, Widget):
         self.updated = True
         self._follow(self._step, True)
 
-    def rows(self) -> list:
-        """The MIDI note of each row from the bottom, None past the highest note."""
+    @property
+    def row(self) -> int:
+        """Rows of the scale the notes are moved up by (down when negative); RowChanged when it changes."""
+        return self._row
+
+    @row.setter
+    def row(self, value: int) -> None:
+        value = int(value)
+        if value != self.__dict__.get('_row'):
+            self._row = value
+            self.updated = True
+            if 'rect' in self.__dict__:
+                notes, bottom = self._bottom()
+                self.emit(pyxelwidgets.events.RowChanged(self, value, bottom + value <= 0, bottom + value + self.rect.h >= len(notes)))
+
+    def _bottom(self) -> tuple:
+        """The scale's notes, and the index of the root at ``octave`` among them."""
         notes = scale_notes(self.scale, self.root)
         base = self.root.value + 12 * self.octave
+        return notes, next((index for index, note in enumerate(notes) if note >= base), len(notes))
+
+    def rows(self) -> list:
+        """The MIDI note of each row from the bottom, None past the highest note."""
+        notes, bottom = self._bottom()
         # Never below the lowest note
-        bottom = max(next((index for index, note in enumerate(notes) if note >= base), len(notes)) + self.row, 0)
+        bottom = max(bottom + self.row, 0)
         return [notes[bottom + y] if bottom + y < len(notes) else None for y in range(self.rect.h)]
 
     def note_at(self, step: int, note: int):
@@ -4247,6 +4280,18 @@ class Stepper(ValueWidget):
     @property
     def number(self) -> int:
         return self.minimum + round(self._value * (self.maximum - self.minimum))
+
+    def _configure(self, name: str, value) -> None:
+        if name not in ('minimum', 'maximum'):
+            return super()._configure(name, value)
+        # A new range keeps the number (inside it)
+        number = self.number
+        low, high = (int(value), self.maximum) if name == 'minimum' else (self.minimum, int(value))
+        if high <= low:
+            raise ValueError(f'maximum must be more than minimum, got {low!r} and {high!r}')
+        setattr(self, name, int(value))
+        self._value = self._clamp((min(max(number, low), high) - low) / (high - low))
+        self.updated = True
 
     def set_number(self, number: int) -> None:
         """Set the number as input would (emits Changed)."""
