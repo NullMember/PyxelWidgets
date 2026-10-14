@@ -42,6 +42,10 @@ class Subscription:
         self.interval = fractions.Fraction(1)
         self.start = fractions.Fraction(0)
         self.last = -1
+        # The first tick whose count isn't ``last`` (whole ticks: compared every tick)
+        self.next = 0
+        # (start, interval) as ints when both are whole ticks, for cheaper counting
+        self.whole = None
 
     def cancel(self) -> None:
         self.transport.cancel(self)
@@ -263,6 +267,9 @@ class Transport(pyxelwidgets.events.Emitter):
             subscription.interval = self.ticks(subscription.rate) / subscription.divisions
             subscription.start = self.ticks(subscription.offset) if subscription.offset else fractions.Fraction(0)
             subscription.last = math.ceil((self._tick - subscription.start) / subscription.interval) - 1
+            subscription.next = math.ceil(subscription.start + (subscription.last + 1) * subscription.interval)
+            whole = subscription.interval.denominator == 1 and fractions.Fraction(subscription.start).denominator == 1
+            subscription.whole = (int(subscription.start), int(subscription.interval)) if whole else None
 
     def _advance(self) -> None:
         """Play the current tick, then move to the next."""
@@ -271,7 +278,15 @@ class Transport(pyxelwidgets.events.Emitter):
             if self._tick != tick:
                 # A subscriber moved the position; the new one plays next
                 return
-            count = math.floor((tick - subscription.start) / subscription.interval)
+            if tick < subscription.next:
+                continue
+            if subscription.whole is not None:
+                start, interval = subscription.whole
+                count = (tick - start) // interval
+                subscription.next = start + (count + 1) * interval
+            else:
+                count = math.floor((tick - subscription.start) / subscription.interval)
+                subscription.next = math.ceil(subscription.start + (count + 1) * subscription.interval)
             if count != subscription.last:
                 subscription.last = count
                 if count >= 0:
