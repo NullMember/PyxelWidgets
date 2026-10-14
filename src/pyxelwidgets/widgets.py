@@ -1704,11 +1704,93 @@ class Paged:
         if self.page > 0:
             self.page = self.page - 1
 
+    def _ends(self) -> tuple:
+        """Whether the view is at the first page, and at the last."""
+        return self.page == 0, self.page == self.pages - 1
+
     def _page_shown(self) -> None:
-        shown = (self.page, self.pages)
+        first, last = self._ends()
+        shown = (self.page, self.pages, first, last)
         if shown != self.__dict__.get('_shown'):
             self._shown = shown
-            self.emit(pyxelwidgets.events.PageShown(self, shown[0], shown[0] == 0, shown[0] == shown[1] - 1))
+            self.emit(pyxelwidgets.events.PageShown(self, shown[0], first, last))
+
+class Follow(enum.Enum):
+    """
+    How the view of a PianoRoll or Sequencer follows the playing step.
+
+    Off: the view stays where it is.
+    Page: it turns to the playing step's page when the step moves to another page.
+    Playhead: it scrolls along, keeping the playing step in the middle (except near the first and last steps).
+    """
+    Off         = enum.auto()
+    Page        = enum.auto()
+    Playhead    = enum.auto()
+
+class Scrolled(Paged):
+    """
+    Mixin for widgets showing a strip of lanes (PianoRoll's columns of steps,
+    Sequencer's rows of steps), one screen of them at a time. The view starts
+    at lane ``_first`` and scrolls a lane at a time (``scroll_forward``/
+    ``scroll_back``) or a page, a screen, at a time; the last page ends at the
+    last lane. Widgets define ``_lanes()`` and ``_screen()`` (lanes shown) and
+    call ``_follow`` when a step plays.
+    """
+
+    _first = 0
+
+    #: Link actions to scroll a lane at a time
+    scroll_actions = {'scroll_forward': None, 'scroll_back': None}
+
+    def _last_first(self) -> int:
+        return max(self._lanes() - self._screen(), 0)
+
+    def _scroll_to(self, first: int) -> None:
+        self._first = min(max(int(first), 0), self._last_first())
+        self.updated = True
+        self._page_shown()
+
+    def scroll_forward(self) -> None:
+        """Show one more lane at the end (right or top); nothing at the last."""
+        self._scroll_to(self._first + 1)
+
+    def scroll_back(self) -> None:
+        """Show one more lane at the start (left or bottom); nothing at the first."""
+        self._scroll_to(self._first - 1)
+
+    @property
+    def pages(self) -> int:
+        return (self._lanes() - 1) // self._screen() + 1
+
+    @property
+    def page(self) -> int:
+        """The page shown: the last once the view reaches the end, else the one its first lane is on."""
+        return self.pages - 1 if self._first >= self._last_first() else self._first // self._screen()
+
+    @page.setter
+    def page(self, value: int) -> None:
+        self._scroll_to(int(value) % self.pages * self._screen())
+
+    def _ends(self) -> tuple:
+        return self._first == 0, self._first >= self._last_first()
+
+    def next_page(self) -> None:
+        """Show the next page; nothing at the end."""
+        if self._first < self._last_first():
+            self._scroll_to((self._first // self._screen() + 1) * self._screen())
+
+    def previous_page(self) -> None:
+        """Show the page before (the start of this one when scrolled into it); nothing at the start."""
+        if self._first > 0:
+            self._scroll_to((self._first - 1) // self._screen() * self._screen())
+
+    def _follow(self, lane: int, turned: bool) -> None:
+        """Show the playing ``lane`` as ``follow`` has it; ``turned``: it moved to another page (or was moved to)."""
+        if self.follow == Follow.Playhead:
+            # Centered: an even screen has one more lane ahead
+            self._scroll_to(lane - (self._screen() - 1) // 2)
+        elif self.follow == Follow.Page and turned:
+            self._scroll_to(lane // self._screen() * self._screen())
 
 # Sequencer class
 class Clock(enum.Enum):
@@ -1791,13 +1873,13 @@ def _fit(array: numpy.ndarray, shape: tuple, fill) -> numpy.ndarray:
     _copy_overlap(fitted, array)
     return fitted
 
-class Sequencer(Timed, Paged, Velocity, Widget):
+class Sequencer(Timed, Scrolled, Velocity, Widget):
     """
     Step sequencer. Each step plays when ``play(step)`` or ``advance()`` is
     called; its ``clock`` (the transport, one of its own, or none) does every
     ``rate``, with ``swing``. Emits StepPlayed, and StepEnded when an active
-    step's ``gate`` ends. Steps beyond one screen are on pages: ``page`` is the
-    one shown and edited.
+    step's ``gate`` ends. Steps go left to right in rows going up; more rows
+    than the pads scroll a row at a time (``row``) or a page at a time.
 
     Pressing a step turns it on (with the press's velocity); pressing an
     active one turns it off when it's let go, unless it was edited while held:
@@ -1812,7 +1894,9 @@ class Sequencer(Timed, Paged, Velocity, Widget):
 
     actions = {'advance': None, 'play': 'int', 'reset': None,
                'set_velocity': 'float', 'set_probability': 'float', 'set_ratchets': 'int', 'set_note': 'int',
-               **Paged.page_actions, **Timed.clock_actions}
+               **Paged.page_actions, **Scrolled.scroll_actions, **Timed.clock_actions}
+
+    Follow = Follow
 
     class Direction(enum.Enum):
         """The order steps play in: forward, backward, forward then back (PingPong), or at random."""
@@ -1830,7 +1914,8 @@ class Sequencer(Timed, Paged, Velocity, Widget):
                  rate: Rate = '1/16',
                  step: int = 0,
                  page: int = 0,
-                 follow: bool = True,
+                 row: int = 0,
+                 follow: Follow = Follow.Page,
                  direction: Direction = Direction.Forward,
                  note: int = 36,
                  swing: float = 50.0,
@@ -1849,8 +1934,11 @@ class Sequencer(Timed, Paged, Velocity, Widget):
             The current (playing) step.
         page: int = 0, optional
             The page shown and edited.
-        follow: bool = True, optional
-            Show the page of the playing step when it plays.
+        row: int = 0, optional
+            The first row of steps shown (at the bottom), counting rows over all pages; instead of ``page``.
+        follow: Follow = Follow.Page, optional
+            How the view follows the playing step: not at all, a page at a
+            time, or scrolling with it in the middle (Playhead).
         direction: Direction = Direction.Forward, optional
             The order the clock and ``advance`` play steps in.
         note: int = 36, optional
@@ -1907,32 +1995,34 @@ class Sequencer(Timed, Paged, Velocity, Widget):
         self._steps = steps if steps is not None else width * height
         self._length = None
         self._step = 0
-        self._page = 0
         self._page_count = 1
         self.current_page = 0
+        self.follow = follow
         super().__init__(x, y, width, height, **kwargs)
         self.state.fill(False)
         self.length = length
-        self.follow = follow
         self.rate = rate
         self.current_color = current_color
         self.current_active_color = current_active_color
         self.step = step
         self.page = page
-    
-    @property
-    def pages(self) -> int:
-        return self._page_count
+        if row:
+            self.row = row
+
+    def _lanes(self) -> int:
+        return (self._steps - 1) // self.rect.w + 1
+
+    def _screen(self) -> int:
+        return self.rect.h
 
     @property
-    def page(self) -> int:
-        return self._page
+    def row(self) -> int:
+        """The first row of steps shown (at the bottom), from 0 to the rows of steps less the pads' height."""
+        return self._first
 
-    @page.setter
-    def page(self, value: int) -> None:
-        self._page = int(value) % self._page_count
-        self.updated = True
-        self._page_shown()
+    @row.setter
+    def row(self, value: int) -> None:
+        self._scroll_to(value)
 
     @property
     def step(self) -> int:
@@ -1943,10 +2033,8 @@ class Sequencer(Timed, Paged, Velocity, Widget):
     def step(self, value: int) -> None:
         self._step = int(value) % self._steps
         self.current_page = self._step // self.rect.area
-        if self.follow:
-            self._page = self.current_page
         self.updated = True
-        self._page_shown()
+        self._follow(self._step // self.rect.w, True)
 
     @property
     def steps(self) -> int:
@@ -1995,12 +2083,11 @@ class Sequencer(Timed, Paged, Velocity, Widget):
         self._ratchet = None
         self._step = int(step) % self._steps
         page = self._step // self.rect.area
-        if page != self.current_page:
+        turned = page != self.current_page
+        if turned:
             self.current_page = page
-            if self.follow:
-                self._page = page
             self.emit(pyxelwidgets.events.PageChanged(self, self.current_page))
-            self._page_shown()
+        self._follow(self._step // self.rect.w, turned)
         cell = self._cell(self._step)
         active = bool(self.state[cell])
         if active and self.probabilities[cell] < 1.0:
@@ -2167,7 +2254,8 @@ class Sequencer(Timed, Paged, Velocity, Widget):
 
     def save_state(self) -> dict:
         return {'cells': self.state.copy(), 'velocities': self.velocities.copy(), 'probabilities': self.probabilities.copy(),
-                'ratchets': self.ratchets.copy(), 'notes': self.notes.copy(), 'step': self._step, 'page': self._page}
+                'ratchets': self.ratchets.copy(), 'notes': self.notes.copy(), 'step': self._step,
+                'page': self.page, 'row': self._first}
 
     def load_state(self, state: dict) -> None:
         for key, array in (('cells', self.state), ('velocities', self.velocities), ('probabilities', self.probabilities),
@@ -2176,8 +2264,9 @@ class Sequencer(Timed, Paged, Velocity, Widget):
                 _copy_overlap(array, state[key])
         if 'step' in state:
             self.step = state['step']
-        if 'page' in state:
-            self.page = state['page']
+        # The view comes back only whole: without one of them, the page or row given in the options stays
+        if 'page' in state and 'row' in state:
+            self.row = state['row']
         self.updated = True
 
     def reset(self):
@@ -2190,18 +2279,17 @@ class Sequencer(Timed, Paged, Velocity, Widget):
         self.updated = True
 
     def draw(self) -> None:
-        page = self._page
         length = self.length
         for x in range(self.rect.w):
             for y in range(self.rect.h):
                 step = self._calc_tick_position(x, y)
-                cell = (x, y + self.rect.h * page)
+                cell = (x, y + self._first)
                 if self.state[cell]:
                     # Softer steps are dimmer
                     color = self.active_color * (0.25 + 0.75 * float(self.velocities[cell]))
                 else:
                     color = self.inactive_color
-                if page == self.current_page and step == self._step:
+                if step == self._step:
                     color = self.current_active_color if self.state[cell] else self.current_color
                 elif step >= length and self.state[cell]:
                     # Past the length: kept, but not played
@@ -2217,20 +2305,15 @@ class Sequencer(Timed, Paged, Velocity, Widget):
         self.ratchets = _fit(self.ratchets, shape, 1)
         self.notes = _fit(self.notes, shape, -1)
         self._step %= self._steps
-        self._page %= self._page_count
         self.current_page = self._step // (width * height)
-        self._page_shown()
+        self._scroll_to(self._first)
 
     def _resize(self, width, height):
         self._fit_steps(width, height)
         return True
     
     def _calc_tick_position(self, x, y):
-        return (x + (y * self.rect.w)) + (self.rect.area * self._tick_page())
-    
-    def _tick_page(self):
-        """The page shown and edited."""
-        return self._page
+        return x + (y + self._first) * self.rect.w
 
     def _tick_x(self):
         return self._step % self.rect.w
@@ -2242,25 +2325,30 @@ class Sequencer(Timed, Paged, Velocity, Widget):
         return self.state[self._tick_x()][self._tick_y()]
     
 # PianoRoll class
-class PianoRoll(Timed, Paged, Velocity, Widget):
+class PianoRoll(Timed, Scrolled, Velocity, Widget):
     """
     A melody editor: columns are steps, rows the notes of ``scale`` (the root's
     rows tinted). Press a pad to add a note; hold a note's first pad and press
     further along its row to make it longer; press a note to delete it. Plays
     its notes (NoteOn, then NoteOff when they end) when ``play(step)`` or
-    ``advance()`` is called, its ``clock`` does every ``rate``.
+    ``advance()`` is called, its ``clock`` does every ``rate``. More steps
+    than the columns scroll a column at a time (``column``) or a page at a time.
     """
 
     emits = (pyxelwidgets.events.NoteOn, pyxelwidgets.events.NoteOff, pyxelwidgets.events.PageChanged)
 
-    actions = {'advance': None, 'play': 'int', 'reset': None, 'set_velocity': 'float', **Paged.page_actions, **Timed.clock_actions}
+    actions = {'advance': None, 'play': 'int', 'reset': None, 'set_velocity': 'float',
+               **Paged.page_actions, **Scrolled.scroll_actions, **Timed.clock_actions}
+
+    Follow = Follow
 
     def __init__(self, x: int = 0, y: int = 0, width: int = 1, height: int = 1, *,
                  steps: int = 16,
                  rate: Rate = '1/16',
                  step: int = 0,
                  page: int = 0,
-                 follow: bool = True,
+                 column: int = 0,
+                 follow: Follow = Follow.Page,
                  octave: int = 4,
                  row: int = 0,
                  scale: Scale = Scale.Major,
@@ -2277,8 +2365,11 @@ class PianoRoll(Timed, Paged, Velocity, Widget):
             The current (playing) step.
         page: int = 0, optional
             The steps shown and edited, ``width`` per page.
-        follow: bool = True, optional
-            Show the page of the playing step when it plays.
+        column: int = 0, optional
+            The first step shown (at the left); instead of ``page``.
+        follow: Follow = Follow.Page, optional
+            How the view follows the playing step: not at all, a page at a
+            time, or scrolling with it in the middle (Playhead).
         octave: int = 4, optional
             The bottom row is the root in this octave (4 with C: MIDI note 48)...
         row: int = 0, optional
@@ -2312,11 +2403,18 @@ class PianoRoll(Timed, Paged, Velocity, Widget):
         self._selected = None
         self._steps = steps
         self._step = 0
-        self._page = 0
         self.current_page = 0
         super().__init__(x, y, width, height, active_color = active_color, **kwargs)
         self.step = step
         self.page = page
+        if column:
+            self.column = column
+
+    def _lanes(self) -> int:
+        return self._steps
+
+    def _screen(self) -> int:
+        return self.rect.w
 
     @property
     def steps(self) -> int:
@@ -2326,23 +2424,17 @@ class PianoRoll(Timed, Paged, Velocity, Widget):
     def steps(self, value: int) -> None:
         self._steps = max(int(value), 1)
         self._step %= self._steps
-        self._page %= self.pages
-        self.updated = True
-        self._page_shown()
+        self.current_page = self._step // self.rect.w
+        self._scroll_to(self._first)
 
     @property
-    def pages(self) -> int:
-        return (self._steps - 1) // self.rect.w + 1
+    def column(self) -> int:
+        """The first step shown (at the left), from 0 to ``steps`` less the width."""
+        return self._first
 
-    @property
-    def page(self) -> int:
-        return self._page
-
-    @page.setter
-    def page(self, value: int) -> None:
-        self._page = int(value) % self.pages
-        self.updated = True
-        self._page_shown()
+    @column.setter
+    def column(self, value: int) -> None:
+        self._scroll_to(value)
 
     @property
     def step(self) -> int:
@@ -2353,10 +2445,8 @@ class PianoRoll(Timed, Paged, Velocity, Widget):
     def step(self, value: int) -> None:
         self._step = int(value) % self._steps
         self.current_page = self._step // self.rect.w
-        if self.follow:
-            self._page = self.current_page
         self.updated = True
-        self._page_shown()
+        self._follow(self._step, True)
 
     def rows(self) -> list:
         """The MIDI note of each row from the bottom, None past the highest note."""
@@ -2383,7 +2473,7 @@ class PianoRoll(Timed, Paged, Velocity, Widget):
         self.updated = True
 
     def handle_press(self, x: int, y: int, velocity: float) -> None:
-        step = self._page * self.rect.w + x
+        step = self._first + x
         note = self.rows()[y]
         if note is None or step >= self._steps:
             return
@@ -2431,12 +2521,11 @@ class PianoRoll(Timed, Paged, Velocity, Widget):
         """Move to ``step`` (wrapped to ``steps``): notes ending there end (NoteOff), notes starting there start (NoteOn)."""
         self._step = int(step) % self._steps
         page = self._step // self.rect.w
-        if page != self.current_page:
+        turned = page != self.current_page
+        if turned:
             self.current_page = page
-            if self.follow:
-                self._page = page
             self.emit(pyxelwidgets.events.PageChanged(self, page))
-            self._page_shown()
+        self._follow(self._step, turned)
         for note in list(self._sounding):
             self._sounding[note] -= 1
             if self._sounding[note] <= 0:
@@ -2466,14 +2555,17 @@ class PianoRoll(Timed, Paged, Velocity, Widget):
         self.updated = True
 
     def save_state(self) -> dict:
-        return {'notes': {key: list(value) for key, value in self.notes.items()}, 'step': self._step, 'page': self._page}
+        return {'notes': {key: list(value) for key, value in self.notes.items()}, 'step': self._step,
+                'page': self.page, 'column': self._first}
 
     def load_state(self, state: dict) -> None:
         if isinstance(state.get('notes'), dict):
             self.notes = {tuple(key): list(value) for key, value in state['notes'].items()}
-        for key in ('step', 'page'):
-            if key in state:
-                setattr(self, key, state[key])
+        if 'step' in state:
+            self.step = state['step']
+        # The view comes back only whole: without one of them, the page or column given in the options stays
+        if 'page' in state and 'column' in state:
+            self.column = state['column']
         self.updated = True
 
     def draw(self) -> None:
@@ -2482,15 +2574,14 @@ class PianoRoll(Timed, Paged, Velocity, Widget):
             for offset in range(length):
                 covered[(start + offset, note)] = (offset == 0, velocity)
         rows = self.rows()
-        playing = self._page == self.current_page
         for x in range(self.rect.w):
-            step = self._page * self.rect.w + x
+            step = self._first + x
             for y, note in enumerate(rows):
                 if note is None or step >= self._steps:
                     self.buffer[x, y] = pyxelwidgets.color.Colors.Black
                     continue
                 cell = covered.get((step, note))
-                current = playing and step == self._step
+                current = step == self._step
                 if cell is not None:
                     first, velocity = cell
                     if current:
@@ -2507,9 +2598,8 @@ class PianoRoll(Timed, Paged, Velocity, Widget):
                 self.buffer[x, y] = color
 
     def _resize(self, width, height) -> bool:
-        self._page %= (self._steps - 1) // width + 1
         self.current_page = self._step // width
-        self._page_shown()
+        self._scroll_to(self._first)
         return True
 
 # Sprite class
