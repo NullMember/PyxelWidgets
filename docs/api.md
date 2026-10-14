@@ -3403,7 +3403,8 @@ Works with Logic Pro (its plug-in views, cursor paging and passing messages
 are handled) and Cubase (track names on the bottom line, one insert slot at a
 time picked with V-Pot 1, Channel Left/Right paging, names cut to 7
 characters); REAPER's own Mackie Control support has no plug-in mode (its
-OSC has: `osc.REAPER`).
+OSC has: `osc.REAPER`). HUI reaches Pro Tools' plug-in parameters the same
+way (see `HUI`).
 
 ### `MackieControl` (PluginParameters, _ControlSurface)
 
@@ -3437,19 +3438,41 @@ The model it presents itself as (its SysEx device ID).
 
 Members: `MackieControl`, `MackieControlExtender`, `LogicControl`, `LogicControlExtender`.
 
-### `HUI` (_ControlSurface)
+### `HUI` (PluginParameters, _ControlSurface)
 
 ```python
 HUI(**kwargs)
 ```
 
 HUI (Pro Tools, REAPER, Logic): 8 channel strips, transport and edit
-switches, the jog wheel, and feedback for LEDs, faders, V-Pot rings,
-meters, the timecode, the strips' 4 character names (`Name 1`-`8`)
-and the main display (`Display`). Answers the host's pings.
+switches, the jog wheel, the DSP section's knobs (`Param 1`-`4`,
+`Scroll`), and feedback for LEDs, faders, V-Pot and parameter knob
+rings, meters, the timecode, the strips' 4 character names (`Name
+1`-`8`) and the main display (`Display`). Answers the host's pings.
+
+Pro Tools ignores fader moves on strips that aren't touched, so `Fader n`
+touches its strip (`Fader Touch n`) first and lets go `touch_hold`
+seconds after the last move: a gliding Fader (`slew`) sends a move every
+frame, so the touch lasts as long as the glide. Touches sent as commands
+are kept until released by a command.
+
+Pro Tools' plug-in parameters are reached by name like Mackie Control's
+(`scan_tracks()`, `scan_plugins(track)`, `scan_parameters(track,
+plugin)`, `PluginParameter`): a strip's Insert switch shows its track's
+insert slots (1-4, SCROLL to 5; 6-10 can't be reached), Param Select opens
+one, and each page of parameters has up to 4 switches (top line, pressed
+with Param Select 1-4) and 4 knob parameters (bottom line). Scanning a
+plug-in's parameters takes about 2 seconds a page: Pro Tools shows the
+switches once its page header goes. A knob parameter turns by the value's
+steps; a switch is pressed once per change and comes back as 1.0 (On/In)
+or 0.0 (Off/Out).
 
 - **`send(message)`**
+- **`on_disconnect()`**
 - **`decode(midi: list)`**
+- **`scan_tracks()`**: Pro Tools' track names: banks through the strips from the first, showing each track's inserts list for its full name (repeated names get " (2)"). Blocks for a while; don't call it from a MIDI or widget event handler.
+- **`scan_plugins(track: str)`**: The plug-ins on `track` (a name from `scan_tracks`): insert slots 1-5, opened for their full names.
+- **`scan_parameters(track: str, plugin: str)`**: The parameters of `plugin` on `track`: opens it and scrolls through its pages, switches first on each. About 2 seconds a page.
 
 ## `pyxelwidgets.devices.osc`
 
