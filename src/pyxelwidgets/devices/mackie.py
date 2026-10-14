@@ -31,7 +31,8 @@ Works with Logic Pro (its plug-in views, cursor paging and passing messages
 are handled) and Cubase (track names on the bottom line, one insert slot at a
 time picked with V-Pot 1, Channel Left/Right paging, names cut to 7
 characters); REAPER's own Mackie Control support has no plug-in mode (its
-OSC has: ``osc.REAPER``).
+OSC has: ``osc.REAPER``). HUI reaches Pro Tools' plug-in parameters the same
+way (see ``HUI``).
 """
 
 import enum
@@ -880,20 +881,42 @@ _HUI_ZONES = [
 _HUI_SWITCHES = {f'{name} {strip + 1}': (strip, port) for strip in range(8) for port, name in enumerate(_HUI_STRIP)}
 _HUI_SWITCHES.update({name: (zone, port) for zone, names in _HUI_ZONES for port, name in enumerate(names)})
 _HUI_PORTS = {place: name for name, place in _HUI_SWITCHES.items()}
-_HUI_RELATIVE = {**{f'V-Pot {i + 1}': 0x40 + i for i in range(8)}, 'Jog': 0x0D}
+# The strips' V-Pots, the DSP section's 4 parameter knobs and its SCROLL knob, the jog wheel
+_HUI_RELATIVE = {**{f'V-Pot {i + 1}': 0x40 + i for i in range(8)}, **{f'Param {i + 1}': 0x48 + i for i in range(4)},
+                 'Scroll': 0x4C, 'Jog': 0x0D}
 
-class HUI(_ControlSurface):
+# Pro Tools' plug-in page header ("Page  3/13    Channel Strip=2    (Ins 1)") and inserts list ("Insert 1-4    Audio 1")
+_HUI_PAGE = re.compile(r'Page\s+(\d+)/(\d+)\s+(.*?)\s*\(Ins\s*(\d+)\)\s*$')
+_HUI_LIST = re.compile(r'Insert (1-4|5)\s+(.*?)\s*$')
+# What Pro Tools shows for an empty insert slot
+_HUI_EMPTY = 'No Insert'
+# Switch parameter values received as on (1.0) or off (0.0)
+_HUI_STATES = {'On': 1.0, 'In': 1.0, 'Off': 0.0, 'Out': 0.0}
+
+class HUI(pyxelwidgets.devices.plugins.PluginParameters, _ControlSurface):
     """
     HUI (Pro Tools, REAPER, Logic): 8 channel strips, transport and edit
-    switches, the jog wheel, and feedback for LEDs, faders, V-Pot rings,
-    meters, the timecode, the strips' 4 character names (``Name 1``-``8``)
-    and the main display (``Display``). Answers the host's pings.
+    switches, the jog wheel, the DSP section's knobs (``Param 1``-``4``,
+    ``Scroll``), and feedback for LEDs, faders, V-Pot and parameter knob
+    rings, meters, the timecode, the strips' 4 character names (``Name
+    1``-``8``) and the main display (``Display``). Answers the host's pings.
 
     Pro Tools ignores fader moves on strips that aren't touched, so ``Fader n``
     touches its strip (``Fader Touch n``) first and lets go ``touch_hold``
     seconds after the last move: a gliding Fader (``slew``) sends a move every
     frame, so the touch lasts as long as the glide. Touches sent as commands
     are kept until released by a command.
+
+    Pro Tools' plug-in parameters are reached by name like Mackie Control's
+    (``scan_tracks()``, ``scan_plugins(track)``, ``scan_parameters(track,
+    plugin)``, ``PluginParameter``): a strip's Insert switch shows its track's
+    insert slots (1-4, SCROLL to 5; 6-10 can't be reached), Param Select opens
+    one, and each page of parameters has up to 4 switches (top line, pressed
+    with Param Select 1-4) and 4 knob parameters (bottom line). Scanning a
+    plug-in's parameters takes about 2 seconds a page: Pro Tools shows the
+    switches once its page header goes. A knob parameter turns by the value's
+    steps; a switch is pressed once per change and comes back as 1.0 (On/In)
+    or 0.0 (Off/Out).
     """
 
     model = 'HUI'
@@ -907,9 +930,23 @@ class HUI(_ControlSurface):
         **{f'Name {i + 1}': 'display' for i in range(8)},
     }
     header = [0x00, 0x00, 0x66, 0x05, 0x00]
+    messages = _ControlSurface.messages + ('PluginParameter',)
 
     #: Seconds after a strip's last fader move until its touch is let go (longer than a frame)
     touch_hold = 0.15
+    #: Seconds without changes after which Pro Tools has answered a switch
+    settle = 0.15
+    #: Seconds to wait for Pro Tools to answer a switch at all
+    timeout = 0.8
+    #: Seconds a page header may cover the switch parameters (Pro Tools shows it for 2)
+    header_time = 3.0
+    #: Seconds to wait for a blinking insert slot's name (the selected slot blinks)
+    blink_time = 1.5
+    #: SCROLL ticks to the next page of parameters, and between insert slots 1-4 and 5
+    page_ticks = 9
+    list_ticks = 18
+    #: The most banks of tracks a scan goes through
+    most_pages = 64
 
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
@@ -917,14 +954,43 @@ class HUI(_ControlSurface):
         self._fader_high = [0] * 8
         self.display = [' '] * 80
         self.timecode = [' '] * 8
+        #: The strips' names (4 characters)
+        self.names = [''] * 8
+        #: Switch LEDs Pro Tools lit: name → 1.0 (on), 0.0 (off)
+        self.leds = {}
         # Switches are two messages: one thread at a time
         self._send_lock = threading.RLock()
         # Strip → when its touch is let go (None: touched by a command)
         self._touched = {}
         self._touch_changed = threading.Condition(self._send_lock)
         self._touch_thread = None
+        # Display and name changes; the time the top line or the names last changed
+        self._display = threading.Condition()
+        self._changed_time = 0.0
+        # Scans: track names as the inserts list shows them and where they are (bank, strip);
+        # plug-ins as (label, slot, short name, name) by track; parameters as (label, page,
+        # 'switch' or 'knob', column) by (track, plugin)
+        self._track_names = []
+        self._track_places = []
+        # Parameters shown again on a later page (Pro Tools keeps knobs): (track, plugin) → {(page, kind, column): label}
+        self._again = {}
+        # What Pro Tools shows: 'list', 'parameters' or None (not known), the bank of tracks, and
+        # (track, plugin, page) with its header's (name, slot) in the parameters view
+        self._view = None
+        self._bank = None
+        self._focus = None
+        self._opened = None
+        self._pages = 1
+        # Switch values last received: (track, plugin, label) → 1.0 or 0.0
+        self._states = {}
 
     def send(self, message) -> None:
+        if isinstance(message, pyxelwidgets.message.PluginParameter):
+            # Knob steps (a switch is pressed once), summed while Pro Tools gets there
+            steps = 0 if isinstance(message.value, str) else int(round(float(message.value)))
+            if steps:
+                self._turn_later(message, steps, operator.add)
+            return
         if not isinstance(message, pyxelwidgets.message.Command):
             return super().send(message)
         if self._midi_output is None:
@@ -1014,7 +1080,8 @@ class HUI(_ControlSurface):
         elif number == 0x2C and self._zone is not None:
             name = _HUI_PORTS.get((self._zone, value & 0x0F))
             if name is not None:
-                self._received(name, 1.0 if value & 0x40 else 0.0)
+                self.leds[name] = 1.0 if value & 0x40 else 0.0
+                self._received(name, self.leds[name])
         elif number < 0x08:
             self._fader_high[number] = value
         elif 0x20 <= number < 0x28:
@@ -1023,6 +1090,15 @@ class HUI(_ControlSurface):
         elif 0x10 <= number < 0x18:
             position = value & 0x0F
             self._received(f'V-Pot {number - 0x10 + 1}', (position - 1) / 10 if position else 0.0)
+        elif 0x18 <= number < 0x1C:
+            # A parameter knob's ring: 1-11, the style in bits 4-5
+            position = value & 0x0F
+            column = number - 0x18
+            self._received(f'Param {column + 1}', (position - 1) / 10 if position else 0.0)
+            shown = self._shown('knob', column)
+            if shown is not None:
+                message = pyxelwidgets.message.PluginParameter(*shown, (position - 1) / 10 if position else 0.0)
+                self.emit(pyxelwidgets.events.MessageReceived(self, message))
         else:
             return False
         return True
@@ -1032,7 +1108,13 @@ class HUI(_ControlSurface):
             return
         command, body = data[5], data[6:]
         if command == 0x10 and len(body) >= 5 and body[0] < 8:
-            self._received(f'Name {body[0] + 1}', ''.join(chr(c) if 0x20 <= c < 0x7F else ' ' for c in body[1:5]).strip())
+            name = ''.join(chr(c) if 0x20 <= c < 0x7F else ' ' for c in body[1:5]).strip()
+            with self._display:
+                if self.names[body[0]] != name:
+                    self._changed_time = time.monotonic()
+                self.names[body[0]] = name
+                self._display.notify_all()
+            self._received(f'Name {body[0] + 1}', name)
         elif command == 0x11:
             # Timecode digits, right to left; 0x10 adds a dot
             for i, code in enumerate(body[:8]):
@@ -1040,10 +1122,387 @@ class HUI(_ControlSurface):
             self._received('Timecode', ''.join(self.timecode).strip())
         elif command == 0x12:
             # 10 characters per zone: zones 0-3 are the top line, 4-7 the bottom
-            for start in range(0, len(body) - 10, 11):
-                zone = body[start]
-                if zone < 8:
-                    for i, code in enumerate(body[start + 1:start + 11]):
-                        self.display[zone * 10 + i] = chr(code) if 0x20 <= code < 0x7F else ' '
+            states = []
+            with self._display:
+                top = self.display[:40]
+                for start in range(0, len(body) - 10, 11):
+                    zone = body[start]
+                    if zone < 8:
+                        for i, code in enumerate(body[start + 1:start + 11]):
+                            self.display[zone * 10 + i] = chr(code) if 0x20 <= code < 0x7F else ' '
+                if self.display[:40] != top:
+                    self._changed_time = time.monotonic()
+                    states = self._top_changed()
+                self._display.notify_all()
             text = ''.join(self.display)
             self._received('Display', f'{text[:40].rstrip()}\n{text[40:].rstrip()}')
+            for message in states:
+                self.emit(pyxelwidgets.events.MessageReceived(self, message))
+
+    # Plug-in parameters: Pro Tools' insert and parameter views, driven by switches and read from the display
+
+    def _top(self) -> str:
+        return ''.join(self.display[:40])
+
+    def _zone_text(self, zone: int) -> str:
+        return ''.join(self.display[zone * 10:zone * 10 + 10])
+
+    def _header(self):
+        """(page, pages, plug-in name, slot) from the page header on the top line, else None."""
+        match = _HUI_PAGE.match(self._top())
+        return (int(match[1]), int(match[2]), match[3], int(match[4])) if match else None
+
+    def _list(self):
+        """('1-4' or '5', track name) while the inserts list shows, else None."""
+        match = _HUI_LIST.match(self._top())
+        return (match[1], match[2]) if match else None
+
+    def _top_changed(self) -> list:
+        """
+        What the top line says about the view (called with the display lock
+        held); returns the switches' states shown, as PluginParameters.
+        """
+        if self._list() is not None:
+            self._view = 'list'
+            return []
+        header = self._header()
+        if header is not None:
+            if self._view == 'parameters' and self._opened is not None and header[2:] != self._opened:
+                # Another plug-in (Pro Tools' own choice): not the one opened
+                self._view = None
+            return []
+        if self._view != 'parameters' or self._top().startswith('Page'):
+            return []
+        states = []
+        for column in range(4):
+            text = self._zone_text(column)
+            shown = self._shown('switch', column)
+            state = _HUI_STATES.get(text[5:].strip())
+            if shown is None or state is None or not _named(shown[2], text[:4].strip()):
+                continue
+            if self._states.get(shown) != state:
+                self._states[shown] = state
+                states.append(pyxelwidgets.message.PluginParameter(*shown, state))
+        return states
+
+    def _shown(self, kind: str, column: int):
+        """(track, plugin, parameter) on the knob or switch ``column`` of the page shown, else None."""
+        focus = self._focus
+        if self._view != 'parameters' or focus is None:
+            return None
+        track, plugin, page = focus
+        for label, on_page, on_kind, on_column in self._parameters.get((track, plugin), ()):
+            if (on_page, on_kind, on_column) == (page, kind, column):
+                return track, plugin, label
+        label = self._again.get((track, plugin), {}).get((page, kind, column))
+        return (track, plugin, label) if label is not None else None
+
+    def _require(self) -> None:
+        if self._midi_output is None or self._midi_input is None:
+            raise ConnectionError('HUI is not connected to the DAW')
+
+    def _wait(self, ready, timeout: float | None = None) -> bool:
+        """Wait until ``ready()``, checked as the display changes; False after ``timeout``."""
+        end = time.monotonic() + (self.timeout if timeout is None else timeout)
+        with self._display:
+            while not ready():
+                left = end - time.monotonic()
+                if left <= 0:
+                    return False
+                self._display.wait(left)
+        return True
+
+    def _settled(self) -> None:
+        """Wait until the top line and the names have been unchanged for ``settle`` (Pro Tools writes a zone at a time)."""
+        with self._display:
+            while True:
+                quiet = self._changed_time + self.settle - time.monotonic()
+                if quiet <= 0:
+                    return
+                self._display.wait(quiet)
+
+    def _press(self, name: str) -> None:
+        self.send(pyxelwidgets.message.Command(name, 1.0))
+        self.send(pyxelwidgets.message.Command(name, 0.0))
+
+    def _scroll(self, ticks: int) -> None:
+        while ticks:
+            step = max(-63, min(63, ticks))
+            self.send(pyxelwidgets.message.Command('Scroll', step))
+            ticks -= step
+
+    def _to_list(self) -> None:
+        """Show the inserts list (leaving a plug-in's parameters)."""
+        if self._list() is None and self.leds.get('Param Insert'):
+            self._press('Param Insert')
+            self._wait(lambda: self._list() is not None)
+            self._settled()
+
+    def _list_track(self, strip: int) -> str | None:
+        """Show the inserts list of the track on ``strip``; its name, None if Pro Tools showed none."""
+        for attempt in range(2):
+            before = self._list()
+            self._press(f'Insert {strip + 1}')
+            # No change when that track's list already shows
+            self._wait(lambda: self._list() is not None and self._list() != before)
+            self._settled()
+            if self._list() is not None or attempt:
+                break
+            # A plug-in's parameters show (Insert does nothing there): back to the list first
+            self._press('Param Insert')
+            self._wait(lambda: self._list() is not None)
+        shown = self._list()
+        self._view = 'list' if shown is not None else None
+        return shown[1] if shown is not None else None
+
+    def _bank_tap(self, name: str) -> bool:
+        """Press Bank Left or Right; True if the strips' names changed."""
+        before = list(self.names)
+        self._press(name)
+        changed = self._wait(lambda: self.names != before)
+        self._settled()
+        return changed
+
+    def _first_bank(self) -> None:
+        for _ in range(self.most_pages):
+            if not self._bank_tap('Bank Left'):
+                break
+        self._bank = 0
+
+    def _to_bank(self, bank: int) -> None:
+        if self._bank is None:
+            self._first_bank()
+        while self._bank < bank:
+            self._bank_tap('Bank Right')
+            self._bank += 1
+        while self._bank > bank:
+            self._bank_tap('Bank Left')
+            self._bank -= 1
+
+    def scan_tracks(self) -> list:
+        """
+        Pro Tools' track names: banks through the strips from the first, showing
+        each track's inserts list for its full name (repeated names get " (2)").
+        Blocks for a while; don't call it from a MIDI or widget event handler.
+        """
+        with self._navigation:
+            self._require()
+            self._to_list()
+            self._first_bank()
+            banks = []
+            for bank in range(self.most_pages):
+                banks.append([(self._list_track(strip) or '') if self.names[strip] else '' for strip in range(8)])
+                if not any(self.names) or not self._bank_tap('Bank Right'):
+                    break
+                self._bank = bank + 1
+            self._bank = len(banks) - 1
+            names, places = [], []
+            for bank, shown in enumerate(banks):
+                # A last bank may end at the last track, showing some of the bank before again
+                skip = 0
+                if bank and bank == len(banks) - 1:
+                    previous = banks[bank - 1]
+                    skip = next((count for count in range(7, 0, -1)
+                                 if previous[8 - count:] == shown[:count] and all(shown[:count])), 0)
+                for strip in range(skip, 8):
+                    if shown[strip]:
+                        names.append(shown[strip])
+                        places.append((bank, strip))
+            self._track_names, self._track_places = names, places
+            self.tracks = pyxelwidgets.devices.plugins.labels(names)
+            # Scans of tracks still there stay (their plug-ins are checked by name when used)
+            self._plugins = {track: plugins for track, plugins in self._plugins.items() if track in self.tracks}
+            self._parameters = {key: found for key, found in self._parameters.items() if key[0] in self.tracks}
+            return list(self.tracks)
+
+    def _track_index(self, track: str) -> int:
+        if track not in self.tracks:
+            self.scan_tracks()
+        if track not in self.tracks:
+            raise LookupError(f'no track {track!r} (tracks: {", ".join(self.tracks) or "none found"})')
+        return self.tracks.index(track)
+
+    def _show_track(self, track: str) -> None:
+        """Show the inserts list of ``track`` (checked by name)."""
+        self._require()
+        index = self._track_index(track)
+        for attempt in range(2):
+            bank, strip = self._track_places[index]
+            self._to_bank(bank)
+            self._to_list()
+            if self._list_track(strip) == self._track_names[index]:
+                return
+            if not attempt:
+                # The tracks changed in Pro Tools: scan them again
+                self.scan_tracks()
+                index = self._track_index(track)
+        raise LookupError(f'Pro Tools didn\'t show the inserts of {track!r}')
+
+    def _to_part(self, part: str) -> bool:
+        """Show insert slots ``part`` ('1-4' or '5') in the inserts list."""
+        shown = self._list()
+        if shown is None:
+            return False
+        if shown[0] != part:
+            self._scroll(self.list_ticks if part == '5' else -self.list_ticks)
+            if not self._wait(lambda: (self._list() or ('',))[0] == part):
+                return False
+            self._settled()
+        return True
+
+    def _read_zones(self, zones: list) -> list:
+        """The texts of display ``zones``, waiting out the selected slot's blinking."""
+        seen = {}
+        def ready():
+            for zone in zones:
+                text = self._zone_text(zone).strip()
+                if text:
+                    seen[zone] = text
+            return len(seen) == len(zones)
+        self._wait(ready, self.blink_time)
+        return [seen.get(zone, '') for zone in zones]
+
+    def _slot_names(self) -> list:
+        """The inserts list's plug-ins as (slot, name as shown), going to slot 5 and back."""
+        found = []
+        if self._to_part('1-4'):
+            found += [(slot + 1, name) for slot, name in enumerate(self._read_zones([4, 5, 6, 7]))]
+        if self._to_part('5'):
+            found += [(5, self._read_zones([4])[0])]
+            self._to_part('1-4')
+        return [(slot, name) for slot, name in found if name and name != _HUI_EMPTY]
+
+    def _open_slot(self, slot: int):
+        """Open insert ``slot`` from the inserts list; its page header, None if Pro Tools showed none."""
+        if not self._to_part('5' if slot == 5 else '1-4'):
+            return None
+        self._press(f'Param Select {1 if slot == 5 else slot}')
+        if not self._wait(lambda: (self._header() or (0, 0, '', 0))[3] == slot):
+            return None
+        self._settled()
+        header = self._header()
+        if header is not None:
+            self._view, self._opened, self._pages = 'parameters', header[2:], header[1]
+        return header
+
+    def scan_plugins(self, track: str) -> list:
+        """The plug-ins on ``track`` (a name from ``scan_tracks``): insert slots 1-5, opened for their full names."""
+        with self._navigation:
+            self._show_track(track)
+            return self._read_plugins(track)
+
+    def _read_plugins(self, track: str) -> list:
+        found = []
+        for slot, short in self._slot_names():
+            header = self._open_slot(slot)
+            found.append((slot, short, header[2] if header is not None else short))
+            self._to_list()
+        labels = pyxelwidgets.devices.plugins.labels([name for _, _, name in found])
+        self._plugins[track] = [(label, *entry) for label, entry in zip(labels, found)]
+        return labels
+
+    def _open(self, track: str, plugin: str) -> None:
+        """Show the parameters of ``plugin`` on ``track`` (on the page Pro Tools opens it on)."""
+        if self._view == 'parameters' and self._focus is not None and self._focus[:2] == (track, plugin):
+            return
+        self._show_track(track)
+        slots = {label: (slot, short, name) for label, slot, short, name in self._plugins.get(track) or []}
+        if plugin in slots:
+            slot, short, _ = slots[plugin]
+            self._to_part('5' if slot == 5 else '1-4')
+            if self._read_zones([4 if slot == 5 else 3 + slot])[0] != short:
+                # Plug-ins were added, removed or moved on the track: read them again
+                self._read_plugins(track)
+        else:
+            self._read_plugins(track)
+        slots = {label: (slot, short, name) for label, slot, short, name in self._plugins.get(track) or []}
+        if plugin not in slots:
+            raise LookupError(f'no plug-in {plugin!r} on {track!r} (plug-ins: {", ".join(slots) or "none found"})')
+        slot, _, name = slots[plugin]
+        self._to_list()
+        header = self._open_slot(slot)
+        if header is None or header[2] != name:
+            self._view = None
+            raise LookupError(f'Pro Tools didn\'t show the parameters of {plugin!r}')
+        self._focus = (track, plugin, header[0])
+
+    def _to_page(self, page: int) -> None:
+        """Scroll to ``page`` (1 is the first) of the plug-in shown."""
+        track, plugin, shown = self._focus
+        while shown != page:
+            step = 1 if page > shown else -1
+            # The page's knob rings come with it
+            self._focus = (track, plugin, shown + step)
+            self._scroll(step * self.page_ticks)
+            if not self._wait(lambda: (self._header() or (0,))[0] == shown + step):
+                self._focus = (track, plugin, shown)
+                raise LookupError(f'Pro Tools didn\'t show page {shown + step} of {plugin!r}')
+            shown += step
+
+    def _read_page(self) -> tuple:
+        """The page's switches and knob parameters as names (columns without one are '')."""
+        self._wait(lambda: not self._top().startswith('Page'), self.header_time)
+        self._settled()
+        def names(zones):
+            return [self._zone_text(zone)[:4].strip() for zone in zones]
+        return names(range(4)), names(range(4, 8))
+
+    def scan_parameters(self, track: str, plugin: str) -> list:
+        """
+        The parameters of ``plugin`` on ``track``: opens it and scrolls through
+        its pages, switches first on each. About 2 seconds a page.
+        """
+        with self._navigation:
+            self._require()
+            self._open(track, plugin)
+            self._to_page(1)
+            found, again, previous = [], {}, {}
+            for page in range(1, self._pages + 1):
+                if page > 1:
+                    self._to_page(page)
+                switches, knobs = self._read_page()
+                shown = {}
+                for kind, names in (('switch', switches), ('knob', knobs)):
+                    for column, name in enumerate(names):
+                        if not name:
+                            continue
+                        shown[(kind, column)] = name
+                        if previous.get((kind, column)) == name:
+                            # Still there from the page before (Pro Tools keeps knobs a page doesn't use)
+                            again[(page, kind, column)] = name
+                        else:
+                            found.append((name, page, kind, column))
+                previous = shown
+            labels = pyxelwidgets.devices.plugins.labels([name for name, _, _, _ in found])
+            entries = [(label, page, kind, column) for label, (_, page, kind, column) in zip(labels, found)]
+            self._parameters[(track, plugin)] = entries
+            # A parameter shown again is the one at the same place on the page before
+            places = {(page, kind, column): label for label, page, kind, column in entries}
+            for page, kind, column in sorted(again):
+                places[(page, kind, column)] = places.get((page - 1, kind, column))
+            self._again[(track, plugin)] = {place: places[place] for place in again if places[place] is not None}
+            self._to_page(1)
+            return labels
+
+    def _turn(self, track: str, plugin: str, parameter: str, steps: int) -> None:
+        with self._navigation:
+            self._require()
+            if (track, plugin) not in self._parameters:
+                self.scan_parameters(track, plugin)
+            found = {label: (page, kind, column) for label, page, kind, column in self._parameters[(track, plugin)]}
+            if parameter not in found:
+                raise LookupError(f'no parameter {parameter!r} (parameters: {", ".join(found) or "none found"})')
+            page, kind, column = found[parameter]
+            self._open(track, plugin)
+            self._to_page(page)
+            if kind == 'switch':
+                self._press(f'Param Select {column + 1}')
+                return
+            while steps:
+                step = max(-63, min(63, steps))
+                self.send(pyxelwidgets.message.Command(f'Param {column + 1}', step))
+                steps -= step
+
+def _named(label: str, name: str) -> bool:
+    """Whether a parameter's ``label`` is the ``name`` shown (labels of repeated names end in " (2)")."""
+    return label == name or (label.startswith(name + ' (') and label.endswith(')'))
