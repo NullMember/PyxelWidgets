@@ -1680,6 +1680,36 @@ class Knob(ValueWidget):
             return width
         return ((width - 1) * 2) + ((height - 1) * 2)
 
+# Paged class
+class Paged:
+    """
+    Mixin for widgets showing one ``page`` of their ``pages`` at a time: emits
+    PageShown when the page shown changes, or the number of pages does, and
+    has the actions ``next_page``/``previous_page``, which stop at the ends.
+    Widgets call ``_page_shown()`` after anything that may change them.
+    """
+
+    emits = (pyxelwidgets.events.PageShown,)
+
+    #: Link actions to page through the widget
+    page_actions = {'next_page': None, 'previous_page': None}
+
+    def next_page(self) -> None:
+        """Show the next page; nothing on the last."""
+        if self.page < self.pages - 1:
+            self.page = self.page + 1
+
+    def previous_page(self) -> None:
+        """Show the previous page; nothing on the first."""
+        if self.page > 0:
+            self.page = self.page - 1
+
+    def _page_shown(self) -> None:
+        shown = (self.page, self.pages)
+        if shown != self.__dict__.get('_shown'):
+            self._shown = shown
+            self.emit(pyxelwidgets.events.PageShown(self, shown[0], shown[0] == 0, shown[0] == shown[1] - 1))
+
 # Sequencer class
 class Clock(enum.Enum):
     """
@@ -1761,7 +1791,7 @@ def _fit(array: numpy.ndarray, shape: tuple, fill) -> numpy.ndarray:
     _copy_overlap(fitted, array)
     return fitted
 
-class Sequencer(Timed, Velocity, Widget):
+class Sequencer(Timed, Paged, Velocity, Widget):
     """
     Step sequencer. Each step plays when ``play(step)`` or ``advance()`` is
     called; its ``clock`` (the transport, one of its own, or none) does every
@@ -1775,14 +1805,14 @@ class Sequencer(Timed, Velocity, Widget):
     ``set_note``) change the held steps, or the last one pressed.
     """
 
-    emits = (pyxelwidgets.events.StepPlayed, pyxelwidgets.events.StepEnded)
+    emits = (pyxelwidgets.events.StepPlayed, pyxelwidgets.events.StepEnded, pyxelwidgets.events.PageChanged)
 
     # Called 24 times a step, to time swing, gates and ratchets
     divisions = 24
 
     actions = {'advance': None, 'play': 'int', 'reset': None,
                'set_velocity': 'float', 'set_probability': 'float', 'set_ratchets': 'int', 'set_note': 'int',
-               **Timed.clock_actions}
+               **Paged.page_actions, **Timed.clock_actions}
 
     class Direction(enum.Enum):
         """The order steps play in: forward, backward, forward then back (PingPong), or at random."""
@@ -1902,6 +1932,7 @@ class Sequencer(Timed, Velocity, Widget):
     def page(self, value: int) -> None:
         self._page = int(value) % self._page_count
         self.updated = True
+        self._page_shown()
 
     @property
     def step(self) -> int:
@@ -1915,6 +1946,7 @@ class Sequencer(Timed, Velocity, Widget):
         if self.follow:
             self._page = self.current_page
         self.updated = True
+        self._page_shown()
 
     @property
     def steps(self) -> int:
@@ -1968,6 +2000,7 @@ class Sequencer(Timed, Velocity, Widget):
             if self.follow:
                 self._page = page
             self.emit(pyxelwidgets.events.PageChanged(self, self.current_page))
+            self._page_shown()
         cell = self._cell(self._step)
         active = bool(self.state[cell])
         if active and self.probabilities[cell] < 1.0:
@@ -2186,6 +2219,7 @@ class Sequencer(Timed, Velocity, Widget):
         self._step %= self._steps
         self._page %= self._page_count
         self.current_page = self._step // (width * height)
+        self._page_shown()
 
     def _resize(self, width, height):
         self._fit_steps(width, height)
@@ -2208,7 +2242,7 @@ class Sequencer(Timed, Velocity, Widget):
         return self.state[self._tick_x()][self._tick_y()]
     
 # PianoRoll class
-class PianoRoll(Timed, Velocity, Widget):
+class PianoRoll(Timed, Paged, Velocity, Widget):
     """
     A melody editor: columns are steps, rows the notes of ``scale`` (the root's
     rows tinted). Press a pad to add a note; hold a note's first pad and press
@@ -2219,7 +2253,7 @@ class PianoRoll(Timed, Velocity, Widget):
 
     emits = (pyxelwidgets.events.NoteOn, pyxelwidgets.events.NoteOff, pyxelwidgets.events.PageChanged)
 
-    actions = {'advance': None, 'play': 'int', 'reset': None, 'set_velocity': 'float', **Timed.clock_actions}
+    actions = {'advance': None, 'play': 'int', 'reset': None, 'set_velocity': 'float', **Paged.page_actions, **Timed.clock_actions}
 
     def __init__(self, x: int = 0, y: int = 0, width: int = 1, height: int = 1, *,
                  steps: int = 16,
@@ -2294,6 +2328,7 @@ class PianoRoll(Timed, Velocity, Widget):
         self._step %= self._steps
         self._page %= self.pages
         self.updated = True
+        self._page_shown()
 
     @property
     def pages(self) -> int:
@@ -2307,6 +2342,7 @@ class PianoRoll(Timed, Velocity, Widget):
     def page(self, value: int) -> None:
         self._page = int(value) % self.pages
         self.updated = True
+        self._page_shown()
 
     @property
     def step(self) -> int:
@@ -2320,6 +2356,7 @@ class PianoRoll(Timed, Velocity, Widget):
         if self.follow:
             self._page = self.current_page
         self.updated = True
+        self._page_shown()
 
     def rows(self) -> list:
         """The MIDI note of each row from the bottom, None past the highest note."""
@@ -2399,6 +2436,7 @@ class PianoRoll(Timed, Velocity, Widget):
             if self.follow:
                 self._page = page
             self.emit(pyxelwidgets.events.PageChanged(self, page))
+            self._page_shown()
         for note in list(self._sounding):
             self._sounding[note] -= 1
             if self._sounding[note] <= 0:
@@ -2471,6 +2509,7 @@ class PianoRoll(Timed, Velocity, Widget):
     def _resize(self, width, height) -> bool:
         self._page %= (self._steps - 1) // width + 1
         self.current_page = self._step // width
+        self._page_shown()
         return True
 
 # Sprite class
@@ -2537,7 +2576,7 @@ class Sprite(Widget):
         self.buffer[:] = self.frames[self.frame]
 
 # Tracker class
-class Tracker(Timed, Velocity, Widget):
+class Tracker(Timed, Paged, Velocity, Widget):
     """
     A scrolling step grid where rows are steps and columns are tracks. Rows
     play when ``play(row)`` or ``advance()`` is called; its ``clock`` does
@@ -2555,7 +2594,7 @@ class Tracker(Timed, Velocity, Widget):
 
     reshaping = ('bars', 'pages')
 
-    actions = {'advance': None, 'play': 'int', 'set_note': 'int', 'set_velocity': 'float', **Timed.clock_actions}
+    actions = {'advance': None, 'play': 'int', 'set_note': 'int', 'set_velocity': 'float', **Paged.page_actions, **Timed.clock_actions}
 
     def __init__(self, x: int = 0, y: int = 0, width: int = 1, height: int = 1, *,
                  bars: int = 64,
@@ -2634,6 +2673,7 @@ class Tracker(Timed, Velocity, Widget):
     def page(self, value: int) -> None:
         self._page = int(value) % self.pages
         self.updated = True
+        self._page_shown()
 
     @property
     def bar(self) -> int:
@@ -2733,6 +2773,7 @@ class Tracker(Timed, Velocity, Widget):
             # Centered, an even height has one more row below
             self.bar = self.current_bar - (self.rect.h - 1) // 2
         self.updated = True
+        self._page_shown()
 
     def save_state(self) -> dict:
         return {'cells': self.states.copy(), 'notes': self.notes.copy(), 'velocities': self.velocities.copy(),
