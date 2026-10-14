@@ -32,15 +32,20 @@ def to_buffer(data) -> numpy.ndarray:
 def composite(dst: numpy.ndarray, src: numpy.ndarray) -> None:
     """Draw ``src`` over ``dst`` in place using alpha ("over") blending."""
     src_alpha = src[..., 3]
-    if src_alpha.min() == 255:
+    opaque = src_alpha == 255
+    if opaque.all():
         dst[:] = src
         return
-    if src_alpha.max() == 0:
+    # Usually every pixel is opaque or invisible: copied or skipped, no blending
+    partial = (src_alpha != 0) & ~opaque
+    if not partial.any():
+        dst[opaque] = src[opaque]
         return
     sa = src_alpha[..., None] / 255.0
     da = dst[..., 3:].astype(numpy.float64) / 255.0
     out_alpha = sa + da * (1.0 - sa)
     rgb = src[..., :3] * sa + dst[..., :3] * da * (1.0 - sa)
     rgb = numpy.divide(rgb, out_alpha, out = numpy.zeros_like(rgb), where = out_alpha > 0)
-    dst[..., :3] = numpy.rint(rgb)
-    dst[..., 3] = numpy.rint(out_alpha[..., 0] * 255.0)
+    blended = src_alpha != 0
+    dst[..., :3][blended] = numpy.rint(rgb[blended])
+    dst[..., 3][blended] = numpy.rint(out_alpha[..., 0][blended] * 255.0)
