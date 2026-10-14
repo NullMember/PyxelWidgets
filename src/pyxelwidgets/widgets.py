@@ -4217,9 +4217,10 @@ class Stepper(ValueWidget):
             colors[0] = self.active_color * (0.15 if self.number == self.minimum and not self.wrap else 0.4)
             colors[-1] = self.active_color * (0.15 if self.number == self.maximum and not self.wrap else 0.4)
             # A point of light moves from half a pad before the first pad
-            # between to the last one; each pad is as bright as it is near
+            # between to half a pad after the last; each pad is as bright as
+            # it is near
             between = pads - 2
-            point = self._value * (between - 0.5) - 0.5
+            point = self._value * between - 0.5
             for pad in range(between):
                 near = 1 - abs(point - pad)
                 if near > 0:
