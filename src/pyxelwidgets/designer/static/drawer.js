@@ -10,7 +10,7 @@ import { setStatus } from './history.js';
 import { renderBoard, renderOverlay, clamp } from './board.js';
 import { select, selectWidgetNamed, code, renderCode } from './properties.js';
 
-const CLOCK_EVENTS = new Set(['StepPlayed', 'StepEnded', 'RowPlayed', 'ClipQueued', 'ClipStarted', 'ClipStopped', 'PageChanged']);
+const CLOCK_EVENTS = new Set(['StepPlayed', 'StepEnded', 'RowPlayed', 'ClipQueued', 'ClipStarted', 'ClipStopped', 'PageChanged', 'PageShown']);
 
 export function drawerPrefs() {
   prefs.drawer ||= { open: true, tab: 'events', height: 230, filter: 'all', handlers: false, code: 'loader' };
