@@ -7,7 +7,7 @@ class Color():
     Out-of-range values are clamped. Operations return new colors.
     """
 
-    __slots__ = ('r', 'g', 'b', 'a')
+    __slots__ = ('r', 'g', 'b', 'a', '_array')
 
     gamma_coefficient = ((1.0 / 255.0) ** 2.2) * 255
 
@@ -53,7 +53,16 @@ class Color():
 
     def __array__(self, dtype = None, copy = None):
         """ Lets a Color be assigned to frame buffer cells and slices """
-        return numpy.array(self.rgba, dtype = numpy.uint8 if dtype is None else dtype)
+        try:
+            array = self._array
+        except AttributeError:
+            # Made once: colors are assigned to buffers every frame
+            array = numpy.array(self.rgba, dtype = numpy.uint8)
+            array.flags.writeable = False
+            object.__setattr__(self, '_array', array)
+        if dtype is not None and dtype != numpy.uint8:
+            return array.astype(dtype)
+        return array.copy() if copy else array
 
     @property
     def rgb(self) -> tuple:
