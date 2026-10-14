@@ -3459,9 +3459,10 @@ are kept until released by a command.
 Pro Tools' plug-in parameters are reached by name like Mackie Control's
 (`scan_tracks()`, `scan_plugins(track)`, `scan_parameters(track,
 plugin)`, `PluginParameter`): a strip's Insert switch shows its track's
-insert slots (1-4, SCROLL to 5; 6-10 can't be reached), Param Select opens
-one, and each page of parameters has up to 4 switches (top line, pressed
-with Param Select 1-4) and 4 knob parameters (bottom line). Scanning a
+insert slots (1-4, SCROLL to 5-8, where only 5 and the selected one are
+named; 9 and 10 can't be reached), Param Select opens one, and each page
+of parameters has up to 4 switches (top line, pressed with Param Select
+1-4) and 4 knob parameters (bottom line). Scanning a
 plug-in's parameters takes about 2 seconds a page: Pro Tools shows the
 switches once its page header goes. A knob parameter turns by the value's
 steps; a switch is pressed once per change and comes back as 1.0 (On/In)
@@ -3471,7 +3472,7 @@ or 0.0 (Off/Out).
 - **`on_disconnect()`**
 - **`decode(midi: list)`**
 - **`scan_tracks()`**: Pro Tools' track names: banks through the strips from the first, showing each track's inserts list for its full name (repeated names get " (2)"). Blocks for a while; don't call it from a MIDI or widget event handler.
-- **`scan_plugins(track: str)`**: The plug-ins on `track` (a name from `scan_tracks`): insert slots 1-5, opened for their full names.
+- **`scan_plugins(track: str)`**: The plug-ins on `track` (a name from `scan_tracks`): insert slots 1-8, opened for their full names.
 - **`scan_parameters(track: str, plugin: str)`**: The parameters of `plugin` on `track`: opens it and scrolls through its pages, switches first on each. About 2 seconds a page.
 
 ## `pyxelwidgets.devices.osc`
