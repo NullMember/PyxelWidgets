@@ -32,7 +32,8 @@ class Surface(pyxelwidgets.events.Emitter):
     Emits ``Frame`` before rendering each frame, and re-emits every device's
     control events (ControlPressed, ControlChanged, ...). ``bind`` connects a
     device's controls to widgets or actions, ``map`` sends widget events to
-    other software and ``link`` lets widgets change each other's options.
+    other software and ``link`` lets widgets change each other's options;
+    ``formula`` keeps an option at what an expression of others computes.
 
     ``lock`` is held while processing input and rendering. Hold it when changing
     widgets from another thread, e.g. a MIDI callback of your own.
@@ -48,6 +49,7 @@ class Surface(pyxelwidgets.events.Emitter):
         self.bindings = []
         self.mappings = []
         self.links = []
+        self.formulas = []
         #: Times animations: anything with bpm, beats, playing and signature (App sets its Transport)
         self.transport = None
         self.buffer = pyxelwidgets.buffer.new(width, height, pyxelwidgets.color.Colors.Black)
@@ -155,6 +157,32 @@ class Surface(pyxelwidgets.events.Emitter):
             link.close()
             self.links.remove(link)
 
+    def formula(self, target, option: str, expression) -> pyxelwidgets.link.Formula:
+        """
+        Keep ``option`` of ``target`` at what ``expression`` computes (see
+        ``pyxelwidgets.link.Formula``): now, and on every ``update()``.
+        """
+        with self.lock:
+            formula = pyxelwidgets.link.Formula(target, option, expression)
+            self.formulas.append(formula)
+            self._refresh_formulas()
+            return formula
+
+    def remove_formula(self, formula: pyxelwidgets.link.Formula) -> None:
+        with self.lock:
+            self.formulas.remove(formula)
+
+    #: Rounds of formulas each update, so formulas reading other formulas' options settle (cycles stop)
+    formula_rounds = 4
+
+    def _refresh_formulas(self) -> None:
+        for _ in range(self.formula_rounds):
+            changed = False
+            for formula in self.formulas:
+                changed = formula.refresh() or changed
+            if not changed:
+                break
+
     def check_devices(self, devices = None) -> list:
         """
         Let ``devices`` (default: the surface's devices and its mappings'
@@ -200,6 +228,7 @@ class Surface(pyxelwidgets.events.Emitter):
             self.frame_counter += 1
             for binding in self.bindings:
                 binding.update()
+            self._refresh_formulas()
             if self.root.render(pyxelwidgets.animation.now(self.transport)):
                 # Transparent areas show as black on the devices
                 self.buffer[:] = pyxelwidgets.color.Colors.Black
