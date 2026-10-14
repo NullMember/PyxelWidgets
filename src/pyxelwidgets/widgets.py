@@ -2289,22 +2289,23 @@ class Sequencer(Timed, Scrolled, Velocity, Widget):
         self.updated = True
 
     def draw(self) -> None:
-        length = self.length
-        for x in range(self.rect.w):
-            for y in range(self.rect.h):
-                step = self._calc_tick_position(x, y)
-                cell = (x, y + self._first)
-                if self.state[cell]:
-                    # Softer steps are dimmer
-                    color = self.active_color * (0.25 + 0.75 * float(self.velocities[cell]))
-                else:
-                    color = self.inactive_color
-                if step == self._step:
-                    color = self.current_active_color if self.state[cell] else self.current_color
-                elif step >= length and self.state[cell]:
-                    # Past the length: kept, but not played
-                    color = color * 0.25
-                self.buffer[x, y] = color
+        # Whole arrays at once (the same arithmetic as Color * factor, cell by cell)
+        w, h = self.rect.w, self.rect.h
+        rows = slice(self._first, self._first + h)
+        state = self.state[:w, rows]
+        steps = numpy.arange(w)[:, None] + numpy.arange(self._first, self._first + h)[None, :] * w
+        self.buffer[:] = self.inactive_color
+        # Softer steps are dimmer
+        factor = 0.25 + 0.75 * self.velocities[:w, rows].astype(numpy.float64)
+        rgb = numpy.clip((numpy.array(self.active_color.rgb)[None, None, :] * factor[..., None]).astype(int), 0, 255)
+        # Past the length: kept, but not played
+        past = state & (steps >= self.length)
+        rgb[past] = (rgb[past] * 0.25).astype(int)
+        self.buffer[..., :3][state] = rgb[state]
+        self.buffer[..., 3][state] = self.active_color.rgba[3]
+        current = steps == self._step
+        self.buffer[current & state] = self.current_active_color
+        self.buffer[current & ~state] = self.current_color
 
     def _fit_steps(self, width: int, height: int) -> None:
         self._page_count = int((self._steps - 1) / (width * height)) + 1
@@ -3442,6 +3443,8 @@ class Text(Widget):
         self.clock = clock
         self._start = clock()
         self._offset = 0
+        # (bitmap, the bitmap and a gap) for scrolling
+        self._strip = None
         super().__init__(x, y, width, height, inactive_color = inactive_color, propagation = propagation, **kwargs)
 
     @property
@@ -3493,8 +3496,11 @@ class Text(Widget):
         bitmap = self._bitmap
         if self.scrolling:
             # The text followed by a gap, repeated, starting at the scroll offset
-            strip = numpy.zeros((bitmap.shape[0] + Text.GAP, bitmap.shape[1]), dtype = bool)
-            strip[:bitmap.shape[0]] = bitmap
+            if self._strip is None or self._strip[0] is not bitmap:
+                strip = numpy.zeros((bitmap.shape[0] + Text.GAP, bitmap.shape[1]), dtype = bool)
+                strip[:bitmap.shape[0]] = bitmap
+                self._strip = (bitmap, strip)
+            strip = self._strip[1]
             columns = strip[(numpy.arange(self.rect.w) + self._offset) % strip.shape[0]]
             left = 0
         else:
@@ -3503,12 +3509,10 @@ class Text(Widget):
             left = {Text.Align.Left: 0, Text.Align.Center: free // 2, Text.Align.Right: free}[self.align]
         # Vertically centered; rows that don't fit are cut from the top
         bottom = (self.rect.h - pyxelwidgets.font.HEIGHT) // 2
-        for row in range(pyxelwidgets.font.HEIGHT):
-            y = bottom + row
-            if 0 <= y < self.rect.h:
-                lit = columns[:, row]
-                xs = numpy.flatnonzero(lit) + left
-                self.buffer[xs, y] = self.active_color
+        first, last = max(0, -bottom), min(pyxelwidgets.font.HEIGHT, self.rect.h - bottom)
+        if last > first and len(columns):
+            area = self.buffer[left:left + columns.shape[0], bottom + first:bottom + last]
+            area[columns[:, first:last]] = self.active_color
 
 # ChordPads class
 class ChordPads(Velocity, Widget):
