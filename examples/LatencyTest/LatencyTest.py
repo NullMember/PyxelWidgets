@@ -11,6 +11,14 @@ for that note on a MIDI input of this computer.
     python examples/LatencyTest/LatencyTest.py --play               # sequencers send MIDI meanwhile
     python examples/LatencyTest/LatencyTest.py --write heavy.json   # just write the heavy layout
 
+Without the designer (stop it first: it holds the Bluetooth output), all over Bluetooth:
+
+    python LatencyTest.py --serve --layout heavy --play     # on the Pi
+    python examples/LatencyTest/LatencyTest.py --bluetooth  # here: NoteOn 1 on channel 15 presses the probe
+
+The Pi plays the test layout like ``pyxelwidgets run`` (an App rendering at
+``--fps`` onto a stand-in grid device) and prints its CPU use every 10 s.
+
 "press → MIDI" counts from sending the HTTP request; "estimated" takes away half
 of that request's round trip (the way there), which is what a pad on a device
 plugged into that computer would see, give or take its own MIDI input.
@@ -134,15 +142,70 @@ def summary(name: str, values: list) -> str:
     return (f'{name:>22}: median {statistics.median(values):6.1f}  p90 {pick(0.9):6.1f}  p99 {pick(0.99):6.1f}'
             f'  min {values[0]:6.1f}  max {values[-1]:6.1f} ms  (n={len(values)})')
 
+TRIGGER_NOTE = 1
+TRIGGER_CHANNEL = 15
+
+def jitter(steps: list, bpm: float) -> list:
+    """How far each of seq1's steps arrived from a grid of 1/16 notes (the median one at 0)."""
+    period = 60 / bpm / 4
+    phases = [(((when - steps[0]) / period) + 0.5) % 1 for when in steps]
+    middle = statistics.median(phases)
+    return [abs((phase - middle) * period) for phase in phases]
+
+class Listener:
+    """A MIDI input of this computer, noting when the probe's NoteOn/NoteOff and seq1's steps arrive."""
+
+    def __init__(self, port: str) -> None:
+        import rtmidi
+        self.midi = rtmidi.MidiIn()
+        ports = [index for index, name in enumerate(self.midi.get_ports()) if port.lower() in name.lower()]
+        if not ports:
+            raise SystemExit(f'no MIDI input like {port!r}: {self.midi.get_ports()}')
+        self.arrived, self.signal, self.traffic, self.steps = {}, threading.Condition(), 0, []
+        self.midi.set_callback(self.received)
+        self.midi.open_port(ports[0])
+
+    def received(self, event, data = None) -> None:
+        message, _ = event
+        now = time.perf_counter()
+        self.traffic += 1
+        if len(message) != 3:
+            return
+        if message[0] == 0x90 and message[2] > 0 and (not self.steps or now - self.steps[-1] > 0.03):
+            self.steps.append(now)
+        if message[0] & 0x0F == PROBE_CHANNEL - 1 and message[1] == PROBE_NOTE:
+            kind = 'on' if message[0] & 0xF0 == 0x90 and message[2] > 0 else 'off'
+            with self.signal:
+                self.arrived[kind] = now
+                self.signal.notify_all()
+
+    def clear(self, kind: str) -> None:
+        with self.signal:
+            self.arrived.pop(kind, None)
+
+    def wait(self, kind: str, timeout: float = 2.0) -> float | None:
+        with self.signal:
+            self.signal.wait_for(lambda: kind in self.arrived, timeout = timeout)
+            return self.arrived.get(kind)
+
 def main() -> None:
     parser = argparse.ArgumentParser(description = __doc__.split('\n\n')[0])
     parser.add_argument('--url', default = 'http://127.0.0.1:8766', help = 'the designer')
-    parser.add_argument('--port', default = 'NullMIDI Bluetooth', help = 'MIDI input on this computer (part of its name)')
+    parser.add_argument('--port', default = 'NullMIDI Bluetooth', help = 'MIDI port on this computer (part of its name)')
     parser.add_argument('--layout', choices = ('heavy', 'light'), default = 'heavy')
     parser.add_argument('--play', action = 'store_true', help = 'play the transport during the test')
     parser.add_argument('--count', type = int, default = 200, help = 'probe presses')
-    parser.add_argument('--fps', type = float, default = 30.0, help = 'frames asked for meanwhile (0: none)')
+    parser.add_argument('--fps', type = float, default = 30.0,
+                        help = 'designer test: frames asked for meanwhile (0: none); --serve: frames rendered (default 30)')
     parser.add_argument('--write', metavar = 'FILE', help = 'write the heavy layout (with a MIDI port output) and stop')
+    parser.add_argument('--serve', action = 'store_true',
+                        help = 'on the Pi, instead of the designer: play the test layout (like pyxelwidgets run) and '
+                               'press the probe when the trigger note comes over Bluetooth')
+    parser.add_argument('--bluetooth-name', default = 'NullMIDI', help = '--serve: the Bluetooth MIDI name')
+    parser.add_argument('--insecure', action = 'store_true', help = '--serve: Bluetooth without pairing')
+    parser.add_argument('--virtual', metavar = 'PORT', help = '--serve: a virtual MIDI port instead of Bluetooth (to try it on one computer)')
+    parser.add_argument('--bluetooth', action = 'store_true',
+                        help = 'on this computer, with --serve running on the Pi: send the trigger note, time the probe\'s answer')
     arguments = parser.parse_args()
 
     if arguments.write:
@@ -150,30 +213,115 @@ def main() -> None:
         with open(arguments.write, 'w') as file:
             json.dump(layout(output), file, indent = 2)
         return
+    if arguments.serve:
+        serve(arguments)
+        return
+    listener = Listener(arguments.port)
+    try:
+        if arguments.bluetooth:
+            bluetooth(arguments, listener)
+        else:
+            through_designer(arguments, listener)
+    finally:
+        listener.midi.close_port()
 
+def serve(arguments) -> None:
+    """The Pi's side: the test layout with a stand-in grid device, played by an App as pyxelwidgets run does."""
+    import queue
+    import pyxelwidgets.devices
+    import pyxelwidgets.events
+    import pyxelwidgets.parser
+    output = {'name': 'out', 'type': 'ble_midi.BleMidi',
+              'options': {'bluetooth_name': arguments.bluetooth_name, 'secure': not arguments.insecure}}
+    if arguments.virtual:
+        output = {'name': 'out', 'type': 'midi_port.MidiPort', 'virtual': arguments.virtual, 'options': {}}
+    test = layout(output, arguments.layout == 'heavy')
+    ui = pyxelwidgets.parser.Parser(test)
+    out = ui.outputs['out']
+    if not out.connected:
+        raise SystemExit(f'the Bluetooth output didn\'t connect: {getattr(out, "warning", None)}')
+
+    class Grid(pyxelwidgets.devices.Device):
+        """Stands in for a Launchpad: pads pressed from its own thread, frames rendered but sent nowhere."""
+        def send_pixel(self, x, y, value) -> None:
+            pass
+    grid = Grid(width = ui.surface.rect.w, height = ui.surface.rect.h)
+    grid.connect()
+    ui.surface.add_device(grid, 0, 0)
+    app = ui.app(arguments.fps)
+    if arguments.layout == 'heavy':
+        for x, y in SEEDS:
+            grid.set_button(x, y, 1.0)
+            grid.set_button(x, y, 0.0)
+
+    # Like a MIDI input thread: the trigger presses the probe, waiting for the surface lock if it has to
+    presses = queue.Queue()
+    def pressing() -> None:
+        while True:
+            grid.set_button(*PROBE, presses.get())
+    threading.Thread(target = pressing, daemon = True).start()
+    def received(event) -> None:
+        midi = event.message.to_midi()
+        if len(midi) == 3 and midi[0] & 0x0F == TRIGGER_CHANNEL - 1 and midi[1] == TRIGGER_NOTE:
+            presses.put(1.0 if midi[0] & 0xF0 == 0x90 and midi[2] > 0 else 0.0)
+    out.on(pyxelwidgets.events.MessageReceived, received)
+
+    def report() -> None:
+        while True:
+            cpu, wall = time.process_time(), time.perf_counter()
+            time.sleep(10)
+            print(f'CPU {100 * (time.process_time() - cpu) / (time.perf_counter() - wall):.0f}%, '
+                  f'{getattr(out, "status_text", "")}', flush = True)
+    threading.Thread(target = report, daemon = True).start()
+    if arguments.play:
+        app.transport.play()
+    print(f'Serving the {arguments.layout} layout at {arguments.fps:g} fps'
+          f'{", playing" if arguments.play else ""}; Ctrl+C to stop', flush = True)
+    try:
+        app.run()
+    except KeyboardInterrupt:
+        pass
+    finally:
+        app.stop()
+        out.disconnect()
+
+def bluetooth(arguments, listener: Listener) -> None:
+    """This computer's side of --serve: trigger note out, probe note back, all over Bluetooth."""
     import rtmidi
-    midi = rtmidi.MidiIn()
+    midi = rtmidi.MidiOut()
     ports = [index for index, name in enumerate(midi.get_ports()) if arguments.port.lower() in name.lower()]
     if not ports:
-        raise SystemExit(f'no MIDI input like {arguments.port!r}: {midi.get_ports()}')
-    arrived = {}  # (kind, note) -> time
-    signal = threading.Condition()
-    traffic = [0]
-    steps = []  # arrival of each of seq1's steps (its NoteOns on channel 1)
-    def received(event, data = None) -> None:
-        message, _ = event
-        now = time.perf_counter()
-        traffic[0] += 1
-        if len(message) == 3 and message[0] == 0x90 and message[2] > 0 and (not steps or now - steps[-1] > 0.03):
-            steps.append(now)
-        if len(message) == 3 and message[0] & 0x0F == PROBE_CHANNEL - 1 and message[1] == PROBE_NOTE:
-            kind = 'on' if message[0] & 0xF0 == 0x90 and message[2] > 0 else 'off'
-            with signal:
-                arrived[kind] = now
-                signal.notify_all()
-    midi.set_callback(received)
+        raise SystemExit(f'no MIDI output like {arguments.port!r}: {midi.get_ports()}')
     midi.open_port(ports[0])
+    round_trips, lost = [], 0
+    start_steps = len(listener.steps)
+    try:
+        for index in range(arguments.count):
+            for kind, status, velocity in (('on', 0x90, 100), ('off', 0x80, 0)):
+                listener.clear(kind)
+                start = time.perf_counter()
+                midi.send_message([status | (TRIGGER_CHANNEL - 1), TRIGGER_NOTE, velocity])
+                came = listener.wait(kind)
+                if came is None:
+                    lost += 1
+                else:
+                    round_trips.append(came - start)
+                time.sleep(random.uniform(0.03, 0.12))
+            if (index + 1) % 50 == 0:
+                print(f'{index + 1}/{arguments.count}…')
+    finally:
+        midi.close_port()
+    print(f'\nover Bluetooth only, {listener.traffic} MIDI messages received')
+    print(summary('round trip', round_trips))
+    print(summary('one way (trip/2)', [trip / 2 for trip in round_trips]))
+    steps = listener.steps[start_steps:]
+    if len(steps) > 10:
+        print(summary('seq1 timing jitter', jitter(steps, 140)))
+    if lost:
+        print(f'{lost} probe messages never arrived')
 
+def through_designer(arguments, listener: Listener) -> None:
+    arrived, signal, steps = listener.arrived, listener.signal, listener.steps
     designer = Designer(arguments.url)
     original = designer.call('GET', '/api/layout')['layout']
     if not original.get('outputs'):
@@ -225,19 +373,14 @@ def main() -> None:
                 print(f'{index + 1}/{arguments.count}…')
 
         print(f'\nlayout {arguments.layout}, {"playing" if arguments.play else "stopped"}, '
-              f'frames at {arguments.fps:g} fps, {traffic[0]} MIDI messages received')
+              f'frames at {arguments.fps:g} fps, {listener.traffic} MIDI messages received')
         print(summary('press → MIDI', total))
         print(summary('HTTP round trip', round_trips))
         print(summary('estimated (– trip/2)', estimated))
         if poller is not None:
             print(summary('frame request', poller.times))
         if arguments.play and len(steps) > 10:
-            # seq1 plays on a grid of 1/16 notes: how far each arrival is from it (the median one at 0)
-            period = 60 / test['transport']['bpm'] / 4
-            phases = [((when - steps[0]) / period) % 1 for when in steps]
-            middle = statistics.median((phase + 0.5) % 1 for phase in phases)
-            offsets = [abs((((phase + 0.5) % 1) - middle) * period) for phase in phases]
-            print(summary('seq1 timing jitter', offsets))
+            print(summary('seq1 timing jitter', jitter(steps, test['transport']['bpm'])))
         if lost:
             print(f'{lost} probe messages never arrived')
     finally:
@@ -247,7 +390,6 @@ def main() -> None:
         if arguments.play:
             designer.call('POST', '/api/play', {'playing': False})
         designer.call('PUT', '/api/layout', original)
-        midi.close_port()
 
 if __name__ == '__main__':
     main()
