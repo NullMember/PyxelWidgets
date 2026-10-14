@@ -6,7 +6,9 @@ import pyxelwidgets.color
 import pyxelwidgets.rate
 import pyxelwidgets.rectangle
 import numpy
+import bisect
 import enum
+import functools
 import math
 import random
 import time
@@ -555,8 +557,12 @@ class Root(enum.Enum):
 
 def scale_notes(scale: Scale, root: Root) -> list:
     """Every MIDI note (0-127) in ``scale`` from ``root``, lowest first."""
-    steps = set(SCALES[scale.name])
-    return [note for note in range(128) if (note - root.value) % 12 in steps]
+    return list(_scale_notes(scale, root))
+
+@functools.lru_cache(maxsize = 64)
+def _scale_notes(scale: Scale, root: Root) -> tuple:
+    steps, root = set(SCALES[scale.name]), root.value
+    return tuple(note for note in range(128) if (note - root) % 12 in steps)
 
 class VelocityCurve(enum.Enum):
     """
@@ -3991,15 +3997,25 @@ class Euclidean(Timed, Velocity, Widget):
 # Automaton class
 def parse_rule(rule: str) -> tuple:
     """A life-like rule 'B3/S23' as (birth counts, survival counts)."""
+    return _parse_rule(str(rule))
+
+@functools.lru_cache(maxsize = 64)
+def _parse_rule(rule: str) -> tuple:
     parts = {part[0]: part[1:] for part in str(rule).replace(' ', '').upper().split('/') if part[:1] in ('B', 'S')}
     try:
-        birth = {int(digit) for digit in parts['B']}
-        survive = {int(digit) for digit in parts.get('S', '')}
+        birth = frozenset(int(digit) for digit in parts['B'])
+        survive = frozenset(int(digit) for digit in parts.get('S', ''))
     except (KeyError, ValueError):
         raise ValueError(f'a rule is written like "B3/S23" (births, then survivals by neighbours), got {rule!r}') from None
     if not birth <= set(range(9)) or not survive <= set(range(9)):
         raise ValueError(f'neighbour counts are 0 to 8, got {rule!r}')
     return birth, survive
+
+@functools.lru_cache(maxsize = 64)
+def _rule_tables(rule: str) -> tuple:
+    """(births, survivals) as lookup tables by neighbour count (0-8)."""
+    birth, survive = parse_rule(rule)
+    return numpy.array([count in birth for count in range(9)]), numpy.array([count in survive for count in range(9)])
 
 class Automaton(Timed, Velocity, Widget):
     """
@@ -4069,8 +4085,8 @@ class Automaton(Timed, Velocity, Widget):
         super().__init__(x, y, width, height, active_color = active_color, **kwargs)
 
     def row_note(self, y: int) -> int | None:
-        notes = scale_notes(self.scale, self.root)
-        index = next((i for i, note in enumerate(notes) if note >= self.root.value + 12 * self.octave), len(notes)) + y
+        notes = _scale_notes(self.scale, self.root)
+        index = bisect.bisect_left(notes, self.root.value + 12 * self.octave) + y
         return notes[index] if 0 <= index < len(notes) else None
 
     def handle_press(self, x: int, y: int, velocity: float) -> None:
@@ -4095,19 +4111,22 @@ class Automaton(Timed, Velocity, Widget):
 
     def _neighbours(self) -> numpy.ndarray:
         cells = self.cells.astype(numpy.int8)
-        if self.wrap:
-            return sum(numpy.roll(numpy.roll(cells, dx, 0), dy, 1)
-                       for dx in (-1, 0, 1) for dy in (-1, 0, 1) if (dx, dy) != (0, 0))
-        padded = numpy.pad(cells, 1)
+        # Wrapping: the other edge's cells around it
+        padded = numpy.pad(cells, 1, mode = 'wrap' if self.wrap else 'constant')
         w, h = cells.shape
-        return sum(padded[1 + dx:1 + dx + w, 1 + dy:1 + dy + h] for dx in (-1, 0, 1) for dy in (-1, 0, 1) if (dx, dy) != (0, 0))
+        total = numpy.zeros((w, h), dtype = numpy.int8)
+        for dx in (0, 1, 2):
+            for dy in (0, 1, 2):
+                if (dx, dy) != (1, 1):
+                    total += padded[dx:dx + w, dy:dy + h]
+        return total
 
     def play(self, count: int | None = None) -> None:
         """Pass a generation and play the cells born."""
         self.silence()
-        birth, survive = parse_rule(self.rule)
         neighbours = self._neighbours()
-        cells = numpy.where(self.cells, numpy.isin(neighbours, list(survive)), numpy.isin(neighbours, list(birth)))
+        births, survivals = _rule_tables(self.rule)
+        cells = numpy.where(self.cells, survivals[neighbours], births[neighbours])
         self.born = cells & ~self.cells
         self.cells = cells
         self.generation += 1
@@ -4116,14 +4135,16 @@ class Automaton(Timed, Velocity, Widget):
         else:
             self._history = (self._history + [cells.copy()])[-2:]
         played = set()
-        for y in range(self.rect.h):
-            columns = numpy.flatnonzero(self.born[:, y])
+        # The rightmost cell born in each row that has one
+        rows = numpy.flatnonzero(self.born.any(axis = 0)).tolist()
+        rightmost = (self.rect.w - 1 - numpy.argmax(self.born[::-1], axis = 0)).tolist()
+        for y in rows:
             note = self.row_note(y)
-            if not len(columns) or note is None or note in played or len(played) >= self.max_notes:
+            if note is None or note in played or len(played) >= self.max_notes:
                 continue
             played.add(note)
             # Louder to the right
-            hit = 0.4 + 0.6 * (columns.max() / max(self.rect.w - 1, 1))
+            hit = 0.4 + 0.6 * (rightmost[y] / max(self.rect.w - 1, 1))
             self._sounding.append(note)
             self.emit(pyxelwidgets.events.NoteOn(self, note, self.humanize(self.velocity_of(hit))))
         self.updated = True
