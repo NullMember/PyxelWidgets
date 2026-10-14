@@ -256,6 +256,9 @@ def serve(arguments) -> None:
 
     # Like a MIDI input thread: the trigger presses the probe, waiting for the surface lock if it has to
     presses = queue.Queue()
+    counts = {'triggers': 0, 'probes': 0}
+    probe = ui['probe']
+    probe.on(pyxelwidgets.events.Pressed, lambda event: counts.__setitem__('probes', counts['probes'] + 1))
     def pressing() -> None:
         while True:
             grid.set_button(*PROBE, presses.get())
@@ -263,6 +266,7 @@ def serve(arguments) -> None:
     def received(event) -> None:
         midi = event.message.to_midi()
         if len(midi) == 3 and midi[0] & 0x0F == TRIGGER_CHANNEL - 1 and midi[1] == TRIGGER_NOTE:
+            counts['triggers'] += 1
             presses.put(1.0 if midi[0] & 0xF0 == 0x90 and midi[2] > 0 else 0.0)
     out.on(pyxelwidgets.events.MessageReceived, received)
 
@@ -271,6 +275,7 @@ def serve(arguments) -> None:
             cpu, wall = time.process_time(), time.perf_counter()
             time.sleep(10)
             print(f'CPU {100 * (time.process_time() - cpu) / (time.perf_counter() - wall):.0f}%, '
+                  f'{counts["triggers"]} triggers, {counts["probes"]} probe presses, '
                   f'{getattr(out, "status_text", "")}', flush = True)
     threading.Thread(target = report, daemon = True).start()
     if arguments.play:
