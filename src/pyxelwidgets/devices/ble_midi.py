@@ -20,6 +20,14 @@ Needs dbus-fast (``pip install "pyxelwidgets[bluetooth]"``) and bluetoothd.
 The user running it needs the system bus's permission for BlueZ (on
 Raspberry Pi OS and Debian: the ``bluetooth`` group,
 ``sudo usermod -aG bluetooth $USER``, then log in again).
+
+bluetoothd's own MIDI plugin (built into Raspberry Pi OS's) drops a Mac or an
+iPad 30 s after it connects; start bluetoothd without it (``-P midi``)::
+
+    sudo systemctl edit bluetooth    # [Service] ExecStart= then ExecStart=/usr/libexec/bluetooth/bluetoothd -P midi
+    sudo systemctl restart bluetooth
+
+``warning`` says so while the plugin runs.
 """
 
 import asyncio
@@ -208,6 +216,9 @@ class BleMidi(pyxelwidgets.devices.Device):
                 await _call(bus, '/org/bluez', 'org.bluez.AgentManager1', 'RequestDefaultAgent', 'o', [agent_path])
             except OSError as error:
                 self.warning = f'pairing may ask for confirmation on this computer ({error})'
+        if self.bus_address is None and _midi_plugin():
+            self.warning = ('bluetoothd\'s own MIDI plugin drops Macs and iPads after 30 s: start it with -P midi '
+                            '(sudo systemctl edit bluetooth: [Service] ExecStart= then ExecStart=/usr/libexec/bluetooth/bluetoothd -P midi)')
         await _call(bus, adapter, 'org.bluez.GattManager1', 'RegisterApplication', 'oa{sv}', [self._path, {}])
         self._registered.append((adapter, 'org.bluez.GattManager1', 'UnregisterApplication', self._path))
         await _call(bus, adapter, 'org.bluez.LEAdvertisingManager1', 'RegisterAdvertisement', 'oa{sv}', [advert_path, {}])
@@ -363,6 +374,41 @@ def _blocked() -> str | None:
         except OSError:
             continue
     return None
+
+def _midi_plugin() -> bool:
+    """
+    Whether bluetoothd runs with its MIDI plugin. The plugin reads the MIDI
+    service of every device that connects (a Mac or an iPad has one), gets
+    "insufficient authentication", asks for stronger pairing the other side
+    never answers, and the link drops when that times out after 30 s.
+    """
+    import glob
+    for path in glob.glob('/proc/[0-9]*/cmdline'):
+        try:
+            with open(path, 'rb') as file:
+                arguments = file.read().decode(errors = 'replace').split('\0')
+        except OSError:
+            continue
+        if not arguments[0].endswith('/bluetoothd'):
+            continue
+        # -P midi, -Pmidi, --noplugin midi, --noplugin=midi (lists separated by commas)
+        off = []
+        for index, argument in enumerate(arguments):
+            if argument in ('-P', '--noplugin') and index + 1 < len(arguments):
+                off += arguments[index + 1].split(',')
+            elif argument.startswith('--noplugin='):
+                off += argument.split('=', 1)[1].split(',')
+            elif argument.startswith('-P'):
+                off += argument[2:].split(',')
+        if 'midi' in off:
+            return False
+        try:
+            # Built with it: its source path is in the binary's log messages
+            with open(arguments[0], 'rb') as file:
+                return b'profiles/midi/midi.c' in file.read()
+        except OSError:
+            return False
+    return False
 
 _INTERFACES = None
 
