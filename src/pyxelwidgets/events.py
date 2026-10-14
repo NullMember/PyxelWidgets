@@ -138,6 +138,17 @@ class PageChanged(WidgetEvent):
     page: int
 
 @dataclasses.dataclass(frozen = True)
+class PageShown(WidgetEvent):
+    """
+    The widget shows ``page`` (from 0) of its pages, whatever changed it: a
+    press, a link, an action or following the playing step. ``first`` and
+    ``last`` tell whether it's at an end, e.g. to dim page buttons.
+    """
+    page: int
+    first: bool
+    last: bool
+
+@dataclasses.dataclass(frozen = True)
 class RowPlayed(WidgetEvent):
     """The Tracker playhead moved to ``row``; ``columns`` lists the active cells in it, ``notes`` their notes."""
     row: int

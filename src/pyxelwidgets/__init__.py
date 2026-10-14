@@ -79,6 +79,7 @@ _exports = {
     'StepPlayed': 'events',
     'StepEnded': 'events',
     'PageChanged': 'events',
+    'PageShown': 'events',
     'RowPlayed': 'events',
     'ClipQueued': 'events',
     'ClipStarted': 'events',
