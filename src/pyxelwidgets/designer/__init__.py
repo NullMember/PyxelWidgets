@@ -40,7 +40,7 @@ from .dialogs import Unavailable, pick_file
 __all__ = ['Preview', 'Designer', 'new_layout', 'catalog']
 
 DEVICE_MODULES = ['novation', 'akai', 'ableton', 'arturia', 'presonus', 'virtual', 'web']
-OUTPUT_MODULES = ['midi_port', 'mackie', 'osc', 'desktop']
+OUTPUT_MODULES = ['midi_port', 'rtp_midi', 'ble_midi', 'mackie', 'osc', 'desktop']
 
 def new_layout(width: int = 9, height: int = 9) -> dict:
     return {
@@ -461,6 +461,9 @@ class Preview:
                 # A browser grid's address
                 if connected and getattr(device, 'url', None):
                     status['url'] = device.url
+                # Who is connected to a network or Bluetooth output
+                if connected and getattr(device, 'status_text', None):
+                    status['text'] = device.status_text
                 found.append(status)
             return found
         sync = None

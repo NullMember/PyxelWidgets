@@ -12,6 +12,7 @@ import { newLayout, templates, detectDevices } from './files.js';
 // Outputs offered for other software: [type, title, what for]
 const OUTPUTS = [
   ['midi_port.MidiPort', 'MIDI port', 'Notes and controls to a DAW or synth'],
+  ['rtp_midi.RtpMidi', 'Network MIDI', 'MIDI to another computer on the network'],
   ['mackie.MackieControl', 'Mackie Control', 'A DAW mixer: faders, mutes, transport'],
   ['osc.REAPER', 'REAPER (OSC)', 'REAPER tracks and plug-ins'],
 ];

@@ -30,7 +30,10 @@ export function uniqueOutputName(base) {
 
 export function addOutput(type = $('output-type').value) {
   const info = state.catalog.outputs.find((output) => output.type === type);
-  const base = { 'mackie.MackieControl': 'mackie', 'mackie.HUI': 'hui', 'osc.REAPER': 'reaper', 'osc.OSC': 'osc', 'desktop.Desktop': 'desktop' }[type] || 'midi';
+  const base = {
+    'mackie.MackieControl': 'mackie', 'mackie.HUI': 'hui', 'osc.REAPER': 'reaper', 'osc.OSC': 'osc', 'desktop.Desktop': 'desktop',
+    'rtp_midi.RtpMidi': 'network', 'ble_midi.BleMidi': 'bluetooth',
+  }[type] || 'midi';
   change((layout) => {
     const name = uniqueOutputName(base);
     // MIDI outputs start as a virtual port other software can pick
@@ -58,7 +61,9 @@ export function renderOutputs() {
       el('span', { class: 'swatch-output' }),
       el('span', { class: 'label' },
         el('span', { class: 'name' }, output.name),
-        el('span', { class: 'type' }, `${outputInfo(output)?.model || output.type}${count ? ` · ${count} message${count > 1 ? 's' : ''}` : ''}`)),
+        el('span', { class: 'type' }, `${outputInfo(output)?.model || output.type}${count ? ` · ${count} message${count > 1 ? 's' : ''}` : ''}`),
+        // Who is connected (network and Bluetooth MIDI)
+        state.hardware.outputs?.[index]?.text ? el('span', { class: 'type', title: state.hardware.outputs[index].text }, state.hardware.outputs[index].text) : null),
       hardwareDot(index, 'outputs'),
       connectButton('outputs', index));
   }));
