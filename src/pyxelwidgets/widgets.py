@@ -4110,10 +4110,14 @@ class Automaton(Timed, Velocity, Widget):
         self.updated = True
 
     def _neighbours(self) -> numpy.ndarray:
-        cells = self.cells.astype(numpy.int8)
-        # Wrapping: the other edge's cells around it
-        padded = numpy.pad(cells, 1, mode = 'wrap' if self.wrap else 'constant')
+        cells = self.cells
         w, h = cells.shape
+        padded = numpy.zeros((w + 2, h + 2), dtype = numpy.int8)
+        padded[1:-1, 1:-1] = cells
+        if self.wrap:
+            # The other edge's cells around it (corners from the wrapped rows)
+            padded[0, 1:-1], padded[-1, 1:-1] = cells[-1], cells[0]
+            padded[:, 0], padded[:, -1] = padded[:, -2], padded[:, 1]
         total = numpy.zeros((w, h), dtype = numpy.int8)
         for dx in (0, 1, 2):
             for dy in (0, 1, 2):
