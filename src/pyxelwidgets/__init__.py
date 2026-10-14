@@ -50,6 +50,7 @@ _exports = {
     'VelocityCurve': 'widgets',
     'ClipLauncher': 'widgets',
     'Clock': 'widgets',
+    'Follow': 'widgets',
     'DrumPads': 'widgets',
     'Meter': 'widgets',
     'ButtonGroup': 'widgets',
