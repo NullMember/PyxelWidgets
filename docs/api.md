@@ -39,6 +39,8 @@ Generated from the docstrings by `docs/build_api.py`; see the [guides](README.md
   - [`pyxelwidgets.devices.web`](#pyxelwidgetsdevicesweb)
   - [`pyxelwidgets.devices.midi_clock`](#pyxelwidgetsdevicesmidi_clock)
   - [`pyxelwidgets.devices.midi_port`](#pyxelwidgetsdevicesmidi_port)
+  - [`pyxelwidgets.devices.rtp_midi`](#pyxelwidgetsdevicesrtp_midi)
+  - [`pyxelwidgets.devices.ble_midi`](#pyxelwidgetsdevicesble_midi)
   - [`pyxelwidgets.devices.plugins`](#pyxelwidgetsdevicesplugins)
   - [`pyxelwidgets.devices.mackie`](#pyxelwidgetsdevicesmackie)
   - [`pyxelwidgets.devices.osc`](#pyxelwidgetsdevicesosc)
@@ -3340,6 +3342,101 @@ Sends MidiMessages with `send`; received channel messages are emitted as Message
 - classmethod **`describe()`**
 - **`send(message: MidiMessage)`**
 - **`decode(midi: list)`**
+
+## `pyxelwidgets.devices.rtp_midi`
+
+Network MIDI (RTP-MIDI, Apple's network MIDI): other computers on the network
+connect to a session and get the widgets' messages, and what they send back
+comes in as MessageReceived:
+
+    network = RtpMidi(session = 'Pi grid')
+    network.connect()                      # announced on the network as "Pi grid"
+    surface.map(kick, network, NoteOn(36), on = Pressed)
+
+The other side:
+
+- macOS: Audio MIDI Setup > Window > Show MIDI Studio > Network: the session
+  shows under Directory; select it and press Connect. The Mac's own session
+  (My Sessions) must be enabled; it is the port DAWs see.
+- Windows: rtpMIDI (Tobias Erichsen), the same way.
+- Linux: rtpmidid.
+
+With `connect = 'macbook.local'` this side invites that computer instead,
+again whenever it comes back (its session must accept: on macOS "Who may
+connect to me: Anyone").
+
+Announcing the session uses the `zeroconf` package when installed (`pip
+install "pyxelwidgets[network]"`), else the system's `dns-sd` (macOS,
+Windows with Bonjour) or `avahi-publish-service` (Linux, avahi-utils).
+Messages go without a recovery journal: fine on a local network.
+
+### `RtpMidi` (Device)
+
+```python
+RtpMidi(*, session: str | None = None, port: int = 5004, connect: str = '', announce: bool = True, **kwargs)
+```
+
+Network MIDI (RTP-MIDI): a session other computers connect to (macOS
+Audio MIDI Setup > Network, rtpMIDI on Windows, rtpmidid on Linux), or
+that invites them. Sends MIDI channel messages to every computer in the
+session; what they send comes in as MessageReceived.
+
+- `session: str, optional`: The name other computers see (default: PyxelWidgets and this computer's name).
+- `port: int = 5004`: The session's UDP port; the next one carries the MIDI.
+- `connect: str, optional`: Computers to invite, as host or host:port, separated by commas (e.g. macbook.local). Invited again when they come back.
+- `announce: bool = True`: Announce the session on the network (Bonjour), so it shows in the other side's list.
+
+- classmethod **`describe()`**
+- **`status_text`**: Who is in the session, for people (the designer shows it).
+- **`connect()`**
+- **`disconnect()`**
+- **`send(message: MidiMessage)`**
+- **`send_midi(*messages: list)`**: Send raw MIDI messages (lists of bytes, no system exclusive) to everyone in the session, in one packet.
+
+## `pyxelwidgets.devices.ble_midi`
+
+Bluetooth LE MIDI as a peripheral, on Linux (BlueZ), e.g. a Raspberry Pi:
+this computer advertises itself as a Bluetooth MIDI device, another computer
+connects to it, and the widgets' messages go there; what it sends back comes
+in as MessageReceived:
+
+    bluetooth = BleMidi()
+    bluetooth.connect()                    # advertised under the Bluetooth name
+    surface.map(kick, bluetooth, NoteOn(36), on = Pressed)
+
+The other side:
+
+- macOS: Audio MIDI Setup > Window > Show MIDI Studio > the Bluetooth
+  button: the device shows in the list; press Connect.
+- Windows: DAWs that support Bluetooth MIDI (e.g. through MIDIberry or
+  Windows MIDI Services) pair with it in Settings > Bluetooth first.
+- iOS: in the app's Bluetooth MIDI page (GarageBand, AUM).
+
+Needs dbus-fast (`pip install "pyxelwidgets[bluetooth]"`) and bluetoothd.
+The user running it needs the system bus's permission for BlueZ (on
+Raspberry Pi OS and Debian: the `bluetooth` group,
+`sudo usermod -aG bluetooth $USER`, then log in again).
+
+### `BleMidi` (Device)
+
+```python
+BleMidi(*, bluetooth_name: str = '', adapter: str = '', secure: bool = False, **kwargs)
+```
+
+A Bluetooth LE MIDI device other computers connect to (Linux with BlueZ,
+e.g. a Raspberry Pi). Sends MIDI channel messages to the computer that
+connected; what it sends comes in as MessageReceived.
+
+- `bluetooth_name: str, optional`: The name other computers see while it advertises (default: this computer's Bluetooth name). About 8 characters fit beside the MIDI service; longer names are cut.
+- `adapter: str, optional`: The Bluetooth adapter (e.g. hci1; default: the first that can advertise).
+- `secure: bool = False`: Ask for pairing (encrypted connection) before MIDI goes through; it accepts any pairing without a code.
+
+- classmethod **`describe()`**
+- **`status_text`**: Whether a computer is connected, for people (the designer shows it).
+- **`connect()`**
+- **`disconnect()`**
+- **`send(message: MidiMessage)`**
+- **`send_midi(midi: list)`**: Send one raw MIDI message (a list of bytes, no system exclusive); messages sent together share a packet.
 
 ## `pyxelwidgets.devices.plugins`
 
