@@ -30,6 +30,8 @@ class Group(pyxelwidgets.widgets.Widget):
         """
         self._children = []
         self._dirty = True
+        # Each child's place and visibility when last composed
+        self._arranged = None
         super().__init__(x, y, width, height, inactive_color = background, propagation = propagation, **kwargs)
 
     @property
@@ -101,24 +103,48 @@ class Group(pyxelwidgets.widgets.Widget):
         return self.propagation == pyxelwidgets.widgets.Propagation.Stop
 
     def render(self, time = None) -> bool:
-        changed = self._dirty
         # Render every child, even after one already changed
-        for child in self._children:
-            changed = child.render(time) or changed
-        if changed:
+        changed = [child for child in self._children if child.render(time)]
+        arranged = [(child, child.rect.x, child.rect.y, child.rect.w, child.rect.h, child.visible) for child in self._children]
+        if self._dirty or arranged != self._arranged:
             self._dirty = False
             self.updated = True
-        return super().render(time)
+        drawn = False
+        if changed and not self.updated:
+            # Only the areas of the children that changed are composed again
+            if self._static is not None:
+                self.buffer = self._static
+            areas = [area for area in (self.rect.origin.intersect(child.rect) for child in changed if child.visible) if area]
+            if sum(area.w * area.h for area in areas) * 2 > self.rect.w * self.rect.h:
+                self.updated = True
+            elif areas:
+                for area in areas:
+                    self._compose(area)
+                self._overlay()
+                drawn = True
+        self._arranged = arranged
+        return super().render(time) or drawn
 
     def draw(self) -> None:
-        self.buffer[:] = self.inactive_color
+        self._compose(self.rect.origin)
+        self._overlay()
+
+    def _compose(self, area: pyxelwidgets.rectangle.Rectangle2D) -> None:
+        """Draw ``area`` (in the group's coordinates) again: background, then the visible children over it."""
+        left, bottom, right, top = area.x, area.y, area.x + area.w, area.y + area.h
+        self.buffer[left:right, bottom:top] = self.inactive_color
         for child in self._children:
             if not child.visible:
                 continue
-            intersect = self.rect.origin.intersect(child.rect)
-            if intersect is not None:
-                source = child.buffer[(intersect - child.rect).slice]
-                pyxelwidgets.buffer.composite(self.buffer[intersect.slice], source)
+            rect = child.rect
+            x0, x1 = max(left, rect.x), min(right, rect.x + rect.w)
+            y0, y1 = max(bottom, rect.y), min(top, rect.y + rect.h)
+            if x0 < x1 and y0 < y1:
+                source = child.buffer[x0 - rect.x:x1 - rect.x, y0 - rect.y:y1 - rect.y]
+                pyxelwidgets.buffer.composite(self.buffer[x0:x1, y0:y1], source)
+
+    def _overlay(self) -> None:
+        """Draw what goes over the children (e.g. a selector strip); called after every composition."""
 
     def _resize(self, width, height) -> bool:
         self._dirty = True
@@ -255,8 +281,7 @@ class Pages(pyxelwidgets.widgets.Paged, Group):
             return True
         return super().input(event)
 
-    def draw(self) -> None:
-        super().draw()
+    def _overlay(self) -> None:
         for index, cell in enumerate(self._cells()):
             self.buffer[cell] = self.current_color if index == self._page else self.selector_color
 
@@ -409,8 +434,7 @@ class Presets(Group):
                 self.store(slot)
         return True
 
-    def draw(self) -> None:
-        super().draw()
+    def _overlay(self) -> None:
         for slot, cell in enumerate(self._cells()):
             if slot == self.preset:
                 color = self.current_color
