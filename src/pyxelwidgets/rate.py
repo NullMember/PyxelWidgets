@@ -5,6 +5,7 @@ time signature. Used by the transport, widgets' ``rate`` and animations.
 """
 
 import fractions
+import functools
 import re
 import typing
 
@@ -19,6 +20,15 @@ _RATE = re.compile(r'^\s*(\d+)\s*(?:/\s*(\d+))?\s*([.tT])?\s*$')
 
 def parse_rate(rate, signature: tuple = (4, 4)) -> fractions.Fraction:
     """Length of ``rate`` in whole notes, e.g. ``'1/8.'`` → 3/16. Raises ValueError."""
+    try:
+        # Asked for on every frame and tick
+        return _parse_rate(rate, tuple(signature))
+    except TypeError:
+        # Unhashable, e.g. a list: not a rate
+        return _parse_rate.__wrapped__(rate, signature)
+
+@functools.lru_cache(maxsize = 256, typed = True)
+def _parse_rate(rate, signature: tuple) -> fractions.Fraction:
     if isinstance(rate, (int, fractions.Fraction)) and not isinstance(rate, bool):
         length = fractions.Fraction(rate)
     elif rate == 'beat':
@@ -53,4 +63,11 @@ def parse_signature(signature) -> tuple:
 
 def quarter_notes(rate, signature: tuple = (4, 4)) -> float:
     """Length of ``rate`` in quarter notes (beats at x/4), e.g. ``'1/8'`` → 0.5."""
+    try:
+        return _quarter_notes(rate, tuple(signature))
+    except TypeError:
+        return float(parse_rate(rate, signature) * 4)
+
+@functools.lru_cache(maxsize = 256, typed = True)
+def _quarter_notes(rate, signature: tuple) -> float:
     return float(parse_rate(rate, signature) * 4)
