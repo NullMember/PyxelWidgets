@@ -71,9 +71,9 @@ class Mapping:
             raise ValueError('a Mapping needs an event to send on, feedback, or both')
         if on is not None:
             names = available(on)
-            for source in message.sources:
-                if source.name not in names:
-                    raise ValueError(f'{on.__name__} has no {source.name!r} for the message (it has {", ".join(names)})')
+            for name in message.needs:
+                if name not in names:
+                    raise ValueError(f'{on.__name__} has no {name!r} for the message (it has {", ".join(names)})')
         self.widget = widget
         self.output = output
         self.message = message
@@ -97,7 +97,13 @@ class Mapping:
         values = sources(event, self.widget, self._last_value)
         if isinstance(values.get('value'), float):
             self._last_value = values['value']
-        self.output.send(self.message.resolve(values))
+        try:
+            message = self.message.resolve(values)
+        except ValueError as error:
+            # A computed field that can't be (ExpressionError is one)
+            print(f'Mapping from {getattr(self.widget, "name", self.widget)}: {error}', flush = True)
+            return
+        self.output.send(message)
 
     def _receive(self, event) -> None:
         values = self.message.match(event.message)
