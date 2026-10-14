@@ -52,6 +52,23 @@ A text value is filled in from the event: ``'pad {x},{y} at {velocity}'``;
 
     Link(pads, print, value = 'pressed {cell}', on = Pressed)
 
+The value can be an ``Expression`` (``pyxelwidgets.expression``) of the
+event's values and other widgets' options, or for text a ``Template``::
+
+    Link(pads, roll, 'column', Expression('x * 4'), on = Pressed)
+    Link(fader, roll, 'column', Expression('round(value * (roll.steps - roll.width))', {'roll': roll}), on = Changed)
+    Link(roll, label, 'text', Template('{column + 1}/{roll.steps}', {'roll': roll}), on = ColumnChanged)
+
+Its result is turned into what the option holds (whole numbers rounded,
+choices by name or index, colors from "#rrggbb"); minimum and maximum clamp
+numbers. An expression that can't be computed for an event is printed and
+changes nothing.
+
+A ``Formula`` keeps an option at what an expression computes, whenever it
+changes (``surface.formula`` creates one updated every frame)::
+
+    Formula(stepper, 'maximum', Expression('roll.steps - roll.width', {'roll': roll}))
+
 Options change through ``target.configure``, which doesn't emit events, so
 links don't trigger each other in loops (Pages emits PageChanged for a new
 page; a link doesn't run again while it is running).
@@ -63,10 +80,14 @@ import operator
 import typing
 
 import pyxelwidgets.color
+import pyxelwidgets.expression
 import pyxelwidgets.mapping
 import pyxelwidgets.message
 
-__all__ = ['Link', 'Condition', 'Choice']
+__all__ = ['Link', 'Condition', 'Choice', 'Formula']
+
+#: Computed link values: evaluated with the event's values
+COMPUTED = (pyxelwidgets.expression.Expression, pyxelwidgets.expression.Template)
 
 #: Comparisons a Condition makes
 OPERATORS = {'==': operator.eq, '!=': operator.ne, '<': operator.lt, '<=': operator.le, '>': operator.gt, '>=': operator.ge}
@@ -135,11 +156,26 @@ CHOOSERS = (Condition, Choice)
 def _short(value):
     return round(value, 3) if isinstance(value, float) else value
 
-def fill_text(template: str, sources: dict) -> str:
-    """``template`` with ``{name}``/``{name+1}`` replaced by event values (unknown ones kept), ``{all}`` by every value."""
+def _every(sources: dict) -> str:
+    return ' '.join(f'{name}={_short(value)}' for name, value in sources.items())
+
+def fill_text(template, sources: dict) -> str:
+    """
+    ``template`` (text or a Template) with its ``{formulas}`` (``{name}``,
+    ``{name+1}``...) computed from event values (those that can't be are
+    kept), ``{all}`` with every value.
+    """
+    if isinstance(template, str):
+        try:
+            template = pyxelwidgets.expression.Template(template)
+        except pyxelwidgets.expression.ExpressionError:
+            return _fill_placeholders(template, sources)
+    return template.evaluate({**sources, 'all': _every(sources)}, keep_unknown = True, show = lambda value: str(_short(value)))
+
+def _fill_placeholders(template: str, sources: dict) -> str:
     def replace(match) -> str:
         if match.group(0) == '{all}':
-            return ' '.join(f'{name}={_short(value)}' for name, value in sources.items())
+            return _every(sources)
         source = pyxelwidgets.message._placeholders(match.group(0))[0]
         if source.name not in sources:
             return match.group(0)
@@ -194,6 +230,13 @@ class Link:
             raise ValueError(f'only numbers and choices can be added to, not {option!r}')
         if change != Link.Change.Toggle and value is None and kind != 'action':
             raise ValueError('a value is needed to set or add')
+        if isinstance(value, COMPUTED):
+            names = pyxelwidgets.mapping.available(on) + (['all'] if isinstance(value, pyxelwidgets.expression.Template) else [])
+            unknown = [name for name in value.free if name not in names]
+            if unknown:
+                raise ValueError(f'{value}: {on.__name__} has no {unknown[0]!r} (it has {", ".join(names)})')
+            if kind == 'other':
+                raise ValueError(f'{option!r} takes a constant, not an expression')
         if isinstance(value, CHOOSERS):
             names = pyxelwidgets.mapping.available(on)
             if value.source.name not in names:
@@ -236,14 +279,23 @@ class Link:
             new = self.apply(current, pyxelwidgets.mapping.sources(event, self.widget))
             if new != current:
                 self.target.configure(**{self.option: new})
+        except pyxelwidgets.expression.ExpressionError as error:
+            print(f'Link from {getattr(self.widget, "name", self.widget)}: {error}', flush = True)
         finally:
             self._running = False
 
     def argument(self, sources: dict):
         """An action's argument from the event's ``sources``."""
         value = self.value.choose(sources) if isinstance(self.value, CHOOSERS) else self.value
-        if isinstance(value, str):
+        if isinstance(value, (str, pyxelwidgets.expression.Template)):
             return fill_text(value, sources)
+        if isinstance(value, pyxelwidgets.expression.Expression):
+            value = value.evaluate(sources)
+            if isinstance(value, (int, float)) and not isinstance(value, bool):
+                bounds = [bound for bound in (self.minimum, self.maximum) if bound is not None]
+                if len(bounds) == 2:
+                    value = min(max(value, min(bounds)), max(bounds))
+            return value
         if not isinstance(value, pyxelwidgets.message.Source):
             return value
         raw = sources[value.name]
@@ -265,6 +317,12 @@ class Link:
             members = list(type(current))
             return members[(members.index(current) + 1) % len(members)]
         given = self.value.choose(sources) if isinstance(self.value, CHOOSERS) else self.value
+        if isinstance(given, pyxelwidgets.expression.Template):
+            given = given.evaluate(sources)
+        elif isinstance(given, pyxelwidgets.expression.Expression):
+            given = given.evaluate(sources)
+            if self.change != Link.Change.Add:
+                given = convert(kind, given, current)
         if self.change == Link.Change.Add:
             if isinstance(given, pyxelwidgets.message.Source):
                 # As the event has it: whole number steps (delta...) or 0.0-1.0
@@ -325,3 +383,75 @@ class Link:
             # Whole numbers for a whole number range, else two decimals
             return str(int(round(value))) if isinstance(low, int) and isinstance(high, int) and (low, high) != (0, 1) else f'{value:.2f}'
         return value
+
+def _hex_color(text: str):
+    digits = text[1:] if text.startswith('#') else ''
+    if len(digits) not in (6, 8):
+        raise ValueError(f'expected a color ("#rrggbb"), got {text!r}')
+    values = [int(digits[i:i + 2], 16) for i in range(0, len(digits), 2)]
+    return pyxelwidgets.color.Color(values[0], values[1], values[2], values[3] / 255 if len(values) == 4 else 1.0)
+
+def convert(kind: str, value, current = None):
+    """An expression's result as an option of ``kind`` holds it (``current``: the option's value, for choices)."""
+    if kind == 'bool':
+        return bool(value)
+    if kind == 'int':
+        if isinstance(value, str) or value is None:
+            raise ValueError(f'a whole number is needed, got {value!r}')
+        return int(round(value))
+    if kind == 'float':
+        if isinstance(value, str) or value is None:
+            raise ValueError(f'a number is needed, got {value!r}')
+        return float(value)
+    if kind == 'str':
+        return value if isinstance(value, str) else pyxelwidgets.expression._text(value)
+    if kind == 'enum':
+        members = list(type(current))
+        if isinstance(value, enum.Enum):
+            return value
+        if isinstance(value, str):
+            for member in members:
+                if member.name == value:
+                    return member
+            raise ValueError(f'unknown choice {value!r} (choices: {", ".join(member.name for member in members)})')
+        return members[min(max(int(value), 0), len(members) - 1)]
+    if kind == 'color':
+        if isinstance(value, pyxelwidgets.color.Color):
+            return value
+        if isinstance(value, str):
+            return _hex_color(value)
+        raise ValueError(f'a color is needed, got {value!r}')
+    return value
+
+class Formula:
+    """
+    Keeps ``option`` of ``target`` at what ``expression`` (an Expression, or
+    a Template for text) computes: ``refresh()`` changes it (through
+    ``configure``) when the result differs. ``error`` says why the last
+    refresh couldn't (and the option stays as it was), else None.
+    """
+
+    def __init__(self, target, option: str, expression) -> None:
+        if option.startswith('_') or not hasattr(target, option):
+            raise ValueError(f'{type(target).__name__} has no option {option!r}')
+        if expression.free:
+            raise ValueError(f'{expression}: unknown name {expression.free[0]!r} (names: {", ".join(expression.names)})')
+        self.target = target
+        self.option = option
+        self.expression = expression
+        self.error = None
+        self._kind = _kind(getattr(target, option))
+
+    def refresh(self) -> bool:
+        """Compute the option again; True if it changed."""
+        current = getattr(self.target, self.option)
+        try:
+            value = convert(self._kind, self.expression.evaluate(), current)
+            if value != current:
+                self.target.configure(**{self.option: value})
+        except (ValueError, TypeError) as error:
+            # ExpressionError included; also a value the option refuses
+            self.error = str(error)
+            return False
+        self.error = None
+        return value != current
