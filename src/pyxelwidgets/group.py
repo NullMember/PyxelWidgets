@@ -124,18 +124,19 @@ class Group(pyxelwidgets.widgets.Widget):
         self._dirty = True
         return True
 
-class Pages(Group):
+class Pages(pyxelwidgets.widgets.Paged, Group):
     """
     A group whose children are pages: only the current ``page`` is shown and
     gets input. An optional ``selector`` strip along one side has a cell per
-    page; pressing one switches to that page. Emits PageChanged.
+    page; pressing one switches to that page. Emits PageChanged, and
+    PageShown (also when pages are added or removed).
 
     Pages usually fill ``content``, the area besides the selector.
     """
 
     emits = (pyxelwidgets.events.PageChanged,)
 
-    actions = {'next': None, 'previous': None}
+    actions = {'next': None, 'previous': None, **pyxelwidgets.widgets.Paged.page_actions}
 
     class Selector(enum.Enum):
         Off     = enum.auto()
@@ -230,6 +231,7 @@ class Pages(Group):
         for index, child in enumerate(self._children):
             child.visible = index == self._page
         self._dirty = True
+        self._page_shown()
 
     def _cells(self) -> list:
         """Selector cell positions, one per page that fits: left to right, or top to bottom."""
