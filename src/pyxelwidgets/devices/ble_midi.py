@@ -185,7 +185,10 @@ class BleMidi(pyxelwidgets.devices.Device):
             raise OSError(f'no Bluetooth adapter {self.adapter + " " if self.adapter else ""}that can advertise (is Bluetooth on? bluetoothctl show)')
         adapter = self._adapter_path = adapters[0]
         if not objects[adapter].get('org.bluez.Adapter1', {}).get('Powered', Variant('b', True)).value:
-            await _call(bus, adapter, 'org.freedesktop.DBus.Properties', 'Set', 'ssv', ['org.bluez.Adapter1', 'Powered', Variant('b', True)])
+            try:
+                await _call(bus, adapter, 'org.freedesktop.DBus.Properties', 'Set', 'ssv', ['org.bluez.Adapter1', 'Powered', Variant('b', True)])
+            except OSError as error:
+                raise OSError(f'couldn\'t turn Bluetooth on: {_blocked() or error}') from None
 
         flags = ['read', 'write-without-response', 'notify']
         if self.secure:
@@ -342,6 +345,24 @@ async def _call(bus, path: str, interface: str, member: str, signature: str = ''
             text = 'BlueZ isn\'t running (sudo systemctl start bluetooth)'
         raise OSError(f'{interface.rsplit(".", 1)[-1]}.{member}: {text}')
     return reply.body
+
+def _blocked() -> str | None:
+    """Why rfkill keeps Bluetooth off, if it does (BlueZ only answers "Failed" then)."""
+    import glob
+    for folder in glob.glob('/sys/class/rfkill/rfkill*'):
+        try:
+            with open(f'{folder}/type') as file:
+                if file.read().strip() != 'bluetooth':
+                    continue
+            with open(f'{folder}/hard') as file:
+                if file.read().strip() == '1':
+                    return 'Bluetooth is blocked by a hardware switch (rfkill)'
+            with open(f'{folder}/soft') as file:
+                if file.read().strip() == '1':
+                    return 'Bluetooth is blocked by rfkill (sudo rfkill unblock bluetooth)'
+        except OSError:
+            continue
+    return None
 
 _INTERFACES = None
 
