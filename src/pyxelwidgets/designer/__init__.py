@@ -163,7 +163,7 @@ def catalog() -> dict:
         schema['widgets'][name]['preview'] = _preview(cls, name)
     return {'widgets': schema['widgets'], 'animations': schema['animations'], 'binding': schema['binding'],
             'devices': devices, 'outputs': outputs, 'events': schema['events'], 'messages': schema['messages'],
-            'link': schema['link'], 'colors': colors}
+            'link': schema['link'], 'expression': schema['expression'], 'colors': colors}
 
 class PreviewDevice(pyxelwidgets.devices.Device):
     """Covers the whole surface so clicks in the browser reach widgets like real pad presses."""
@@ -771,6 +771,9 @@ class Preview:
                     # The page each Pages container shows now (pressing may have changed it)
                     'pages': {name: widget.page for name, widget in self.ui.widgets.items()
                               if isinstance(widget, pyxelwidgets.group.Pages)},
+                    # Options written as formulas that can't be computed now
+                    'formulas': [{'widget': formula.target.name, 'option': formula.option, 'error': formula.error}
+                                 for formula in surface.formulas if formula.error],
                     'hardware': self.hardware_status()}
 
     def input(self, x: int, y: int, velocity: float) -> None:

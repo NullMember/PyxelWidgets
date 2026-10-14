@@ -10,7 +10,7 @@ import { setStatus } from './history.js';
 import { renderBoard, renderOverlay, clamp } from './board.js';
 import { select, selectWidgetNamed, code, renderCode } from './properties.js';
 
-const CLOCK_EVENTS = new Set(['StepPlayed', 'StepEnded', 'RowPlayed', 'ClipQueued', 'ClipStarted', 'ClipStopped', 'PageChanged', 'PageShown']);
+const CLOCK_EVENTS = new Set(['StepPlayed', 'StepEnded', 'RowPlayed', 'ClipQueued', 'ClipStarted', 'ClipStopped', 'PageChanged', 'PageShown', 'ColumnChanged', 'RowChanged']);
 
 export function drawerPrefs() {
   prefs.drawer ||= { open: true, tab: 'events', height: 230, filter: 'all', handlers: false, code: 'loader' };
@@ -132,6 +132,9 @@ function findProblems() {
     if (message.type === 'TrackParameter' && !message.track) {
       problems.push(['warning', `${mapping.widget}: pick the track it controls`, () => selectWidgetNamed(mapping.widget)]);
     }
+  }
+  for (const formula of state.formulas) {
+    problems.push(['warning', `${formula.widget}.${formula.option}: ${formula.error}`, () => selectWidgetNamed(formula.widget)]);
   }
   if (state.hardware.sync?.error) problems.push(['warning', `Sync to a DAW: ${state.hardware.sync.error}`, () => select(null)]);
   const names = new Map(allWidgets().map(({ widget, path }) => [widget.name, { widget, path }]));

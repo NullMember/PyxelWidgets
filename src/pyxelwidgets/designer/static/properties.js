@@ -5,7 +5,7 @@ import { prefs, savePrefs } from './prefs.js';
 import { widgetAt, containerSize, allWidgets, deviceInfo, bindingFields, transportControls, deviceSize,
   isGroup, currentPage, addPage, widgetSelection } from './model.js';
 import { outputsOf, renderOutputs, outputProperties } from './mappings.js';
-import { describeValue } from './links.js';
+import { describeValue, linkOptions } from './links.js';
 import { ruleSummary } from './rules.js';
 import { drawerPrefs } from './drawer.js';
 import { change, flushSync, setStatus } from './history.js';
@@ -93,14 +93,76 @@ export function optionField(target, option, prefix = 'option', apply = null) {
   const value = set ? options[option.name] : option.default;
   const commit = (newValue) => change(() => (apply ? apply(newValue) : setOption(target, option.name, newValue)));
   const id = `${prefix}-${option.name}`;
-  const [control, suggestions] = optionControl(option, value, commit, id);
+  // Widget options can be formulas (text options take {formulas} in the text itself)
+  const formulas = !!state.catalog.widgets[target.type] && !['json', 'point', 'str'].includes(option.kind);
+  const computed = formulas && isFormula(value);
+  const [control, suggestions] = computed ? formulaControl(value, commit, id) : optionControl(option, value, commit, id);
   return [
     // What the option is for (from the constructor's docstring) shows on hover
     el('label', { for: id, class: [set ? 'changed' : '', option.doc ? 'documented' : ''].join(' ').trim(), title: option.doc ? `${option.name}: ${option.doc}` : option.name },
       option.name.replace(/_/g, ' ')),
     el('div', { class: 'control' }, control, suggestions,
+      formulas ? el('button', {
+        class: `link formula${computed ? ' on' : ''}`, id: `${id}-formula`,
+        title: computed ? 'Back to a constant' : 'Compute it from other widgets\' options: a formula such as {roll.steps - roll.width}',
+        onclick: () => commit(computed ? undefined : `{${formulaSeed(option.kind, value)}}`),
+      }, 'ƒ') : null,
       el('button', { class: 'link reset', title: `Reset to ${JSON.stringify(option.default)}`, onclick: () => commit(undefined) }, 'reset')),
   ];
+}
+
+// Text holding one {formula}
+export function isFormula(value) {
+  return typeof value === 'string' && /^\s*\{[^{}]*\}\s*$/.test(value);
+}
+
+// A formula giving what a constant field has now: {8}, {true}, {'Page'}
+export function formulaSeed(kind, value) {
+  if (value == null || value === '') return kind === 'bool' ? 'false' : '0';
+  if (typeof value === 'number' || typeof value === 'boolean') return String(value);
+  return `'${String(value).replace(/'/g, "\\'")}'`;
+}
+
+export const FORMULA_HELP = 'A formula in braces: other widgets\' options (roll.steps - roll.width), self (this widget), '
+  + 'transport (bpm, playing, bar…), numbers, + - * / // %, comparisons, and/or/not, a if test else b, and min, max, round, clamp…';
+
+// A text input for a {formula}, suggesting names it can use: event values (``sources``), widgets' options, the transport
+export function formulaControl(value, commit, id, sources = []) {
+  const input = el('input', {
+    type: 'text', class: 'formula', id, value: value ?? '', list: `${id}-names`, spellcheck: false, title: FORMULA_HELP,
+    onchange: (e) => {
+      const text = e.target.value.trim();
+      commit(text === '' ? undefined : (isFormula(text) ? text : `{${text.replace(/^\{|\}$/g, '')}}`));
+    },
+  });
+  return [input, el('datalist', { id: `${id}-names` }, formulaNames(sources).map((name) => el('option', { value: `{${name}}` })))];
+}
+
+const FORMULA_WORDS = new Set(['and', 'or', 'not', 'if', 'else', 'true', 'false', 'True', 'False', 'none', 'None', 'pi', 'self', 'transport']);
+
+// The event values a formula uses: names that aren't widgets (before a dot), functions or words
+export function formulaSources(text) {
+  const widgets = new Set(allWidgets().map(({ widget }) => widget.name));
+  const bare = text.replace(/'[^']*'|"[^"]*"/g, ' ');
+  const found = [];
+  for (const match of bare.matchAll(/(^|[^.\w])([A-Za-z_]\w*)(?=\s*([.(]?))/g)) {
+    const [, , name, next] = match;
+    if (next || FORMULA_WORDS.has(name) || widgets.has(name)) continue;
+    found.push(name);
+  }
+  return found;
+}
+
+function formulaNames(sources) {
+  const names = [...sources];
+  for (const { widget } of allWidgets()) {
+    if (!/^[A-Za-z_]\w*$/.test(widget.name)) continue;
+    const info = state.catalog.widgets[widget.type];
+    for (const option of linkOptions(widget)) names.push(`${widget.name}.${option.name}`);
+    for (const property of info?.properties || []) names.push(`${widget.name}.${property}`);
+  }
+  for (const name of state.catalog.expression?.transport || []) names.push(`transport.${name}`);
+  return names;
 }
 
 // The input for one option kind (and a datalist of suggestions for rates), with element id `id`

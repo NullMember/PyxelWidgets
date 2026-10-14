@@ -5,9 +5,9 @@ import { trackValueSource } from './drawer.js';
 import { change, setStatus } from './history.js';
 import { render } from './board.js';
 import { learnButton, learnedMessage } from './learn.js';
-import { hardwareDot, connectButton, select, optionField, ADVANCED, group, optionFields } from './properties.js';
+import { hardwareDot, connectButton, select, optionField, ADVANCED, group, optionFields, isFormula, formulaControl, formulaSources } from './properties.js';
 
-export const INTEGER_SOURCES = new Set(['x', 'y', 'cell', 'note', 'step', 'row', 'page', 'delta']);
+export const INTEGER_SOURCES = new Set(['x', 'y', 'cell', 'note', 'step', 'row', 'column', 'page', 'delta']);
 
 export function outputsOf(layout = state.layout) {
   return layout.outputs || [];
@@ -160,6 +160,7 @@ export function messageSources(message) {
   const visit = (value) => {
     if (value && typeof value === 'object' && !Array.isArray(value)) found.push(value.source);
     else if (Array.isArray(value)) value.forEach(visit);
+    else if (isFormula(value)) found.push(...formulaSources(value));
     else if (typeof value === 'string') for (const match of value.matchAll(/\{(\w+)/g)) found.push(match[1]);
   };
   for (const [key, value] of Object.entries(message || {})) if (key !== 'type') visit(value);
@@ -172,15 +173,24 @@ export function sourceNames(on) {
   return [...new Set([...Object.values(state.catalog.events).flatMap((event) => event.sources), 'state', 'text'])];
 }
 
-// A field's editor: a constant or one of the event's values (with its range or offset)
-function valueEditor(id, value, field, sources, commit) {
+// A field's editor: a constant, one of the event's values (with its range or offset) or (with ``formulas``) a formula
+function valueEditor(id, value, field, sources, commit, formulas = false) {
   const isSource = value && typeof value === 'object';
   const textual = field.kind === 'text' || field.kind === 'arg';
+  formulas = formulas && field.kind !== 'text';
+  const isExpression = formulas && isFormula(value);
   const mode = el('select', {
-    id, title: 'A constant, or a value from the event',
-    onchange: (e) => commit(e.target.value === '' ? (field.range ? field.range[0] : (textual ? '' : 0)) : { source: e.target.value }),
+    id, title: formulas ? 'A constant, a value from the event, or a formula ({note + 12}, {velocity * 100}: values as the event has them)' : 'A constant, or a value from the event',
+    onchange: (e) => {
+      if (e.target.value === '\u0000expr') {
+        const first = ['value', 'velocity', 'note', 'x', 'cell', 'step'].find((name) => sources.includes(name)) || sources[0] || '0';
+        return commit(`{${first}}`);
+      }
+      commit(e.target.value === '' ? (field.range ? field.range[0] : (textual ? '' : 0)) : { source: e.target.value });
+    },
   },
-  el('option', { value: '', selected: !isSource }, 'constant'),
+  el('option', { value: '', selected: !isSource && !isExpression }, 'constant'),
+  formulas ? el('option', { value: '\u0000expr', selected: isExpression }, 'formula…') : null,
   sources.map((name) => el('option', { value: name, selected: isSource && value.source === name }, name)),
   // A source the event doesn't have (e.g. after changing the event)
   isSource && !sources.includes(value.source) ? el('option', { value: value.source, selected: true }, `${value.source} (not available)`) : null);
@@ -194,6 +204,10 @@ function valueEditor(id, value, field, sources, commit) {
     },
   });
   let detail;
+  if (isExpression) {
+    const [input, names] = formulaControl(value, (text) => commit(text ?? (field.range ? field.range[0] : 0)), `${id}-formula`, sources);
+    return el('div', { class: 'control value' }, mode, input, names);
+  }
   if (!isSource) {
     detail = el('input', {
       type: textual ? 'text' : 'number', class: textual ? '' : 'small', value: value ?? '',
@@ -444,7 +458,7 @@ export function mappingCard(widget, mapping, index) {
         el('label', {}, 'arguments'),
         el('div', { class: 'args' },
           args.map((arg, i) => el('div', { class: 'arg' },
-            valueEditor(id(`arg${i}`), arg, { kind: 'arg' }, sources, (value) => edit(() => { mapping.message.args[i] = value; })),
+            valueEditor(id(`arg${i}`), arg, { kind: 'arg' }, sources, (value) => edit(() => { mapping.message.args[i] = value; }), !!mapping.on),
             el('button', { class: 'link', title: 'Remove', onclick: () => edit(() => { mapping.message.args.splice(i, 1); }) }, '×'))),
           el('button', { class: 'link', onclick: () => edit(() => { mapping.message.args = [...args, { source: sources.includes('value') ? 'value' : sources[0] || 'value' }]; }) }, '+ argument')),
       ];
@@ -488,7 +502,7 @@ export function mappingCard(widget, mapping, index) {
         el('div', { class: 'control picker' }, picker, input),
       ];
     }
-    return [el('label', { for: id(field.name) }, field.name), valueEditor(id(field.name), value, field, sources, setField(field.name))];
+    return [el('label', { for: id(field.name) }, field.name), valueEditor(id(field.name), value, field, sources, setField(field.name), !!mapping.on)];
   });
   return el('div', { class: 'mapping' },
     el('div', { class: 'mapping-head' },

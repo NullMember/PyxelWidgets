@@ -4,7 +4,7 @@ import { state, $, el } from './core.js';
 import { allWidgets } from './model.js';
 import { INTEGER_SOURCES, sourceNames } from './mappings.js';
 import { change } from './history.js';
-import { optionControl } from './properties.js';
+import { optionControl, isFormula, formulaSeed, formulaControl } from './properties.js';
 
 export function setLinks(layout, links) {
   if (links.length) layout.links = links;
@@ -174,14 +174,23 @@ function linkValueEditor(link, option, id, edit) {
   const change = link.change || 'Set';
   const sources = linkSources(link.on, option.kind, change);
   const isCondition = !!(link.value && typeof link.value === 'object' && 'if' in link.value);
+  // Text options take {formulas} in their text: a constant there
+  const isExpression = option.kind !== 'str' && isFormula(link.value);
   const isChoice = !!(link.value && typeof link.value === 'object' && 'choose' in link.value);
   const isSource = !isCondition && !isChoice && link.value && typeof link.value === 'object' && !Array.isArray(link.value);
   const constant = change === 'Add' ? 1 : option.action ? 0 : layoutValue(widgetNamed(link.target), option);
   const mode = el('select', {
-    id: id('value'), title: 'A constant, a value from the event, a condition choosing between two values, or a list an event value picks from',
+    id: id('value'), title: 'A constant, a value from the event, a formula, a condition choosing between two values, or a list an event value picks from',
     onchange: (e) => edit(() => {
       delete link.min;
       delete link.max;
+      if (e.target.value === '\u0000expr') {
+        // Starts from an event value: {value}, {x}..., else the constant
+        const all = sourceNames(link.on).filter((name) => name !== 'text');
+        const first = ['value', 'x', 'cell', 'step', 'column', 'row', 'page'].find((name) => all.includes(name));
+        link.value = `{${first || formulaSeed(option.kind, constant)}}`;
+        return;
+      }
       if (e.target.value === '\u0000if') {
         // Compares an event value (a whole number one first: cell, x...) with a constant
         const all = sourceNames(link.on).filter((name) => name !== 'text');
@@ -202,7 +211,8 @@ function linkValueEditor(link, option, id, edit) {
       if (change === 'Set' && option.kind === 'str' && !INTEGER_SOURCES.has(e.target.value)) Object.assign(link, { min: 0, max: 100 });
     }),
   },
-  el('option', { value: '', selected: !isSource && !isCondition && !isChoice }, 'constant'),
+  el('option', { value: '', selected: !isSource && !isCondition && !isChoice && !isExpression }, 'constant'),
+  option.kind !== 'str' ? el('option', { value: '\u0000expr', selected: isExpression }, 'formula…') : null,
   el('option', { value: '\u0000if', selected: isCondition }, 'condition…'),
   el('option', { value: '\u0000choose', selected: isChoice }, 'list…'),
   sources.map((name) => el('option', { value: name, selected: isSource && link.value.source === name }, name)),
@@ -215,6 +225,10 @@ function linkValueEditor(link, option, id, edit) {
     }),
   });
   let detail = null;
+  if (isExpression) {
+    const [input, names] = formulaControl(link.value, (value) => edit(() => { link.value = value ?? constant; }), id('formula'), sourceNames(link.on));
+    return el('div', { class: 'control value' }, mode, input, names);
+  }
   if (isCondition) {
     return el('div', { class: 'control value condition' }, mode, conditionEditor(link, option, id, edit, change));
   }

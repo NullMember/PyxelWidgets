@@ -292,6 +292,13 @@ details.more > .fields { margin-top: 6px; }
 .fields .control > input[type=text], .fields .control > select { flex: 1; width: 100%; }
 .fields .reset { visibility: hidden; }
 .fields .changed + .control .reset { visibility: visible; }
+/* Formulas: computed values, shown in a code font; the ƒ button turns a field into one and back */
+input.formula { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 11px; color: var(--accent); flex: 1; min-width: 0; }
+.control.value:has(input.formula) > select { flex: 0 0 auto; width: auto; }
+.control.value > input.formula { flex: 1 1 60%; }
+button.link.formula { font-style: italic; font-family: Georgia, serif; font-size: 13px; opacity: 0.4; }
+button.link.formula:hover, button.link.formula.on { opacity: 1; }
+button.link.formula.on { color: var(--accent); }
 .quad { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; margin-bottom: 12px; }
 .quad label { display: flex; flex-direction: column; gap: 2px; color: var(--muted); font-size: 11px; min-width: 0; }
 .quad input { width: 100%; }

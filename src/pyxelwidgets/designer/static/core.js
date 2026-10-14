@@ -26,6 +26,8 @@ export const state = {
   lastEvent: 0,
   playing: false,
   hardware: { devices: [], outputs: [] },
+  // Options written as formulas that can't be computed now: {widget, option, error}
+  formulas: [],
   dragType: null, // a palette widget type being dragged onto the grid
   zoom: 1, // pad size relative to the size that fits the window
   pan: { x: 0, y: 0 }, // the board moved from the middle of the stage, in pixels

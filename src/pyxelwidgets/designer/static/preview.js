@@ -25,6 +25,11 @@ export async function poll() {
     state.pages = frame.pages || {};
     if ($('sync-status')) $('sync-status').textContent = syncStatus();
     $('position').textContent = frame.position ? `bar ${frame.position}` : '';
+    if (JSON.stringify(frame.formulas || []) !== JSON.stringify(state.formulas)) {
+      state.formulas = frame.formulas || [];
+      renderToolbar();
+      renderDrawer();
+    }
     if (JSON.stringify(frame.hardware) !== JSON.stringify(state.hardware)) {
       state.hardware = frame.hardware;
       renderToolbar();
