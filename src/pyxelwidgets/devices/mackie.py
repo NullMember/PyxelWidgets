@@ -888,6 +888,12 @@ class HUI(_ControlSurface):
     switches, the jog wheel, and feedback for LEDs, faders, V-Pot rings,
     meters, the timecode, the strips' 4 character names (``Name 1``-``8``)
     and the main display (``Display``). Answers the host's pings.
+
+    Pro Tools ignores fader moves on strips that aren't touched, so ``Fader n``
+    touches its strip (``Fader Touch n``) first and lets go ``touch_hold``
+    seconds after the last move: a gliding Fader (``slew``) sends a move every
+    frame, so the touch lasts as long as the glide. Touches sent as commands
+    are kept until released by a command.
     """
 
     model = 'HUI'
@@ -902,12 +908,21 @@ class HUI(_ControlSurface):
     }
     header = [0x00, 0x00, 0x66, 0x05, 0x00]
 
+    #: Seconds after a strip's last fader move until its touch is let go (longer than a frame)
+    touch_hold = 0.15
+
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
         self._zone = None
         self._fader_high = [0] * 8
         self.display = [' '] * 80
         self.timecode = [' '] * 8
+        # Switches are two messages: one thread at a time
+        self._send_lock = threading.RLock()
+        # Strip → when its touch is let go (None: touched by a command)
+        self._touched = {}
+        self._touch_changed = threading.Condition(self._send_lock)
+        self._touch_thread = None
 
     def send(self, message) -> None:
         if not isinstance(message, pyxelwidgets.message.Command):
@@ -915,19 +930,61 @@ class HUI(_ControlSurface):
         if self._midi_output is None:
             return
         name, value = message.name, message.value
-        if name in _HUI_SWITCHES:
-            zone, port = _HUI_SWITCHES[name]
-            self.send_control_change(0x0F, zone)
-            self.send_control_change(0x2F, (0x40 if value > 0 else 0x00) | port)
-        elif name.startswith('Fader ') and name[6:].isdigit() and 1 <= int(name[6:]) <= 8:
-            strip = int(name[6:]) - 1
-            position = int(round(min(1.0, max(0.0, float(value))) * 16383))
-            self.send_control_change(strip, position >> 7)
-            self.send_control_change(0x20 + strip, position & 0x7F)
-        elif name in _HUI_RELATIVE:
-            steps = _steps(value)
-            if steps:
-                self.send_control_change(_HUI_RELATIVE[name], 0x40 | steps if steps > 0 else -steps)
+        with self._send_lock:
+            if name in _HUI_SWITCHES:
+                zone, port = _HUI_SWITCHES[name]
+                if port == 0 and zone < 8:
+                    # Fader Touch n: kept until a command lets go
+                    if value > 0:
+                        self._touched[zone] = None
+                    else:
+                        self._touched.pop(zone, None)
+                self._switch(zone, port, value > 0)
+            elif name.startswith('Fader ') and name[6:].isdigit() and 1 <= int(name[6:]) <= 8:
+                strip = int(name[6:]) - 1
+                self._touch(strip)
+                position = int(round(min(1.0, max(0.0, float(value))) * 16383))
+                self.send_control_change(strip, position >> 7)
+                self.send_control_change(0x20 + strip, position & 0x7F)
+            elif name in _HUI_RELATIVE:
+                steps = _steps(value)
+                if steps:
+                    self.send_control_change(_HUI_RELATIVE[name], 0x40 | steps if steps > 0 else -steps)
+
+    def _switch(self, zone: int, port: int, on: bool) -> None:
+        self.send_control_change(0x0F, zone)
+        self.send_control_change(0x2F, (0x40 if on else 0x00) | port)
+
+    def _touch(self, strip: int) -> None:
+        """Touch the strip before a fader move, or keep it touched longer."""
+        if strip in self._touched and self._touched[strip] is None:
+            return
+        if strip not in self._touched:
+            self._switch(strip, 0, True)
+        self._touched[strip] = time.monotonic() + self.touch_hold
+        if self._touch_thread is None:
+            self._touch_thread = threading.Thread(target = self._release_touches, name = 'HUITouch', daemon = True)
+            self._touch_thread.start()
+        self._touch_changed.notify()
+
+    def on_disconnect(self) -> None:
+        with self._send_lock:
+            for strip in list(self._touched):
+                self._switch(strip, 0, False)
+            self._touched.clear()
+        super().on_disconnect()
+
+    def _release_touches(self) -> None:
+        with self._send_lock:
+            while True:
+                now = time.monotonic()
+                for strip, until in list(self._touched.items()):
+                    if until is not None and until <= now:
+                        del self._touched[strip]
+                        if self._midi_output is not None:
+                            self._switch(strip, 0, False)
+                waits = [until - now for until in self._touched.values() if until is not None and until > now]
+                self._touch_changed.wait(min(waits) if waits else None)
 
     def decode(self, midi: list) -> None:
         if not midi:
@@ -937,7 +994,8 @@ class HUI(_ControlSurface):
             self._sysex(midi[1:-1] if midi[-1] == 0xF7 else midi[1:])
         elif status == 0x90 and midi[1:] == [0x00, 0x00]:
             # Ping: answer to stay online
-            self.send_note_on(0x00, 0x7F)
+            with self._send_lock:
+                self.send_note_on(0x00, 0x7F)
         elif status == 0xB0 and len(midi) == 3:
             self._control(midi[1], midi[2])
         elif status == 0xA0 and len(midi) == 3:
