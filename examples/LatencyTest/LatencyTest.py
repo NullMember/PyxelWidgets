@@ -30,6 +30,7 @@ import argparse
 import json
 import random
 import statistics
+import sys
 import threading
 import time
 import urllib.request
@@ -145,6 +146,9 @@ def summary(name: str, values: list) -> str:
 
 TRIGGER_NOTE = 1
 TRIGGER_CHANNEL = 15
+# Control Changes on the trigger channel: frames per second, thread switch interval (0.1 ms steps)
+FPS_CONTROL = 20
+SWITCH_CONTROL = 21
 
 def jitter(steps: list, bpm: float) -> list:
     """How far each of seq1's steps arrived from a grid of 1/16 notes (the median one at 0)."""
@@ -205,6 +209,8 @@ def main() -> None:
     parser.add_argument('--bluetooth-name', default = 'NullMIDI', help = '--serve: the Bluetooth MIDI name')
     parser.add_argument('--insecure', action = 'store_true', help = '--serve: Bluetooth without pairing')
     parser.add_argument('--virtual', metavar = 'PORT', help = '--serve: a virtual MIDI port instead of Bluetooth (to try it on one computer)')
+    parser.add_argument('--pi-fps', type = int, help = '--bluetooth: the frame rate --serve renders at from now on (1-127)')
+    parser.add_argument('--switch', type = float, help = '--bluetooth: Python\'s thread switch interval on the Pi, ms (0.1-12.7; default 5)')
     parser.add_argument('--bench', action = 'store_true', help = 'time the heavy layout\'s widgets and frames on this computer')
     parser.add_argument('--bluetooth', action = 'store_true',
                         help = 'on this computer, with --serve running on the Pi: send the trigger note, time the probe\'s answer')
@@ -316,6 +322,7 @@ def serve(arguments) -> None:
             grid.set_button(x, y, 0.0)
 
     # Like a MIDI input thread: the trigger presses the probe, waiting for the surface lock if it has to
+    settings = {'fps': arguments.fps}
     presses = queue.Queue()
     counts = {'triggers': 0, 'probes': 0}
     probe = ui['probe']
@@ -326,6 +333,14 @@ def serve(arguments) -> None:
     threading.Thread(target = pressing, daemon = True).start()
     def received(event) -> None:
         midi = event.message.to_midi()
+        if len(midi) == 3 and midi[0] == 0xB0 | (TRIGGER_CHANNEL - 1) and midi[1] in (FPS_CONTROL, SWITCH_CONTROL):
+            # Settings changed while connected (each restart needs a new Bluetooth connection)
+            if midi[1] == FPS_CONTROL:
+                settings['fps'] = max(1, midi[2])
+            else:
+                sys.setswitchinterval(max(1, midi[2]) / 10000)
+            print(f'fps {settings["fps"]}, switch interval {sys.getswitchinterval() * 1000:g} ms', flush = True)
+            return
         if len(midi) == 2 and midi[0] == 0xC0 | (TRIGGER_CHANNEL - 1):
             # Program Change 1 plays the transport, 0 stops it (so one connection covers both)
             (app.transport.play if midi[1] else app.transport.stop)()
@@ -342,6 +357,7 @@ def serve(arguments) -> None:
             time.sleep(10)
             print(f'CPU {100 * (time.process_time() - cpu) / (time.perf_counter() - wall):.0f}%, '
                   f'{counts["triggers"]} triggers, {counts["probes"]} probe presses, '
+                  f'{getattr(out, "dropped", 0)} dropped, '
                   f'{getattr(out, "status_text", "")}', flush = True)
     threading.Thread(target = report, daemon = True).start()
     if arguments.play:
@@ -349,7 +365,16 @@ def serve(arguments) -> None:
     print(f'Serving the {arguments.layout} layout at {arguments.fps:g} fps'
           f'{", playing" if arguments.play else ""}; Ctrl+C to stop', flush = True)
     try:
-        app.run()
+        # App.run's loop, with a frame rate that can change
+        next_frame = time.perf_counter()
+        while True:
+            app.step()
+            next_frame += 1 / settings['fps']
+            delay = next_frame - time.perf_counter()
+            if delay > 0:
+                time.sleep(delay)
+            else:
+                next_frame = time.perf_counter()
     except KeyboardInterrupt:
         pass
     finally:
@@ -364,7 +389,11 @@ def bluetooth(arguments, listener: Listener) -> None:
     if not ports:
         raise SystemExit(f'no MIDI output like {arguments.port!r}: {midi.get_ports()}')
     midi.open_port(ports[0])
-    # The Pi's transport plays during the test with --play
+    # The Pi's transport plays during the test with --play; --pi-fps and --switch change its settings
+    if arguments.pi_fps:
+        midi.send_message([0xB0 | (TRIGGER_CHANNEL - 1), FPS_CONTROL, min(127, arguments.pi_fps)])
+    if arguments.switch:
+        midi.send_message([0xB0 | (TRIGGER_CHANNEL - 1), SWITCH_CONTROL, min(127, max(1, round(arguments.switch * 10)))])
     midi.send_message([0xC0 | (TRIGGER_CHANNEL - 1), 1 if arguments.play else 0])
     time.sleep(1.0)
     round_trips, lost = [], 0
