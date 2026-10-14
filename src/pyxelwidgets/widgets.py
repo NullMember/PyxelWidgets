@@ -4104,8 +4104,8 @@ class Stepper(ValueWidget):
     """
     A whole number from ``minimum`` to ``maximum`` (``number``) changed a step
     at a time: the first pad (left or bottom) goes down, the last up, the
-    pads between show where it is (brighter the higher it is) and jump there.
-    Holding a step pad repeats.
+    pads between show where it is and jump there: each is dim, then bright,
+    with both neighbours dim between them. Holding a step pad repeats.
     ``value`` is the number as 0.0-1.0; link Changed with ``minimum``/``maximum``
     as the range to get the number.
     """
@@ -4216,10 +4216,19 @@ class Stepper(ValueWidget):
             # The ends step, dim where they can't go further
             colors[0] = self.active_color * (0.15 if self.number == self.minimum and not self.wrap else 0.4)
             colors[-1] = self.active_color * (0.15 if self.number == self.maximum and not self.wrap else 0.4)
-            # The pad showing the number is brighter the higher it is
             between = pads - 2
-            place = 0 if between == 1 else round((self.number - self.minimum) / span * (between - 1))
-            colors[1 + place] = self.active_color * (0.45 + 0.55 * self._value)
+            if between == 1:
+                colors[1] = self.active_color * (0.2 + 0.8 * self._value)
+            else:
+                # Each pad between is dim then bright, both neighbours dim
+                # in between: pad k is state 3k (dim) and 3k + 1 (bright)
+                state = round((self.number - self.minimum) / span * (3 * between - 2))
+                pad, part = divmod(state, 3)
+                dim = self.active_color * 0.3
+                if part == 2:
+                    colors[1 + pad] = colors[2 + pad] = dim
+                else:
+                    colors[1 + pad] = self.active_color if part else dim
         for index, color in enumerate(colors):
             if self.direction == Stepper.Direction.Horizontal:
                 self.buffer[index, :] = color
