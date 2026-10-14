@@ -1541,12 +1541,15 @@ class HUI(pyxelwidgets.devices.plugins.PluginParameters, _ControlSurface):
                 switches, knobs = self._read_page()
                 shown = {}
                 for kind, names in (('switch', switches), ('knob', knobs)):
+                    # The whole row still there from the page before: Pro Tools keeps the knobs a
+                    # page doesn't use (one name repeated is another parameter: its labels repeat,
+                    # e.g. Channel Strip's high-mid Q is "LmQ" like the low-mid one)
+                    kept = any(names) and names == previous.get(kind)
+                    shown[kind] = names
                     for column, name in enumerate(names):
                         if not name:
                             continue
-                        shown[(kind, column)] = name
-                        if previous.get((kind, column)) == name:
-                            # Still there from the page before (Pro Tools keeps knobs a page doesn't use)
+                        if kept:
                             again[(page, kind, column)] = name
                         else:
                             found.append((name, page, kind, column))
