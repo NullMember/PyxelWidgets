@@ -85,6 +85,9 @@ class BleMidi(pyxelwidgets.devices.Device):
         self._characteristic = None
         self._registered = []
         self._pending = []
+        # Sockets BlueZ passes MIDI through when it acquires the characteristic (no D-Bus call per packet)
+        self._write_socket = None
+        self._notify_socket = None
         # Notification payloads: MTU minus 3 (BlueZ tells the MTU with reads and writes)
         self._payload = 20
         self._received_state = _ParseState()
@@ -172,7 +175,16 @@ class BleMidi(pyxelwidgets.devices.Device):
         if self._characteristic is None or not self.listening:
             return
         for packet in ble_packets(pending, int(time.monotonic() * 1000), self._payload):
-            self._characteristic.notify(packet)
+            if self._notify_socket is not None:
+                try:
+                    self._notify_socket.send(packet)
+                except BlockingIOError:
+                    # BlueZ is behind: like a lost notification
+                    pass
+                except OSError:
+                    self._released('notify')
+            else:
+                self._characteristic.notify(packet)
 
     # BlueZ
 
@@ -180,10 +192,11 @@ class BleMidi(pyxelwidgets.devices.Device):
         from dbus_fast import BusType, Variant
         from dbus_fast.aio import MessageBus
         interfaces = _interfaces()
+        # Unix fds: BlueZ takes sockets for MIDI (AcquireWrite, AcquireNotify)
         if self.bus_address is not None:
-            bus = await MessageBus(bus_address = self.bus_address).connect()
+            bus = await MessageBus(bus_address = self.bus_address, negotiate_unix_fd = True).connect()
         else:
-            bus = await MessageBus(bus_type = BusType.SYSTEM).connect()
+            bus = await MessageBus(bus_type = BusType.SYSTEM, negotiate_unix_fd = True).connect()
         self._bus = bus
         objects = (await _call(bus, '/', 'org.freedesktop.DBus.ObjectManager', 'GetManagedObjects'))[0]
         adapters = sorted(path for path, found in objects.items()
@@ -234,6 +247,8 @@ class BleMidi(pyxelwidgets.devices.Device):
             except OSError:
                 pass
         self._registered = []
+        self._released('write')
+        self._released('notify')
         self._characteristic = None
         bus.disconnect()
 
@@ -254,6 +269,58 @@ class BleMidi(pyxelwidgets.devices.Device):
         self.listening = on
         if not on:
             self._pending = []
+
+    def _acquire(self, kind: str, options: dict) -> tuple:
+        """
+        A socket pair for BlueZ (AcquireWrite, AcquireNotify): it passes what
+        is written to the characteristic through one ('write'), and notifies
+        what we send through the other ('notify'). Returns BlueZ's end's fd
+        and the MTU.
+        """
+        import socket
+        self._options(options)
+        self._released(kind)
+        try:
+            ours, theirs = socket.socketpair(socket.AF_UNIX, socket.SOCK_SEQPACKET)
+        except OSError:
+            # Packets kept apart too (macOS has no SEQPACKET pairs: the tests' fake BlueZ)
+            ours, theirs = socket.socketpair(socket.AF_UNIX, socket.SOCK_DGRAM)
+        ours.setblocking(False)
+        setattr(self, f'_{kind}_socket', ours)
+        # Read: written packets, or BlueZ closing its end (disconnected, notifications off)
+        self._loop.add_reader(ours, self._readable, kind, ours)
+        # Closed once dbus-fast has sent the fd with the reply (BlueZ has its own copy then);
+        # until then BlueZ closing its end isn't noticed, right after it is
+        self._loop.call_later(1.0, theirs.close)
+        if kind == 'notify':
+            self._notifying(True)
+        mtu = options.get('mtu')
+        return theirs.fileno(), mtu.value if mtu is not None else self._payload + 3
+
+    def _readable(self, kind: str, ours) -> None:
+        try:
+            packet = ours.recv(1024)
+        except BlockingIOError:
+            return
+        except OSError:
+            packet = b''
+        if not packet:
+            if getattr(self, f'_{kind}_socket') is ours:
+                self._released(kind)
+            return
+        if kind == 'write':
+            self._written(packet)
+
+    def _released(self, kind: str) -> None:
+        ours = getattr(self, f'_{kind}_socket')
+        if ours is None:
+            return
+        setattr(self, f'_{kind}_socket', None)
+        if self._loop is not None:
+            self._loop.remove_reader(ours)
+        ours.close()
+        if kind == 'notify':
+            self._notifying(False)
 
 # Packets
 
@@ -466,6 +533,23 @@ def _interfaces():
         def WriteValue(self, value: 'ay', options: 'a{sv}'):
             self._owner._options(options)
             self._owner._written(bytes(value))
+
+        # Their presence tells BlueZ it may pass MIDI through sockets instead of these calls
+        @dbus_property(access = PropertyAccess.READ)
+        def WriteAcquired(self) -> 'b':
+            return self._owner._write_socket is not None
+
+        @dbus_property(access = PropertyAccess.READ)
+        def NotifyAcquired(self) -> 'b':
+            return self._owner._notify_socket is not None
+
+        @method()
+        def AcquireWrite(self, options: 'a{sv}') -> 'hq':
+            return list(self._owner._acquire('write', options))
+
+        @method()
+        def AcquireNotify(self, options: 'a{sv}') -> 'hq':
+            return list(self._owner._acquire('notify', options))
 
         @method()
         def StartNotify(self):
