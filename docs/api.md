@@ -286,6 +286,16 @@ PageChanged(widget: typing.Any, page: int)
 
 PageChanged(widget: 'typing.Any', page: 'int')
 
+### `PageShown` (WidgetEvent)
+
+```python
+PageShown(widget: typing.Any, page: int, first: bool, last: bool)
+```
+
+The widget shows `page` (from 0) of its pages, whatever changed it: a
+press, a link, an action or following the playing step. `first` and
+`last` tell whether it's at an end, e.g. to dim page buttons.
+
 ### `RowPlayed` (WidgetEvent)
 
 ```python
@@ -1164,6 +1174,16 @@ An enum.
 
 Members: `Single`, `BoostCut`, `Wrap`, `Spread`, `Collapse`.
 
+### `Paged`
+
+Mixin for widgets showing one `page` of their `pages` at a time: emits
+PageShown when the page shown changes, or the number of pages does, and
+has the actions `next_page`/`previous_page`, which stop at the ends.
+Widgets call `_page_shown()` after anything that may change them.
+
+- **`next_page()`**: Show the next page; nothing on the last.
+- **`previous_page()`**: Show the previous page; nothing on the first.
+
 ### `Clock` (Enum)
 
 What plays a timed widget (Sequencer, Tracker, ClipLauncher) every `rate`.
@@ -1194,7 +1214,7 @@ from the transport or from a clock of the widget's own.
 - **`stop()`**
 - **`toggle()`**
 
-### `Sequencer` (Timed, Velocity, Widget)
+### `Sequencer` (Timed, Paged, Velocity, Widget)
 
 ```python
 Sequencer(x: int, y: int, width: int, height: int, *, steps: int | None = None, length: int | None = None, rate: rate.Rate = '1/16', step: int = 0, page: int = 0, follow: bool = True, direction: Sequencer.Direction = Sequencer.Direction.Forward, note: int = 36, swing: float = 50.0, gate: float = 0.5, gate_random: float = 0.0, current_color: Color = Colors.Lime, current_active_color: Color = Colors.Red, **kwargs)
@@ -1252,7 +1272,7 @@ The order steps play in: forward, backward, forward then back (PingPong), or at 
 
 Members: `Forward`, `Backward`, `PingPong`, `Random`.
 
-### `PianoRoll` (Timed, Velocity, Widget)
+### `PianoRoll` (Timed, Paged, Velocity, Widget)
 
 ```python
 PianoRoll(x: int = 0, y: int = 0, width: int = 1, height: int = 1, *, steps: int = 16, rate: rate.Rate = '1/16', step: int = 0, page: int = 0, follow: bool = True, octave: int = 4, row: int = 0, scale: Scale = Scale.Major, root: Root = Root.C, active_color: Color = Colors.Orange, root_color: Color = Color(32, 0, 48), current_color: Color = Color(0, 48, 0), current_active_color: Color = Colors.White, **kwargs)
@@ -1308,7 +1328,7 @@ Shows a picture, or animates through `frames` changing every `rate`
 - **`render(time: animation.Time | None = None)`**
 - **`draw()`**
 
-### `Tracker` (Timed, Velocity, Widget)
+### `Tracker` (Timed, Paged, Velocity, Widget)
 
 ```python
 Tracker(x: int = 0, y: int = 0, width: int = 1, height: int = 1, *, bars: int = 64, pages: int = 1, rate: rate.Rate = '1/16', step: int = 0, page: int = 0, bar: int = 0, follow: bool = True, note: int = 36, current_color: Color = Colors.Aqua, current_active_color: Color = Colors.Fuchsia, **kwargs)
@@ -1739,7 +1759,7 @@ Children never know their group: it notices changes by rendering them.
 - **`render(time = None)`**
 - **`draw()`**
 
-### `Pages` (Group)
+### `Pages` (Paged, Group)
 
 ```python
 Pages(x: int = 0, y: int = 0, width: int = 1, height: int = 1, *, page: int = 0, selector: Pages.Selector = Pages.Selector.Top, current_color: Color = Colors.White, selector_color: Color = Color(48, 48, 48), propagation: Propagation = Propagation.Stop, **kwargs)
@@ -1747,7 +1767,8 @@ Pages(x: int = 0, y: int = 0, width: int = 1, height: int = 1, *, page: int = 0,
 
 A group whose children are pages: only the current `page` is shown and
 gets input. An optional `selector` strip along one side has a cell per
-page; pressing one switches to that page. Emits PageChanged.
+page; pressing one switches to that page. Emits PageChanged, and
+PageShown (also when pages are added or removed).
 
 Pages usually fill `content`, the area besides the selector.
 
