@@ -1080,7 +1080,9 @@ class HUI(pyxelwidgets.devices.plugins.PluginParameters, _ControlSurface):
         elif number == 0x2C and self._zone is not None:
             name = _HUI_PORTS.get((self._zone, value & 0x0F))
             if name is not None:
-                self.leds[name] = 1.0 if value & 0x40 else 0.0
+                with self._display:
+                    self.leds[name] = 1.0 if value & 0x40 else 0.0
+                    self._display.notify_all()
                 self._received(name, self.leds[name])
         elif number < 0x08:
             self._fader_high[number] = value
@@ -1233,9 +1235,12 @@ class HUI(pyxelwidgets.devices.plugins.PluginParameters, _ControlSurface):
 
     def _to_list(self) -> None:
         """Show the inserts list (leaving a plug-in's parameters)."""
-        if self._list() is None and self.leds.get('Param Insert'):
+        if self._list() is not None:
+            return
+        # Param Insert lights a moment after a plug-in's header shows
+        if self.leds.get('Param Insert') or self._view == 'parameters' or self._top().startswith('Page'):
             self._press('Param Insert')
-            self._wait(lambda: self._list() is not None)
+            self._wait(lambda: self._list() is not None and not self.leds.get('Param Insert'))
             self._settled()
 
     def _list_track(self, strip: int) -> str | None:
@@ -1379,6 +1384,10 @@ class HUI(pyxelwidgets.devices.plugins.PluginParameters, _ControlSurface):
         self._press(f'Param Select {1 if slot == 5 else slot}')
         if not self._wait(lambda: (self._header() or (0, 0, '', 0))[3] == slot):
             return None
+        # Pro Tools lights Param Insert and shows the knobs a moment after the header: its
+        # switches would still be the list's until then
+        self._view = 'parameters'
+        self._wait(lambda: self.leds.get('Param Insert') == 1.0)
         self._settled()
         header = self._header()
         if header is not None:
