@@ -981,6 +981,8 @@ class HUI(pyxelwidgets.devices.plugins.PluginParameters, _ControlSurface):
         self._focus = None
         self._opened = None
         self._pages = 1
+        # The inserts list's header last shown: ('1-4' or '5', track name)
+        self._last_list = None
         # Switch values last received: (track, plugin, label) → 1.0 or 0.0
         self._states = {}
 
@@ -1155,9 +1157,19 @@ class HUI(pyxelwidgets.devices.plugins.PluginParameters, _ControlSurface):
         return (int(match[1]), int(match[2]), match[3], int(match[4])) if match else None
 
     def _list(self):
-        """('1-4' or '5', track name) while the inserts list shows, else None."""
+        """
+        ('1-4' or '5', track name) while the inserts list shows, else None.
+        Pro Tools may leave a plug-in's page header on the top line when the
+        list comes back (it only redraws what it thinks changed, and the header
+        passes): then the list's last header counts, while Param Insert is off.
+        """
         match = _HUI_LIST.match(self._top())
-        return (match[1], match[2]) if match else None
+        if match:
+            self._last_list = (match[1], match[2])
+            return self._last_list
+        if self._view == 'list' and not self.leds.get('Param Insert'):
+            return self._last_list
+        return None
 
     def _top_changed(self) -> list:
         """
@@ -1235,13 +1247,19 @@ class HUI(pyxelwidgets.devices.plugins.PluginParameters, _ControlSurface):
 
     def _to_list(self) -> None:
         """Show the inserts list (leaving a plug-in's parameters)."""
-        if self._list() is not None:
+        if self._view != 'parameters' and self._list() is not None:
             return
         # Param Insert lights a moment after a plug-in's header shows
         if self.leds.get('Param Insert') or self._view == 'parameters' or self._top().startswith('Page'):
-            self._press('Param Insert')
-            self._wait(lambda: self._list() is not None and not self.leds.get('Param Insert'))
-            self._settled()
+            self._back_to_list()
+
+    def _back_to_list(self) -> None:
+        """Press Param Insert to leave a plug-in's parameters for the inserts list."""
+        self._press('Param Insert')
+        self._wait(lambda: self.leds.get('Param Insert') == 0.0)
+        with self._display:
+            self._view = 'list'
+        self._settled()
 
     def _list_track(self, strip: int) -> str | None:
         """Show the inserts list of the track on ``strip``; its name, None if Pro Tools showed none."""
@@ -1254,8 +1272,7 @@ class HUI(pyxelwidgets.devices.plugins.PluginParameters, _ControlSurface):
             if self._list() is not None or attempt:
                 break
             # A plug-in's parameters show (Insert does nothing there): back to the list first
-            self._press('Param Insert')
-            self._wait(lambda: self._list() is not None)
+            self._back_to_list()
         shown = self._list()
         self._view = 'list' if shown is not None else None
         return shown[1] if shown is not None else None
