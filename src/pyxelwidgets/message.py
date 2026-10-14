@@ -26,6 +26,7 @@ fields take whatever is received (they carry nothing back).
 """
 
 import dataclasses
+import functools
 import re
 import typing
 
@@ -78,6 +79,10 @@ class Source:
             return float(value)
         return min(1.0, max(0.0, (value - low) / (high - low)))
 
+@functools.lru_cache(maxsize = None)
+def _field_names(cls) -> tuple:
+    return tuple(field.name for field in dataclasses.fields(cls))
+
 def _computed(value) -> bool:
     return not isinstance(value, Source) and callable(getattr(value, 'evaluate', None))
 
@@ -120,12 +125,18 @@ class Message:
     ranges: typing.ClassVar[dict] = {}
 
     def _fields(self) -> list:
-        return [field.name for field in dataclasses.fields(self)]
+        return list(_field_names(type(self)))
 
     def resolve(self, sources: dict) -> 'Message':
         """The concrete message for an event's ``sources``."""
-        return dataclasses.replace(self, **{name: _resolve(getattr(self, name), sources, self.ranges.get(name))
-                                            for name in self._fields()})
+        values, constant = {}, True
+        for name in _field_names(type(self)):
+            value = getattr(self, name)
+            if isinstance(value, Source) or _computed(value):
+                value, constant = _resolve(value, sources, self.ranges.get(name)), False
+            values[name] = value
+        # Messages are immutable: one without sources is its own concrete message
+        return self if constant else type(self)(**values)
 
     def match(self, message: 'Message') -> dict | None:
         """The values ``message`` carries if it is this message (constants equal), else None."""
