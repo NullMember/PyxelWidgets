@@ -3417,6 +3417,14 @@ The user running it needs the system bus's permission for BlueZ (on
 Raspberry Pi OS and Debian: the `bluetooth` group,
 `sudo usermod -aG bluetooth $USER`, then log in again).
 
+bluetoothd's own MIDI plugin (built into Raspberry Pi OS's) drops a Mac or an
+iPad 30 s after it connects; start bluetoothd without it (`-P midi`):
+
+    sudo systemctl edit bluetooth    # [Service] ExecStart= then ExecStart=/usr/libexec/bluetooth/bluetoothd -P midi
+    sudo systemctl restart bluetooth
+
+`warning` says so while the plugin runs.
+
 ### `BleMidi` (Device)
 
 ```python
