@@ -4104,7 +4104,8 @@ class Stepper(ValueWidget):
     """
     A whole number from ``minimum`` to ``maximum`` (``number``) changed a step
     at a time: the first pad (left or bottom) goes down, the last up, the
-    pads between show where it is and jump there. Holding a step pad repeats.
+    pads between show where it is (brighter the higher it is) and jump there.
+    Holding a step pad repeats.
     ``value`` is the number as 0.0-1.0; link Changed with ``minimum``/``maximum``
     as the range to get the number.
     """
@@ -4215,11 +4216,10 @@ class Stepper(ValueWidget):
             # The ends step, dim where they can't go further
             colors[0] = self.active_color * (0.15 if self.number == self.minimum and not self.wrap else 0.4)
             colors[-1] = self.active_color * (0.15 if self.number == self.maximum and not self.wrap else 0.4)
+            # The pad showing the number is brighter the higher it is
             between = pads - 2
-            if between == 1:
-                colors[1] = self.active_color * (0.2 + 0.8 * self._value)
-            else:
-                colors[1 + round((self.number - self.minimum) / span * (between - 1))] = self.active_color
+            place = 0 if between == 1 else round((self.number - self.minimum) / span * (between - 1))
+            colors[1 + place] = self.active_color * (0.45 + 0.55 * self._value)
         for index, color in enumerate(colors):
             if self.direction == Stepper.Direction.Horizontal:
                 self.buffer[index, :] = color
