@@ -23,6 +23,7 @@ carries; widgets show it without emitting events, so nothing is sent back.
 
 import contextlib
 import dataclasses
+import functools
 
 import pyxelwidgets.events
 
@@ -38,19 +39,21 @@ def available(event_type: type) -> list:
         names += ['delta', 'value_x', 'value_y']
     return names
 
+@functools.lru_cache(maxsize = None)
+def _value_names(event_type: type) -> tuple:
+    return tuple(field.name for field in dataclasses.fields(event_type) if field.name not in ('widget', 'device'))
+
 def sources(event, widget = None, last_value = None) -> dict:
     """The values a message can take from ``event``."""
     found = {}
-    for field in dataclasses.fields(event):
-        if field.name in ('widget', 'device'):
-            continue
-        value = getattr(event, field.name)
+    for name in _value_names(type(event)):
+        value = getattr(event, name)
         if isinstance(value, bool):
             value = 1.0 if value else 0.0
-        if isinstance(value, tuple) and field.name == 'value' and len(value) == 2:
+        if isinstance(value, tuple) and name == 'value' and len(value) == 2:
             found['value_x'], found['value_y'] = value
         elif isinstance(value, (int, float, str)):
-            found[field.name] = value
+            found[name] = value
     widget = widget if widget is not None else getattr(event, 'widget', None)
     if 'x' in found and 'y' in found and widget is not None and hasattr(widget, 'rect'):
         found['cell'] = found['x'] + found['y'] * widget.rect.w
