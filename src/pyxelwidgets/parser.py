@@ -70,6 +70,15 @@ number: ``transport.tempo``, ``transport.tempo_add``), or ``debug``, which
 writes its ``value``, a text filled in from the event (``"pad {x}"``,
 ``{all}``: every value; the default), to ``Parser.debug``.
 
+Expressions (``pyxelwidgets.expression``): a widget option, a link value
+or a message field can be a formula in braces instead of a constant, e.g.
+``"maximum": "{roll.steps - roll.width}"``. Names are widgets (their options
+after a dot), ``self`` (options: the widget itself), ``transport`` (``bpm``,
+``playing``...) and, in links and messages, the event's values (``value``,
+``x``...). A widget option keeps up with what it's computed from (a
+``Formula``, refreshed every frame); text options take text with formulas
+in it (``"Step {roll.column + 1}"``, ``{{``/``}}`` for braces).
+
 Load a layout and attach behaviour by widget name::
 
     ui = pyxelwidgets.parser.load('layout.json')
@@ -98,6 +107,7 @@ import pyxelwidgets.binding
 import pyxelwidgets.buffer
 import pyxelwidgets.color
 import pyxelwidgets.events
+import pyxelwidgets.expression
 import pyxelwidgets.group
 import pyxelwidgets.link
 import pyxelwidgets.mapping
@@ -359,6 +369,12 @@ def linkable(cls) -> list:
     geometry = [{'name': name, 'kind': 'int'} for name in ('x', 'y', 'width', 'height')]
     return geometry + [option for option in option_schema(cls) if option['kind'] != 'frames']
 
+def readable(cls) -> list:
+    """Properties of a widget class that aren't options (``number``, ``pages``...): expressions read them too."""
+    options = {option['name'] for option in linkable(cls)}
+    return sorted(name for name in dir(cls) if not name.startswith('_') and name not in options
+                  and isinstance(inspect.getattr_static(cls, name, None), property))
+
 def schema() -> dict:
     """Widget types with their options (kind, default, enum choices), for building editors."""
     widgets = {}
@@ -373,6 +389,8 @@ def schema() -> dict:
             'linkable': linkable(cls),
             # Methods links can call: None, or the kind of their argument
             'actions': dict(cls.actions),
+            # What else expressions can read ({stepper.number}, {roll.pages})
+            'properties': readable(cls),
         }
     events = {event.__name__: {'doc': _doc(event), 'sources': pyxelwidgets.mapping.available(event)}
               for cls in widget_types().values() for event in cls.events()}
@@ -383,7 +401,9 @@ def schema() -> dict:
             'link': {'changes': {name: sorted(kinds) if kinds else None for name, kinds in LINK_CHANGES.items()},
                      'sources': sorted(LINK_SOURCES),
                      'actions': {**{name: None for name in ACTIONS}, **{name: 'float' for name in VALUE_ACTIONS}, 'debug': 'text'},
-                     'operators': list(pyxelwidgets.link.OPERATORS)}}
+                     'operators': list(pyxelwidgets.link.OPERATORS)},
+            'expression': {'functions': list(pyxelwidgets.expression.FUNCTIONS),
+                           'transport': ['bpm', 'playing', 'bar', 'beat', 'beats']}}
 
 def message_schema() -> dict:
     """Mapping message types with their fields: name, default (encoded) and range (whole numbers) or kind."""
@@ -417,6 +437,8 @@ def message_schema() -> dict:
     return messages
 
 def _encode_field(value):
+    if isinstance(value, (pyxelwidgets.expression.Expression, pyxelwidgets.expression.Template)):
+        return str(value)
     if isinstance(value, pyxelwidgets.message.Source):
         encoded = {'source': value.name}
         for key, default in (('min', None), ('max', None), ('offset', 0)):
@@ -435,7 +457,12 @@ def message_to_json(message: pyxelwidgets.message.Message) -> dict:
                      for field in dataclasses.fields(message) if field.name != 'flash'})
     return data
 
-def _decode_field(value, where: str, field_range = None):
+def _decode_field(value, where: str, field_range = None, names = None):
+    if names is not None and pyxelwidgets.expression.is_expression(value):
+        try:
+            return pyxelwidgets.expression.Expression(value, names)
+        except pyxelwidgets.expression.ExpressionError as error:
+            raise LayoutError(f'{where}: {error}') from None
     if isinstance(value, dict):
         name = value.get('source')
         unknown = set(value) - {'source', 'min', 'max', 'offset'}
@@ -454,8 +481,11 @@ def _decode_field(value, where: str, field_range = None):
         raise LayoutError(f'{where}: must be a whole number from {field_range[0]} to {field_range[1]}, got {value!r}')
     return value
 
-def message_from_json(data, where: str = 'message') -> pyxelwidgets.message.Message:
-    """A mapping message from layout JSON; raises LayoutError naming the field."""
+def message_from_json(data, where: str = 'message', expressions: dict | None = None) -> pyxelwidgets.message.Message:
+    """
+    A mapping message from layout JSON; raises LayoutError naming the field.
+    ``expressions`` (what names stand for: widgets by name...) allows ``"{formula}"`` in fields that aren't text.
+    """
     cls = MESSAGES.get(data.get('type')) if isinstance(data, dict) else None
     if cls is None:
         kind = data.get('type') if isinstance(data, dict) else data
@@ -466,7 +496,7 @@ def message_from_json(data, where: str = 'message') -> pyxelwidgets.message.Mess
             raise LayoutError(f'{where}.address: must start with "/", got {address!r}')
         if not isinstance(args, list):
             raise LayoutError(f'{where}.args: must be a list')
-        return cls(address, *[_decode_field(arg, f'{where}.args[{i}]') for i, arg in enumerate(args)])
+        return cls(address, *[_decode_field(arg, f'{where}.args[{i}]', None, expressions) for i, arg in enumerate(args)])
     names = [field.name for field in dataclasses.fields(cls) if field.name != 'flash']
     fields = {}
     for key, value in data.items():
@@ -481,7 +511,8 @@ def message_from_json(data, where: str = 'message') -> pyxelwidgets.message.Mess
                 raise LayoutError(f'{where}.{key}: must be true or false, got {value!r}')
             fields[key] = value
             continue
-        fields[key] = _decode_field(value, f'{where}.{key}', cls.ranges.get(key))
+        # Text fields (names, addresses, keys) keep their {x+1} placeholders
+        fields[key] = _decode_field(value, f'{where}.{key}', cls.ranges.get(key), None if isinstance(default, str) else expressions)
     if cls is pyxelwidgets.message.Command and not isinstance(fields.get('name', 'Play'), str):
         raise LayoutError(f'{where}.name: must be a command name')
     try:
@@ -489,13 +520,33 @@ def message_from_json(data, where: str = 'message') -> pyxelwidgets.message.Mess
     except ValueError as error:
         raise LayoutError(f'{where}: {error}') from None
 
-def _options(cls, options: dict, where: str) -> dict:
+def _formula(value, kind: str):
+    """The formula an option ``value`` of ``kind`` holds (text: any with a formula in it), or None."""
+    if kind in ('frames', 'json'):
+        return None
+    if kind == 'str':
+        return pyxelwidgets.expression.parse(value)
+    return pyxelwidgets.expression.Expression(value) if pyxelwidgets.expression.is_expression(value) else None
+
+def _options(cls, options: dict, where: str, formulas: dict | None = None) -> dict:
+    """
+    ``cls``'s constructor options from layout ``options``; with ``formulas``,
+    options that are formulas go there (by name, as their text) instead.
+    """
     parameters = {parameter.name: parameter for parameter in _parameters(cls)}
     kwargs = {}
     for key, value in (options or {}).items():
         if key not in parameters:
             raise LayoutError(f'{where}.options: {cls.__name__} has no option {key!r} (options: {", ".join(parameters)})')
         kind, extra = _kind(parameters[key])
+        if formulas is not None:
+            try:
+                formula = _formula(value, kind)
+            except pyxelwidgets.expression.ExpressionError as error:
+                raise LayoutError(f'{where}.options.{key}: {error}') from None
+            if formula is not None:
+                formulas[key] = value
+                continue
         try:
             if kind == 'color':
                 value = text_to_color(value)
@@ -559,6 +610,27 @@ def build_device(device: dict, where: str = 'device'):
         instance.connect()
     return instance
 
+def _formula_text(text: str, kind: str) -> bool:
+    """Whether a link value written as text is a formula: one ``{...}``, or for text options any with formulas in it."""
+    if kind == 'str':
+        try:
+            return pyxelwidgets.expression.parse(text) is not None
+        except pyxelwidgets.expression.ExpressionError:
+            return False
+    return pyxelwidgets.expression.is_expression(text)
+
+class _Transport:
+    """``transport`` in expressions: the surface's transport, once it has one (App, the designer)."""
+
+    def __init__(self, surface) -> None:
+        self._surface = surface
+
+    def __getattr__(self, name: str):
+        transport = self._surface.transport
+        if name.startswith('_') or transport is None:
+            raise AttributeError(name)
+        return getattr(transport, name)
+
 class Parser():
     """
     Builds a Surface from a layout (a path, JSON text or a dict). ``surface``,
@@ -594,10 +666,14 @@ class Parser():
         self.devices = []
         self.widgets = {}
         self.surface = None
+        # Widget options that are formulas: (widget name, option, text, where)
+        self._formulas = []
         self.get_surface()
         if devices:
             self.get_devices()
         self.get_widgets()
+        #: The Formulas keeping widget options computed
+        self.formulas = self.formulate()
         self.keep_presets()
         self.binding_settings()
         self.bindings = self.bind(self.devices) if devices else []
@@ -644,8 +720,9 @@ class Parser():
                 raise LayoutError(f'{path}: x, y, width and height must be integers') from None
             if geometry[2] < 1 or geometry[3] < 1:
                 raise LayoutError(f'{path}: width and height must be at least 1')
+            formulas = {}
             try:
-                widget = cls(*geometry, name = name, **_options(cls, item.get('options'), path))
+                widget = cls(*geometry, name = name, **_options(cls, item.get('options'), path, formulas))
             except (ValueError, TypeError) as error:
                 if isinstance(error, LayoutError):
                     raise
@@ -653,11 +730,66 @@ class Parser():
             if item.get('animation') is not None:
                 widget.animation = self._animation(item['animation'], f'{path}.animation')
             self.widgets[name] = widget
+            self._formulas += [(name, key, text, f'{path}.options.{key}') for key, text in formulas.items()]
             parent.add(widget)
             if item.get('widgets'):
                 if not isinstance(widget, pyxelwidgets.group.Group):
                     raise LayoutError(f'{path}.widgets: only a Group can contain widgets')
                 self._add_widgets(widget, item['widgets'], f'{path}.widgets')
+
+    def names(self) -> dict:
+        """What names in expressions stand for: widgets by name, and ``transport`` (the surface's, once it has one)."""
+        return {**self.widgets, 'transport': _Transport(self.surface)}
+
+    def _expression(self, text, where: str, *, kind: str = 'float', event: type | None = None, names: dict | None = None):
+        """
+        ``text`` as an Expression (or for text options a Template), its names
+        checked: widgets' options must exist, other names must be ``event``'s values.
+        """
+        names = names if names is not None else self.names()
+        try:
+            if kind == 'str':
+                computed = pyxelwidgets.expression.parse(text, names) or text
+            else:
+                computed = pyxelwidgets.expression.Expression(text, names)
+        except pyxelwidgets.expression.ExpressionError as error:
+            raise LayoutError(f'{where}: {error}') from None
+        if isinstance(computed, str):
+            return computed
+        self._check_names(computed, where, event)
+        return computed
+
+    def _check_names(self, computed, where: str, event: type | None) -> None:
+        values = pyxelwidgets.mapping.available(event) if event is not None else []
+        if isinstance(computed, pyxelwidgets.expression.Template):
+            values = values + ['all']
+        for name in computed.free:
+            if name not in values:
+                known = [*values, *(name for name in computed.names if name.isidentifier())]
+                raise LayoutError(f'{where}: {computed}: unknown name {name!r} (names: {", ".join(known)})')
+        for name, option in computed.references():
+            widget = computed.names.get(name) if name not in values else None
+            if isinstance(widget, pyxelwidgets.widgets.Widget):
+                found = getattr(widget, option, None) if not option.startswith('_') else None
+                if not hasattr(widget, option) or (callable(found) and not isinstance(found, enum.Enum)):
+                    raise LayoutError(f'{where}: {computed}: {name} ({type(widget).__name__}) has no option {option!r}')
+
+    def formulate(self) -> list:
+        """Create the Formulas of widget options written as formulas (``self`` is the widget)."""
+        created = []
+        for name, option, text, where in self._formulas:
+            widget = self.widgets[name]
+            kind = pyxelwidgets.link._kind(getattr(widget, option))
+            computed = self._expression(text, where, kind = kind, names = {**self.names(), 'self': widget})
+            try:
+                created.append(self.surface.formula(widget, option, computed))
+            except ValueError as error:
+                raise LayoutError(f'{where}: {error}') from None
+        return created
+
+    def formula_settings(self) -> list:
+        """The widget options written as formulas: (widget name, option, Expression or Template)."""
+        return [(formula.target.name, formula.option, formula.expression) for formula in self.formulas]
 
     def keep_presets(self) -> None:
         """Write what Presets groups store (with ``save`` on) into ``path``, the layout file."""
@@ -851,7 +983,7 @@ class Parser():
                 event = events[on]
             elif not feedback:
                 raise LayoutError(f'{where}: needs "on", "feedback" or both')
-            message = message_from_json(entry.get('message'), f'{where}.message')
+            message = message_from_json(entry.get('message'), f'{where}.message', self.names())
             cls = outputs[output]
             if type(message).__name__ not in cls.messages:
                 raise LayoutError(f'{where}.message.type: {cls.model} takes {", ".join(cls.messages)}, not {type(message).__name__}')
@@ -863,6 +995,13 @@ class Parser():
                 for source in message.sources:
                     if source.name not in names:
                         raise LayoutError(f'{where}.message: {on} has no {source.name!r} (it has {", ".join(names)})')
+            for key, value in vars(message).items():
+                for index, part in enumerate(value if isinstance(value, tuple) else (value,)):
+                    if isinstance(part, pyxelwidgets.expression.Expression):
+                        at = f'{where}.message.args[{index}]' if isinstance(value, tuple) else f'{where}.message.{key}'
+                        if event is None:
+                            raise LayoutError(f'{at}: a formula is computed when sending; this message is only received')
+                        self._check_names(part, at, event)
             settings.append((widget, event, output, message, feedback))
         return settings
 
@@ -918,7 +1057,13 @@ class Parser():
                 raise LayoutError(f'{where}.value: debug takes a text, e.g. "pad {{x}} at {{velocity}}", got {value!r}')
             if 'min' in entry or 'max' in entry:
                 raise LayoutError(f'{where}: debug has no range')
-            setting['value'] = value or f'{event.__name__} {{all}}'
+            value = value or f'{event.__name__} {{all}}'
+            try:
+                # Widgets' options too ({roll.column}); anything else stays as written
+                value = pyxelwidgets.expression.Template(value, self.names())
+            except pyxelwidgets.expression.ExpressionError:
+                pass
+            setting['value'] = value
             return
         if isinstance(action, str) and action.startswith('transport.'):
             if target is not None:
@@ -944,10 +1089,14 @@ class Parser():
         numbers = int if kind == 'int' else (int, float)
         what = 'a whole number' if kind == 'int' else 'a number'
         def number(given, at):
+            if pyxelwidgets.expression.is_expression(given):
+                return self._expression(given, at, kind = kind, event = event)
             if isinstance(given, bool) or not isinstance(given, numbers):
                 raise LayoutError(f'{at}: must be {what}, got {given!r}')
             return given
-        if isinstance(value, dict) and 'if' in value:
+        if pyxelwidgets.expression.is_expression(value):
+            value = self._expression(value, f'{where}.value', kind = kind, event = event)
+        elif isinstance(value, dict) and 'if' in value:
             value = self._link_condition(value, event, f'{where}.value', lambda given, at: number(given, at))
         elif isinstance(value, dict) and 'choose' in value:
             value = self._link_choice(value, event, f'{where}.value', lambda given, at: number(given, at))
@@ -978,13 +1127,20 @@ class Parser():
         if kinds is not None and kind not in kinds:
             raise LayoutError(f'{where}.change: {change} works on {" and ".join(sorted(kinds))} options, {option!r} is {kind}')
         value = entry.get('value')
+        computed = isinstance(value, str) and _formula_text(value, kind)
         if change == 'Toggle':
             if value is not None:
                 raise LayoutError(f'{where}.value: Toggle takes no value')
         elif value is None:
             raise LayoutError(f'{where}.value: needed to {change}')
+        elif computed:
+            if kind not in LINK_SOURCES:
+                raise LayoutError(f'{where}.value: {option!r} ({kind}) takes a constant')
+            value = self._expression(value, f'{where}.value', kind = kind if change == 'Set' else 'float', event = event)
         elif isinstance(value, dict) and ('if' in value or 'choose' in value):
             def decode(given, at):
+                if isinstance(given, str) and _formula_text(given, kind):
+                    return self._expression(given, at, kind = kind if change == 'Set' else 'float', event = event)
                 if change == 'Add':
                     if isinstance(given, bool) or not isinstance(given, (int, float)) or (kind != 'float' and not isinstance(given, int)):
                         raise LayoutError(f'{at}: Add takes a {"number" if kind == "float" else "whole number"}, got {given!r}')
