@@ -31,6 +31,8 @@ iPad 30 s after it connects; start bluetoothd without it (``-P midi``)::
 """
 
 import asyncio
+import collections
+import errno
 import platform
 import threading
 import time
@@ -60,6 +62,8 @@ class BleMidi(pyxelwidgets.devices.Device):
     timeout = 10.0
     #: The D-Bus to find BlueZ on (None: the system bus); tests pass their own
     bus_address = None
+    #: Notification packets kept while BlueZ is behind
+    queue_limit = 1000
 
     def __init__(self, *, bluetooth_name: str = '', adapter: str = '', secure: bool = False, **kwargs):
         """
@@ -84,7 +88,13 @@ class BleMidi(pyxelwidgets.devices.Device):
         self._adapter_path = None
         self._characteristic = None
         self._registered = []
+        # MIDI sent from other threads until the loop flushes it
         self._pending = []
+        self._pending_lock = threading.Lock()
+        # Notification packets BlueZ hasn't taken yet
+        self._outgoing = collections.deque()
+        #: Notifications given up because BlueZ stopped taking them (more than ``queue_limit`` waiting)
+        self.dropped = 0
         # Sockets BlueZ passes MIDI through when it acquires the characteristic (no D-Bus call per packet)
         self._write_socket = None
         self._notify_socket = None
@@ -160,31 +170,56 @@ class BleMidi(pyxelwidgets.devices.Device):
         loop = self._loop
         if loop is None or not self.listening:
             return
-        try:
-            loop.call_soon_threadsafe(self._queue, list(midi))
-        except RuntimeError:
-            pass
-
-    def _queue(self, midi: list) -> None:
-        if not self._pending:
-            self._loop.call_soon(self._flush)
-        self._pending.append(midi)
+        with self._pending_lock:
+            first = not self._pending
+            self._pending.append(list(midi))
+        if first:
+            # The loop is woken once for everything sent until it flushes (one packet when it fits)
+            try:
+                loop.call_soon_threadsafe(self._flush)
+            except RuntimeError:
+                pass
 
     def _flush(self) -> None:
-        pending, self._pending = self._pending, []
+        with self._pending_lock:
+            pending, self._pending = self._pending, []
         if self._characteristic is None or not self.listening:
             return
-        for packet in ble_packets(pending, int(time.monotonic() * 1000), self._payload):
-            if self._notify_socket is not None:
-                try:
-                    self._notify_socket.send(packet)
-                except BlockingIOError:
-                    # BlueZ is behind: like a lost notification
-                    pass
-                except OSError:
-                    self._released('notify')
-            else:
+        packets = ble_packets(pending, int(time.monotonic() * 1000), self._payload)
+        if self._notify_socket is None:
+            for packet in packets:
                 self._characteristic.notify(packet)
+            return
+        waiting = not self._outgoing
+        self._outgoing.extend(packets)
+        if len(self._outgoing) > self.queue_limit:
+            # BlueZ stopped taking them: the oldest go
+            for _ in range(len(self._outgoing) - self.queue_limit):
+                self._outgoing.popleft()
+                self.dropped += 1
+        if waiting:
+            self._drain()
+
+    def _drain(self) -> None:
+        """Send queued notifications while BlueZ takes them; the rest when its socket has room again."""
+        sock = self._notify_socket
+        while self._outgoing and sock is not None:
+            try:
+                sock.send(self._outgoing[0])
+            except BlockingIOError:
+                # bluetoothd is behind (a socket holds a few packets): never lose a NoteOff
+                self._loop.add_writer(sock, self._drain)
+                return
+            except OSError as error:
+                if error.errno == errno.ENOBUFS:
+                    # Full the macOS way (the tests' datagram sockets): no writable signal, try again soon
+                    self._loop.call_later(0.005, self._drain)
+                    return
+                self._released('notify')
+                return
+            self._outgoing.popleft()
+        if sock is not None:
+            self._loop.remove_writer(sock)
 
     # BlueZ
 
@@ -268,7 +303,8 @@ class BleMidi(pyxelwidgets.devices.Device):
     def _notifying(self, on: bool) -> None:
         self.listening = on
         if not on:
-            self._pending = []
+            with self._pending_lock:
+                self._pending = []
 
     def _acquire(self, kind: str, options: dict) -> tuple:
         """
@@ -318,8 +354,10 @@ class BleMidi(pyxelwidgets.devices.Device):
         setattr(self, f'_{kind}_socket', None)
         if self._loop is not None:
             self._loop.remove_reader(ours)
+            self._loop.remove_writer(ours)
         ours.close()
         if kind == 'notify':
+            self._outgoing.clear()
             self._notifying(False)
 
 # Packets
