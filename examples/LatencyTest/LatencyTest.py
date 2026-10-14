@@ -15,6 +15,7 @@ Without the designer (stop it first: it holds the Bluetooth output), all over Bl
 
     python LatencyTest.py --serve --layout heavy --play     # on the Pi
     python examples/LatencyTest/LatencyTest.py --bluetooth  # here: NoteOn 1 on channel 15 presses the probe
+    python examples/LatencyTest/LatencyTest.py --bluetooth --play   # the Pi's transport plays meanwhile
 
 The Pi plays the test layout like ``pyxelwidgets run`` (an App rendering at
 ``--fps`` onto a stand-in grid device) and prints its CPU use every 10 s.
@@ -325,6 +326,11 @@ def serve(arguments) -> None:
     threading.Thread(target = pressing, daemon = True).start()
     def received(event) -> None:
         midi = event.message.to_midi()
+        if len(midi) == 2 and midi[0] == 0xC0 | (TRIGGER_CHANNEL - 1):
+            # Program Change 1 plays the transport, 0 stops it (so one connection covers both)
+            (app.transport.play if midi[1] else app.transport.stop)()
+            print('transport', 'playing' if midi[1] else 'stopped', flush = True)
+            return
         if len(midi) == 3 and midi[0] & 0x0F == TRIGGER_CHANNEL - 1 and midi[1] == TRIGGER_NOTE:
             counts['triggers'] += 1
             presses.put(1.0 if midi[0] & 0xF0 == 0x90 and midi[2] > 0 else 0.0)
@@ -358,6 +364,9 @@ def bluetooth(arguments, listener: Listener) -> None:
     if not ports:
         raise SystemExit(f'no MIDI output like {arguments.port!r}: {midi.get_ports()}')
     midi.open_port(ports[0])
+    # The Pi's transport plays during the test with --play
+    midi.send_message([0xC0 | (TRIGGER_CHANNEL - 1), 1 if arguments.play else 0])
+    time.sleep(1.0)
     round_trips, lost = [], 0
     start_steps = len(listener.steps)
     try:
