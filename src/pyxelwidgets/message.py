@@ -17,6 +17,12 @@ received from the other software, returning the values it carries (e.g.
 Values: ``velocity``, ``value``, ``pressure``, ``state``... are 0.0-1.0 and are
 scaled to a field's range (``min``/``max`` narrow it); ``x``, ``y``, ``cell``,
 ``note``, ``step``, ``delta``... are whole numbers, moved by ``offset``.
+
+A field can also be computed: anything with ``evaluate(sources)`` and
+``free`` (the event values it needs), e.g. a ``pyxelwidgets.expression.Expression``
+such as ``{note + 12}`` or ``{velocity * 100}`` (event values as the event
+has them; the result is rounded and clamped to the field's range). Computed
+fields take whatever is received (they carry nothing back).
 """
 
 import dataclasses
@@ -29,7 +35,7 @@ __all__ = ['Source', 'Message', 'MidiMessage', 'NoteOn', 'NoteOff', 'ControlChan
            'Hotkey', 'Key', 'TypeText', 'MouseMove', 'MouseButton', 'MouseClick', 'Scroll', 'KEY_NAMES', 'parse_keys']
 
 #: Sources that are whole numbers; the others are 0.0-1.0 (``text`` is a string)
-INTEGER_SOURCES = frozenset({'x', 'y', 'cell', 'note', 'step', 'row', 'page', 'delta'})
+INTEGER_SOURCES = frozenset({'x', 'y', 'cell', 'note', 'step', 'row', 'column', 'page', 'delta'})
 
 @dataclasses.dataclass(frozen = True)
 class Source:
@@ -72,7 +78,17 @@ class Source:
             return float(value)
         return min(1.0, max(0.0, (value - low) / (high - low)))
 
+def _computed(value) -> bool:
+    return not isinstance(value, Source) and callable(getattr(value, 'evaluate', None))
+
 def _resolve(value, sources: dict, field_range):
+    if _computed(value):
+        result = value.evaluate(sources)
+        if field_range is not None:
+            if isinstance(result, str):
+                raise ValueError(f'{value}: a number is needed, got {result!r}')
+            result = int(min(field_range[1], max(field_range[0], round(result))))
+        return result
     if not isinstance(value, Source):
         return value
     low, high = field_range or (None, None)
@@ -83,6 +99,8 @@ def _resolve(value, sources: dict, field_range):
 
 def _recover(template, value, found: dict, field_range) -> bool:
     """Match one field: a constant must be equal, a Source stores what it carries in ``found``."""
+    if _computed(template):
+        return True
     if isinstance(template, Source):
         low, high = field_range or (None, None)
         if template.name == 'delta' and not isinstance(value, str):
@@ -122,6 +140,13 @@ class Message:
     @property
     def sources(self) -> list:
         return [value for value in vars(self).values() if isinstance(value, Source)]
+
+    @property
+    def needs(self) -> list:
+        """Names of the event values it takes: its sources' and its computed fields'."""
+        values = [value for field in vars(self).values() for value in (field if isinstance(field, tuple) else (field,))]
+        return list(dict.fromkeys([source.name for source in self.sources]
+                                  + [name for value in values if _computed(value) for name in value.free]))
 
 # MIDI
 
