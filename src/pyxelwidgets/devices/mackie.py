@@ -943,9 +943,11 @@ class HUI(pyxelwidgets.devices.plugins.PluginParameters, _ControlSurface):
     header_time = 3.0
     #: Seconds to wait for a blinking insert slot's name (the selected slot blinks)
     blink_time = 1.5
-    #: SCROLL ticks to the next page of parameters, and between insert slots 1-4 and 5
+    #: SCROLL ticks to the next page of parameters, and between insert slots 1-4 and 5-8
     page_ticks = 9
     list_ticks = 18
+    #: Seconds Pro Tools may take to switch the inserts list between slots 1-4 and 5-8
+    list_time = 2.0
     #: The most banks of tracks a scan goes through
     most_pages = 64
 
@@ -984,6 +986,8 @@ class HUI(pyxelwidgets.devices.plugins.PluginParameters, _ControlSurface):
         self._pages = 1
         # The inserts list's header last shown: ('1-4' or '5', track name)
         self._last_list = None
+        # Messages writing the top line (Pro Tools writes a header again even when it's the same text)
+        self._top_writes = 0
         # Switch values last received: (track, plugin, label) → 1.0 or 0.0
         self._states = {}
 
@@ -1085,6 +1089,9 @@ class HUI(pyxelwidgets.devices.plugins.PluginParameters, _ControlSurface):
             if name is not None:
                 with self._display:
                     self.leds[name] = 1.0 if value & 0x40 else 0.0
+                    if name == 'Param Insert' and not value & 0x40 and self._view == 'parameters':
+                        # Back in the inserts list (its header may not be drawn again)
+                        self._view = 'list'
                     self._display.notify_all()
                 self._received(name, self.leds[name])
         elif number < 0x08:
@@ -1132,6 +1139,8 @@ class HUI(pyxelwidgets.devices.plugins.PluginParameters, _ControlSurface):
                 top = self.display[:40]
                 for start in range(0, len(body) - 10, 11):
                     zone = body[start]
+                    if zone < 4:
+                        self._top_writes += 1
                     if zone < 8:
                         for i, code in enumerate(body[start + 1:start + 11]):
                             self.display[zone * 10 + i] = chr(code) if 0x20 <= code < 0x7F else ' '
@@ -1369,12 +1378,15 @@ class HUI(pyxelwidgets.devices.plugins.PluginParameters, _ControlSurface):
         shown = self._list()
         if shown is None:
             return False
-        if shown[0] != part:
+        for _ in range(2):
+            if shown[0] == part:
+                return True
+            # More ticks than needed are harmless: the list doesn't go past 5-8 or before 1-4
             self._scroll(self.list_ticks if part == '5' else -self.list_ticks)
-            if not self._wait(lambda: (self._list() or ('',))[0] == part):
-                return False
-            self._settled()
-        return True
+            if self._wait(lambda: (self._list() or ('',))[0] == part, self.list_time):
+                self._settled()
+            shown = self._list() or ('',)
+        return shown[0] == part
 
     def _read_zones(self, zones: list) -> list:
         """The texts of display ``zones``, waiting out the selected slot's blinking."""
@@ -1414,8 +1426,11 @@ class HUI(pyxelwidgets.devices.plugins.PluginParameters, _ControlSurface):
         if not self._to_part('5' if slot >= 5 else '1-4'):
             return None
         shown = slot if slot <= 5 else None
+        writes = self._top_writes
         def opened():
-            return (self._header() or (0, 0, '', 0))[3] == shown
+            # A header written since the press: one left on the top line from before (slots
+            # past 5 all show as ?) isn't an answer
+            return self._top_writes != writes and (self._header() or (0, 0, '', 0))[3] == shown
         def empty():
             return self._zone_text(self._slot_zone(slot)).strip() == _HUI_EMPTY
         for _ in range(3):
