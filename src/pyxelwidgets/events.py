@@ -149,6 +149,27 @@ class PageShown(WidgetEvent):
     last: bool
 
 @dataclasses.dataclass(frozen = True)
+class ColumnChanged(WidgetEvent):
+    """
+    The widget's ``column`` changed, whatever changed it (PianoRoll: the first
+    step shown). ``first`` and ``last`` tell whether it can't go further.
+    """
+    column: int
+    first: bool
+    last: bool
+
+@dataclasses.dataclass(frozen = True)
+class RowChanged(WidgetEvent):
+    """
+    The widget's ``row`` changed, whatever changed it (Sequencer: the first
+    row of steps shown; PianoRoll: the rows of the scale it's moved by).
+    ``first`` and ``last`` tell whether it can't go further.
+    """
+    row: int
+    first: bool
+    last: bool
+
+@dataclasses.dataclass(frozen = True)
 class RowPlayed(WidgetEvent):
     """The Tracker playhead moved to ``row``; ``columns`` lists the active cells in it, ``notes`` their notes."""
     row: int
