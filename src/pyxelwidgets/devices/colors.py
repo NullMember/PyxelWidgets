@@ -43,7 +43,7 @@ class RGB(ColorModel):
         if self.gamma:
             rgb = _GAMMA[rgb]
         rgb = rgb >> (8 - self.bits)
-        return [tuple(int(c) for c in cell) for cell in rgb]
+        return list(map(tuple, rgb.tolist()))
 
     def describe(self) -> dict:
         return {'model': 'RGB', 'bits': self.bits, 'gamma': self.gamma}

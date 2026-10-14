@@ -182,7 +182,7 @@ class Device(pyxelwidgets.events.Emitter):
         cells = source[changed[:, 0], changed[:, 1]]
         current[changed[:, 0], changed[:, 1]] = cells
         values = self.color_model.convert(cells)
-        self.send_pixels([(area.x + int(dx), area.y + int(dy), value) for (dx, dy), value in zip(changed, values)])
+        self.send_pixels([(area.x + dx, area.y + dy, value) for (dx, dy), value in zip(changed.tolist(), values)])
 
     def fill(self, color) -> None:
         """Show one color on the whole grid."""
