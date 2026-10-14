@@ -1184,6 +1184,32 @@ Widgets call `_page_shown()` after anything that may change them.
 - **`next_page()`**: Show the next page; nothing on the last.
 - **`previous_page()`**: Show the previous page; nothing on the first.
 
+### `Follow` (Enum)
+
+How the view of a PianoRoll or Sequencer follows the playing step.
+
+Off: the view stays where it is.
+Page: it turns to the playing step's page when the step moves to another page.
+Playhead: it scrolls along, keeping the playing step in the middle (except near the first and last steps).
+
+Members: `Off`, `Page`, `Playhead`.
+
+### `Scrolled` (Paged)
+
+Mixin for widgets showing a strip of lanes (PianoRoll's columns of steps,
+Sequencer's rows of steps), one screen of them at a time. The view starts
+at lane `_first` and scrolls a lane at a time (`scroll_forward`/
+`scroll_back`) or a page, a screen, at a time; the last page ends at the
+last lane. Widgets define `_lanes()` and `_screen()` (lanes shown) and
+call `_follow` when a step plays.
+
+- **`scroll_forward()`**: Show one more lane at the end (right or top); nothing at the last.
+- **`scroll_back()`**: Show one more lane at the start (left or bottom); nothing at the first.
+- **`pages`**
+- **`page`** (settable): The page shown: the last once the view reaches the end, else the one its first lane is on.
+- **`next_page()`**: Show the next page; nothing at the end.
+- **`previous_page()`**: Show the page before (the start of this one when scrolled into it); nothing at the start.
+
 ### `Clock` (Enum)
 
 What plays a timed widget (Sequencer, Tracker, ClipLauncher) every `rate`.
@@ -1214,17 +1240,17 @@ from the transport or from a clock of the widget's own.
 - **`stop()`**
 - **`toggle()`**
 
-### `Sequencer` (Timed, Paged, Velocity, Widget)
+### `Sequencer` (Timed, Scrolled, Velocity, Widget)
 
 ```python
-Sequencer(x: int, y: int, width: int, height: int, *, steps: int | None = None, length: int | None = None, rate: rate.Rate = '1/16', step: int = 0, page: int = 0, follow: bool = True, direction: Sequencer.Direction = Sequencer.Direction.Forward, note: int = 36, swing: float = 50.0, gate: float = 0.5, gate_random: float = 0.0, current_color: Color = Colors.Lime, current_active_color: Color = Colors.Red, **kwargs)
+Sequencer(x: int, y: int, width: int, height: int, *, steps: int | None = None, length: int | None = None, rate: rate.Rate = '1/16', step: int = 0, page: int = 0, row: int = 0, follow: Follow = Follow.Page, direction: Sequencer.Direction = Sequencer.Direction.Forward, note: int = 36, swing: float = 50.0, gate: float = 0.5, gate_random: float = 0.0, current_color: Color = Colors.Lime, current_active_color: Color = Colors.Red, **kwargs)
 ```
 
 Step sequencer. Each step plays when `play(step)` or `advance()` is
 called; its `clock` (the transport, one of its own, or none) does every
 `rate`, with `swing`. Emits StepPlayed, and StepEnded when an active
-step's `gate` ends. Steps beyond one screen are on pages: `page` is the
-one shown and edited.
+step's `gate` ends. Steps go left to right in rows going up; more rows
+than the pads scroll a row at a time (`row`) or a page at a time.
 
 Pressing a step turns it on (with the press's velocity); pressing an
 active one turns it off when it's let go, unless it was edited while held:
@@ -1235,7 +1261,8 @@ link actions (`set_velocity`, `set_probability`, `set_ratchets`,
 - `length: int, optional`: How many of them play before it starts over (the clock and `advance` only); the rest keep what's on them. Defaults to `steps`.
 - `step: int = 0, optional`: The current (playing) step.
 - `page: int = 0, optional`: The page shown and edited.
-- `follow: bool = True, optional`: Show the page of the playing step when it plays.
+- `row: int = 0, optional`: The first row of steps shown (at the bottom), counting rows over all pages; instead of `page`.
+- `follow: Follow = Follow.Page, optional`: How the view follows the playing step: not at all, a page at a time, or scrolling with it in the middle (Playhead).
 - `direction: Direction = Direction.Forward, optional`: The order the clock and `advance` play steps in.
 - `note: int = 36, optional`: The note steps play (StepPlayed's `note`) unless one has its own (`set_note`).
 - `swing: float = 50.0, optional`: Where every second step starts, in percent of a pair of steps: 50 is straight, 66 a triplet feel, 75 the most. Needs a clock (calls of `play`/`advance` aren't delayed).
@@ -1244,8 +1271,7 @@ link actions (`set_velocity`, `set_probability`, `set_ratchets`,
 - `rate: Rate = '1/16', optional`: The length of a step: a note value such as '1/16', '1/8T' or 'bar'.
 - `current_color, current_active_color: Color, optional`: The playing step: its empty cells and its active ones.
 
-- **`pages`**
-- **`page`** (settable)
+- **`row`** (settable): The first row of steps shown (at the bottom), from 0 to the rows of steps less the pads' height.
 - **`step`** (settable): The current step; setting it moves there without playing it.
 - **`steps`** (settable)
 - **`length`** (settable): How many steps play before it starts over (at most `steps`).
@@ -1266,28 +1292,40 @@ link actions (`set_velocity`, `set_probability`, `set_ratchets`,
 - **`reset()`**: Clear every step.
 - **`draw()`**
 
+#### `Follow` (Enum)
+
+How the view of a PianoRoll or Sequencer follows the playing step.
+
+Off: the view stays where it is.
+Page: it turns to the playing step's page when the step moves to another page.
+Playhead: it scrolls along, keeping the playing step in the middle (except near the first and last steps).
+
+Members: `Off`, `Page`, `Playhead`.
+
 #### `Direction` (Enum)
 
 The order steps play in: forward, backward, forward then back (PingPong), or at random.
 
 Members: `Forward`, `Backward`, `PingPong`, `Random`.
 
-### `PianoRoll` (Timed, Paged, Velocity, Widget)
+### `PianoRoll` (Timed, Scrolled, Velocity, Widget)
 
 ```python
-PianoRoll(x: int = 0, y: int = 0, width: int = 1, height: int = 1, *, steps: int = 16, rate: rate.Rate = '1/16', step: int = 0, page: int = 0, follow: bool = True, octave: int = 4, row: int = 0, scale: Scale = Scale.Major, root: Root = Root.C, active_color: Color = Colors.Orange, root_color: Color = Color(32, 0, 48), current_color: Color = Color(0, 48, 0), current_active_color: Color = Colors.White, **kwargs)
+PianoRoll(x: int = 0, y: int = 0, width: int = 1, height: int = 1, *, steps: int = 16, rate: rate.Rate = '1/16', step: int = 0, page: int = 0, column: int = 0, follow: Follow = Follow.Page, octave: int = 4, row: int = 0, scale: Scale = Scale.Major, root: Root = Root.C, active_color: Color = Colors.Orange, root_color: Color = Color(32, 0, 48), current_color: Color = Color(0, 48, 0), current_active_color: Color = Colors.White, **kwargs)
 ```
 
 A melody editor: columns are steps, rows the notes of `scale` (the root's
 rows tinted). Press a pad to add a note; hold a note's first pad and press
 further along its row to make it longer; press a note to delete it. Plays
 its notes (NoteOn, then NoteOff when they end) when `play(step)` or
-`advance()` is called, its `clock` does every `rate`.
+`advance()` is called, its `clock` does every `rate`. More steps
+than the columns scroll a column at a time (`column`) or a page at a time.
 
 - `steps: int = 16, optional`: How many steps the melody has; more than the columns go on pages.
 - `step: int = 0, optional`: The current (playing) step.
 - `page: int = 0, optional`: The steps shown and edited, `width` per page.
-- `follow: bool = True, optional`: Show the page of the playing step when it plays.
+- `column: int = 0, optional`: The first step shown (at the left); instead of `page`.
+- `follow: Follow = Follow.Page, optional`: How the view follows the playing step: not at all, a page at a time, or scrolling with it in the middle (Playhead).
 - `octave: int = 4, optional`: The bottom row is the root in this octave (4 with C: MIDI note 48)...
 - `row: int = 0, optional`: ...moved up (or down, as far as MIDI note 0) by this many rows of the scale.
 - `scale, root: optional`: The notes rows have: one row per note in the scale.
@@ -1296,8 +1334,7 @@ its notes (NoteOn, then NoteOff when they end) when `play(step)` or
 - `rate: Rate = '1/16', optional`: The length of a step (a note value).
 
 - **`steps`** (settable)
-- **`pages`**
-- **`page`** (settable)
+- **`column`** (settable): The first step shown (at the left), from 0 to `steps` less the width.
 - **`step`** (settable): The current step; setting it moves there without playing it.
 - **`rows()`**: The MIDI note of each row from the bottom, None past the highest note.
 - **`note_at(step: int, note: int)`**: The first step of the note covering `step` on `note`, or None.
@@ -1312,6 +1349,16 @@ its notes (NoteOn, then NoteOff when they end) when `play(step)` or
 - **`save_state()`**
 - **`load_state(state: dict)`**
 - **`draw()`**
+
+#### `Follow` (Enum)
+
+How the view of a PianoRoll or Sequencer follows the playing step.
+
+Off: the view stays where it is.
+Page: it turns to the playing step's page when the step moves to another page.
+Playhead: it scrolls along, keeping the playing step in the middle (except near the first and last steps).
+
+Members: `Off`, `Page`, `Playhead`.
 
 ### `Sprite` (Widget)
 
@@ -1670,7 +1717,8 @@ Stepper(x: int = 0, y: int = 0, width: int = 1, height: int = 1, *, minimum: int
 
 A whole number from `minimum` to `maximum` (`number`) changed a step
 at a time: the first pad (left or bottom) goes down, the last up, the
-pads between show where it is and jump there. Holding a step pad repeats.
+pads between show where it is and jump there: a point of light moves along
+them, lighting the nearest pads by how near it is. Holding a step pad repeats.
 `value` is the number as 0.0-1.0; link Changed with `minimum`/`maximum`
 as the range to get the number.
 
@@ -3378,7 +3426,7 @@ what the widgets' mappings send.
 - **`check_device(index: int, pattern: str | None)`**: Check connected layout device `index`: show test `pattern` on it (`CHECK_PATTERNS`) and record its pads, controls and raw MIDI; None ends the check. Returns `check_status()`.
 - **`check_status()`**: What the device being checked reported: pads pressed (in order) and held, controls, raw MIDI.
 - **`close()`**
-- **`frame(since: int = 0)`**: Render; pixels are `#rrggbb` rows from the top, plus events after `since`.
+- **`frame(since: int = 0, pixels: bool = True)`**: Render; pixels are `#rrggbb` rows from the top, plus events after `since`. Without `pixels` (the designer's Perform mode, no grid shown) nothing is rendered for the browser and pixels is None: the render thread keeps the widgets updating at `fps` instead.
 - **`input(x: int, y: int, velocity: float)`**: Press (`velocity` > 0) or release the surface pad at `x`, `y`.
 - **`play()`**: Play the layout's transport from the start so Sequencers and Trackers play (not while a DAW plays it).
 - **`bpm`**: The tempo: the layout's, or one a link set.
