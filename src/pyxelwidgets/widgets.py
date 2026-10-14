@@ -4195,7 +4195,8 @@ class Stepper(ValueWidget):
     A whole number from ``minimum`` to ``maximum`` (``number``) changed a step
     at a time: the first pad (left or bottom) goes down, the last up, the
     pads between show where it is and jump there: a point of light moves along
-    them, lighting the nearest pads by how near it is. Holding a step pad repeats.
+    them (along the two step pads when there are only two), lighting the
+    nearest pads by how near it is. Holding a step pad repeats.
     ``value`` is the number as 0.0-1.0; link Changed with ``minimum``/``maximum``
     as the range to get the number.
     """
@@ -4298,23 +4299,25 @@ class Stepper(ValueWidget):
 
     def draw(self) -> None:
         pads = self._pads()
-        span = self.maximum - self.minimum
         colors = [self.inactive_color] * pads
-        if pads <= 2:
-            colors = [self.active_color * (0.2 + 0.8 * self._value)] * pads
+        if pads == 1:
+            colors[0] = self.active_color * (0.2 + 0.8 * self._value)
+            lit = range(0)
+        elif pads == 2:
+            # The step pads themselves show the light
+            lit = range(2)
         else:
             # The ends step, dim where they can't go further
             colors[0] = self.active_color * (0.15 if self.number == self.minimum and not self.wrap else 0.4)
             colors[-1] = self.active_color * (0.15 if self.number == self.maximum and not self.wrap else 0.4)
-            # A point of light moves from half a pad before the first pad
-            # between to half a pad after the last; each pad is as bright as
-            # it is near
-            between = pads - 2
-            point = self._value * between - 0.5
-            for pad in range(between):
-                near = 1 - abs(point - pad)
-                if near > 0:
-                    colors[1 + pad] = self.active_color * near
+            lit = range(1, pads - 1)
+        # A point of light moves from half a pad before the first lit pad to
+        # half a pad after the last; each pad is as bright as it is near
+        point = self._value * len(lit) - 0.5
+        for place, pad in enumerate(lit):
+            near = 1 - abs(point - place)
+            if near > 0:
+                colors[pad] = self.active_color * near
         for index, color in enumerate(colors):
             if self.direction == Stepper.Direction.Horizontal:
                 self.buffer[index, :] = color
