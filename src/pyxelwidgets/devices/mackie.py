@@ -886,7 +886,7 @@ _HUI_RELATIVE = {**{f'V-Pot {i + 1}': 0x40 + i for i in range(8)}, **{f'Param {i
                  'Scroll': 0x4C, 'Jog': 0x0D}
 
 # Pro Tools' plug-in page header ("Page  3/13    Channel Strip=2    (Ins 1)") and inserts list ("Insert 1-4    Audio 1")
-_HUI_PAGE = re.compile(r'Page\s+(\d+)/(\d+)\s+(.*?)\s*\(Ins\s*(\d+)\)\s*$')
+_HUI_PAGE = re.compile(r'Page\s+(\d+)/(\d+)\s+(.*?)\s*\(Ins\s*(\d|\?)\)\s*$')
 _HUI_LIST = re.compile(r'Insert (1-4|5)\s+(.*?)\s*$')
 # What Pro Tools shows for an empty insert slot
 _HUI_EMPTY = 'No Insert'
@@ -910,9 +910,10 @@ class HUI(pyxelwidgets.devices.plugins.PluginParameters, _ControlSurface):
     Pro Tools' plug-in parameters are reached by name like Mackie Control's
     (``scan_tracks()``, ``scan_plugins(track)``, ``scan_parameters(track,
     plugin)``, ``PluginParameter``): a strip's Insert switch shows its track's
-    insert slots (1-4, SCROLL to 5; 6-10 can't be reached), Param Select opens
-    one, and each page of parameters has up to 4 switches (top line, pressed
-    with Param Select 1-4) and 4 knob parameters (bottom line). Scanning a
+    insert slots (1-4, SCROLL to 5-8, where only 5 and the selected one are
+    named; 9 and 10 can't be reached), Param Select opens one, and each page
+    of parameters has up to 4 switches (top line, pressed with Param Select
+    1-4) and 4 knob parameters (bottom line). Scanning a
     plug-in's parameters takes about 2 seconds a page: Pro Tools shows the
     switches once its page header goes. A knob parameter turns by the value's
     steps; a switch is pressed once per change and comes back as 1.0 (On/In)
@@ -1152,9 +1153,12 @@ class HUI(pyxelwidgets.devices.plugins.PluginParameters, _ControlSurface):
         return ''.join(self.display[zone * 10:zone * 10 + 10])
 
     def _header(self):
-        """(page, pages, plug-in name, slot) from the page header on the top line, else None."""
+        """(page, pages, plug-in name, slot or None past 5) from the page header on the top line, else None."""
         match = _HUI_PAGE.match(self._top())
-        return (int(match[1]), int(match[2]), match[3], int(match[4])) if match else None
+        if match is None:
+            return None
+        # Slots past 5 show as ?
+        return int(match[1]), int(match[2]), match[3], int(match[4]) if match[4].isdigit() else None
 
     def _list(self):
         """
@@ -1385,21 +1389,43 @@ class HUI(pyxelwidgets.devices.plugins.PluginParameters, _ControlSurface):
         return [seen.get(zone, '') for zone in zones]
 
     def _slot_names(self) -> list:
-        """The inserts list's plug-ins as (slot, name as shown), going to slot 5 and back."""
+        """
+        The inserts list's slots that may have a plug-in, as (slot, name as
+        shown); slots 6-8 have None: Pro Tools names only the selected one.
+        """
         found = []
         if self._to_part('1-4'):
             found += [(slot + 1, name) for slot, name in enumerate(self._read_zones([4, 5, 6, 7]))]
         if self._to_part('5'):
-            found += [(5, self._read_zones([4])[0])]
+            found += [(5, self._read_zones([4])[0])] + [(slot, None) for slot in (6, 7, 8)]
             self._to_part('1-4')
-        return [(slot, name) for slot, name in found if name and name != _HUI_EMPTY]
+        return [(slot, name) for slot, name in found if name is None or (name and name != _HUI_EMPTY)]
+
+    @staticmethod
+    def _slot_zone(slot: int) -> int:
+        """The display zone of insert ``slot`` in its part of the inserts list."""
+        return 3 + slot if slot <= 4 else slot - 1
 
     def _open_slot(self, slot: int):
-        """Open insert ``slot`` from the inserts list; its page header, None if Pro Tools showed none."""
-        if not self._to_part('5' if slot == 5 else '1-4'):
+        """
+        Open insert ``slot`` (1-8) from the inserts list; its page header, None
+        if Pro Tools showed none (an empty slot). The header shows slots 6-8 as ?.
+        """
+        if not self._to_part('5' if slot >= 5 else '1-4'):
             return None
-        self._press(f'Param Select {1 if slot == 5 else slot}')
-        if not self._wait(lambda: (self._header() or (0, 0, '', 0))[3] == slot):
+        shown = slot if slot <= 5 else None
+        def opened():
+            return (self._header() or (0, 0, '', 0))[3] == shown
+        def empty():
+            return self._zone_text(self._slot_zone(slot)).strip() == _HUI_EMPTY
+        for _ in range(3):
+            # Pro Tools may drop a press that comes right after the list changed: again,
+            # only while nothing opened (in the parameters, Param Select presses a switch);
+            # an empty slot gets selected (its "No Insert" blinks)
+            self._press(f'Param Select {slot if slot <= 4 else slot - 4}')
+            if self._wait(lambda: opened() or bool(self.leds.get('Param Insert')) or empty()):
+                break
+        if not self._wait(opened, self.settle if empty() else None):
             return None
         # Pro Tools lights Param Insert and shows the knobs a moment after the header: its
         # switches would still be the list's until then
@@ -1412,7 +1438,7 @@ class HUI(pyxelwidgets.devices.plugins.PluginParameters, _ControlSurface):
         return header
 
     def scan_plugins(self, track: str) -> list:
-        """The plug-ins on ``track`` (a name from ``scan_tracks``): insert slots 1-5, opened for their full names."""
+        """The plug-ins on ``track`` (a name from ``scan_tracks``): insert slots 1-8, opened for their full names."""
         with self._navigation:
             self._show_track(track)
             return self._read_plugins(track)
@@ -1421,36 +1447,47 @@ class HUI(pyxelwidgets.devices.plugins.PluginParameters, _ControlSurface):
         found = []
         for slot, short in self._slot_names():
             header = self._open_slot(slot)
-            found.append((slot, short, header[2] if header is not None else short))
-            self._to_list()
+            if header is not None:
+                found.append((slot, short, header[2]))
+                self._to_list()
+            elif short:
+                found.append((slot, short, short))
         labels = pyxelwidgets.devices.plugins.labels([name for _, _, name in found])
         self._plugins[track] = [(label, *entry) for label, entry in zip(labels, found)]
         return labels
 
     def _open(self, track: str, plugin: str) -> None:
-        """Show the parameters of ``plugin`` on ``track`` (on the page Pro Tools opens it on)."""
+        """
+        Show the parameters of ``plugin`` on ``track`` (on the page Pro Tools
+        opens it on); its plug-ins are read again if it isn't where it was.
+        """
         if self._view == 'parameters' and self._focus is not None and self._focus[:2] == (track, plugin):
             return
         self._show_track(track)
-        slots = {label: (slot, short, name) for label, slot, short, name in self._plugins.get(track) or []}
-        if plugin in slots:
-            slot, short, _ = slots[plugin]
-            self._to_part('5' if slot == 5 else '1-4')
-            if self._read_zones([4 if slot == 5 else 3 + slot])[0] != short:
-                # Plug-ins were added, removed or moved on the track: read them again
+        for attempt in range(2):
+            slots = {label: (slot, short, name) for label, slot, short, name in self._plugins.get(track) or []}
+            fresh = attempt or plugin not in slots
+            if not fresh and slots[plugin][1]:
+                # Slots 1-5 show their names: plug-ins added, removed or moved show there
+                slot, short, _ = slots[plugin]
+                self._to_part('5' if slot >= 5 else '1-4')
+                fresh = self._read_zones([self._slot_zone(slot)])[0] != short
+            if fresh:
                 self._read_plugins(track)
-        else:
-            self._read_plugins(track)
-        slots = {label: (slot, short, name) for label, slot, short, name in self._plugins.get(track) or []}
-        if plugin not in slots:
-            raise LookupError(f'no plug-in {plugin!r} on {track!r} (plug-ins: {", ".join(slots) or "none found"})')
-        slot, _, name = slots[plugin]
-        self._to_list()
-        header = self._open_slot(slot)
-        if header is None or header[2] != name:
-            self._view = None
-            raise LookupError(f'Pro Tools didn\'t show the parameters of {plugin!r}')
-        self._focus = (track, plugin, header[0])
+                slots = {label: (slot, short, name) for label, slot, short, name in self._plugins.get(track) or []}
+            if plugin not in slots:
+                raise LookupError(f'no plug-in {plugin!r} on {track!r} (plug-ins: {", ".join(slots) or "none found"})')
+            slot, _, name = slots[plugin]
+            self._to_list()
+            header = self._open_slot(slot)
+            if header is not None and header[2] == name:
+                self._focus = (track, plugin, header[0])
+                return
+            self._to_list()
+            if fresh:
+                break
+        self._view = None
+        raise LookupError(f'Pro Tools didn\'t show the parameters of {plugin!r}')
 
     def _to_page(self, page: int) -> None:
         """Scroll to ``page`` (1 is the first) of the plug-in shown."""
