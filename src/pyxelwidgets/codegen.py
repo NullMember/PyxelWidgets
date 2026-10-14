@@ -18,6 +18,7 @@ import pyxelwidgets
 import pyxelwidgets.app
 import pyxelwidgets.color
 import pyxelwidgets.events
+import pyxelwidgets.expression
 import pyxelwidgets.link
 import pyxelwidgets.message
 import pyxelwidgets.parser
@@ -156,6 +157,12 @@ class _Writer:
     # Values
 
     def value(self, value) -> str:
+        if isinstance(value, (pyxelwidgets.expression.Expression, pyxelwidgets.expression.Template)):
+            if isinstance(value, pyxelwidgets.expression.Template) and not value.bound:
+                # Filled in from the event alone: the text does
+                return repr(value.text)
+            names = [f'{name!r}: {self.bound(value.names[name])}' for name in value.bound]
+            return self.call(self.name(type(value)), [repr(value.text), *([f'{{{", ".join(names)}}}'] if names else [])])
         if isinstance(value, pyxelwidgets.color.Color):
             for name, color in vars(pyxelwidgets.color.Colors).items():
                 if not name.startswith('_') and color == value:
@@ -184,6 +191,13 @@ class _Writer:
         if isinstance(value, tuple):
             return repr(tuple(value))
         return repr(value)
+
+    def bound(self, thing) -> str:
+        """The code for what an expression's name stands for: a widget's variable, or the transport."""
+        for name, widget in self.ui.widgets.items():
+            if widget is thing:
+                return self.variables[('widget', name)]
+        return 'app.transport'
 
     def call(self, function: str, args: list, kwargs: list = (), indent: str = '') -> str:
         """``function(args, key = value)``, an argument per line if it gets long."""
@@ -228,8 +242,8 @@ class _Writer:
 
     def _write(self, *, handlers: bool, run: bool) -> str:
         self.picture = False
-        sections = [self.surface(), self.devices(), self.widgets(), self.outputs(), self.app(), self.bindings(), self.links(),
-                    self.clocks(), self.handlers() if handlers else []]
+        sections = [self.surface(), self.devices(), self.widgets(), self.outputs(), self.app(), self.mappings(), self.bindings(),
+                    self.links(), self.formulas(), self.clocks(), self.handlers() if handlers else []]
         body = []
         for section in sections:
             if section:
@@ -277,7 +291,8 @@ class _Writer:
             for index, item in enumerate(items):
                 path = f'{where}[{index}]'
                 cls = types[item['type']]
-                options = pyxelwidgets.parser._options(cls, item.get('options'), path)
+                # Options written as formulas are set by surface.formula after
+                options = pyxelwidgets.parser._options(cls, item.get('options'), path, {})
                 variable = self.variable(('widget', item['name']), item['name'])
                 arguments = []
                 for key, value in options.items():
@@ -314,6 +329,11 @@ class _Writer:
                 lines.append(f'{variable}.connect({entry.get("input")!r}, {entry.get("output")!r})')
             else:
                 lines.append(f'{variable}.connect()')
+        return lines
+
+    def mappings(self) -> list:
+        # After the app: computed fields may read app.transport
+        lines = []
         for widget, on, output, message, feedback in self.ui.mapping_settings():
             options = ([('on', self.name(on))] if on is not None else []) + ([('feedback', 'True')] if feedback else [])
             lines.append(self.call('surface.map', [self.variables[('widget', widget)], self.variables[('output', output)], self.value(message)], options))
@@ -349,7 +369,7 @@ class _Writer:
         for setting in self.ui.link_settings():
             widget, action, value = self.variables[('widget', setting['widget'])], setting['action'], setting['value']
             if action == 'debug':
-                args, keywords = [f'lambda text: print({setting["widget"] + ":"!r}, text)'], [('value', repr(value))]
+                args, keywords = [f'lambda text: print({setting["widget"] + ":"!r}, text)'], [('value', self.value(value))]
             elif action is not None and action.startswith('transport.'):
                 args, keywords = [_ACTIONS[action].format('app.transport')], [] if value is None else [('value', self.value(value))]
             elif action is not None:
@@ -365,6 +385,10 @@ class _Writer:
                     keywords.append((key, self.value(setting[key])))
             lines.append(self.call('surface.link', [widget, *args], keywords))
         return lines
+
+    def formulas(self) -> list:
+        return [self.call('surface.formula', [self.variables[('widget', name)], repr(option), self.value(expression)])
+                for name, option, expression in self.ui.formula_settings()]
 
     def clocks(self) -> list:
         # Sequencers, Trackers and ClipLaunchers on the transport or a clock of their own
