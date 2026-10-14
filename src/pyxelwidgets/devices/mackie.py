@@ -997,13 +997,18 @@ class HUI(_ControlSurface):
             with self._send_lock:
                 self.send_note_on(0x00, 0x7F)
         elif status == 0xB0 and len(midi) == 3:
-            self._control(midi[1], midi[2])
+            if not self._control(midi[1], midi[2]):
+                super().decode(midi)
         elif status == 0xA0 and len(midi) == 3:
             strip, side, level = midi[1], midi[2] >> 4, midi[2] & 0x0F
             if strip < 8 and side == 0 and level <= 0x0C:
                 self._received(f'Meter {strip + 1}', level / 12)
+        elif status != 0x90:
+            # Not part of HUI: received as plain MIDI
+            super().decode(midi)
 
-    def _control(self, number: int, value: int) -> None:
+    def _control(self, number: int, value: int) -> bool:
+        """Decode a HUI control change; False when it isn't one."""
         if number == 0x0C:
             self._zone = value
         elif number == 0x2C and self._zone is not None:
@@ -1018,6 +1023,9 @@ class HUI(_ControlSurface):
         elif 0x10 <= number < 0x18:
             position = value & 0x0F
             self._received(f'V-Pot {number - 0x10 + 1}', (position - 1) / 10 if position else 0.0)
+        else:
+            return False
+        return True
 
     def _sysex(self, data: list) -> None:
         if data[:5] != self.header or len(data) < 6:
