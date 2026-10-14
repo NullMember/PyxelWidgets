@@ -204,6 +204,7 @@ def main() -> None:
     parser.add_argument('--bluetooth-name', default = 'NullMIDI', help = '--serve: the Bluetooth MIDI name')
     parser.add_argument('--insecure', action = 'store_true', help = '--serve: Bluetooth without pairing')
     parser.add_argument('--virtual', metavar = 'PORT', help = '--serve: a virtual MIDI port instead of Bluetooth (to try it on one computer)')
+    parser.add_argument('--bench', action = 'store_true', help = 'time the heavy layout\'s widgets and frames on this computer')
     parser.add_argument('--bluetooth', action = 'store_true',
                         help = 'on this computer, with --serve running on the Pi: send the trigger note, time the probe\'s answer')
     arguments = parser.parse_args()
@@ -216,6 +217,9 @@ def main() -> None:
     if arguments.serve:
         serve(arguments)
         return
+    if arguments.bench:
+        bench(arguments)
+        return
     listener = Listener(arguments.port)
     try:
         if arguments.bluetooth:
@@ -224,6 +228,68 @@ def main() -> None:
             through_designer(arguments, listener)
     finally:
         listener.midi.close_port()
+
+def stand_in(ui):
+    """A grid device covering the surface, standing in for Launchpads: frames converted like a Mini MK3's, sent nowhere."""
+    import pyxelwidgets.devices
+    class Grid(pyxelwidgets.devices.Device):
+        color_model = pyxelwidgets.devices.RGB(bits = 7)
+        def send_pixel(self, x, y, value) -> None:
+            pass
+    grid = Grid(width = ui.surface.rect.w, height = ui.surface.rect.h)
+    grid.connect()
+    ui.surface.add_device(grid, 0, 0)
+    return grid
+
+def bench(arguments) -> None:
+    """How long the heavy layout's parts take on this computer (the surface lock is held that long)."""
+    import pyxelwidgets.devices
+    import pyxelwidgets.parser
+    import pyxelwidgets.transport
+
+    @pyxelwidgets.parser.register
+    class Discard(pyxelwidgets.devices.Device):
+        """Stands in for the Bluetooth output: messages are turned into MIDI and dropped."""
+        messages = ('NoteOn', 'NoteOff', 'ControlChange')
+        def __init__(self, **options) -> None:
+            super().__init__(width = 0, height = 0)
+        def send(self, message) -> None:
+            message.to_midi()
+
+    ui = pyxelwidgets.parser.Parser(layout({'type': pyxelwidgets.parser.device_type(Discard), 'options': {}}))
+    grid = stand_in(ui)
+    for x, y in SEEDS:
+        grid.set_button(x, y, 1.0)
+        grid.set_button(x, y, 0.0)
+    def timed(action, count = 40) -> float:
+        took = []
+        for index in range(count):
+            start = time.perf_counter()
+            action(index)
+            took.append(time.perf_counter() - start)
+        return 1000 * statistics.median(took)
+    for name in ('seq1', 'seq2', 'life', 'euclid'):
+        print(f'{name + " play":>32}: {timed(ui[name].play):7.2f} ms')
+    for name, widget in ui.widgets.items():
+        def draw(index, widget = widget) -> None:
+            widget.draw()
+        print(f'{name + " draw":>32}: {timed(draw):7.2f} ms')
+    def redraw(index) -> None:
+        for widget in ui.widgets.values():
+            widget.updated = True
+        ui.surface.update()
+    def frame(index) -> None:
+        time.sleep(1 / 30)
+        start = time.perf_counter()
+        ui.surface.update()
+        frames.append(time.perf_counter() - start)
+    frames = []
+    timed(frame, 60)
+    print(f'{"frame (texts scrolling)":>32}: {1000 * statistics.median(frames):7.2f} ms')
+    print(f'{"frame (everything redrawn)":>32}: {timed(redraw):7.2f} ms')
+    transport = pyxelwidgets.transport.Transport(bpm = 140)
+    ui.attach(transport)
+    print(f'{"transport tick":>32}: {timed(lambda index: transport._advance(), 400):7.3f} ms')
 
 def serve(arguments) -> None:
     """The Pi's side: the test layout with a stand-in grid device, played by an App as pyxelwidgets run does."""
@@ -241,13 +307,7 @@ def serve(arguments) -> None:
     if not out.connected:
         raise SystemExit(f'the Bluetooth output didn\'t connect: {getattr(out, "warning", None)}')
 
-    class Grid(pyxelwidgets.devices.Device):
-        """Stands in for a Launchpad: pads pressed from its own thread, frames rendered but sent nowhere."""
-        def send_pixel(self, x, y, value) -> None:
-            pass
-    grid = Grid(width = ui.surface.rect.w, height = ui.surface.rect.h)
-    grid.connect()
-    ui.surface.add_device(grid, 0, 0)
+    grid = stand_in(ui)
     app = ui.app(arguments.fps)
     if arguments.layout == 'heavy':
         for x, y in SEEDS:
