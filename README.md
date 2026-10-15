@@ -31,6 +31,10 @@ pyxelwidgets designer my-layout.json
 The designer opens in your browser. `my-layout.json` is created the first time
 you save.
 
+On Linux, pip builds the MIDI library (python-rtmidi) from source, which
+needs a compiler and the ALSA headers first: on Debian, Ubuntu and Raspberry
+Pi OS, run `sudo apt install build-essential libasound2-dev`.
+
 Optional extras add more connections. `"pyxelwidgets[all]"` installs every
 extra except `test`.
 
