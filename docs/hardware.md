@@ -62,7 +62,6 @@ Known questions for owners:
 pieces still waiting for someone to try them:
 
 - the keyboard and mouse output;
-- the desktop apps on Windows and Linux (built by CI, not yet tried);
 - Bluetooth MIDI on a Linux computer connecting to devices (Linux as the
   device, on a Raspberry Pi, is tested);
 - network MIDI joined by hand from macOS's Audio MIDI Setup (the session is
