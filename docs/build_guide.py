@@ -1,7 +1,7 @@
 """
 Builds the user guide's generated parts: docs/snippets.md with a picture of
 every built-in snippet (docs/images/snippets/*.svg), and, when Playwright is
-installed, the designer screenshots of docs/getting-started.md (docs/images/*.png):
+installed, the designer screenshots of docs/getting-started.md and the README (docs/images/*.png):
 
     python docs/build_guide.py
     python docs/build_guide.py --no-screenshots
@@ -116,6 +116,19 @@ def screenshots() -> None:
                 page.mouse.move(box['x'] + box['width'] / 2, box['y'] + box['height'] / 2, steps = 2)
                 page.wait_for_selector('#pad-info:visible')
                 page.screenshot(path = str(images / 'try-mode.png'))
+                # The README's picture: the performance template playing
+                page.set_viewport_size({'width': 1440, 'height': 860})
+                page.evaluate("fetch('/api/new', {method: 'POST', body: JSON.stringify({template: 'performance'})})")
+                page.reload()
+                page.wait_for_selector('#tree .node')
+                page.keyboard.press('Escape')
+                page.click('#mode-try')
+                for x, y in ((4, 0), (6, 0), (5, 1), (7, 1), (4, 2), (6, 3), (1, 1), (2, 2)):
+                    page.evaluate("([x, y]) => fetch('/api/input', {method: 'POST', body: JSON.stringify({x, y, velocity: 1})})", [x, y])
+                    page.evaluate("([x, y]) => fetch('/api/input', {method: 'POST', body: JSON.stringify({x, y, velocity: 0})})", [x, y])
+                page.click('#play')
+                page.wait_for_timeout(2500)
+                page.screenshot(path = str(images / 'designer.png'))
                 browser.close()
         finally:
             server.RequestHandlerClass.designer.close()

@@ -23,12 +23,38 @@ The result goes into `dist/`, along with a zip named
 The build includes the `osc`, `network`, `desktop` and `app` extras, so
 REAPER/OSC, network MIDI, keyboard/mouse output and the window all work.
 
+## Releases
+
+`.github/workflows/release.yml` builds the macOS, Windows and Linux apps with
+this script, plus the Android app and the Python package, on every version tag
+(`v1.2.3`, matching `pyxelwidgets.__version__` and a `## 1.2.3` section in
+`CHANGELOG.md`), and publishes them to a GitHub release and PyPI. Run by hand
+(Actions > Release > Run workflow) it only builds.
+
+**macOS signing.** With `PYXELWIDGETS_SIGN_IDENTITY` set to a "Developer ID
+Application" certificate in the keychain, the build signs every binary with
+the hardened runtime (`packaging/entitlements.plist`) instead of ad hoc. With
+notary credentials it's also notarized and stapled, so it opens on any Mac
+without warnings: `PYXELWIDGETS_NOTARY_PROFILE` (a profile saved with
+`xcrun notarytool store-credentials`) or `PYXELWIDGETS_NOTARY_KEY` (path to an
+App Store Connect API key `.p8`) with `PYXELWIDGETS_NOTARY_KEY_ID` and
+`PYXELWIDGETS_NOTARY_ISSUER`. CI gets them from the secrets listed at the top
+of `release.yml`.
+
+**Android signing.** `android/keystore.properties` (not committed) or the
+`PYXELWIDGETS_STORE_FILE`, `_STORE_PASSWORD`, `_KEY_ALIAS` and
+`_KEY_PASSWORD` environment variables give the release key
+(`store_file = ...`, `store_password = ...`, `key_alias = ...`,
+`key_password = ...`); without it, release builds use the debug key. The
+version comes from the Python package (versionCode = major·10000 +
+minor·100 + patch).
+
 ## Requirements
 
 - **All systems:** Python 3.10 or later with `venv`, and an internet connection
   for the first build (it downloads the packages).
-- **macOS:** nothing else. The app is signed ad hoc, so on another Mac the
-  first launch needs right-click → Open (or
+- **macOS:** nothing else. Without a signing identity the app is signed ad
+  hoc, so on another Mac the first launch needs right-click → Open (or
   `xattr -dr com.apple.quarantine PyxelWidgets.app`). On first launch macOS
   asks about the local network (WebGrid, OSC, network MIDI). The first launch
   of a new build takes several seconds while macOS checks it.

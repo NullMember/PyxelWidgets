@@ -1,6 +1,11 @@
 # PyxelWidgets documentation
 
 - [Getting started](getting-started.md): your first controller in the designer, no code, then playing it.
+- [The designer](designer.md): everything it does, and its shortcuts.
+- [Apps](apps.md): the desktop apps (macOS, Windows, Linux) and the Android app.
+- [Outputs](outputs.md): DAWs, Mackie Control, HUI, OSC and REAPER, network and Bluetooth MIDI, MIDI clock, keyboard and mouse.
+- [The Python library](library.md): widgets, devices, musical time, animations, bindings and links in code.
+- [Hardware](hardware.md): supported devices, and what has been tested.
 - [Snippets](snippets.md): the ready-made pieces in the designer, with pictures.
 - [Writing a widget](writing-a-widget.md): a die you press to roll, from its options to the designer.
 - [Writing a driver](writing-a-driver.md): a MIDI pad controller, its colors, controls and tests.
