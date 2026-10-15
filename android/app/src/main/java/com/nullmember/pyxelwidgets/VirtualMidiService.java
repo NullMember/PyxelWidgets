@@ -1,4 +1,4 @@
-package io.github.nullmember.pyxelwidgets;
+package com.nullmember.pyxelwidgets;
 
 import android.media.midi.MidiDeviceService;
 import android.media.midi.MidiReceiver;

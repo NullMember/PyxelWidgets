@@ -20,7 +20,7 @@ def start(folder: str) -> str:
             os.environ['HOME'] = folder
             os.chdir(folder)
             from java import jclass
-            print('MIDI devices:\n' + str(jclass('io.github.nullmember.pyxelwidgets.MidiBridge').describe()), flush = True)
+            print('MIDI devices:\n' + str(jclass('com.nullmember.pyxelwidgets.MidiBridge').describe()), flush = True)
             import pyxelwidgets.designer.window
             layout = pathlib.Path(folder) / 'layout.json'
             # No system file dialogs here: Open and Save As ask for a path in the page

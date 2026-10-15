@@ -1,4 +1,4 @@
-package io.github.nullmember.pyxelwidgets;
+package com.nullmember.pyxelwidgets;
 
 import android.content.Context;
 import android.net.nsd.NsdManager;

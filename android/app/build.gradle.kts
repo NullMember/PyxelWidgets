@@ -1,3 +1,17 @@
+import java.util.Properties
+
+// One version for everything: the Python package's
+val packageVersion = Regex("__version__ = '([^']+)'")
+    .find(file("../../src/pyxelwidgets/__init__.py").readText())!!.groupValues[1]
+val (major, minor, patch) = packageVersion.split(".").map { it.takeWhile(Char::isDigit).toInt() }
+
+// The release key: environment variables (CI) or android/keystore.properties (this computer); never committed
+val keystore = Properties().apply {
+    val local = rootProject.file("keystore.properties")
+    if (local.exists()) local.inputStream().use { load(it) }
+}
+fun signing(name: String): String? = System.getenv("PYXELWIDGETS_${name.uppercase()}") ?: keystore.getProperty(name)
+
 plugins {
     id("com.android.application")
     id("org.jetbrains.kotlin.android")
@@ -5,26 +19,38 @@ plugins {
 }
 
 android {
-    namespace = "io.github.nullmember.pyxelwidgets"
+    namespace = "com.nullmember.pyxelwidgets"
     compileSdk = 35
 
     defaultConfig {
-        applicationId = "io.github.nullmember.pyxelwidgets"
+        applicationId = "com.nullmember.pyxelwidgets"
         minSdk = 24
         targetSdk = 35
-        versionCode = 1
-        versionName = "0.1.0"
+        versionCode = major * 10000 + minor * 100 + patch
+        versionName = packageVersion
         ndk {
             // Python 3.12 and later are 64-bit only; x86_64 is for the emulator
             abiFilters += listOf("arm64-v8a", "x86_64")
         }
     }
 
+    signingConfigs {
+        create("release") {
+            val path = signing("store_file")
+            if (path != null) {
+                storeFile = file(path)
+                storePassword = signing("store_password")
+                keyAlias = signing("key_alias")
+                keyPassword = signing("key_password")
+            }
+        }
+    }
+
     buildTypes {
         release {
             isMinifyEnabled = false
-            // Signed with the debug key until there's a release key
-            signingConfig = signingConfigs.getByName("debug")
+            // Without the release key (a build on another computer) it's signed with the debug key
+            signingConfig = signingConfigs.getByName(if (signing("store_file") != null) "release" else "debug")
         }
     }
 

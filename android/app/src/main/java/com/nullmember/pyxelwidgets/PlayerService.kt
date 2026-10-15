@@ -1,4 +1,4 @@
-package io.github.nullmember.pyxelwidgets
+package com.nullmember.pyxelwidgets
 
 import android.app.Notification
 import android.app.NotificationChannel
@@ -113,7 +113,7 @@ class PlayerService : Service() {
     companion object {
         private const val CHANNEL = "running"
         private const val NOTIFICATION = 1
-        const val QUIT = "io.github.nullmember.pyxelwidgets.QUIT"
+        const val QUIT = "com.nullmember.pyxelwidgets.QUIT"
 
         fun start(context: Context) {
             val intent = Intent(context, PlayerService::class.java)
