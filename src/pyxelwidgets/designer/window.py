@@ -175,7 +175,10 @@ def main(argv = None, prog = 'pyxelwidgets app') -> None:
     storage = data_folder() / 'webview'
     storage.mkdir(parents = True, exist_ok = True)
     try:
-        webview.start(private_mode = False, storage_path = str(storage), debug = args.debug, menu = _menus(window), icon = str(ICON),
+        # Windows' web view takes only .ico icons (a PNG threw in .NET and closed the app before anything showed);
+        # without one it uses the program's own icon
+        icon = None if sys.platform == 'win32' else str(ICON)
+        webview.start(private_mode = False, storage_path = str(storage), debug = args.debug, menu = _menus(window), icon = icon,
                       localization = {'global.quitConfirmation': 'The layout has unsaved changes. Close it anyway?',
                                       'global.quit': 'Close'})
     finally:
