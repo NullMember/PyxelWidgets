@@ -97,6 +97,7 @@ class MainActivity : ComponentActivity() {
         })
         MidiBridge.init(applicationContext)
         BluetoothBridge.init(applicationContext)
+        BlePeripheral.init(applicationContext)
         Permissions.attach(this)
         if (!Python.isStarted()) {
             Python.start(AndroidPlatform(applicationContext))
