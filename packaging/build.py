@@ -75,11 +75,11 @@ def icons() -> pathlib.Path:
     run(env_python(), ROOT / 'packaging' / 'icon.py', folder)
     return folder
 
-def pyinstaller(icon_folder: pathlib.Path) -> None:
+def pyinstaller(icon_folder: pathlib.Path, console: bool = False) -> None:
     icon = icon_folder / {'macos': 'icon.icns', 'windows': 'icon.ico'}.get(system(), 'icon.png')
     command = [
         env_python(), '-m', 'PyInstaller', ROOT / 'packaging' / 'app.py',
-        '--name', NAME, '--windowed', '--noconfirm', '--clean',
+        '--name', NAME, '--console' if console else '--windowed', '--noconfirm', '--clean',
         '--icon', icon,
         '--distpath', DIST, '--workpath', BUILD / 'pyinstaller', '--specpath', BUILD,
         # Devices, outputs and widgets are found by name (layouts say "novation.LaunchpadMiniMK3"), not by imports
@@ -242,12 +242,13 @@ def archive(built: pathlib.Path) -> pathlib.Path:
 def main(argv = None) -> None:
     parser = argparse.ArgumentParser(description = __doc__.split('\n\n')[0])
     parser.add_argument('--reuse', action = 'store_true', help = "reuse build/app-venv's packages (still reinstalls this package)")
+    parser.add_argument('--console', action = 'store_true', help = 'a console program (Windows), which shows errors from before the log opens')
     args = parser.parse_args(argv)
     if sys.version_info < (3, 10):
         sys.exit('PyxelWidgets needs Python 3.10 or later')
     BUILD.mkdir(exist_ok = True)
     prepare(args.reuse)
-    pyinstaller(icons())
+    pyinstaller(icons(), args.console)
     built = mac_bundle() if system() == 'macos' else DIST / NAME
     target = archive(built)
     print(f'\nBuilt {built}\nZipped {target}')
