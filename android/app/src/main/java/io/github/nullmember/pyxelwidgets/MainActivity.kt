@@ -90,9 +90,10 @@ class MainActivity : ComponentActivity() {
         web.addJavascriptInterface(Host(), "PyxelWidgetsHost")
         show("Starting PyxelWidgets…")
         onBackPressedDispatcher.addCallback(this, object : OnBackPressedCallback(true) {
-            // Back leaves the app running (devices stay connected), like Home
+            // Back returns from the touch grid to the designer; there, it leaves the app running (like Home)
             override fun handleOnBackPressed() {
-                moveTaskToBack(true)
+                // The grid page was opened from the designer with ?back=
+                if ((web.url ?: "").contains("?back=") && web.canGoBack()) web.goBack() else moveTaskToBack(true)
             }
         })
         Permissions.attach(this)
