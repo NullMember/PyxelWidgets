@@ -261,9 +261,14 @@ _PAGE = r'''<!doctype html>
                 width: 36px; height: 36px; border: 0; border-radius: 8px; background: rgba(255, 255, 255, 0.08);
                 color: #aaa; font-size: 20px; line-height: 36px; padding: 0; }
   #fullscreen[hidden] { display: none; }
+  #back { position: absolute; top: calc(6px + env(safe-area-inset-top)); left: calc(6px + env(safe-area-inset-left));
+          height: 36px; border: 0; border-radius: 8px; background: rgba(255, 255, 255, 0.08); color: #aaa;
+          font: 14px system-ui, sans-serif; padding: 0 12px; }
+  #back[hidden] { display: none; }
+  #back:not([hidden]) ~ #status { left: calc(120px + env(safe-area-inset-left)); top: calc(16px + env(safe-area-inset-top)); }
 </style>
 </head><body>
-<div id="grid"></div><div id="status">connecting…</div>
+<div id="grid"></div><button id="back" hidden>◀ Designer</button><div id="status">connecting…</div>
 <button id="fullscreen" title="Fullscreen" aria-label="Fullscreen" hidden>⛶</button>
 <script>
 const grid = document.getElementById('grid'), status = document.getElementById('status');
@@ -296,7 +301,17 @@ const fullscreenButton = document.getElementById('fullscreen');
 const root = document.documentElement;
 const requestFullscreen = root.requestFullscreen || root.webkitRequestFullscreen;
 const fullscreenElement = () => document.fullscreenElement || document.webkitFullscreenElement;
-const standalone = matchMedia('(display-mode: fullscreen), (display-mode: standalone)').matches || navigator.standalone;
+// The PyxelWidgets app (Android, desktop window) is fullscreen already
+const standalone = matchMedia('(display-mode: fullscreen), (display-mode: standalone)').matches || navigator.standalone
+  || !!window.PyxelWidgetsHost || !!window.pywebview;
+// Opened from the designer (?back=its address): a way back to it
+const back = new URLSearchParams(location.search).get('back');
+const backButton = document.getElementById('back');
+if (back && /^https?:\/\//.test(back)) {
+  backButton.hidden = false;
+  // In place of this page: going back from the designer leaves the app, not returns here
+  backButton.addEventListener('click', () => { location.replace(back); });
+}
 function showFullscreenButton() {
   fullscreenButton.hidden = !requestFullscreen || standalone || !!fullscreenElement();
 }
