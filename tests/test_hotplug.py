@@ -13,6 +13,8 @@ import pytest
 rtmidi = pytest.importorskip('rtmidi')
 if platform.system() == 'Windows':
     pytest.skip('needs virtual MIDI ports', allow_module_level = True)
+if platform.system() == 'Linux' and not __import__('os').path.exists('/dev/snd/seq'):
+    pytest.skip('needs the ALSA sequencer (/dev/snd/seq)', allow_module_level = True)
 
 from pyxelwidgets import DeviceDisconnected, DeviceReconnected, Surface  # noqa: E402
 from pyxelwidgets.devices.midi import MIDI  # noqa: E402
