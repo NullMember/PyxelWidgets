@@ -66,6 +66,24 @@ below. On Windows the program is a windowed one, so a command prompt gets its
 prompt back at once and the output goes to the log: stop it with Task Manager
 or `taskkill /im PyxelWidgets.exe`.
 
+## Designer server without a window, and sharing
+
+```sh
+PyxelWidgets --server [layout.json] [--host 0.0.0.0] [--play]
+```
+
+`--server` runs only the designer's server (stopped with Ctrl+C or SIGTERM):
+open the printed address in a browser. With `--host 0.0.0.0` (also for the
+window) other computers on the network can open it, for example to edit a
+phone's or a Raspberry Pi's layouts from a bigger screen. The *Share* button
+in the designer's toolbar does the same while it runs, and can stop it again.
+
+Other computers need a key: the shared address carries it
+(`http://192.168.1.27:8770/?key=…`), a cookie remembers it, and it's kept in
+`~/.pyxelwidgets/share-key` so bookmarks keep working (delete that file for a
+new key). Anyone with the address can edit layouts and open and save files on
+the computer running it, so share only on networks you trust.
+
 ## Where things are kept
 
 The app's output (errors, device messages) goes to `PyxelWidgets.log`,
