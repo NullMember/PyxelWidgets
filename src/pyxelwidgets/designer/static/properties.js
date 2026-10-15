@@ -5,7 +5,7 @@ import { renderPlayHere } from './screen.js';
 import { prefs, savePrefs } from './prefs.js';
 import { widgetAt, containerSize, allWidgets, deviceInfo, bindingFields, transportControls, deviceSize,
   isGroup, currentPage, addPage, widgetSelection } from './model.js';
-import { outputsOf, renderOutputs, outputProperties } from './mappings.js';
+import { outputsOf, outputInfo, renderOutputs, outputProperties } from './mappings.js';
 import { describeValue, linkOptions } from './links.js';
 import { ruleSummary } from './rules.js';
 import { drawerPrefs } from './drawer.js';
@@ -540,11 +540,13 @@ export function portPicker(id, value, direction, empty, set) {
     }) : null);
 }
 
-// The transport following a DAW's MIDI clock (transport.sync): a virtual port or an input port
+// The transport following a DAW's MIDI clock (transport.sync): a virtual port, an input port or an output the DAW connects to
 function syncFields() {
   const transport = state.layout.transport || {};
   const sync = transport.sync || null;
-  const kind = sync ? ('virtual' in sync ? 'virtual' : 'input') : 'off';
+  const kind = sync ? ['virtual', 'output'].find((key) => key in sync) || 'input' : 'off';
+  // Outputs a clock can come in through (Bluetooth and network MIDI, MIDI ports)
+  const clocked = outputsOf().filter((output) => outputInfo(output)?.clock).map((output) => output.name);
   const setSync = (value) => change((layout) => {
     const next = { ...(layout.transport || {}) };
     if (value) next.sync = value;
@@ -557,9 +559,15 @@ function syncFields() {
       el('select', {
         id: 'sync-kind', 'aria-label': 'Sync',
         onchange: (e) => setSync(e.target.value === 'off' ? null
-          : e.target.value === 'virtual' ? { virtual: 'PyxelWidgets Clock' } : { input: state.ports?.inputs?.[0] || 'IAC Driver Bus 1' }),
-      }, [['off', 'Off: its own tempo'], ['virtual', 'Virtual port'], ['input', 'MIDI input port']].map(([value, label]) =>
-        el('option', { value, selected: kind === value }, label))),
+          : e.target.value === 'virtual' ? { virtual: 'PyxelWidgets Clock' }
+          : e.target.value === 'output' ? { output: clocked[0] } : { input: state.ports?.inputs?.[0] || 'IAC Driver Bus 1' }),
+      }, [['off', 'Off: its own tempo'], ['virtual', 'Virtual port'], ['input', 'MIDI input port'], ['output', 'An output (Bluetooth, network MIDI)']]
+        .filter(([value]) => value !== 'output' || clocked.length || kind === 'output')
+        .map(([value, label]) => el('option', { value, selected: kind === value }, label))),
+      kind !== 'output' ? null : el('select', {
+        id: 'sync-output', 'aria-label': 'Output',
+        onchange: (e) => setSync({ output: e.target.value }),
+      }, [...new Set([...clocked, sync.output])].map((name) => el('option', { value: name, selected: name === sync.output }, name))),
       kind !== 'virtual' ? null : el('input', {
         id: 'sync-port', type: 'text', value: sync[kind], 'aria-label': 'Port name',
         title: 'The name of the port the DAW sends its clock to',
@@ -571,7 +579,9 @@ function syncFields() {
       ? 'Follow a DAW\'s MIDI clock: its tempo, play, stop and position. Sequencers and Trackers then play with the DAW.'
       : kind === 'virtual'
         ? 'In the DAW, send MIDI clock (and song position) to this port, then play from the DAW. The tempo above is used until the clock arrives.'
-        : 'Route the DAW\'s MIDI clock to this input (on macOS the IAC Driver, on Windows loopMIDI), then play from the DAW.'));
+        : kind === 'output'
+          ? 'In the DAW, send MIDI clock (and song position) to this output\'s port (the Bluetooth or network MIDI device it connected to), then play from the DAW.'
+          : 'Route the DAW\'s MIDI clock to this input (on macOS the IAC Driver, on Windows loopMIDI), then play from the DAW.'));
 }
 
 export function syncStatus() {

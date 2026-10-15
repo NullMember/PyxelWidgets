@@ -79,6 +79,8 @@ def _describe(cls, kind: str, outputs: bool) -> dict:
     info['auto_connect'] = getattr(cls, 'auto_connect', True)
     # MIDI outputs connect to ports or a virtual port; OSC by its options
     info['midi'] = hasattr(cls, 'connect_virtual') if outputs else None
+    # Outputs whose received MIDI clock can drive the transport (transport.sync.output)
+    info['clock'] = bool(getattr(cls, 'receives_clock', False)) if outputs else None
     return info
 
 # Palette previews: each widget drawn small, at this size, with these options (containers get none)
@@ -481,8 +483,11 @@ class Preview:
             clock = self.sync['input']
             connected = clock is not None and clock.connected
             error = self.sync['error']
+            spec = self.ui.sync_settings() or {}
             if clock is not None and not connected and getattr(clock, 'lost', False):
-                error = f'waiting for the port {self.ui.sync_settings().get("input")!r}'
+                error = f'waiting for the port {spec.get("input")!r}'
+            elif clock is not None and not connected and 'output' in spec:
+                error = f'waiting for the output {spec["output"]!r} to connect'
             sync = {'connected': connected, 'error': error}
         found = {'devices': status(self.hardware), 'outputs': status(self.outputs)}
         if sync is not None:
@@ -560,6 +565,10 @@ class Preview:
             if output is not None and spec['name'] in self.proxies:
                 self.proxies[spec['name']].attach(output)
             self.outputs.append({'key': _device_key(spec), 'device': output, 'error': error})
+        follower = self.sync['input'] if self.sync is not None else None
+        if follower is not None and hasattr(follower, 'attach'):
+            # Following an output's clock: the output may be another connection now (or none)
+            follower.attach(self._sync_outputs().get((self.ui.sync_settings() or {}).get('output')))
         if self.check is not None and all(entry['device'] is not self.check['device'] for entry in self.hardware):
             # The device checked is gone (disconnected or removed)
             self.check = None
@@ -877,13 +886,18 @@ class Preview:
             self.sync['input'].transport = transport
         else:
             try:
-                self.sync = {'key': key, 'input': ui.sync_input(transport), 'error': None}
+                self.sync = {'key': key, 'input': ui.sync_input(transport, self._sync_outputs()), 'error': None}
             except Exception as error:
                 self.sync = {'key': key, 'input': None, 'error': str(error) or type(error).__name__}
                 transport.close()
                 ui.surface.transport = self._idle(ui)
                 return
         self.transport = transport
+
+    def _sync_outputs(self) -> dict:
+        """The connected outputs by name (a ClockFollower follows one of them)."""
+        names = [spec.get('name') for spec in self.layout.get('outputs') or []]
+        return {name: entry['device'] for name, entry in zip(names, self.outputs) if entry['device'] is not None}
 
     def _unfollow(self) -> None:
         if self.sync is not None and self.sync['input'] is not None:

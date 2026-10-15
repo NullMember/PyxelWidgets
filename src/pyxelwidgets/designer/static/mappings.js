@@ -48,6 +48,8 @@ export function removeOutput(index) {
     const [removed] = layout.outputs.splice(index, 1);
     if (!layout.outputs.length) delete layout.outputs;
     setMappings(layout, (layout.mappings || []).filter((mapping) => mapping.output !== removed.name));
+    // The transport stops following its clock
+    if (layout.transport?.sync?.output === removed.name) delete layout.transport.sync;
     state.selection = null;
   });
 }
@@ -109,6 +111,7 @@ export function outputProperties(panel, index) {
           }
           change((layout) => {
             for (const mapping of layout.mappings || []) if (mapping.output === output.name) mapping.output = name;
+            if (layout.transport?.sync?.output === output.name) layout.transport.sync = { output: name };
             output.name = name;
           });
         },
