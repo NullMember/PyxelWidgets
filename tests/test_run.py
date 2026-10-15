@@ -17,6 +17,7 @@ def write_layout(path, **extra):
     return path
 
 
+@pytest.mark.skipif(sys.platform == 'win32', reason = 'Windows has no SIGTERM to catch (TerminateProcess ends it at once)')
 def test_run_plays_until_terminated(tmp_path):
     path = write_layout(tmp_path / 'layout.json')
     process = subprocess.Popen([sys.executable, '-m', 'pyxelwidgets', 'run', str(path), '--play'],

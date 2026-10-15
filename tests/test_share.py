@@ -1,6 +1,7 @@
 """Sharing the designer on the network: the key, the second listener, --host."""
 
 import json
+import sys
 import threading
 import urllib.error
 import urllib.request
@@ -32,7 +33,8 @@ def test_share_key_is_made_once(tmp_path):
     path = tmp_path / 'sub' / 'key'
     key = share_key(path)
     assert len(key) >= 16 and share_key(path) == key
-    assert path.stat().st_mode & 0o077 == 0
+    # Windows has no such modes (the file is in the user's profile)
+    assert sys.platform == 'win32' or path.stat().st_mode & 0o077 == 0
 
 def test_not_shared_at_first(server):
     designer = server.RequestHandlerClass.designer

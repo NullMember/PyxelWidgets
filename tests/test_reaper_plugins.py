@@ -239,8 +239,9 @@ def test_parameters_past_the_bank_and_tracks_before_it(reaper):
 def test_unknown_parameter_is_a_warning(reaper):
     device, daw = reaper
     device.send(PluginParameter('Kick', 'ReaEQ', 'Drive', 1.0))
-    assert wait_for(lambda: device.warning is not None)
-    assert 'Drive' in device.warning and 'Freq' in device.warning
+    # The scan's own warning (unnamed tracks) may show first
+    assert wait_for(lambda: 'Drive' in (device.warning or ''))
+    assert 'Freq' in device.warning
 
 
 def test_reaper_not_answering(monkeypatch):
