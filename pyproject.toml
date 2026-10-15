@@ -34,6 +34,7 @@ network = ["zeroconf >= 0.100"]
 bluetooth = ["dbus-fast >= 2.0; platform_system == 'Linux'", "bleak >= 0.22"]
 desktop = ["pynput >= 1.7"]
 app = ["pywebview >= 5.0"]
+all = ["pyxelwidgets[osc,network,bluetooth,desktop,app]"]
 test = ["pytest >= 7"]
 
 [project.scripts]
@@ -42,6 +43,9 @@ pyxelwidgets-designer = "pyxelwidgets.designer.__main__:main"
 
 [project.urls]
 Homepage = "https://github.com/NullMember/PyxelWidgets"
+Documentation = "https://github.com/NullMember/PyxelWidgets/tree/main/docs"
+Changelog = "https://github.com/NullMember/PyxelWidgets/blob/main/CHANGELOG.md"
+Releases = "https://github.com/NullMember/PyxelWidgets/releases"
 Issues = "https://github.com/NullMember/PyxelWidgets/issues"
 
 [tool.setuptools.dynamic]
