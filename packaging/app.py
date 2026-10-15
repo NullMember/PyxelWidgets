@@ -6,7 +6,12 @@ import sys
 import pyxelwidgets.designer.window
 
 def log_output() -> None:
-    """A windowed program has no terminal (on Windows no stdout at all): its output goes to a log file, new each launch."""
+    """
+    Started from a terminal, output goes there; otherwise (a double click; on Windows
+    a windowed program has no stdout at all) to a log file, new each launch.
+    """
+    if sys.stdout is not None and sys.stdout.isatty():
+        return
     folder = pyxelwidgets.designer.window.data_folder()
     folder.mkdir(parents = True, exist_ok = True)
     log = open(folder / 'PyxelWidgets.log', 'w', encoding = 'utf-8', buffering = 1)

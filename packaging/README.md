@@ -51,6 +51,21 @@ open -a PyxelWidgets --args layout.json --perform --play   # macOS
 transport keep running), `--play` starts the transport, `--offline` doesn't
 connect devices. The Mode menu switches between Edit, Try and Perform.
 
+## Headless
+
+```sh
+PyxelWidgets --headless layout.json [--play] [--fps 30] [--quiet] [--import my_widgets.py]
+PyxelWidgets.app/Contents/MacOS/PyxelWidgets --headless layout.json --play   # macOS
+```
+
+This plays the layout on its devices and outputs without a window, like
+`pyxelwidgets run`: unplugged devices reconnect, stored presets are saved to
+the layout file, and Ctrl+C or SIGTERM stops it. Started from a terminal it
+prints there; otherwise (a service, a login item) it prints to the log file
+below. On Windows the program is a windowed one, so a command prompt gets its
+prompt back at once and the output goes to the log: stop it with Task Manager
+or `taskkill /im PyxelWidgets.exe`.
+
 ## Where things are kept
 
 The app's output (errors, device messages) goes to `PyxelWidgets.log`,
