@@ -116,6 +116,16 @@ jobs:
       - name: Build (Linux)
         if: runner.os == 'Linux'
         run: xvfb-run -a python packaging/build.py
+      - name: The Linux app opens its window
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get install -y libxcb-cursor0 libxkbcommon-x11-0 libxcb-icccm4 libxcb-keysyms1 libxcb-image0 libxcb-render-util0 libxcb-shape0 libxcb-randr0 libxcb-xinerama0 libxcb-xfixes0 libegl1
+          mkdir "$RUNNER_TEMP/unpacked" && tar xzf dist/*.tar.gz -C "$RUNNER_TEMP/unpacked"
+          cd "$RUNNER_TEMP/unpacked/PyxelWidgets"
+          QTWEBENGINE_REMOTE_DEBUGGING=9222 QTWEBENGINE_CHROMIUM_FLAGS=--no-sandbox xvfb-run -a ./PyxelWidgets --offline > "$RUNNER_TEMP/app.log" 2>&1 &
+          for i in $(seq 1 60); do curl -s http://127.0.0.1:9222/json | grep -q '"title": "PyxelWidgets' && break; sleep 1; done
+          curl -s http://127.0.0.1:9222/json | grep -q '"title": "PyxelWidgets' && echo "The designer page is shown" || { echo "The window didn't show the designer"; cat "$RUNNER_TEMP/app.log"; exit 1; }
+          pkill -f "unpacked/PyxelWidgets/PyxelWidgets" || true
       - uses: actions/upload-artifact@v4
         with:
           name: app-${{ matrix.name }}
