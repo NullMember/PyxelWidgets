@@ -33,6 +33,7 @@ import pyxelwidgets.buffer
 import pyxelwidgets.codegen
 import pyxelwidgets.color
 import pyxelwidgets.devices
+import pyxelwidgets.devices.bluetooth
 import pyxelwidgets.events
 import pyxelwidgets.message
 import pyxelwidgets.parser
@@ -1052,6 +1053,10 @@ def share_key(path: pathlib.Path = None) -> str:
         pass
     return key
 
+def bluetooth_devices():
+    """The program's Bluetooth MIDI devices (``pyxelwidgets.devices.bluetooth.manager()``)."""
+    return pyxelwidgets.devices.bluetooth.manager()
+
 #: Interfaces whose addresses other computers are likely to reach first (Wi-Fi, Ethernet, a phone's hotspot)
 LOCAL_INTERFACES = ('wlan', 'eth', 'en', 'wl', 'ap', 'swlan')
 
@@ -1284,6 +1289,8 @@ class Handler(http.server.BaseHTTPRequestHandler):
         if url.path == '/api/share':
             # local: whether this page may change it
             self._json({**self.designer.sharing(), 'local': ipaddress.ip_address(self.client_address[0]).is_loopback})
+        elif url.path == '/api/bluetooth':
+            self._json(bluetooth_devices().status())
         elif url.path == '/api/catalog':
             self._json(self.designer.catalog)
         elif url.path == '/api/templates':
@@ -1367,6 +1374,26 @@ class Handler(http.server.BaseHTTPRequestHandler):
                     self._json({'ok': False, 'error': 'Only this computer can change sharing', **self.designer.sharing()}, 403)
                     return
                 self._json({'ok': True, **self.designer.share(bool(body.get('shared')))})
+                return
+            elif path == '/api/bluetooth':
+                # {"action": scan|connect|disconnect, "address", "seconds"}: Bluetooth MIDI devices
+                bluetooth = bluetooth_devices()
+                action = str(body.get('action'))
+                try:
+                    if action == 'scan':
+                        reply = {'found': bluetooth.scan(min(float(body.get('seconds', 4)), 15))}
+                    elif action == 'connect':
+                        reply = {'name': bluetooth.connect(str(body['address']))}
+                    elif action == 'disconnect':
+                        bluetooth.disconnect(str(body['address']))
+                        reply = {}
+                    else:
+                        raise ValueError(f'No Bluetooth action {action!r}')
+                except OSError as error:
+                    # Bluetooth's answer (off, refused, out of range), not a bad request
+                    self._json({'ok': False, 'error': str(error), **bluetooth.status()})
+                    return
+                self._json({'ok': True, **reply, **bluetooth.status()})
                 return
             elif path == '/api/pick':
                 # {"mode": open|save, "path"}: the system's file dialog, only for a browser on this computer

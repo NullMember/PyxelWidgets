@@ -23,6 +23,7 @@ import { showPaletteTab, loadSnippets, renderSnippets, saveSnippet } from './sni
 import { stopLearning } from './learn.js';
 import { openStart, closeStart } from './start.js';
 import { loadSharing, showShare } from './share.js';
+import { showBluetooth } from './bluetooth.js';
 import { addRecent, save, saveAs, showOpen, importFile, showFileMenu, showDetect, setMode, download } from './files.js';
 
 function bindToolbar() {
@@ -55,6 +56,7 @@ function bindToolbar() {
   $('save').onclick = save;
   $('file-menu').onclick = showFileMenu;
   $('detect-devices').onclick = showDetect;
+  $('bluetooth').onclick = showBluetooth;
   $('open-file').onchange = (e) => { if (e.target.files[0]) importFile(e.target.files[0]); e.target.value = ''; };
   $('add-device').onclick = addDevice;
   $('add-output').onclick = () => addOutput();

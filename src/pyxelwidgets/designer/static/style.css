@@ -56,6 +56,12 @@ input:focus, select:focus, button:focus-visible { outline: 2px solid var(--accen
 .picker select, .picker input { width: 100%; }
 #play.on { color: var(--ok); border-color: var(--ok); }
 #share.on { color: var(--accent); border-color: var(--accent); }
+.device-row { flex-wrap: wrap; }
+.row.device-row select { flex: 1 1 140px; min-width: 0; }
+.bluetooth-device { display: flex; justify-content: space-between; align-items: center; gap: 10px; padding: 6px 0; border-bottom: 1px solid rgba(46, 51, 61, 0.5); }
+.bluetooth-device small { color: var(--muted); }
+.bluetooth-buttons { display: flex; gap: 6px; flex: none; }
+#bluetooth-dialog h4 { margin: 12px 0 4px; font-size: 11px; text-transform: uppercase; letter-spacing: 0.8px; color: var(--muted); }
 .share-urls { display: grid; gap: 6px; margin: 4px 0 10px; }
 .share-url { display: flex; gap: 8px; align-items: center; }
 .share-url code { flex: 1; min-width: 0; overflow-wrap: anywhere; user-select: all; background: var(--bg); border: 1px solid var(--line); border-radius: 5px; padding: 5px 8px; font-size: 12px; }
