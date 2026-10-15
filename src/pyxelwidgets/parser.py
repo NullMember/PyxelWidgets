@@ -38,8 +38,10 @@ with its options. Older versions are upgraded on load.
 
 ``transport.sync`` makes the transport follow another program's MIDI clock
 (a DAW sending MIDI clock to a port): ``{"input": "IAC Driver Bus 1"}`` or a
-virtual port it can send to, ``{"virtual": "PyxelWidgets Clock"}``. Its
-tempo, start, stop and position (song position) then come from there.
+virtual port it can send to, ``{"virtual": "PyxelWidgets Clock"}``, or one of
+the layout's outputs the DAW connects to (a Bluetooth or network MIDI output,
+whose own port it is), ``{"output": "Bluetooth"}``. Its tempo, start, stop and
+position (song position) then come from there.
 
 Bindings connect a device's named controls (by the device's index in
 ``devices``) to a widget, with Binding options (``takeover``, ``glide_time``,
@@ -657,7 +659,7 @@ class Parser():
         self.json = upgrade(self.json)
         self.transport_settings()
         self.sync_settings()
-        #: The MidiClockInput following the DAW (``app()`` with ``transport.sync``)
+        #: The MidiClockInput or ClockFollower following the DAW (``app()`` with ``transport.sync``)
         self.clock_input = None
         # Clocks of widgets with their own (start_clocks)
         self.clocks = []
@@ -834,25 +836,40 @@ class Parser():
 
     def sync_settings(self) -> dict | None:
         """
-        The layout's ``transport.sync``: ``{"input": port}`` or ``{"virtual": port}``,
-        the MIDI port a DAW's clock comes in through; None if the transport keeps its own time.
+        The layout's ``transport.sync``: ``{"input": port}``, ``{"virtual": port}``
+        or ``{"output": name}``, where a DAW's clock comes in; None if the
+        transport keeps its own time.
         """
         sync = (self.json.get('transport') or {}).get('sync')
         if sync is None:
             return None
-        if not isinstance(sync, dict) or len(sync) != 1 or not set(sync) <= {'input', 'virtual'}:
-            raise LayoutError(f'transport.sync: must be {{"input": port name}} or {{"virtual": port name}}, got {sync!r}')
+        if not isinstance(sync, dict) or len(sync) != 1 or not set(sync) <= {'input', 'virtual', 'output'}:
+            raise LayoutError(f'transport.sync: must be {{"input": port name}}, {{"virtual": port name}} or {{"output": output name}}, got {sync!r}')
         (key, port), = sync.items()
         if not isinstance(port, str) or not port:
-            raise LayoutError(f'transport.sync.{key}: must be a port name, got {port!r}')
+            raise LayoutError(f'transport.sync.{key}: must be a {"name" if key == "output" else "port name"}, got {port!r}')
+        if key == 'output':
+            entry = next((entry for entry in self.output_settings() if entry['name'] == port), None)
+            if entry is None:
+                raise LayoutError(f'transport.sync.output: no output called {port!r}')
+            cls = device_class(entry)
+            if not getattr(cls, 'receives_clock', False):
+                raise LayoutError(f'transport.sync.output: {port!r} ({cls.__name__}) can\'t receive MIDI clock')
         return dict(sync)
 
-    def sync_input(self, transport):
-        """A MidiClockInput driving ``transport`` (created with ``sync = True``) from the ``sync`` port, connected; None without sync."""
+    def sync_input(self, transport, outputs: dict | None = None):
+        """
+        Whatever drives ``transport`` (created with ``sync = True``) from the
+        ``sync`` setting: a connected MidiClockInput for a port, a
+        ClockFollower on the output (from ``outputs`` by name, default the
+        layout's; it waits while that output is missing); None without sync.
+        """
         sync = self.sync_settings()
         if sync is None:
             return None
         import pyxelwidgets.devices.midi_clock
+        if 'output' in sync:
+            return pyxelwidgets.devices.midi_clock.ClockFollower(transport, (self.outputs if outputs is None else outputs).get(sync['output']))
         clock = pyxelwidgets.devices.midi_clock.MidiClockInput(transport)
         if 'virtual' in sync:
             clock.connect_virtual(sync['virtual'])
