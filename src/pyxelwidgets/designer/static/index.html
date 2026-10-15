@@ -3,6 +3,10 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
+  <script>
+    // In the Android app: a desktop-like page scaled to the (landscape) screen; the designer zooms by itself
+    if (window.PyxelWidgetsHost) document.querySelector('meta[name=viewport]').content = 'width=1280, user-scalable=no';
+  </script>
   <title>PyxelWidgets Designer</title>
   <link rel="icon" href="icon.png">
   <link rel="stylesheet" href="style.css">
@@ -46,6 +50,7 @@
   </header>
   <main>
     <aside class="panel" id="left">
+      <div class="left-scroll" id="left-scroll">
       <section class="fold" data-fold="widgets">
         <h2 class="fold-head">
           <span class="palette-tabs">
@@ -91,6 +96,7 @@
         <input type="search" id="layer-search" placeholder="Find a widget" aria-label="Find a widget">
         <ul id="tree" class="tree"></ul>
       </section>
+      </div>
       <div class="splitter" id="split-left" title="Drag to resize"></div>
     </aside>
     <section id="center">

@@ -26,6 +26,7 @@ function useLayout(reply) {
   state.layout.devices = state.layout.devices || [];
   state.layout.widgets = state.layout.widgets || [];
   state.file = reply.file;
+  state.revision = reply.revision;
   state.saved = JSON.stringify(state.layout);
   state.history = [];
   state.future = [];
@@ -79,6 +80,7 @@ export async function save() {
   if (!state.file) return saveAs();
   const reply = await api('POST', '/api/save', { layout: state.layout });
   if (reply.ok) {
+    state.revision = reply.revision;
     state.saved = JSON.stringify(state.layout);
     renderDirty();
     setStatus(`Saved ${state.file}`, 'ok');
@@ -113,6 +115,7 @@ export async function saveAs() {
   if (!reply.ok) return setStatus(reply.error, 'error');
   prefs.lastDirectory = reply.file.replace(/[^\\/]*$/, '');
   state.file = reply.file;
+  state.revision = reply.revision;
   state.saved = JSON.stringify(state.layout);
   addRecent(reply.file);
   render();

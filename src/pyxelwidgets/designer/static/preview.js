@@ -4,7 +4,7 @@ import { state, $, api } from './core.js';
 import { renderOutputs } from './mappings.js';
 import { renderDrawer, renderEvents } from './drawer.js';
 import { widgetNamed } from './links.js';
-import { change, flushSync, setStatus } from './history.js';
+import { change, flushSync, setStatus, syncIdle, adoptRemote } from './history.js';
 import { startMarquee } from './board.js';
 import { learnFrom } from './learn.js';
 import { renderDevices, renderProperties, syncStatus, renderToolbar } from './properties.js';
@@ -16,6 +16,8 @@ export async function poll() {
     const frame = await api('GET', `/api/frame?since=${state.lastEvent}${performing ? '&pixels=0' : ''}`);
     if (frame.pixels) paint(frame);
     addEvents(frame.events);
+    // Edited elsewhere (another page on this designer)
+    if (frame.revision !== undefined && state.revision !== undefined && frame.revision !== state.revision && syncIdle()) adoptRemote();
     if (frame.playing !== state.playing || frame.synced !== state.synced) {
       state.playing = frame.playing;
       state.synced = !!frame.synced;

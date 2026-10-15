@@ -132,7 +132,10 @@ button.icon { min-width: 28px; padding: 4px 6px; }
 .panel section { padding: 12px 14px; border-bottom: 1px solid var(--line); }
 .panel section.grow { flex: 1 1 0; min-height: 140px; display: flex; flex-direction: column; overflow: hidden; }
 .panel section.fold { flex: none; }
-#left > section:not(.grow) { overflow: auto; max-height: 45vh; }
+/* The left panel scrolls as a whole when its sections don't fit, so Layers stays reachable */
+.left-scroll { display: flex; flex-direction: column; flex: 1; min-height: 0; overflow: hidden auto; }
+.left-scroll > section:not(.grow) { overflow: auto; max-height: 45vh; }
+.left-scroll > section.grow { min-height: 180px; }
 .layers input[type=search] { width: 100%; margin-bottom: 6px; background: var(--bg); border: 1px solid var(--line); border-radius: 5px; padding: 3px 6px; }
 h2 {
   margin: 0 0 8px; font-size: 11px; text-transform: uppercase; letter-spacing: 0.8px; color: var(--muted);
@@ -393,7 +396,8 @@ kbd { background: var(--panel-2); border: 1px solid var(--line); border-bottom-w
   #center { order: -1; min-height: 75vh; }
   .panel { border: none; border-top: 1px solid var(--line); overflow: visible; }
   .panel section.grow { flex: none; min-height: 0; max-height: 320px; }
-  #left > section:not(.grow) { max-height: none; }
+  .left-scroll { overflow: visible; }
+  .left-scroll > section:not(.grow) { max-height: none; }
   .splitter, #toggle-left, #toggle-right, #toggle-right + .divider { display: none; }
   body.no-left #left, body.no-right #right { visibility: visible; }
 }

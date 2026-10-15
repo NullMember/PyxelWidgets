@@ -80,14 +80,60 @@ function sync() {
   return syncing;
 }
 
+let putting = false;
 async function putLayout() {
-  const reply = await api('PUT', '/api/layout', state.layout);
-  if (reply.ok) {
-    if (state.error) setStatus('');
-    state.error = null;
-  } else {
-    state.error = reply.error;
-    setStatus(reply.error, 'error');
+  putting = true;
+  try {
+    const reply = await api('PUT', '/api/layout', state.layout);
+    if (reply.ok) {
+      if (state.error) setStatus('');
+      state.error = null;
+      state.revision = reply.revision;
+    } else {
+      state.error = reply.error;
+      setStatus(reply.error, 'error');
+    }
+  } finally {
+    putting = false;
+  }
+}
+
+// Whether no change of this page is waiting or on its way to the preview
+export function syncIdle() {
+  return syncTimer === null && !putting;
+}
+
+// The preview's layout changed elsewhere (another window, or another computer through Share): take it,
+// as a step undo can go back from; the last change wins when two pages edit at once
+let adopting = false;
+export async function adoptRemote() {
+  if (adopting) return;
+  adopting = true;
+  try {
+    const reply = await api('GET', '/api/layout');
+    if (!reply.ok || !syncIdle() || reply.revision === state.revision) return;
+    state.revision = reply.revision;
+    const layout = reply.layout;
+    layout.devices = layout.devices || [];
+    layout.widgets = layout.widgets || [];
+    const same = JSON.stringify(layout) === JSON.stringify(state.layout);
+    const moved = reply.file !== state.file;
+    if (!same) {
+      state.history.push(JSON.stringify(state.layout));
+      if (state.history.length > 300) state.history.shift();
+      state.future = [];
+      state.layout = layout;
+    }
+    state.file = reply.file;
+    if (reply.saved) state.saved = JSON.stringify(state.layout);
+    if (!same || moved) {
+      checkSelection();
+      render();
+      setStatus('The layout was changed elsewhere (another window or computer)', 'ok');
+    }
+    renderDirty();
+  } finally {
+    adopting = false;
   }
 }
 

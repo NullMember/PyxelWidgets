@@ -315,6 +315,8 @@ class Preview:
         # Separate from ``lock``: events arrive from device and transport threads holding the surface lock
         self._events_lock = threading.Lock()
         self.layout = None
+        #: Counts layout loads: a page seeing another than its own reloads the layout (edited elsewhere)
+        self.revision = 0
         self.ui = None
         self.device = None
         self.transport = None
@@ -377,6 +379,7 @@ class Preview:
             for proxy in self.proxies.values():
                 proxy.detach()
             self.layout, self.ui, self.device, self.proxies = copy.deepcopy(layout), ui, device, proxies
+            self.revision += 1
             self._attach(old)
             if self.check is not None:
                 # The new surface shows the check's test pattern too
@@ -771,6 +774,7 @@ class Preview:
             playing = self.playing
             transport = self.transport
             return {'width': buffer.shape[0], 'height': buffer.shape[1], 'pixels': rows, 'events': events,
+                    'revision': self.revision,
                     'playing': playing, 'synced': self.synced,
                     # The tempo measured from the DAW's clock
                     'bpm': round(transport.bpm, 1) if self.synced and transport is not None else None,
@@ -894,6 +898,8 @@ class Designer:
         self.path = pathlib.Path(path) if path else None
         layout = json.loads(self.path.read_text()) if self.path and self.path.exists() else new_layout()
         self.preview = Preview(layout, connect = connect)
+        #: The preview's revision the file has (opened or saved), or a new layout's first
+        self.saved_revision = self.preview.revision
         self.catalog = catalog()
         #: Where the snippets you save go
         self.snippets = pathlib.Path(snippets).expanduser() if snippets else USER_SNIPPETS
@@ -970,6 +976,7 @@ class Designer:
         target.parent.mkdir(parents = True, exist_ok = True)
         target.write_text(json.dumps(self.preview.layout, indent = 2) + '\n')
         self.path = target
+        self.saved_revision = self.preview.revision
 
     def open(self, path: str) -> None:
         """Open the layout file at ``path``; it becomes the layout file."""
@@ -982,6 +989,7 @@ class Designer:
             raise ValueError(f'{target} is not a layout: {error}') from None
         self.preview.load(layout)
         self.path = target
+        self.saved_revision = self.preview.revision
 
     def new(self, template: str | None = None, layout: dict | None = None) -> None:
         """Start a layout: empty, from one of ``templates()``, or ``layout`` (imported); it has no file until saved."""
@@ -996,6 +1004,7 @@ class Designer:
             layout = new_layout()
         self.preview.load(layout)
         self.path = None
+        self.saved_revision = self.preview.revision
 
 def _path(path: str) -> pathlib.Path:
     path = pathlib.Path(path).expanduser()
@@ -1291,7 +1300,8 @@ class Handler(http.server.BaseHTTPRequestHandler):
                 inputs, outputs = [], []
             self._json({'inputs': list(inputs), 'outputs': list(outputs)})
         elif url.path == '/api/layout':
-            self._json({'layout': preview.layout, 'file': str(self.designer.path) if self.designer.path else None})
+            self._json({'layout': preview.layout, 'file': str(self.designer.path) if self.designer.path else None,
+                        'revision': preview.revision, 'saved': preview.revision == self.designer.saved_revision})
         elif url.path == '/api/check':
             self._json({'check': preview.check_status()})
         elif url.path == '/api/frame':
@@ -1321,7 +1331,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
             self._json({'ok': False, 'error': str(error)}, 400)
             return
         # The layout as loaded, e.g. upgraded from an older version
-        self._json({'ok': True, 'layout': self.designer.preview.layout})
+        self._json({'ok': True, 'layout': self.designer.preview.layout, 'revision': self.designer.preview.revision})
 
     def do_POST(self) -> None:
         if not self._allowed():
@@ -1340,7 +1350,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
                     self.designer.save(body['layout'], body.get('path'))
                 else:
                     self.designer.save(body)
-                self._json({'ok': True, 'file': str(self.designer.path), 'layout': preview.layout})
+                self._json({'ok': True, 'file': str(self.designer.path), 'layout': preview.layout, 'revision': preview.revision})
                 return
             elif path in ('/api/open', '/api/new'):
                 if path == '/api/open':
@@ -1348,7 +1358,8 @@ class Handler(http.server.BaseHTTPRequestHandler):
                 else:
                     body = body if isinstance(body, dict) else {}
                     self.designer.new(body.get('template'), body.get('layout'))
-                self._json({'ok': True, 'file': str(self.designer.path) if self.designer.path else None, 'layout': preview.layout})
+                self._json({'ok': True, 'file': str(self.designer.path) if self.designer.path else None, 'layout': preview.layout,
+                            'revision': preview.revision})
                 return
             elif path == '/api/share':
                 # {"shared": bool}: only from this computer (a shared page could only cut itself off)

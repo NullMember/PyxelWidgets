@@ -237,6 +237,7 @@ async function start() {
   state.layout.devices = state.layout.devices || [];
   state.layout.widgets = state.layout.widgets || [];
   state.file = current.file;
+  state.revision = current.revision;
   state.saved = JSON.stringify(state.layout);
   addRecent(state.file);
   buildCatalog();
