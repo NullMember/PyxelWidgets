@@ -118,7 +118,7 @@ jobs:
         shell: pwsh
         run: |
           Expand-Archive (Get-Item dist\*.zip).FullName -DestinationPath "$env:RUNNER_TEMP\unpacked"
-          $env:WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS = '--remote-debugging-port=9222'
+          $env:PYXELWIDGETS_REMOTE_DEBUGGING = '9222'
           $app = Start-Process "$env:RUNNER_TEMP\unpacked\PyxelWidgets\PyxelWidgets.exe" -ArgumentList '--offline' -PassThru
           $shown = $false
           foreach ($i in 1..60) {
