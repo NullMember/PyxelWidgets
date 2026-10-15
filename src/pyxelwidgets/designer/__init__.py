@@ -904,6 +904,8 @@ class Designer:
         self.catalog = catalog()
         #: Where the snippets you save go
         self.snippets = pathlib.Path(snippets).expanduser() if snippets else USER_SNIPPETS
+        # Bluetooth MIDI devices connected before connect again (and when back in range)
+        pyxelwidgets.devices.bluetooth.manager().keep_connected_if_remembered()
         #: Shows the system's file dialog for Open and Save As: ``pick(mode, path)`` → a path or None (cancelled);
         #: None asks for paths in the page instead
         self.pick = pick_file if dialogs else None
