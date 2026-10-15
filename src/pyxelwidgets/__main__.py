@@ -15,6 +15,9 @@ def run(args) -> int:
     import pyxelwidgets.parser
     for module in args.imports:
         pyxelwidgets.designer.__main__.load_module(module)
+    # Bluetooth MIDI devices connected in the designer connect again; devices using them wait until they have
+    import pyxelwidgets.devices.bluetooth
+    pyxelwidgets.devices.bluetooth.manager().keep_connected_if_remembered()
     try:
         ui = pyxelwidgets.parser.load(args.layout)
     except FileNotFoundError:
