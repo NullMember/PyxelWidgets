@@ -55,6 +55,9 @@ class Surface(pyxelwidgets.events.Emitter):
         self.buffer = pyxelwidgets.buffer.new(width, height, pyxelwidgets.color.Colors.Black)
         self.frame_counter = 0
         self.lock = threading.RLock()
+        #: Set when a device's pad or control reaches the surface: a render loop waiting on it
+        #: draws the answer at once instead of at the next frame (App.run does)
+        self.input_arrived = threading.Event()
         # Until when reveal() shows the widgets' areas (time.monotonic), or None
         self._revealed = None
         # Frames shown on devices instead of the widgets (test_pattern), by device name
@@ -86,6 +89,7 @@ class Surface(pyxelwidgets.events.Emitter):
         def control(event):
             with self.lock:
                 self.emit(event)
+            self.input_arrived.set()
         with self.lock:
             device.on(pyxelwidgets.events.PadEvent, pad)
             device.on(pyxelwidgets.events.ControlEvent, control)
@@ -218,6 +222,7 @@ class Surface(pyxelwidgets.events.Emitter):
             x, y = event.x + x, event.y + y
             if 0 <= x < self.rect.w and 0 <= y < self.rect.h:
                 self.root.input(dataclasses.replace(event, x = x, y = y))
+        self.input_arrived.set()
 
     # Rendering
 
