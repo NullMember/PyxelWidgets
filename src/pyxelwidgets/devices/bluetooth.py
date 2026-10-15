@@ -55,12 +55,15 @@ class AndroidCentral:
     def scan(self, seconds: float) -> list[dict]:
         found = []
         for entry in self._call('scan', int(seconds * 1000)):
-            address, name, rssi = str(entry).split('\t')
-            found.append({'address': address, 'name': name, 'rssi': int(rssi)})
+            address, name, rssi, paired = str(entry).split('\t')
+            found.append({'address': address, 'name': name, 'rssi': int(rssi), 'paired': paired == '1'})
         return found
 
     def connect(self, address: str) -> str:
         return str(self._call('connect', address))
+
+    def pair(self, address: str) -> None:
+        self._call('pair', address)
 
     def disconnect(self, address: str) -> None:
         self._call('disconnect', address)
@@ -68,8 +71,8 @@ class AndroidCentral:
     def connected(self) -> list[dict]:
         devices = []
         for entry in self._call('connected'):
-            address, name = str(entry).split('\t')
-            devices.append({'address': address, 'name': name})
+            address, name, paired = str(entry).split('\t')
+            devices.append({'address': address, 'name': name, 'paired': paired == '1'})
         return devices
 
 class _Connection:
@@ -203,6 +206,33 @@ class BleakCentral:
         self._connections[address] = connection
         return connection.name
 
+    def pair(self, address: str) -> None:
+        import platform
+        if platform.system() == 'Darwin':
+            raise OSError('macOS pairs by itself when a device asks for it: accept its request when it shows')
+        connection = self._connections.get(address)
+        if connection is not None:
+            try:
+                self._run(connection.client.pair(), self.connect_timeout + 40)
+            except Exception as error:
+                raise self._error(error) from None
+            return
+        import bleak
+
+        async def pair():
+            device = self._seen.get(address) or await bleak.BleakScanner.find_device_by_address(address, timeout = self.connect_timeout / 2)
+            if device is None:
+                raise OSError(f'{address} isn\'t advertising (is it on and in range?)')
+            async with bleak.BleakClient(device) as client:
+                await client.pair()
+
+        try:
+            self._run(pair(), self.connect_timeout + 40)
+        except OSError:
+            raise
+        except Exception as error:
+            raise self._error(error) from None
+
     def _lost(self, address: str) -> None:
         self._connections.pop(address, None)
 
@@ -308,6 +338,15 @@ class Bluetooth:
                 entries = [entry for entry in self.remembered() if entry['address'] != address]
                 self._remember(entries + [{'address': address, 'name': name}])
         return name
+
+    def pair(self, address: str) -> None:
+        """
+        Pair with the device at ``address`` (the system asks the person to
+        accept). Devices that encrypt MIDI stay silent until they're paired.
+        """
+        self._ready()
+        with self._lock:
+            self.backend.pair(address)
 
     def disconnect(self, address: str, *, forget: bool = True) -> None:
         """Disconnect the device at ``address``; with ``forget``, it isn't connected again."""
