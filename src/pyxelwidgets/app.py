@@ -17,7 +17,14 @@ class App():
 
     Every ``check_interval`` seconds devices notice being unplugged and
     reconnect when they're back (``Surface.check_devices``); None doesn't.
+
+    A pad or control answered by the widgets is drawn at once
+    (``Surface.input_arrived``), not at the next frame, at most every
+    ``input_gap`` seconds.
     """
+
+    #: The shortest time between frames drawn for input
+    input_gap = 0.004
 
     def __init__(self, surface: pyxelwidgets.surface.Surface, fps: float = 60.0, *,
                  bpm: float = 120, signature: tuple = (4, 4), sync: bool = False,
@@ -85,19 +92,34 @@ class App():
                 self.step()
                 next_frame += period
                 delay = next_frame - time.perf_counter()
-                if delay > 0.0:
-                    time.sleep(delay)
-                else:
+                if delay <= 0.0:
                     # Running behind; don't try to catch up with a burst of frames
                     next_frame = time.perf_counter()
+                    continue
+                self._wait(next_frame)
         except KeyboardInterrupt:
             pass
         finally:
             self.close()
 
+    def _wait(self, until: float) -> None:
+        """Sleep until the next frame, drawing input's answers meanwhile."""
+        arrived = self.surface.input_arrived
+        while self.running:
+            delay = until - time.perf_counter()
+            if delay <= 0.0 or not arrived.wait(delay) or not self.running:
+                return
+            arrived.clear()
+            drawn = time.perf_counter()
+            self.step()
+            if until - drawn > self.input_gap:
+                time.sleep(max(0.0, self.input_gap - (time.perf_counter() - drawn)))
+
     def stop(self) -> None:
         """Make run() return after the current frame; safe to call from any thread."""
         self.running = False
+        # Not waiting for input until the next frame
+        self.surface.input_arrived.set()
 
     def close(self) -> None:
         if self._closed:
