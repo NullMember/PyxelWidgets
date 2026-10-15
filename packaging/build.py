@@ -26,7 +26,7 @@ BUILD = ROOT / 'build'
 DIST = ROOT / 'dist'
 ENV = BUILD / 'app-venv'
 NAME = 'PyxelWidgets'
-BUNDLE_ID = 'io.github.nullmember.pyxelwidgets'
+BUNDLE_ID = 'com.nullmember.pyxelwidgets'
 
 EXTRAS = 'app,osc,network,desktop,bluetooth'
 
