@@ -2,6 +2,7 @@ package io.github.nullmember.pyxelwidgets
 
 import android.annotation.SuppressLint
 import android.content.pm.ApplicationInfo
+import android.content.pm.PackageManager
 import android.net.Uri
 import android.os.Build
 import android.os.Bundle
@@ -19,14 +20,13 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.WindowInsetsControllerCompat
-import com.chaquo.python.Python
-import com.chaquo.python.android.AndroidPlatform
 import kotlin.concurrent.thread
 
 /**
  * The designer in a WebView. Python (Chaquopy) runs the designer's server in this
- * process (pyxelwidgets_android.start); the page talks to it on 127.0.0.1 as in a
- * browser, and to this activity through PyxelWidgetsHost (saving files).
+ * process (Runtime, pyxelwidgets_android.start); the page talks to it on 127.0.0.1 as
+ * in a browser, and to this activity through PyxelWidgetsHost (saving files).
+ * PlayerService keeps it all running in the background.
  */
 class MainActivity : ComponentActivity() {
     private lateinit var web: WebView
@@ -95,17 +95,16 @@ class MainActivity : ComponentActivity() {
                 moveTaskToBack(true)
             }
         })
-        MidiBridge.init(applicationContext)
-        BluetoothBridge.init(applicationContext)
-        BlePeripheral.init(applicationContext)
         Permissions.attach(this)
-        if (!Python.isStarted()) {
-            Python.start(AndroidPlatform(applicationContext))
+        activities.add(this)
+        // Playing goes on in the background (its notification: Android 13 and later ask first)
+        if (Build.VERSION.SDK_INT >= 33 && checkSelfPermission(android.Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
+            requestPermissions(arrayOf(android.Manifest.permission.POST_NOTIFICATIONS), 4022)
         }
-        val folder = (getExternalFilesDir(null) ?: filesDir).absolutePath
+        PlayerService.start(this)
         thread(name = "PyxelWidgetsStart") {
             try {
-                val url = Python.getInstance().getModule("pyxelwidgets_android").callAttr("start", folder).toString()
+                val url = Runtime.start(this)
                 runOnUiThread { web.loadUrl(url) }
             } catch (error: Exception) {
                 Log.e("PyxelWidgets", "Starting failed", error)
@@ -116,13 +115,29 @@ class MainActivity : ComponentActivity() {
 
     override fun onDestroy() {
         Permissions.detach(this)
+        activities.remove(this)
         super.onDestroy()
+    }
+
+    companion object {
+        private val activities = java.util.Collections.synchronizedSet(mutableSetOf<MainActivity>())
+
+        /** Close the app's windows (the notification's Quit). */
+        fun finishAll() {
+            for (activity in activities.toList()) {
+                activity.runOnUiThread { activity.finishAndRemoveTask() }
+            }
+        }
     }
 
     @Deprecated("Permissions asks with Activity.requestPermissions from Python's thread")
     override fun onRequestPermissionsResult(requestCode: Int, permissions: Array<String>, grantResults: IntArray) {
         super.onRequestPermissionsResult(requestCode, permissions, grantResults)
         Permissions.answered(requestCode, grantResults)
+        // Notifications allowed: the service shows its notification now
+        if (requestCode == 4022) {
+            PlayerService.start(this)
+        }
     }
 
     private fun show(text: String) {

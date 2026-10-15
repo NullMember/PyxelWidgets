@@ -32,3 +32,17 @@ def start(folder: str) -> str:
             print(f'Designer on {_server.RequestHandlerClass.designer.local_url()}, layouts in {folder}, '
                   f'network addresses {pyxelwidgets.designer.network_addresses()}', flush = True)
     return _server.RequestHandlerClass.designer.local_url()
+
+def stop() -> None:
+    """Close the designer (the notification's Quit): devices get their goodbye messages."""
+    global _server
+    with _lock:
+        if _server is None:
+            return
+        server, _server = _server, None
+        designer = server.RequestHandlerClass.designer
+        server.shutdown()
+        designer.close()
+        server.server_close()
+        import pyxelwidgets.devices.bluetooth
+        pyxelwidgets.devices.bluetooth.manager().close()
