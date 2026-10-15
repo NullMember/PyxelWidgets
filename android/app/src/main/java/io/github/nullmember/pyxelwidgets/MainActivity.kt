@@ -16,6 +16,9 @@ import android.widget.FrameLayout
 import androidx.activity.ComponentActivity
 import androidx.activity.OnBackPressedCallback
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.core.view.WindowCompat
+import androidx.core.view.WindowInsetsCompat
+import androidx.core.view.WindowInsetsControllerCompat
 import com.chaquo.python.Python
 import com.chaquo.python.android.AndroidPlatform
 import kotlin.concurrent.thread
@@ -58,13 +61,23 @@ class MainActivity : ComponentActivity() {
         if (Build.VERSION.SDK_INT >= 30) {
             // Android 15 draws apps under the status and navigation bars
             frame.setOnApplyWindowInsetsListener { view, insets ->
-                val bars = insets.getInsets(WindowInsets.Type.systemBars() or WindowInsets.Type.ime())
+                // Bars hidden (immersive) give no insets; a camera cutout still does
+                val bars = insets.getInsets(WindowInsets.Type.systemBars() or WindowInsets.Type.displayCutout() or WindowInsets.Type.ime())
                 view.setPadding(bars.left, bars.top, bars.right, bars.bottom)
                 insets
             }
         }
+        // Landscape, full screen: the bars come back with a swipe from the edge
+        WindowCompat.getInsetsController(window, window.decorView).apply {
+            hide(WindowInsetsCompat.Type.systemBars())
+            systemBarsBehavior = WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
+        }
         web.settings.javaScriptEnabled = true
         web.settings.domStorageEnabled = true
+        // The page asks for a 1280 px wide layout (index.html): scaled to fit the screen
+        web.settings.useWideViewPort = true
+        web.settings.loadWithOverviewMode = true
+        web.settings.setSupportZoom(false)
         web.webViewClient = WebViewClient()
         web.webChromeClient = object : WebChromeClient() {
             override fun onShowFileChooser(view: WebView, callback: ValueCallback<Array<Uri>>, params: FileChooserParams): Boolean {
