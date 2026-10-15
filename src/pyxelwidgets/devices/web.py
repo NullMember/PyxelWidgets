@@ -16,10 +16,11 @@ import base64
 import hashlib
 import html
 import http.server
-import socketserver
 import json
 import socket
+import socketserver
 import struct
+import sys
 import threading
 
 import pyxelwidgets.devices
@@ -92,7 +93,12 @@ class _Client:
 class _Server(http.server.ThreadingHTTPServer):
     """Without the reverse DNS lookup of its own address when it starts (on macOS an mDNS query that waits for the local network permission)."""
 
+    # On Windows SO_REUSEADDR lets a second server take a port in use: bind it exclusively there instead
+    allow_reuse_address = sys.platform != 'win32'
+
     def server_bind(self) -> None:
+        if sys.platform == 'win32':
+            self.socket.setsockopt(socket.SOL_SOCKET, socket.SO_EXCLUSIVEADDRUSE, 1)
         socketserver.TCPServer.server_bind(self)
         self.server_name, self.server_port = self.server_address[:2]
 
