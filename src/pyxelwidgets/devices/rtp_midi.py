@@ -497,7 +497,7 @@ def _computer_name() -> str:
         # Android's host name is "localhost": the phone's own name instead
         try:
             from java import jclass
-            return str(jclass('io.github.nullmember.pyxelwidgets.NsdAdvert').deviceName())
+            return str(jclass('com.nullmember.pyxelwidgets.NsdAdvert').deviceName())
         except Exception:
             pass
     return socket.gethostname().split('.')[0]
@@ -510,7 +510,7 @@ class _AndroidNsd:
 
     def __init__(self, name: str, port: int) -> None:
         from java import jclass
-        self.advert = jclass('io.github.nullmember.pyxelwidgets.NsdAdvert').register(name, _SERVICE, port, self.timeout)
+        self.advert = jclass('com.nullmember.pyxelwidgets.NsdAdvert').register(name, _SERVICE, port, self.timeout)
         error = self.advert.error()
         if error is not None:
             self.advert.close()

@@ -248,10 +248,10 @@ class BleMidi(pyxelwidgets.devices.Device):
 
     def _start_android(self) -> None:
         from java import dynamic_proxy, jclass
-        peripheral = jclass('io.github.nullmember.pyxelwidgets.BlePeripheral')
+        peripheral = jclass('com.nullmember.pyxelwidgets.BlePeripheral')
         device = self
 
-        class Listener(dynamic_proxy(jclass('io.github.nullmember.pyxelwidgets.BlePeripheral$Listener'))):
+        class Listener(dynamic_proxy(jclass('com.nullmember.pyxelwidgets.BlePeripheral$Listener'))):
             def onWrite(self, data):
                 device._written(bytes(data))
 

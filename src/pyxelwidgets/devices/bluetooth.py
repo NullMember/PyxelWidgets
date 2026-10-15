@@ -36,7 +36,7 @@ class AndroidCentral:
 
     def __init__(self):
         from java import jclass
-        self._bridge = jclass('io.github.nullmember.pyxelwidgets.BluetoothBridge')
+        self._bridge = jclass('com.nullmember.pyxelwidgets.BluetoothBridge')
 
     def _call(self, method, *args):
         """The bridge's ``method``; its Java errors become OSError with Android's message."""

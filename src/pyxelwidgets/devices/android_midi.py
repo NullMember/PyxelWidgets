@@ -10,7 +10,7 @@ whole messages, as rtmidi does.
 
 __all__ = ['AndroidMidi', 'MidiFramer']
 
-BRIDGE = 'io.github.nullmember.pyxelwidgets.MidiBridge'
+BRIDGE = 'com.nullmember.pyxelwidgets.MidiBridge'
 
 def _length(status: int) -> int:
     """Data bytes after a status byte (sysex excluded)."""
