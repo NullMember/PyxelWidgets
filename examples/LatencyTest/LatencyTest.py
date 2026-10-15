@@ -60,7 +60,7 @@ def layout(output: dict, heavy: bool = True) -> dict:
     output = dict(output, name = 'out')
     probe = widget('Button', 'probe', *PROBE, 1, 1, active_color = '#ffffff')
     if not heavy:
-        return {'format': 'pyxelwidgets.layout', 'version': 6, 'surface': {'width': 9, 'height': 9},
+        return {'format': 'pyxelwidgets.layout', 'version': 1, 'surface': {'width': 9, 'height': 9},
                 'transport': {'bpm': 120, 'signature': [4, 4]}, 'devices': [], 'outputs': [output],
                 'widgets': [probe], 'mappings': probe_rules(), 'links': []}
     widgets = [
@@ -93,7 +93,7 @@ def layout(output: dict, heavy: bool = True) -> dict:
         {'widget': 'seq2', 'on': 'StepPlayed', 'target': 'xy', 'option': 'x_color',
          'value': {'choose': ['#00ffff', '#ff00ff', '#ffff00', '#ffffff'], 'by': 'step'}},
     ]
-    return {'format': 'pyxelwidgets.layout', 'version': 6, 'surface': {'width': 18, 'height': 18},
+    return {'format': 'pyxelwidgets.layout', 'version': 1, 'surface': {'width': 18, 'height': 18},
             'transport': {'bpm': 140, 'signature': [4, 4]}, 'devices': [], 'outputs': [output],
             'widgets': widgets, 'mappings': mappings, 'links': links}
 
