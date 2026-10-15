@@ -26,6 +26,9 @@ def start(folder: str) -> str:
             # No system file dialogs here: Open and Save As ask for a path in the page
             _server = pyxelwidgets.designer.window._server(str(layout), None, connect = True, dialogs = False)
             threading.Thread(target = _server.serve_forever, name = 'designer server', daemon = True).start()
+            # Bluetooth MIDI devices connected before connect again (and when they come back in range)
+            import pyxelwidgets.devices.bluetooth
+            pyxelwidgets.devices.bluetooth.manager().keep_connected()
             print(f'Designer on {_server.RequestHandlerClass.designer.local_url()}, layouts in {folder}, '
                   f'network addresses {pyxelwidgets.designer.network_addresses()}', flush = True)
     return _server.RequestHandlerClass.designer.local_url()

@@ -96,6 +96,8 @@ class MainActivity : ComponentActivity() {
             }
         })
         MidiBridge.init(applicationContext)
+        BluetoothBridge.init(applicationContext)
+        Permissions.attach(this)
         if (!Python.isStarted()) {
             Python.start(AndroidPlatform(applicationContext))
         }
@@ -109,6 +111,17 @@ class MainActivity : ComponentActivity() {
                 runOnUiThread { show("PyxelWidgets couldn't start:\n\n${error.message}") }
             }
         }
+    }
+
+    override fun onDestroy() {
+        Permissions.detach(this)
+        super.onDestroy()
+    }
+
+    @Deprecated("Permissions asks with Activity.requestPermissions from Python's thread")
+    override fun onRequestPermissionsResult(requestCode: Int, permissions: Array<String>, grantResults: IntArray) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults)
+        Permissions.answered(requestCode, grantResults)
     }
 
     private fun show(text: String) {
