@@ -83,6 +83,19 @@ export async function api(method, path, body) {
   return { ok: response.ok, ...data };
 }
 
+// The designer's own window (pyxelwidgets.designer.window), or null in a browser
+export function appWindow() {
+  return window.pywebview?.api || null;
+}
+
+// Saves text as a file: the window asks where (web views differ on downloads), a browser downloads it
+export function downloadText(name, text) {
+  if (appWindow()) return appWindow().download(name, text);
+  const link = el('a', { href: URL.createObjectURL(new Blob([text], { type: 'application/json' })), download: name });
+  link.click();
+  URL.revokeObjectURL(link.href);
+}
+
 // A widget drawn small (rows from the top of colors, null where transparent), or null
 export function thumb(preview, box = 30) {
   if (!preview) return null;

@@ -1,7 +1,7 @@
 // The device check: for owners of a device the author can't test. Test patterns on the device and
 // questions about them, pads pressed and controls moved, then a report file to share with the developers
 
-import { state, $, el, fill, api } from './core.js';
+import { state, $, el, fill, api, downloadText } from './core.js';
 import { deviceControls, deviceInfo } from './model.js';
 import { setStatus } from './history.js';
 
@@ -149,10 +149,7 @@ export function buildReport() {
 }
 
 function download(report) {
-  const blob = new Blob([JSON.stringify(report.data, null, 2) + '\n'], { type: 'application/json' });
-  const link = el('a', { href: URL.createObjectURL(blob), download: `device-check-${report.data.device.type.replace(/\W+/g, '-')}.json` });
-  link.click();
-  URL.revokeObjectURL(link.href);
+  downloadText(`device-check-${report.data.device.type.replace(/\W+/g, '-')}.json`, JSON.stringify(report.data, null, 2) + '\n');
 }
 
 export function renderCheck() {

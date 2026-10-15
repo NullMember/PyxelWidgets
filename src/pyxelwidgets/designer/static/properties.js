@@ -1,6 +1,6 @@
 // The device list and the properties panel: option editors, animation, the toolbar
 
-import { state, $, fill, el, api } from './core.js';
+import { state, $, fill, el, api, appWindow } from './core.js';
 import { prefs, savePrefs } from './prefs.js';
 import { widgetAt, containerSize, allWidgets, deviceInfo, bindingFields, transportControls, deviceSize,
   isGroup, currentPage, addPage, widgetSelection } from './model.js';
@@ -640,4 +640,10 @@ export function renderDirty() {
   $('file').textContent = state.file ? state.file.split(/[\\/]/).pop() : 'Unsaved layout';
   $('file').title = state.file || '';
   document.title = `${dirty ? '• ' : ''}PyxelWidgets Designer`;
+  // The window's title, and whether closing it asks first
+  if (appWindow() && (dirty !== state.windowDirty || state.file !== state.windowFile)) {
+    state.windowDirty = dirty;
+    state.windowFile = state.file;
+    appWindow().changed(dirty, state.file || null);
+  }
 }

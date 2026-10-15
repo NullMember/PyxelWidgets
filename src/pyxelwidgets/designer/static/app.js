@@ -16,13 +16,13 @@ import { undo, redo } from './history.js';
 import { poll } from './preview.js';
 import { render, renderBoard, panBy, zooming, setZoom, startMarquee } from './board.js';
 import { startRename, renderTree, treeDragOver, treeDrop } from './layers.js';
-import { select, renderToolbar } from './properties.js';
+import { select, renderToolbar, renderDirty } from './properties.js';
 import { addWidget, clearGhost, dragOver, drop, addDevice, removeSelection, duplicate, copySelection,
   pasteWidgets, groupSelection, ungroup, selectAll, nudge } from './editing.js';
 import { showPaletteTab, loadSnippets, renderSnippets, saveSnippet } from './snippets.js';
 import { stopLearning } from './learn.js';
 import { openStart, closeStart } from './start.js';
-import { addRecent, save, saveAs, showOpen, importFile, showFileMenu, showDetect, setMode } from './files.js';
+import { addRecent, save, saveAs, showOpen, importFile, showFileMenu, showDetect, setMode, download } from './files.js';
 
 function bindToolbar() {
   $('mode-edit').onclick = () => setMode('edit');
@@ -245,8 +245,20 @@ async function start() {
   render();
   sendHidden();
   poll();
-  // An empty layout starts with the start window
-  if (!state.layout.widgets.length && !state.layout.devices.length) openStart();
+  // ?mode=edit|try|perform and ?play=1 (the window's player mode)
+  const query = new URLSearchParams(location.search);
+  const mode = query.get('mode');
+  if (['edit', 'try', 'perform'].includes(mode)) setMode(mode);
+  if (query.get('play') === '1' && !state.playing) $('play').click();
+  // The window's menus call these; its bridge comes after the page (then the title follows the file)
+  window.addEventListener('pywebviewready', renderDirty);
+  window.pyxelwidgets = {
+    setMode, save, saveAs, showOpen, openStart,
+    togglePlay: () => $('play').click(),
+    download,
+  };
+  // An empty layout starts with the start window (not when it opens to play)
+  if (!state.layout.widgets.length && !state.layout.devices.length && mode !== 'perform') openStart();
 }
 
 start();

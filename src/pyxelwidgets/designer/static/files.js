@@ -1,6 +1,6 @@
 // Files (new, open, save, download), dialogs and detecting devices
 
-import { state, $, fill, el, api } from './core.js';
+import { state, $, fill, el, api, downloadText } from './core.js';
 import { prefs, savePrefs, sendHidden } from './prefs.js';
 import { openDrawer } from './drawer.js';
 import { change, flushSync, setStatus } from './history.js';
@@ -160,11 +160,8 @@ export async function showOpen() {
   if (answer?.path) openPath(answer.path);
 }
 
-function download() {
-  const blob = new Blob([JSON.stringify(state.layout, null, 2) + '\n'], { type: 'application/json' });
-  const link = el('a', { href: URL.createObjectURL(blob), download: state.file ? state.file.split(/[\\/]/).pop() : 'layout.json' });
-  link.click();
-  URL.revokeObjectURL(link.href);
+export function download() {
+  downloadText(state.file ? state.file.split(/[\\/]/).pop() : 'layout.json', JSON.stringify(state.layout, null, 2) + '\n');
 }
 
 // A layout file from this computer: no path on the server, so Save asks where to keep it
