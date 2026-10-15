@@ -1950,7 +1950,6 @@ Pages usually fill `content`, the area besides the selector.
 - **`add(widget: Widget)`**
 - **`remove(widget)`**
 - **`input(event: PadEvent)`**
-- **`draw()`**
 
 #### `Selector` (Enum)
 
@@ -1985,7 +1984,6 @@ keeps what is stored in that file unless `save` is off.
 - **`save_state()`**
 - **`load_state(state: dict)`**
 - **`input(event: PadEvent)`**
-- **`draw()`**
 
 # Time, controls and outputs
 
@@ -2404,8 +2402,10 @@ with its options. Older versions are upgraded on load.
 
 `transport.sync` makes the transport follow another program's MIDI clock
 (a DAW sending MIDI clock to a port): `{"input": "IAC Driver Bus 1"}` or a
-virtual port it can send to, `{"virtual": "PyxelWidgets Clock"}`. Its
-tempo, start, stop and position (song position) then come from there.
+virtual port it can send to, `{"virtual": "PyxelWidgets Clock"}`, or one of
+the layout's outputs the DAW connects to (a Bluetooth or network MIDI output,
+whose own port it is), `{"output": "Bluetooth"}`. Its tempo, start, stop and
+position (song position) then come from there.
 
 Bindings connect a device's named controls (by the device's index in
 `devices`) to a widget, with Binding options (`takeover`, `glide_time`,
@@ -2563,8 +2563,8 @@ in that file, unless their `save` option is off.
 - **`formula_settings()`**: The widget options written as formulas: (widget name, option, Expression or Template).
 - **`keep_presets()`**: Write what Presets groups store (with `save` on) into `path`, the layout file.
 - **`save_presets(name: str)`**: Write the presets of the Presets group `name` into its `presets` option in `path`. The file is read again first, so changes made to it meanwhile (e.g. saved by the designer) are kept. Failures are printed.
-- **`sync_settings()`**: The layout's `transport.sync`: `{"input": port}` or `{"virtual": port}`, the MIDI port a DAW's clock comes in through; None if the transport keeps its own time.
-- **`sync_input(transport)`**: A MidiClockInput driving `transport` (created with `sync = True`) from the `sync` port, connected; None without sync.
+- **`sync_settings()`**: The layout's `transport.sync`: `{"input": port}`, `{"virtual": port}` or `{"output": name}`, where a DAW's clock comes in; None if the transport keeps its own time.
+- **`sync_input(transport, outputs: dict | None = None)`**: Whatever drives `transport` (created with `sync = True`) from the `sync` setting: a connected MidiClockInput for a port, a ClockFollower on the output (from `outputs` by name, default the layout's; it waits while that output is missing); None without sync.
 - **`transport_settings()`**: Keyword arguments for a Transport (or App) from the layout's `transport` (bpm and signature).
 - **`timed(clock: Clock)`**: The widgets (Sequencers, Trackers...) played by `clock`.
 - **`attach(transport)`**: Subscribe the widgets the transport plays (`clock = Clock.Transport`) to `transport` at their `rate`; a Sequencer's sounding step ends when it stops. Returns the Subscriptions.
@@ -2792,6 +2792,19 @@ Methods return `(event_class, x, y, velocity)` tuples; the caller emits them.
 
 ## `pyxelwidgets.devices.midi`
 
+### `RtMidi`
+
+The MIDI backend on macOS, Windows and Linux: python-rtmidi, imported on
+first use. A backend lists port names and opens ports by name or index,
+returning `(port, name)`; ports have `send_message(bytes)`,
+`set_callback(function)` (called with `((bytes, delta), None)`),
+`ignore_types(**types)` and `close_port()`, as rtmidi's do.
+
+- **`list_ports()`**
+- **`open_input(port)`**
+- **`open_output(port)`**
+- **`open_virtual(port: str)`**: Input and output ports other software connects to.
+
 ### `InvalidMIDIPortException` (Exception)
 
 ```python
@@ -2804,8 +2817,8 @@ InvalidMIDIPortException(*args: object)
 MIDI(**kwargs)
 ```
 
-A device talking MIDI through rtmidi (or teVirtualMIDI for virtual ports on
-Windows). Subclasses implement `decode` for input, `send_pixel(s)` for
+A device talking MIDI through `backend` (rtmidi, Android's MIDI service, or
+teVirtualMIDI for virtual ports on Windows). Subclasses implement `decode` for input, `send_pixel(s)` for
 output, and `on_connect` / `on_disconnect` for mode switching messages.
 
 Without a grid (the default 1x1 with no output) it's a plain MIDI port pair:
@@ -2822,7 +2835,7 @@ use `send_*` and override `process_midi` or `decode`.
 - **`disconnect()`**
 - **`on_connect()`**: Override to put the device in the mode the driver expects.
 - **`on_disconnect()`**: Override to return the device to its standalone mode.
-- **`process_midi(message, _)`**: rtmidi callback: `message` is `(bytes, delta_time)`.
+- **`process_midi(message, _)`**: The port's callback: `message` is `(bytes, delta_time)`.
 - **`decode(midi: list)`**: Override to turn an incoming message into `set_button` calls and control events.
 - **`send_sysex(message)`**
 - **`send_note_off(note, velocity = 0, channel = 0)`**
@@ -3298,9 +3311,29 @@ MIDI clock: follow another program's clock (e.g. a DAW) or send one.
     clock = MidiClockOutput(app.transport)
     clock.connect(out_port = 'IAC Driver Bus 1')
 
+A Bluetooth or network MIDI output the DAW connects to (`BleMidi`,
+`RtpMidi`, or any device with `raw_listeners`) can carry the clock too:
+
+    clock = ClockFollower(transport, bluetooth)
+
 Any object with the Transport's `pulse`, `play`, `stop` and `locate`
 (input) or `every`, `on`, `tick` and `ppq` (output) works; devices don't
 import the transport.
+
+### `ClockFollower`
+
+```python
+ClockFollower(transport, source = None)
+```
+
+Drives a `Transport(sync = True)` from the MIDI clock another device
+receives (its `raw_listeners`), e.g. a Bluetooth or network MIDI output
+a DAW sends its clock to. `attach` moves it to another device (None:
+waits for one).
+
+- **`connected`**: Whether the device it follows is connected.
+- **`attach(source)`**
+- **`close()`**
 
 ### `MidiClockInput` (MIDI)
 
@@ -3321,6 +3354,10 @@ MidiClockOutput(transport, **kwargs)
 Sends a Transport's tempo and position as MIDI clock (24 per quarter note) with start, continue, stop and song position.
 
 - **`close()`**
+
+### `follow(transport, midi: list)`
+
+Apply one received MIDI message to `transport`: clock, start, continue, stop and song position (others are ignored).
 
 ## `pyxelwidgets.devices.midi_port`
 
@@ -3379,7 +3416,8 @@ RtpMidi(*, session: str | None = None, port: int = 5004, connect: str = '', anno
 Network MIDI (RTP-MIDI): a session other computers connect to (macOS
 Audio MIDI Setup > Network, rtpMIDI on Windows, rtpmidid on Linux), or
 that invites them. Sends MIDI channel messages to every computer in the
-session; what they send comes in as MessageReceived.
+session; what they send comes in as MessageReceived (and every MIDI
+message, clock included, goes to `raw_listeners`).
 
 - `session: str, optional`: The name other computers see (default: PyxelWidgets and this computer's name).
 - `port: int = 5004`: The session's UDP port; the next one carries the MIDI.
@@ -3432,8 +3470,9 @@ BleMidi(*, bluetooth_name: str = '', adapter: str = '', secure: bool = False, **
 ```
 
 A Bluetooth LE MIDI device other computers connect to (Linux with BlueZ,
-e.g. a Raspberry Pi). Sends MIDI channel messages to the computer that
-connected; what it sends comes in as MessageReceived.
+e.g. a Raspberry Pi, or an Android phone in the app). Sends MIDI channel
+messages to the computer that connected; what it sends comes in as
+MessageReceived. Android advertises the phone's own Bluetooth name.
 
 - `bluetooth_name: str, optional`: The name other computers see while it advertises (default: this computer's Bluetooth name). About 8 characters fit beside the MIDI service; longer names are cut.
 - `adapter: str, optional`: The Bluetooth adapter (e.g. hci1; default: the first that can advertise).
@@ -3444,7 +3483,7 @@ connected; what it sends comes in as MessageReceived.
 - **`connect()`**
 - **`disconnect()`**
 - **`send(message: MidiMessage)`**
-- **`send_midi(midi: list)`**: Send one raw MIDI message (a list of bytes, no system exclusive); messages sent together share a packet.
+- **`send_midi(midi: list)`**: Send one raw MIDI message (a list of bytes, system exclusive and real-time too); messages sent together share a packet.
 
 ## `pyxelwidgets.devices.plugins`
 
@@ -3730,12 +3769,18 @@ what the widgets' mappings send.
 ### `Designer`
 
 ```python
-Designer(path: str | None = None, *, connect: bool = True, snippets: str | None = None, dialogs: bool = True)
+Designer(path: str | None = None, *, connect: bool = True, snippets: str | None = None, dialogs: bool = True, key: str | None = None)
 ```
 
 The designer's state: the preview and the file it saves to.
 
 - **`close()`**: Stop the transport and close connected hardware.
+- **`key`**: What other computers need to open the designer (the shared address carries it), kept in `SHARE_KEY`.
+- **`fixed()`**: Whether the server itself listens beyond this computer (`--host`), so sharing can't be turned off.
+- **`local_url()`**
+- **`network_urls()`**: The addresses other computers open (with the key), or none while not shared.
+- **`sharing()`**
+- **`share(on: bool)`**: Open the designer to other computers on the network (another listener on 0.0.0.0, the same port when the system allows it) or close it again.
 - **`save(layout: dict, path: str | None = None)`**: Save to the layout file, or to `path`, which becomes the layout file (Save As).
 - **`open(path: str)`**: Open the layout file at `path`; it becomes the layout file.
 - **`new(template: str | None = None, layout: dict | None = None)`**: Start a layout: empty, from one of `templates()`, or `layout` (imported); it has no file until saved.
