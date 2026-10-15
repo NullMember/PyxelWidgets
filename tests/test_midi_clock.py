@@ -134,9 +134,11 @@ def test_output_follows_internal_timer():
     transport = Transport(1200)
     clock = MidiClockOutput(transport)
     clock._midi_output = port = Port()
+    start = time.monotonic()
     transport.play()
     time.sleep(0.2)
     transport.close()
-    # 1200 bpm: 480 clocks per second
+    # 1200 bpm: 480 clocks per second, for however long the sleep really took
+    expected = (time.monotonic() - start) * 480
     assert port.sent[0] == [0xFA] and port.sent[-1] == [0xFC]
-    assert 60 <= port.sent.count([0xF8]) <= 110
+    assert expected * 0.6 <= port.sent.count([0xF8]) <= expected * 1.1 + 5

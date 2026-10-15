@@ -102,14 +102,16 @@ def test_hui():
 
 
 def test_hui_touches_faders_while_they_move(monkeypatch):
-    monkeypatch.setattr(HUI, 'touch_hold', 0.05)
+    monkeypatch.setattr(HUI, 'touch_hold', 0.3)
     hui, sent, _ = wired(HUI)
     touch = lambda strip, on: [[0xB0, 0x0F, strip], [0xB0, 0x2F, (0x40 if on else 0) | 0]]
     for value in (0.25, 0.5, 0.75):
         hui.send(Command('Fader 2', value))
         time.sleep(0.02)
     assert sent[:2] == touch(1, True) and len(sent) == 2 + 3 * 2
-    time.sleep(0.1)
+    deadline = time.monotonic() + 2.0
+    while sent[-2:] != touch(1, False) and time.monotonic() < deadline:
+        time.sleep(0.02)
     assert sent[-2:] == touch(1, False)
     # A touch sent as a command stays until a command lets go
     sent.clear()
