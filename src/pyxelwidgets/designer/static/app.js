@@ -79,7 +79,7 @@ function bindToolbar() {
   bindDrawer();
   bindSplitters();
   window.addEventListener('beforeunload', (event) => {
-    if (state.file && JSON.stringify(state.layout) !== state.saved) event.preventDefault();
+    if (state.file && !state.leaving && JSON.stringify(state.layout) !== state.saved) event.preventDefault();
   });
   window.addEventListener('keydown', (event) => {
     if (event.target.closest('input, select, textarea')) return;

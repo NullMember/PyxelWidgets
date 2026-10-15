@@ -262,6 +262,7 @@ body.perform .perform-note {
   position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center;
   gap: 8px; padding: 16px; text-align: center; color: var(--muted); pointer-events: none;
 }
+.play-here { display: flex; flex-direction: column; align-items: center; gap: 6px; margin: 6px 0; pointer-events: auto; position: relative; z-index: 2; }
 .perform-note b { color: var(--text); font-size: 18px; }
 .perform-note span { max-width: 420px; }
 

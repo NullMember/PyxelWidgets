@@ -1,6 +1,7 @@
 // The device list and the properties panel: option editors, animation, the toolbar
 
 import { state, $, fill, el, api, appWindow } from './core.js';
+import { renderPlayHere } from './screen.js';
 import { prefs, savePrefs } from './prefs.js';
 import { widgetAt, containerSize, allWidgets, deviceInfo, bindingFields, transportControls, deviceSize,
   isGroup, currentPage, addPage, widgetSelection } from './model.js';
@@ -609,6 +610,7 @@ export function renderCode() {
 }
 
 export function renderToolbar() {
+  renderPlayHere();
   $('mode-edit').classList.toggle('active', state.mode === 'edit');
   $('mode-try').classList.toggle('active', state.mode === 'try');
   $('mode-perform').classList.toggle('active', state.mode === 'perform');
