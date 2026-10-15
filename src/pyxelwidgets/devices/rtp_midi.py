@@ -21,7 +21,8 @@ connect to me: Anyone").
 
 Announcing the session uses the ``zeroconf`` package when installed (``pip
 install "pyxelwidgets[network]"``), else the system's ``dns-sd`` (macOS,
-Windows with Bonjour) or ``avahi-publish-service`` (Linux, avahi-utils).
+Windows with Bonjour) or ``avahi-publish-service`` (Linux, avahi-utils); in
+the Android app, Android's own (NsdManager).
 Messages go without a recovery journal: fine on a local network.
 """
 
@@ -31,6 +32,7 @@ import shutil
 import socket
 import struct
 import subprocess
+import sys
 import threading
 import time
 
@@ -118,7 +120,7 @@ class RtpMidi(pyxelwidgets.devices.Device):
             Announce the session on the network (Bonjour), so it shows in the other side's list.
         """
         super().__init__(**kwargs)
-        self.session = session or f'PyxelWidgets ({socket.gethostname().split(".")[0]})'
+        self.session = session or f'PyxelWidgets ({_computer_name()})'
         self.port = port
         self.connect_to = connect
         self.announce = announce
@@ -490,6 +492,33 @@ def _lan_address() -> str:
     except OSError:
         return '127.0.0.1'
 
+def _computer_name() -> str:
+    if hasattr(sys, 'getandroidapilevel'):
+        # Android's host name is "localhost": the phone's own name instead
+        try:
+            from java import jclass
+            return str(jclass('io.github.nullmember.pyxelwidgets.NsdAdvert').deviceName())
+        except Exception:
+            pass
+    return socket.gethostname().split('.')[0]
+
+class _AndroidNsd:
+    """The session announced by Android (NsdManager, through the app's NsdAdvert)."""
+
+    #: Milliseconds to wait for Android's answer
+    timeout = 3000
+
+    def __init__(self, name: str, port: int) -> None:
+        from java import jclass
+        self.advert = jclass('io.github.nullmember.pyxelwidgets.NsdAdvert').register(name, _SERVICE, port, self.timeout)
+        error = self.advert.error()
+        if error is not None:
+            self.advert.close()
+            raise OSError(str(error))
+
+    def close(self) -> None:
+        self.advert.close()
+
 class _Zeroconf:
     def __init__(self, name: str, port: int) -> None:
         import zeroconf
@@ -516,6 +545,11 @@ class _Process:
 
 def _announce(name: str, port: int) -> tuple:
     """Announce the session on the network: (something to close, None) or (None, why it isn't)."""
+    if hasattr(sys, 'getandroidapilevel'):
+        try:
+            return _AndroidNsd(name, port), None
+        except Exception as error:
+            return None, f'not announced on the network ({error}): add {_lan_address()}:{port} by hand on the other side'
     try:
         return _Zeroconf(name, port), None
     except ImportError:
