@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<devices>
+    <device manufacturer="PyxelWidgets" product="PyxelWidgets">
+        <input-port name="PyxelWidgets in" />
+        <output-port name="PyxelWidgets out" />
+    </device>
+</devices>
