@@ -3,7 +3,7 @@ Layout files: a JSON description of a Surface, the devices it is shown on and
 its widgets, as written by the designer (``python -m pyxelwidgets.designer``).
 
     {
-      "format": "pyxelwidgets.layout", "version": 6,
+      "format": "pyxelwidgets.layout", "version": 1,
       "surface": {"width": 9, "height": 9},
       "transport": {"bpm": 120, "signature": [4, 4]},
       "devices": [{"type": "novation.LaunchpadMiniMK3", "x": 0, "y": 0, "options": {}}],
@@ -34,7 +34,7 @@ or ``#rrggbbaa``, enums by member name (``"Magnitude"`` for ``Fader.Mode``),
 rates as note values (``"1/16"``) or seconds where a widget allows both,
 Sprite frames as lists of rows from the top, each a list of colors (``null``
 is transparent). A widget's optional ``animation`` is one of ``ANIMATIONS``
-with its options. Older versions are upgraded on load.
+with its options. Older versions are upgraded on load (``UPGRADES``).
 
 ``transport.sync`` makes the transport follow another program's MIDI clock
 (a DAW sending MIDI clock to a port): ``{"input": "IAC Driver Bus 1"}`` or a
@@ -93,7 +93,6 @@ Load a layout and attach behaviour by widget name::
 import copy
 import dataclasses
 import enum
-import fractions
 import importlib
 import inspect
 import json
@@ -120,7 +119,7 @@ import pyxelwidgets.transport
 import pyxelwidgets.widgets
 
 FORMAT = 'pyxelwidgets.layout'
-VERSION = 6
+VERSION = 1
 
 # Actions a binding can trigger, on the transport given to Parser.bind
 ACTIONS = {
@@ -1332,63 +1331,27 @@ class Parser():
                 created.append(self.surface.bind(device, control, ACTIONS[action](transport)))
         return created
 
-def _fraction_text(value: fractions.Fraction) -> str:
-    return str(value.numerator) if value.denominator == 1 else f'{value.numerator}/{value.denominator}'
+#: Steps from each older version to the next: ``UPGRADES[n]`` turns a version
+#: ``n`` layout (a copy, changed in place) into a version ``n + 1`` one. Add one
+#: with each change of the format, and bump ``VERSION``.
+UPGRADES = {}
 
 def upgrade(layout: dict) -> dict:
     """``layout`` converted to the current version (a copy if it changes); raises LayoutError if it isn't a layout."""
     if not isinstance(layout, dict) or layout.get('format') != FORMAT:
         raise LayoutError(f'not a {FORMAT} layout')
     version = layout.get('version')
-    if isinstance(version, bool) or version not in range(1, VERSION + 1):
-        raise LayoutError(f'unsupported {FORMAT} version {version!r} (supported: 1 to {VERSION})')
+    if isinstance(version, bool) or not isinstance(version, int) or version < 1:
+        raise LayoutError(f'unsupported {FORMAT} version {version!r}')
+    if version > VERSION:
+        raise LayoutError(f'{FORMAT} version {version} was made by a newer PyxelWidgets (this one reads up to version {VERSION}): update it')
     if version == VERSION:
         return layout
-    layout = _from_version_1(layout) if version == 1 else copy.deepcopy(layout)
-    # Version 3 added the optional "bindings", version 5 "outputs" and "mappings", version 6 "links"; nothing to convert
-    _from_version_3(layout.get('widgets'))
-    layout['version'] = VERSION
-    return layout
-
-def _from_version_3(widgets) -> None:
-    """Version 4 timed Sprites with a ``rate``: their frame counting options are gone (and added ``animation``)."""
-    for widget in widgets or []:
-        if widget.get('type') == 'Sprite' and widget.get('options'):
-            for key in ('animate', 'target', 'tick'):
-                widget['options'].pop(key, None)
-        _from_version_3(widget.get('widgets'))
-
-def _from_version_1(layout: dict) -> dict:
-    """Version 1 had a tick based clock; Sequencer/Tracker timing was set in ticks per quarter note."""
-    clock = layout.get('clock') or {}
-    transport = {'bpm': clock.get('bpm', 120), 'signature': [4, 4]}
-    # Same key order, with the transport where the clock was
-    layout = {('transport' if key == 'clock' else key): (transport if key == 'clock' else copy.deepcopy(value))
-              for key, value in layout.items()}
-    layout['version'] = 2
-    layout.setdefault('transport', transport)
-    def convert(widgets, where):
-        for index, widget in enumerate(widgets or []):
-            options = widget.get('options') or {}
-            try:
-                if widget.get('type') == 'Sequencer':
-                    note, beat = options.pop('note', 4.0), options.pop('beat', 4.0)
-                    options.pop('ppq', None)
-                    rate = 1 / (fractions.Fraction(note) * fractions.Fraction(beat))
-                elif widget.get('type') == 'Tracker':
-                    numerator, denominator = options.pop('numerator', 1.0), options.pop('denominator', 4.0)
-                    options.pop('ppq', None)
-                    # Rows were numerator/denominator quarter notes long
-                    rate = fractions.Fraction(numerator) / (fractions.Fraction(denominator) * 4)
-                else:
-                    rate = None
-            except (TypeError, ValueError, ZeroDivisionError):
-                raise LayoutError(f'{where}[{index}].options: invalid version 1 timing options') from None
-            if rate is not None and rate != fractions.Fraction(1, 16):
-                options['rate'] = _fraction_text(rate.limit_denominator(1024))
-                widget['options'] = options
-            convert(widget.get('widgets'), f'{where}[{index}].widgets')
-    convert(layout.get('widgets'), 'widgets')
+    layout = copy.deepcopy(layout)
+    while version < VERSION:
+        UPGRADES[version](layout)
+        version += 1
+        layout['version'] = version
     return layout
 
 def load(layout, **kwargs) -> Parser:
