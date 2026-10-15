@@ -8,6 +8,11 @@ MIDI clock: follow another program's clock (e.g. a DAW) or send one.
     clock = MidiClockOutput(app.transport)
     clock.connect(out_port = 'IAC Driver Bus 1')
 
+A Bluetooth or network MIDI output the DAW connects to (``BleMidi``,
+``RtpMidi``, or any device with ``raw_listeners``) can carry the clock too::
+
+    clock = ClockFollower(transport, bluetooth)
+
 Any object with the Transport's ``pulse``, ``play``, ``stop`` and ``locate``
 (input) or ``every``, ``on``, ``tick`` and ``ppq`` (output) works; devices don't
 import the transport.
@@ -16,7 +21,7 @@ import the transport.
 import pyxelwidgets.devices.midi
 import pyxelwidgets.events
 
-__all__ = ['MidiClockInput', 'MidiClockOutput']
+__all__ = ['ClockFollower', 'MidiClockInput', 'MidiClockOutput', 'follow']
 
 CLOCK = 0xF8
 START = 0xFA
@@ -36,19 +41,60 @@ class MidiClockInput(pyxelwidgets.devices.midi.MIDI):
         self.transport = transport
 
     def decode(self, midi: list) -> None:
-        status = midi[0] if midi else None
-        if status == CLOCK:
-            self.transport.pulse()
-        elif status == START:
-            self.transport.locate(0)
-            self.transport.play()
-        elif status == CONTINUE:
-            self.transport.play()
-        elif status == STOP:
-            self.transport.stop()
-        elif status == SONG_POSITION and len(midi) == 3:
-            # Position in 16th notes
-            self.transport.locate(((midi[2] << 7) | midi[1]) / 4)
+        follow(self.transport, midi)
+
+class ClockFollower:
+    """
+    Drives a ``Transport(sync = True)`` from the MIDI clock another device
+    receives (its ``raw_listeners``), e.g. a Bluetooth or network MIDI output
+    a DAW sends its clock to. ``attach`` moves it to another device (None:
+    waits for one).
+    """
+
+    model = 'MIDI Clock Follower'
+
+    def __init__(self, transport, source = None):
+        if not getattr(transport, 'sync', False):
+            raise ValueError('ClockFollower needs a transport created with sync = True')
+        self.transport = transport
+        self.source = None
+        self.attach(source)
+
+    @property
+    def connected(self) -> bool:
+        """Whether the device it follows is connected."""
+        return self.source is not None and bool(getattr(self.source, 'connected', True))
+
+    def attach(self, source) -> None:
+        if source is self.source:
+            return
+        if self.source is not None and self._received in self.source.raw_listeners:
+            self.source.raw_listeners.remove(self._received)
+        self.source = source
+        if source is not None:
+            source.raw_listeners.append(self._received)
+
+    def close(self) -> None:
+        self.attach(None)
+
+    def _received(self, midi: list) -> None:
+        follow(self.transport, midi)
+
+def follow(transport, midi: list) -> None:
+    """Apply one received MIDI message to ``transport``: clock, start, continue, stop and song position (others are ignored)."""
+    status = midi[0] if midi else None
+    if status == CLOCK:
+        transport.pulse()
+    elif status == START:
+        transport.locate(0)
+        transport.play()
+    elif status == CONTINUE:
+        transport.play()
+    elif status == STOP:
+        transport.stop()
+    elif status == SONG_POSITION and len(midi) == 3:
+        # Position in 16th notes
+        transport.locate(((midi[2] << 7) | midi[1]) / 4)
 
 class MidiClockOutput(pyxelwidgets.devices.midi.MIDI):
     """Sends a Transport's tempo and position as MIDI clock (24 per quarter note) with start, continue, stop and song position."""

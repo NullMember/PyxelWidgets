@@ -64,6 +64,8 @@ class _Peer:
         self.unanswered = 0
         #: Round trip in seconds, from the last clock sync
         self.latency = None
+        # A system exclusive it is sending in segments
+        self.sysex = []
 
 class _Target:
     """A computer to invite (``connect``): where it is, and how the invitation goes."""
@@ -86,12 +88,15 @@ class RtpMidi(pyxelwidgets.devices.Device):
     Network MIDI (RTP-MIDI): a session other computers connect to (macOS
     Audio MIDI Setup > Network, rtpMIDI on Windows, rtpmidid on Linux), or
     that invites them. Sends MIDI channel messages to every computer in the
-    session; what they send comes in as MessageReceived.
+    session; what they send comes in as MessageReceived (and every MIDI
+    message, clock included, goes to ``raw_listeners``).
     """
 
     model = 'Network MIDI (RTP-MIDI)'
     messages: tuple = ('NoteOn', 'NoteOff', 'ControlChange', 'ProgramChange', 'PitchBend', 'PolyPressure', 'ChannelPressure')
 
+    #: A DAW's MIDI clock sent to it can drive the transport (``raw_listeners``; a layout's ``transport.sync.output``)
+    receives_clock = True
     #: Seconds between invitations to a computer that hasn't answered
     retry = 2.0
     #: Seconds between clock syncs once the first ones are done (computers this side invited)
@@ -121,6 +126,8 @@ class RtpMidi(pyxelwidgets.devices.Device):
         self.warning = None
         self.ssrc = random.getrandbits(32)
         self.peers = {}
+        #: Called with each received MIDI message (a list of bytes), real-time and system exclusive included
+        self.raw_listeners = []
         self._targets = []
         self._sockets = None
         self._thread = None
@@ -243,7 +250,9 @@ class RtpMidi(pyxelwidgets.devices.Device):
                 peer = self.peers.get(ssrc)
                 if peer is not None:
                     peer.heard = time.monotonic()
-            for midi in midi_commands(packet[12:]):
+            for midi in midi_commands(packet[12:], None if peer is None else peer.sysex):
+                for listener in self.raw_listeners:
+                    listener(midi)
                 message = pyxelwidgets.message.MidiMessage.from_midi(midi)
                 if message is not None:
                     self.emit(pyxelwidgets.events.MessageReceived(self, message))
@@ -391,8 +400,14 @@ def _message_length(status: int) -> int:
         return 1 if status & 0xF0 in (0xC0, 0xD0) else 2
     return {0xF1: 1, 0xF2: 2, 0xF3: 1}.get(status, 0)
 
-def midi_commands(payload: bytes) -> list:
-    """The MIDI messages (lists of bytes) in an RTP-MIDI payload (after the RTP header); system exclusive is skipped."""
+def midi_commands(payload: bytes, sysex: list | None = None) -> list:
+    """
+    The MIDI messages (lists of bytes) in an RTP-MIDI payload (after the RTP
+    header), in order, real-time messages and system exclusives included. A
+    system exclusive split over packets (RFC 6295 segments) is gathered in
+    ``sysex`` (a list kept between calls, one per sender); without it, only
+    whole ones in a packet come out.
+    """
     flags = payload[0]
     if flags & 0x80:
         length, start = ((flags & 0x0F) << 8) | payload[1], 2
@@ -418,9 +433,24 @@ def midi_commands(payload: bytes) -> list:
             end = position + 1
             while end < len(data) and data[end] not in (0xF7, 0xF0, 0xF4):
                 end += 1
+            closing = data[end] if end < len(data) else None
+            part = list(data[position + 1:end])
+            if byte == 0xF0 and closing == 0xF7:
+                found.append([0xF0, *part, 0xF7])
+            elif sysex is not None:
+                if byte == 0xF0:
+                    sysex[:] = [0xF0]
+                if sysex:
+                    sysex.extend(part)
+                    if closing == 0xF7:
+                        found.append(sysex + [0xF7])
+                    if closing != 0xF0 or len(sysex) > 65536:
+                        sysex.clear()
+            running = None
             position = end + 1
             continue
         if byte >= 0xF8:
+            found.append([byte])
             position += 1
             continue
         if byte & 0x80:

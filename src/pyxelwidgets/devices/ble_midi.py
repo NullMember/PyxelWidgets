@@ -66,6 +66,8 @@ class BleMidi(pyxelwidgets.devices.Device):
     bus_address = None
     #: Notification packets kept while BlueZ is behind
     queue_limit = 1000
+    #: A DAW's MIDI clock sent to it can drive the transport (``raw_listeners``; a layout's ``transport.sync.output``)
+    receives_clock = True
 
     def __init__(self, *, bluetooth_name: str = '', adapter: str = '', secure: bool = False, **kwargs):
         """
@@ -103,6 +105,8 @@ class BleMidi(pyxelwidgets.devices.Device):
         # Notification payloads: MTU minus 3 (BlueZ tells the MTU with reads and writes)
         self._payload = 20
         self._received_state = _ParseState()
+        #: Called with each received MIDI message (a list of bytes), real-time and system exclusive included
+        self.raw_listeners = []
         self._path = f'/org/pyxelwidgets/{_dbus_name(self.name)}'
         # On Android: the app's BlePeripheral (a GATT server of Android's), and the name it advertises
         self._peripheral = None
@@ -179,7 +183,7 @@ class BleMidi(pyxelwidgets.devices.Device):
         self.send_midi(message.to_midi())
 
     def send_midi(self, midi: list) -> None:
-        """Send one raw MIDI message (a list of bytes, no system exclusive); messages sent together share a packet."""
+        """Send one raw MIDI message (a list of bytes, system exclusive and real-time too); messages sent together share a packet."""
         peripheral = self._peripheral
         if peripheral is not None:
             if self.listening:
@@ -339,6 +343,8 @@ class BleMidi(pyxelwidgets.devices.Device):
 
     def _written(self, value: bytes) -> None:
         for midi in ble_midi_messages(value, self._received_state):
+            for listener in self.raw_listeners:
+                listener(midi)
             message = pyxelwidgets.message.MidiMessage.from_midi(midi)
             if message is not None:
                 self.emit(pyxelwidgets.events.MessageReceived(self, message))
@@ -405,17 +411,39 @@ class BleMidi(pyxelwidgets.devices.Device):
 
 # Packets
 
+#: The longest system exclusive kept while it comes in (longer ones are dropped)
+SYSEX_LIMIT = 65536
+
 def ble_packets(messages: list, milliseconds: int, payload: int = 20) -> list:
-    """BLE MIDI packets (bytes, at most ``payload`` long) carrying ``messages`` (lists of MIDI bytes), timestamped ``milliseconds``."""
+    """
+    BLE MIDI packets (bytes, at most ``payload`` long) carrying ``messages``
+    (lists of MIDI bytes), timestamped ``milliseconds``. A system exclusive
+    longer than a packet goes on in the next ones (data only, as the BLE MIDI
+    spec has it).
+    """
     stamp = milliseconds & 0x1FFF
     header = 0x80 | (stamp >> 7)
     low = 0x80 | (stamp & 0x7F)
     packets = []
     packet = bytearray([header])
-    for midi in messages:
-        if len(packet) + 1 + len(midi) > payload and len(packet) > 1:
+
+    def room(size: int) -> None:
+        nonlocal packet
+        if len(packet) + size > payload and len(packet) > 1:
             packets.append(bytes(packet))
             packet = bytearray([header])
+
+    for midi in messages:
+        if midi and midi[0] == 0xF0:
+            room(2)
+            packet.extend((low, 0xF0))
+            for byte in midi[1:-1] if midi[-1] == 0xF7 else midi[1:]:
+                room(1)
+                packet.append(byte)
+            room(2)
+            packet.extend((low, 0xF7))
+            continue
+        room(1 + len(midi))
         packet.append(low)
         packet.extend(midi)
     if len(packet) > 1:
@@ -427,7 +455,8 @@ class _ParseState:
 
     def __init__(self) -> None:
         self.running = None
-        self.sysex = False
+        #: The system exclusive coming in (its bytes so far), or None
+        self.sysex = None
 
 def _message_length(status: int) -> int:
     if status < 0xF0:
@@ -435,7 +464,12 @@ def _message_length(status: int) -> int:
     return {0xF1: 1, 0xF2: 2, 0xF3: 1}.get(status, 0)
 
 def ble_midi_messages(packet: bytes, state: _ParseState | None = None) -> list:
-    """The MIDI messages (lists of bytes) in a received BLE MIDI packet; system exclusive and real-time messages are skipped."""
+    """
+    The MIDI messages (lists of bytes) in a received BLE MIDI packet, in
+    order: channel and system messages, real-time messages (clock, start,
+    stop...) and whole system exclusives (``[0xF0, ..., 0xF7]``, gathered
+    over packets through ``state``).
+    """
     state = state or _ParseState()
     found = []
     if len(packet) < 2 or not packet[0] & 0x80:
@@ -443,20 +477,27 @@ def ble_midi_messages(packet: bytes, state: _ParseState | None = None) -> list:
     position, end = 1, len(packet)
     while position < end:
         byte = packet[position]
-        if state.sysex:
+        if state.sysex is not None:
             if byte < 0x80:
+                state.sysex.append(byte)
+                if len(state.sysex) > SYSEX_LIMIT:
+                    state.sysex = None
+                    state.running = None
                 position += 1
                 continue
             # A timestamp before the end (F7) or a real-time message inside it
             following = packet[position + 1] if position + 1 < end else None
-            if byte == 0xF7 or following == 0xF7:
-                state.sysex = False
-                position += 1 if byte == 0xF7 else 2
+            if following == 0xF7 or byte == 0xF7:
+                found.append(state.sysex + [0xF7])
+                state.sysex = None
+                position += 2 if following == 0xF7 else 1
                 continue
             if following is not None and following >= 0xF8:
+                found.append([following])
                 position += 2
                 continue
-            state.sysex = False
+            # Anything else cancels it
+            state.sysex = None
         if byte & 0x80:
             # A timestamp, then a status byte or running status data
             position += 1
@@ -464,10 +505,12 @@ def ble_midi_messages(packet: bytes, state: _ParseState | None = None) -> list:
                 break
             byte = packet[position]
         if byte == 0xF0:
-            state.sysex = True
+            state.sysex = [0xF0]
+            state.running = None
             position += 1
             continue
         if byte >= 0xF8:
+            found.append([byte])
             position += 1
             continue
         if byte & 0x80:
@@ -479,12 +522,23 @@ def ble_midi_messages(packet: bytes, state: _ParseState | None = None) -> list:
             continue
         else:
             status = state.running
+        message = [status]
         count = _message_length(status)
-        data = packet[position:position + count]
-        if len(data) < count or any(value & 0x80 for value in data):
-            break
-        position += count
-        found.append([status, *data])
+        while len(message) <= count and position < end:
+            value = packet[position]
+            if not value & 0x80:
+                message.append(value)
+                position += 1
+            elif position + 1 < end and packet[position + 1] >= 0xF8:
+                # A timestamped real-time message between the data bytes
+                found.append([packet[position + 1]])
+                position += 2
+            else:
+                break
+        if len(message) <= count:
+            # Cut short: what follows is read again as a timestamp
+            continue
+        found.append(message)
     return found
 
 # D-Bus

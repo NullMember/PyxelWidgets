@@ -12,8 +12,9 @@ Backends (``central()``): on Android, Android's MIDI service through the app's
 ``BluetoothBridge`` (it lists connected devices' ports itself); elsewhere
 ``BleakCentral`` (macOS, Windows, Linux; extra ``bluetooth``), which talks BLE
 MIDI itself and adds connected devices to ``MIDI``'s port lists (``ports()``).
-Messages received over BLE MIDI skip system exclusive and real-time (clock)
-messages for now (``ble_midi.ble_midi_messages``).
+Received BLE MIDI keeps real-time (clock, start, stop) and system exclusive
+messages (``ble_midi.ble_midi_messages``), so a Bluetooth port can drive the
+transport (the layout's ``transport.sync``).
 """
 
 import asyncio

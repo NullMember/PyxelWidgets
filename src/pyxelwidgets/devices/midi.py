@@ -130,6 +130,9 @@ class MIDI(pyxelwidgets.devices.Device):
     ``check()`` notices the device being unplugged and plugged back in.
     """
 
+    #: Whether the transport can follow a MIDI clock it receives (``raw_listeners``; a layout's ``transport.sync.output``)
+    receives_clock = True
+
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
         self._midi_input = None
