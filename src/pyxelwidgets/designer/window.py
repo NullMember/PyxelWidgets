@@ -172,6 +172,9 @@ def main(argv = None, prog = 'pyxelwidgets app') -> None:
     bridge._window = window
     designer.pick = bridge._pick
     webview.settings['ALLOW_DOWNLOADS'] = True
+    if os.environ.get('PYXELWIDGETS_REMOTE_DEBUGGING'):
+        # The page for remote developer tools (Windows' web view; Qt's reads QTWEBENGINE_REMOTE_DEBUGGING)
+        webview.settings['REMOTE_DEBUGGING_PORT'] = int(os.environ['PYXELWIDGETS_REMOTE_DEBUGGING'])
     storage = data_folder() / 'webview'
     storage.mkdir(parents = True, exist_ok = True)
     try:
