@@ -316,6 +316,8 @@ class Preview:
         # Separate from ``lock``: events arrive from device and transport threads holding the surface lock
         self._events_lock = threading.Lock()
         self.layout = None
+        # Set when a device's pad changed: the render thread draws at once
+        self._wake = threading.Event()
         #: Counts layout loads: a page seeing another than its own reloads the layout (edited elsewhere)
         self.revision = 0
         self.ui = None
@@ -537,6 +539,12 @@ class Preview:
             if device is not None:
                 self.ui.surface.add_device(device, spec.get('x', 0), spec.get('y', 0))
                 device.invalidate()
+                # After the surface's own handler: the widgets have answered when the frame is drawn
+                try:
+                    device.off(pyxelwidgets.events.PadEvent, self._pad_input)
+                except ValueError:
+                    pass
+                device.on(pyxelwidgets.events.PadEvent, self._pad_input)
             self.hardware.append({'key': _device_key(spec), 'device': device, 'error': error})
         # Removing devices from the old surface removed their bindings
         self.ui.bind([entry['device'] for entry in self.hardware], _PreviewActions(self))
@@ -730,9 +738,15 @@ class Preview:
                 state = 'reconnected' if device.connected else 'unplugged'
                 self._log(device.name, f'device {state}', {})
 
+    def _pad_input(self, event) -> None:
+        # A pad of a connected device: its answer is drawn now, not at the next frame
+        self._wake.set()
+
     def _render(self, stop: threading.Event) -> None:
         """Send frames to the hardware (the browser only renders when it asks for a frame; in Perform mode it doesn't)."""
-        while not stop.wait(1.0 / self.fps):
+        while True:
+            self._wake.wait(1.0 / self.fps)
+            self._wake.clear()
             with self.lock:
                 if stop.is_set():
                     return
@@ -751,6 +765,7 @@ class Preview:
             if self._render_stop is not None:
                 self._render_stop.set()
                 self._render_stop = None
+                self._wake.set()
 
     def frame(self, since: int = 0, pixels: bool = True) -> dict:
         """
