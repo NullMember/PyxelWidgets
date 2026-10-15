@@ -28,7 +28,7 @@ ENV = BUILD / 'app-venv'
 NAME = 'PyxelWidgets'
 BUNDLE_ID = 'io.github.nullmember.pyxelwidgets'
 
-EXTRAS = 'app,osc,network,desktop'
+EXTRAS = 'app,osc,network,desktop,bluetooth'
 
 def system() -> str:
     return {'darwin': 'macos', 'win32': 'windows'}.get(sys.platform, 'linux' if sys.platform.startswith('linux') else sys.platform)
@@ -78,6 +78,8 @@ def pyinstaller(icon_folder: pathlib.Path) -> None:
         '--collect-submodules', 'pythonosc',
         '--collect-submodules', 'pynput',
         '--collect-submodules', 'zeroconf',
+        # bleak picks its backend (CoreBluetooth, WinRT, BlueZ) at run time
+        '--collect-submodules', 'bleak',
         '--osx-bundle-identifier', BUNDLE_ID,
     ]
     if system() == 'linux':
@@ -100,6 +102,8 @@ def mac_bundle() -> pathlib.Path:
         # WebGrid, OSC and network MIDI talk to the local network; RTP-MIDI announces itself with Bonjour
         'NSLocalNetworkUsageDescription': 'PyxelWidgets talks to grids, DAWs and phones on your network (WebGrid, OSC, network MIDI).',
         'NSBonjourServices': ['_apple-midi._udp'],
+        # Without it macOS stops the app the moment it uses Bluetooth
+        'NSBluetoothAlwaysUsageDescription': 'PyxelWidgets connects to Bluetooth MIDI controllers and keyboards.',
     })
     with plist_path.open('wb') as file:
         plistlib.dump(plist, file)
