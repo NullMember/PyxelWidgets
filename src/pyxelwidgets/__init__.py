@@ -10,7 +10,7 @@ Names are imported lazily on first access, so importing one module (e.g.
 
 import importlib
 
-__version__ = '0.1.0'
+__version__ = '1.0.0'
 
 _exports = {
     'Animation': 'animation',

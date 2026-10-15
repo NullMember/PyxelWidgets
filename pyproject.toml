@@ -5,7 +5,8 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "pyxelwidgets"
 dynamic = ["version"]
-description = "GUI framework for low resolution devices (e.g. Novation Launchpad, LED keyboards)"
+description = "Grid controller interfaces (Launchpad, APC, Push...) for music: a visual designer, a player and a Python framework"
+keywords = ["midi", "launchpad", "grid", "controller", "sequencer", "designer", "music", "mackie", "osc", "bluetooth-midi"]
 readme = "README.md"
 license = "MIT"
 license-files = ["LICENSE"]
@@ -16,10 +17,14 @@ dependencies = [
     "python-rtmidi >= 1.5",
 ]
 classifiers = [
-    "Development Status :: 3 - Alpha",
+    "Development Status :: 5 - Production/Stable",
+    "Environment :: Web Environment",
+    "Intended Audience :: End Users/Desktop",
     "Intended Audience :: Developers",
     "Operating System :: OS Independent",
     "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3 :: Only",
+    "Topic :: Multimedia :: Sound/Audio",
     "Topic :: Multimedia :: Sound/Audio :: MIDI",
 ]
 
