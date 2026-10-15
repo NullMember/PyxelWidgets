@@ -20,6 +20,7 @@ object Runtime {
         MidiBridge.init(app)
         BluetoothBridge.init(app)
         BlePeripheral.init(app)
+        NsdAdvert.init(app)
         if (!Python.isStarted()) {
             Python.start(AndroidPlatform(app))
         }
