@@ -67,7 +67,7 @@ def snippets_page() -> None:
 
 
 GUIDE_LAYOUT = {
-    'format': 'pyxelwidgets.layout', 'version': 6, 'surface': {'width': 9, 'height': 9},
+    'format': 'pyxelwidgets.layout', 'version': 1, 'surface': {'width': 9, 'height': 9},
     'devices': [{'type': 'novation.LaunchpadMiniMK3', 'x': 0, 'y': 0, 'options': {}}],
     'outputs': [{'name': 'drums', 'type': 'midi_port.MidiPort', 'virtual': 'PyxelWidgets drums', 'options': {}}],
     'widgets': [{'type': 'DrumPads', 'name': 'pads', 'x': 0, 'y': 0, 'width': 4, 'height': 4, 'options': {}},
