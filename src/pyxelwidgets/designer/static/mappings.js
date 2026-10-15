@@ -5,7 +5,7 @@ import { trackValueSource } from './drawer.js';
 import { change, setStatus } from './history.js';
 import { render } from './board.js';
 import { learnButton, learnedMessage } from './learn.js';
-import { hardwareDot, connectButton, select, optionField, ADVANCED, group, optionFields, isFormula, formulaControl, formulaSources } from './properties.js';
+import { hardwareDot, connectButton, select, optionField, ADVANCED, group, optionFields, isFormula, formulaControl, formulaSources, portPicker } from './properties.js';
 
 export const INTEGER_SOURCES = new Set(['x', 'y', 'cell', 'note', 'step', 'row', 'column', 'page', 'delta']);
 
@@ -73,12 +73,13 @@ export function renderOutputs() {
 export function outputProperties(panel, index) {
   const output = outputsOf()[index];
   const info = outputInfo(output);
+  const setPort = (key) => (name) => change(() => { if (name) output[key] = name; else delete output[key]; });
   const port = (key, label, placeholder) => [
-    el('label', { for: `output-${key}` }, label),
-    el('div', { class: 'control' }, el('input', {
+    el('label', { for: key === 'virtual' ? `output-${key}` : `output-${key}-pick` }, label),
+    key === 'virtual' ? el('div', { class: 'control' }, el('input', {
       type: 'text', id: `output-${key}`, value: output[key] || '', placeholder,
-      onchange: (e) => change(() => { if (e.target.value.trim()) output[key] = e.target.value.trim(); else delete output[key]; }),
-    })),
+      onchange: (e) => setPort(key)(e.target.value.trim()),
+    })) : portPicker(`output-${key}`, output[key], `${key}s`, 'None', setPort(key)),
   ];
   const used = (state.layout.mappings || []).filter((mapping) => mapping.output === output.name);
   fill(panel,

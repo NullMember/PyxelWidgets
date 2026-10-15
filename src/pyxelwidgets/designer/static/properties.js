@@ -420,11 +420,9 @@ export function renderProperties() {
     const info = deviceInfo(device);
     const [width, height] = deviceSize(device);
     const port = (key, label) => [
-      el('label', { for: `device-${key}` }, label),
-      el('div', { class: 'control' }, el('input', {
-        type: 'text', id: `device-${key}`, value: device[key] || '', placeholder: 'find by name',
-        onchange: (e) => change(() => { if (e.target.value) device[key] = e.target.value; else delete device[key]; }),
-      })),
+      el('label', { for: `device-${key}-pick` }, label),
+      portPicker(`device-${key}`, device[key], `${key}s`, 'Find by name',
+        (name) => change(() => { if (name) device[key] = name; else delete device[key]; })),
     ];
     fill(panel,
       el('h3', {}, info?.model || device.type),
@@ -493,6 +491,54 @@ function presetsFields(widget) {
   ];
 }
 
+// The MIDI ports Scan found (GET /api/ports), {inputs, outputs}; scanned once when a port picker first shows
+function scanPorts(announce = true) {
+  state.ports = { inputs: state.ports?.inputs || [], outputs: state.ports?.outputs || [], scanning: true };
+  return api('GET', '/api/ports').then((ports) => {
+    state.ports = ports;
+    if (announce) setStatus(`Found ${ports.inputs.length} MIDI input${ports.inputs.length === 1 ? '' : 's'} and ${ports.outputs.length} output${ports.outputs.length === 1 ? '' : 's'}`, 'ok');
+    renderProperties();
+  }, () => { state.ports.scanning = false; renderProperties(); });
+}
+
+const CUSTOM_PORT = '\u0000custom';
+
+// A MIDI port field: the ports found by Scan, `empty` (none chosen; null leaves it out) and Custom… (a typed name,
+// element id `id`, also shown for a name that isn't among the found ports). `direction` is 'inputs' or 'outputs';
+// `set` gets the name, or null for none
+export function portPicker(id, value, direction, empty, set) {
+  if (!state.ports) scanPorts(false);
+  // Not the virtual ports this layout makes itself
+  const own = new Set([...(state.layout.outputs || []).map((output) => output.virtual), state.layout.transport?.sync?.virtual]);
+  const found = (state.ports[direction] || []).filter((name) => !own.has(name));
+  const custom = state.customPorts.has(id) || (!!value && !found.includes(value)) || (!value && empty === null);
+  return el('div', { class: 'control port' },
+    el('select', {
+      id: `${id}-pick`, 'aria-label': `${direction === 'inputs' ? 'Input' : 'Output'} port`,
+      onchange: (e) => {
+        if (e.target.value === CUSTOM_PORT) {
+          state.customPorts.add(id);
+          renderProperties();
+          $(id)?.focus();
+          return;
+        }
+        state.customPorts.delete(id);
+        set(e.target.value || null);
+      },
+    },
+    empty === null ? null : el('option', { value: '', selected: !value && !custom }, empty),
+    found.map((name) => el('option', { value: name, selected: !custom && name === value }, name)),
+    el('option', { value: CUSTOM_PORT, selected: custom }, 'Custom…')),
+    el('button', {
+      type: 'button', id: `${id}-scan`, disabled: !!state.ports.scanning,
+      title: 'Look again for the MIDI ports on this computer', onclick: () => scanPorts(),
+    }, state.ports.scanning ? 'Scanning…' : 'Scan'),
+    custom ? el('input', {
+      type: 'text', id, value: value || '', placeholder: 'port name',
+      onchange: (e) => set(e.target.value.trim() || null),
+    }) : null);
+}
+
 // The transport following a DAW's MIDI clock (transport.sync): a virtual port or an input port
 function syncFields() {
   const transport = state.layout.transport || {};
@@ -504,10 +550,6 @@ function syncFields() {
     else delete next.sync;
     layout.transport = next;
   });
-  if (kind === 'input' && !state.ports) {
-    state.ports = { inputs: [], outputs: [] };
-    api('GET', '/api/ports').then((ports) => { state.ports = ports; if (!state.selection) renderProperties(); });
-  }
   return el('div', { class: 'sync' },
     el('h4', {}, 'Sync to a DAW'),
     el('div', { class: 'row' },
@@ -517,12 +559,12 @@ function syncFields() {
           : e.target.value === 'virtual' ? { virtual: 'PyxelWidgets Clock' } : { input: state.ports?.inputs?.[0] || 'IAC Driver Bus 1' }),
       }, [['off', 'Off: its own tempo'], ['virtual', 'Virtual port'], ['input', 'MIDI input port']].map(([value, label]) =>
         el('option', { value, selected: kind === value }, label))),
-      kind === 'off' ? null : el('input', {
-        id: 'sync-port', type: 'text', value: sync[kind], 'aria-label': 'Port name', list: kind === 'input' ? 'sync-ports' : null,
-        title: kind === 'virtual' ? 'The name of the port the DAW sends its clock to' : 'The MIDI input the DAW\'s clock comes in through',
+      kind !== 'virtual' ? null : el('input', {
+        id: 'sync-port', type: 'text', value: sync[kind], 'aria-label': 'Port name',
+        title: 'The name of the port the DAW sends its clock to',
         onchange: (e) => { const name = e.target.value.trim(); if (name) setSync({ [kind]: name }); else render(); },
       })),
-    kind === 'input' ? el('datalist', { id: 'sync-ports' }, (state.ports?.inputs || []).map((name) => el('option', { value: name }))) : null,
+    kind === 'input' ? portPicker('sync-port', sync.input, 'inputs', null, (name) => { if (name) setSync({ input: name }); else render(); }) : null,
     kind === 'off' ? null : el('p', { id: 'sync-status', class: 'hint sync-status' }, syncStatus()),
     el('p', { class: 'hint' }, kind === 'off'
       ? 'Follow a DAW\'s MIDI clock: its tempo, play, stop and position. Sequencers and Trackers then play with the DAW.'

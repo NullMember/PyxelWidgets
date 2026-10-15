@@ -11,6 +11,9 @@ export const DEFAULT_SIZE = {
 export const SWATCHES = ['White', 'Gray', 'Red', 'OrangeRed', 'Orange', 'Yellow', 'Lime', 'Green', 'Cyan', 'DodgerBlue', 'Blue', 'Purple', 'Magenta', 'HotPink'];
 
 export const state = {
+  // MIDI ports found by Scan ({inputs, outputs}) and the port pickers switched to a typed name, by element id
+  ports: null,
+  customPorts: new Set(),
   catalog: null,
   // What outputs scanned in the DAW, by output name: {tracks, plugins: {track: [...]}, parameters: {'track/plugin': [...]}}
   scans: {},

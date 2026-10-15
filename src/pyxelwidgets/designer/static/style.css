@@ -501,3 +501,7 @@ button.learn.active { background: var(--accent-soft); border-color: var(--accent
 .check-list li.ok::before { content: '✓'; color: var(--ok); }
 .check-list li.wrong::before { content: '✗'; color: var(--danger); }
 .check-list.controls { columns: 2; max-height: 260px; overflow: auto; }
+.control.port { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; min-width: 0; }
+.sync > .control.port { margin-bottom: 6px; }
+.control.port > select { flex: 1 1 0; min-width: 0; }
+.control.port > input[type=text] { flex: 1 1 100%; }
