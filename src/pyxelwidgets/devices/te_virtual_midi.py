@@ -19,27 +19,31 @@ class TeVirtualMIDI:
         if platform.system() != 'Windows':
             raise TeVirtualMIDI.WrongOSError("OS must be Windows")
         if platform.machine() == 'AMD64':
-            _filename = 'te_virtual_midi64'
-        elif platform.machine() == 'i386':
-            _filename = 'te_virtual_midi32'
+            bits = '64'
+        elif platform.machine() in ('i386', 'x86'):
+            bits = '32'
         else:
             raise TeVirtualMIDI.WrongArchitectureError("Architecture must be i386 or AMD64")
         self._vmd = None
-        _extension = '.dll'
 
-        # This will search teVirtualMIDI{architecture}.dll in your PATH or
-        # directory of your script.
-        DLLPATH = ctypes.util.find_library(_filename + _extension)
-        if DLLPATH != None:
-            self._vmd = ctypes.windll.LoadLibrary(os.path.abspath(DLLPATH))
-        else:
-            DLLPATH = f'./{_filename}{_extension}'
-            if os.path.exists(DLLPATH):
+        # The driver's DLL (loopMIDI installs it in System32), else one next to the script or on the PATH
+        # (also by this module's older names)
+        for name in (f'teVirtualMIDI{bits}.dll', f'te_virtual_midi{bits}.dll'):
+            for path in (name, ctypes.util.find_library(name), os.path.abspath(name)):
+                if not path:
+                    continue
                 try:
-                    self._vmd = ctypes.windll.LoadLibrary(DLLPATH)
-                except:
-                    raise TeVirtualMIDI.NotFoundError(f'{_filename}{_extension} not found')
-        
+                    self._vmd = ctypes.windll.LoadLibrary(path)
+                    break
+                except OSError:
+                    continue
+            if self._vmd is not None:
+                break
+        if self._vmd is None:
+            raise TeVirtualMIDI.NotFoundError(
+                f'Virtual MIDI ports on Windows need the teVirtualMIDI driver (teVirtualMIDI{bits}.dll): '
+                'install loopMIDI (https://www.tobias-erichsen.de/software/loopmidi.html), or use a port of a device instead')
+
         self._create_midi_port = self._vmd.virtualMIDICreatePortEx2
         self._create_midi_port.argtypes = [ctypes.c_wchar_p, ctypes.c_void_p, ctypes.c_void_p, ctypes.c_ulong, ctypes.c_ulong]
         self._create_midi_port.restype = ctypes.c_void_p
