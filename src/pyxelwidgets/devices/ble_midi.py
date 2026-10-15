@@ -34,6 +34,7 @@ import asyncio
 import collections
 import errno
 import platform
+import sys
 import threading
 import time
 import types
@@ -51,8 +52,9 @@ CHARACTERISTIC = '7772e5db-3868-4112-a1a9-f2669d106bf3'
 class BleMidi(pyxelwidgets.devices.Device):
     """
     A Bluetooth LE MIDI device other computers connect to (Linux with BlueZ,
-    e.g. a Raspberry Pi). Sends MIDI channel messages to the computer that
-    connected; what it sends comes in as MessageReceived.
+    e.g. a Raspberry Pi, or an Android phone in the app). Sends MIDI channel
+    messages to the computer that connected; what it sends comes in as
+    MessageReceived. Android advertises the phone's own Bluetooth name.
     """
 
     model = 'Bluetooth MIDI (BLE)'
@@ -102,6 +104,9 @@ class BleMidi(pyxelwidgets.devices.Device):
         self._payload = 20
         self._received_state = _ParseState()
         self._path = f'/org/pyxelwidgets/{_dbus_name(self.name)}'
+        # On Android: the app's BlePeripheral (a GATT server of Android's), and the name it advertises
+        self._peripheral = None
+        self.advertised_name = None
 
     @classmethod
     def describe(cls) -> dict:
@@ -114,13 +119,18 @@ class BleMidi(pyxelwidgets.devices.Device):
         """Whether a computer is connected, for people (the designer shows it)."""
         if self.listening:
             return 'a computer is connected'
-        return 'advertising: connect from the other computer (macOS: Audio MIDI Setup > MIDI Studio > Bluetooth)'
+        name = f' as {self.advertised_name}' if self.advertised_name else ''
+        return f'advertising{name}: connect from the other computer (macOS: Audio MIDI Setup > MIDI Studio > Bluetooth)'
 
     # Lifecycle
 
     def connect(self) -> None:
         if self.connected:
             self.disconnect()
+        if hasattr(sys, 'getandroidapilevel') and self.bus_address is None:
+            self._start_android()
+            super().connect()
+            return
         if platform.system() != 'Linux' and self.bus_address is None:
             raise OSError('Bluetooth MIDI devices can only be made on Linux (BlueZ), e.g. on a Raspberry Pi')
         try:
@@ -141,6 +151,9 @@ class BleMidi(pyxelwidgets.devices.Device):
         super().connect()
 
     def disconnect(self) -> None:
+        if self._peripheral is not None:
+            self._peripheral.stop()
+            self._peripheral = None
         if self._loop is not None:
             try:
                 asyncio.run_coroutine_threadsafe(self._stop(), self._loop).result(5.0)
@@ -167,6 +180,12 @@ class BleMidi(pyxelwidgets.devices.Device):
 
     def send_midi(self, midi: list) -> None:
         """Send one raw MIDI message (a list of bytes, no system exclusive); messages sent together share a packet."""
+        peripheral = self._peripheral
+        if peripheral is not None:
+            if self.listening:
+                for packet in ble_packets([list(midi)], int(time.monotonic() * 1000), peripheral.payload()):
+                    peripheral.send(packet)
+            return
         loop = self._loop
         if loop is None or not self.listening:
             return
@@ -220,6 +239,30 @@ class BleMidi(pyxelwidgets.devices.Device):
             self._outgoing.popleft()
         if sock is not None:
             self._loop.remove_writer(sock)
+
+    # Android
+
+    def _start_android(self) -> None:
+        from java import dynamic_proxy, jclass
+        peripheral = jclass('io.github.nullmember.pyxelwidgets.BlePeripheral')
+        device = self
+
+        class Listener(dynamic_proxy(jclass('io.github.nullmember.pyxelwidgets.BlePeripheral$Listener'))):
+            def onWrite(self, data):
+                device._written(bytes(data))
+
+            def onListening(self, count):
+                device._notifying(count > 0)
+
+        self._listener = Listener()
+        try:
+            self.advertised_name = str(peripheral.start(self._listener, self.secure))
+        except Exception as error:
+            message = str(error)
+            raise OSError(message.split(': ', 1)[1] if message.startswith('java.') and ': ' in message else message) from None
+        self._peripheral = peripheral
+        if self.bluetooth_name and self.bluetooth_name != self.advertised_name:
+            self.warning = f'Android advertises the phone\'s Bluetooth name ({self.advertised_name}), not {self.bluetooth_name}'
 
     # BlueZ
 

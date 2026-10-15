@@ -244,6 +244,8 @@ class Bluetooth:
 
     #: Seconds between attempts to connect remembered devices that aren't connected
     retry_interval = 10.0
+    #: Seconds of scanning for a remembered device that may have changed its address
+    rename_scan = 3.0
 
     def __init__(self, backend = None, path: pathlib.Path = REMEMBERED):
         self.backend = backend if backend is not None else central()
@@ -316,18 +318,43 @@ class Bluetooth:
                 self.backend.disconnect(address)
 
     def reconnect(self) -> list[str]:
-        """Try once to connect remembered devices that aren't connected; returns the names connected."""
+        """
+        Try once to connect remembered devices that aren't connected; returns the names
+        connected. Phones (and other devices with private addresses) advertise from a new
+        address now and then: one found by its remembered name (and only one) is taken
+        for it, and remembered at its new address.
+        """
         if self.backend is None or self.problem(ask = False) is not None:
             return []
         here = {device['address'] for device in self.backend.connected()}
+        missing = [entry for entry in self.remembered() if entry['address'] not in here]
         done = []
-        for entry in self.remembered():
-            if entry['address'] in here:
-                continue
+        found = None
+        for entry in missing:
             try:
                 with self._lock:
                     done.append(self.backend.connect(entry['address']))
                 self.errors.pop(entry['address'], None)
+                continue
+            except Exception as error:
+                self.errors[entry['address']] = str(error)
+            if found is None:
+                try:
+                    found = self.backend.scan(self.rename_scan)
+                except Exception:
+                    found = []
+            named = [device for device in found if device['name'] == entry.get('name') and device['address'] not in here]
+            if len(named) != 1:
+                continue
+            address = named[0]['address']
+            try:
+                with self._lock:
+                    name = self.backend.connect(address)
+                    entries = [dict(other, address = address) if other['address'] == entry['address'] else other
+                               for other in self.remembered()]
+                    self._remember(entries)
+                self.errors.pop(entry['address'], None)
+                done.append(name)
             except Exception as error:
                 self.errors[entry['address']] = str(error)
         return done
