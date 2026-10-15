@@ -1407,7 +1407,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
                 self._json({'ok': True, **self.designer.share(bool(body.get('shared')))})
                 return
             elif path == '/api/bluetooth':
-                # {"action": scan|connect|disconnect, "address", "seconds"}: Bluetooth MIDI devices
+                # {"action": scan|connect|pair|disconnect, "address", "seconds"}: Bluetooth MIDI devices
                 bluetooth = bluetooth_devices()
                 action = str(body.get('action'))
                 try:
@@ -1415,6 +1415,9 @@ class Handler(http.server.BaseHTTPRequestHandler):
                         reply = {'found': bluetooth.scan(min(float(body.get('seconds', 4)), 15))}
                     elif action == 'connect':
                         reply = {'name': bluetooth.connect(str(body['address']))}
+                    elif action == 'pair':
+                        bluetooth.pair(str(body['address']))
+                        reply = {}
                     elif action == 'disconnect':
                         bluetooth.disconnect(str(body['address']))
                         reply = {}
