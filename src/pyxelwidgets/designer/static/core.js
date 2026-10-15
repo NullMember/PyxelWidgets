@@ -83,9 +83,10 @@ export async function api(method, path, body) {
   return { ok: response.ok, ...data };
 }
 
-// The designer's own window (pyxelwidgets.designer.window), or null in a browser
+// The app hosting the page: the desktop window (pyxelwidgets.designer.window) or the Android
+// app's PyxelWidgetsHost, each with download(name, text) and changed(dirty, file); null in a browser
 export function appWindow() {
-  return window.pywebview?.api || null;
+  return window.pywebview?.api || window.PyxelWidgetsHost || null;
 }
 
 // Saves text as a file: the window asks where (web views differ on downloads), a browser downloads it

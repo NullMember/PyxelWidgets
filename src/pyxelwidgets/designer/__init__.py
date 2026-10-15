@@ -24,6 +24,7 @@ import re
 import platform
 import secrets
 import socket
+import sys
 import threading
 import time
 import urllib.parse
@@ -931,7 +932,7 @@ class Designer:
         if listener is None:
             return []
         host, port = listener.server_address[:2]
-        hosts = [network_address()] if ipaddress.ip_address(host).is_unspecified else [host]
+        hosts = network_addresses() if ipaddress.ip_address(host).is_unspecified else [host]
         return [f'http://{host}:{port}/?key={self.key}' for host in hosts]
 
     def sharing(self) -> dict:
@@ -1042,14 +1043,60 @@ def share_key(path: pathlib.Path = None) -> str:
         pass
     return key
 
-def network_address() -> str:
-    """This computer's address on the network (no traffic is sent)."""
+#: Interfaces whose addresses other computers are likely to reach first (Wi-Fi, Ethernet, a phone's hotspot)
+LOCAL_INTERFACES = ('wlan', 'eth', 'en', 'wl', 'ap', 'swlan')
+
+def _interface_addresses() -> list[str]:
+    """IPv4 addresses by interface on Linux and Android (local networks first), else empty."""
     try:
-        with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as probe:
-            probe.connect(('10.255.255.255', 1))
-            return probe.getsockname()[0]
-    except OSError:
-        return '127.0.0.1'
+        import fcntl
+        import struct
+    except ImportError:
+        return []
+    found = []
+    with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as probe:
+        try:
+            names = [name for _, name in socket.if_nameindex()]
+        except (OSError, AttributeError):
+            # Python on Android has no if_nameindex
+            names = []
+        # The usual names when there's no list
+        names = names or ['wlan0', 'wlan1', 'eth0', 'ap0', 'swlan0']
+        for name in names:
+            try:
+                # SIOCGIFADDR: the interface's address (Linux)
+                reply = fcntl.ioctl(probe.fileno(), 0x8915, struct.pack('256s', name.encode()[:15]))
+            except OSError:
+                continue
+            address = socket.inet_ntoa(reply[20:24])
+            if not ipaddress.ip_address(address).is_loopback:
+                found.append((not name.startswith(LOCAL_INTERFACES), address))
+    return [address for _, address in sorted(found, key = lambda item: item[0])]
+
+def network_addresses() -> list[str]:
+    """
+    This computer's addresses on its networks, the likeliest first (no traffic is
+    sent). A phone has cellular ones too, which other computers can't reach.
+    """
+    if sys.platform.startswith('linux') or hasattr(sys, 'getandroidapilevel'):
+        found = _interface_addresses()
+        if found:
+            return found
+    # The address a packet would leave from (none is sent); Android refuses broadcast addresses
+    for target in ('10.255.255.255', '8.8.8.8'):
+        try:
+            with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as probe:
+                probe.connect((target, 1))
+                address = probe.getsockname()[0]
+                if not ipaddress.ip_address(address).is_unspecified:
+                    return [address]
+        except OSError:
+            pass
+    return ['127.0.0.1']
+
+def network_address() -> str:
+    """This computer's likeliest address on the network."""
+    return network_addresses()[0]
 
 #: Pieces of layouts to add (widgets with their links, messages and outputs): built in, and your own
 SNIPPETS = pathlib.Path(__file__).parent / 'snippets'
