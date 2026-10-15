@@ -346,9 +346,15 @@ class _Writer:
         sync = self.ui.sync_settings()
         if sync is None:
             return [f'app = {self.call(self.name(pyxelwidgets.app.App), ["surface"], options)}']
-        clock_input = importlib.import_module('pyxelwidgets.devices.midi_clock').MidiClockInput
         options.append(('sync', 'True'))
         variable = self.variable(('clock', 'input'), 'daw_clock')
+        if 'output' in sync:
+            follower = importlib.import_module('pyxelwidgets.devices.midi_clock').ClockFollower
+            return [f'app = {self.call(self.name(pyxelwidgets.app.App), ["surface"], options)}',
+                    f"# The transport follows the MIDI clock the DAW sends to {sync['output']}: tempo, start, stop and position",
+                    f'{variable} = {self.name(follower)}(app.transport, {self.variables[("output", sync["output"])]})',
+                    f'app.clocks.append({variable})  # closed with the app']
+        clock_input = importlib.import_module('pyxelwidgets.devices.midi_clock').MidiClockInput
         connect = f'connect_virtual({sync["virtual"]!r})' if 'virtual' in sync else f'connect({sync["input"]!r}, None)'
         return [f'app = {self.call(self.name(pyxelwidgets.app.App), ["surface"], options)}',
                 "# The transport follows the DAW's MIDI clock: tempo, start, stop and position",
