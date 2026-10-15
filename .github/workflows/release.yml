@@ -113,6 +113,25 @@ jobs:
       - name: Build
         if: runner.os != 'Linux'
         run: python packaging/build.py
+      - name: The Windows app opens its window
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          Expand-Archive (Get-Item dist\*.zip).FullName -DestinationPath "$env:RUNNER_TEMP\unpacked"
+          $env:WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS = '--remote-debugging-port=9222'
+          $app = Start-Process "$env:RUNNER_TEMP\unpacked\PyxelWidgets\PyxelWidgets.exe" -ArgumentList '--offline' -PassThru
+          $shown = $false
+          foreach ($i in 1..60) {
+            Start-Sleep 1
+            try { if ((Invoke-WebRequest http://127.0.0.1:9222/json -UseBasicParsing).Content -match '"title": "PyxelWidgets') { $shown = $true; break } } catch {}
+            if ($app.HasExited) { break }
+          }
+          if (-not $app.HasExited) { Stop-Process $app -Force }
+          if ($shown) { "The designer page is shown" } else {
+            "The window didn't show the designer (exit code $($app.ExitCode))"
+            Get-Content "$env:APPDATA\PyxelWidgets\PyxelWidgets.log" -ErrorAction SilentlyContinue
+            exit 1
+          }
       - name: Build (Linux)
         if: runner.os == 'Linux'
         run: xvfb-run -a python packaging/build.py
