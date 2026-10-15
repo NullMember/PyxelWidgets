@@ -9,7 +9,16 @@ It makes its own virtual environment in build/app-venv with the package and its
 extras (osc, network, desktop, app), so the Python running it only needs venv.
 The result is also zipped as dist/PyxelWidgets-<version>-<system>-<machine>.zip.
 See packaging/README.md for each system's requirements.
+
+On macOS, with ``PYXELWIDGETS_SIGN_IDENTITY`` set (a "Developer ID
+Application" certificate in the keychain), the app is signed with it and the
+hardened runtime; with ``PYXELWIDGETS_NOTARY_PROFILE`` (a ``xcrun notarytool
+store-credentials`` profile) or ``PYXELWIDGETS_NOTARY_KEY``/``_KEY_ID``/``_ISSUER``
+(an App Store Connect API key) it's notarized and stapled too. Otherwise it's
+signed ad hoc.
 """
+
+import os
 
 import argparse
 import platform
@@ -107,8 +116,41 @@ def mac_bundle() -> pathlib.Path:
     })
     with plist_path.open('wb') as file:
         plistlib.dump(plist, file)
-    run('codesign', '--force', '--deep', '--sign', '-', app)
+    identity = os.environ.get('PYXELWIDGETS_SIGN_IDENTITY')
+    if not identity:
+        run('codesign', '--force', '--deep', '--sign', '-', app)
+        return app
+    entitlements = ROOT / 'packaging' / 'entitlements.plist'
+    # Inside out: every library and executable, then the bundle (--deep doesn't apply options to nested code)
+    nested = [path for path in app.rglob('*') if path.is_file() and not path.is_symlink()
+              and (path.suffix in ('.so', '.dylib') or os.access(path, os.X_OK))]
+    for path in sorted(nested, key = lambda path: -len(path.parts)):
+        if path.parent.name == 'MacOS' and path.parent.parent.parent == app:
+            continue
+        run('codesign', '--force', '--timestamp', '--options', 'runtime', '--entitlements', entitlements, '--sign', identity, path)
+    run('codesign', '--force', '--timestamp', '--options', 'runtime', '--entitlements', entitlements, '--sign', identity, app)
+    run('codesign', '--verify', '--deep', '--strict', app)
+    notarize(app)
     return app
+
+def notarize(app: pathlib.Path) -> None:
+    """Send the signed app to Apple's notary service and staple the ticket, when credentials are set."""
+    profile = os.environ.get('PYXELWIDGETS_NOTARY_PROFILE')
+    key = os.environ.get('PYXELWIDGETS_NOTARY_KEY')
+    if profile:
+        credentials = ['--keychain-profile', profile]
+    elif key:
+        credentials = ['--key', key, '--key-id', os.environ['PYXELWIDGETS_NOTARY_KEY_ID'],
+                       '--issuer', os.environ['PYXELWIDGETS_NOTARY_ISSUER']]
+    else:
+        print('Not notarized: no PYXELWIDGETS_NOTARY_PROFILE or PYXELWIDGETS_NOTARY_KEY', flush = True)
+        return
+    upload = BUILD / f'{NAME}-notarize.zip'
+    upload.unlink(missing_ok = True)
+    run('ditto', '-c', '-k', '--keepParent', app, upload)
+    run('xcrun', 'notarytool', 'submit', upload, *credentials, '--wait')
+    run('xcrun', 'stapler', 'staple', app)
+    upload.unlink()
 
 def archive(built: pathlib.Path) -> pathlib.Path:
     machine = platform.machine().lower().replace('amd64', 'x86_64').replace('aarch64', 'arm64')
