@@ -16,6 +16,7 @@ import base64
 import hashlib
 import html
 import http.server
+import socketserver
 import json
 import socket
 import struct
@@ -88,6 +89,14 @@ class _Client:
         except OSError:
             pass
 
+class _Server(http.server.ThreadingHTTPServer):
+    """Without the reverse DNS lookup of its own address when it starts (on macOS an mDNS query that waits for the local network permission)."""
+
+    def server_bind(self) -> None:
+        socketserver.TCPServer.server_bind(self)
+        self.server_name, self.server_port = self.server_address[:2]
+
+
 class WebGrid(pyxelwidgets.devices.Device):
     """
     A ``columns`` x ``rows`` grid shown in web browsers, served on ``port``
@@ -154,7 +163,7 @@ class WebGrid(pyxelwidgets.devices.Device):
                 else:
                     self.send_error(404)
 
-        self.server = http.server.ThreadingHTTPServer((self.host, self.port), Handler)
+        self.server = _Server((self.host, self.port), Handler)
         self._address = _address() if self.host in ('0.0.0.0', '') else self.host
         self.server.daemon_threads = True
         threading.Thread(target = self.server.serve_forever, name = f'{self.name}_web', daemon = True).start()
