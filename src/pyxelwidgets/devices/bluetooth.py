@@ -8,13 +8,19 @@ program starts and when they come back in range (``keep_connected``). Once
 connected, a device's MIDI ports are listed like any other (``MIDI.available_ports``),
 so devices and outputs use them by name.
 
-Backends (``central()``): Android's MIDI service through the app's
-``BluetoothBridge``. Elsewhere ``Bluetooth.status()`` says it isn't available yet.
+Backends (``central()``): on Android, Android's MIDI service through the app's
+``BluetoothBridge`` (it lists connected devices' ports itself); elsewhere
+``BleakCentral`` (macOS, Windows, Linux; extra ``bluetooth``), which talks BLE
+MIDI itself and adds connected devices to ``MIDI``'s port lists (``ports()``).
+Messages received over BLE MIDI skip system exclusive and real-time (clock)
+messages for now (``ble_midi.ble_midi_messages``).
 """
 
+import asyncio
 import json
 import pathlib
 import threading
+import time
 
 __all__ = ['Bluetooth', 'Unavailable', 'central', 'manager', 'REMEMBERED']
 
@@ -65,6 +71,161 @@ class AndroidCentral:
             devices.append({'address': address, 'name': name})
         return devices
 
+class _Connection:
+    """A connected device (BleakCentral): what it sends goes to each listener as MIDI messages."""
+
+    def __init__(self, central, address: str, name: str, client):
+        from pyxelwidgets.devices.ble_midi import _ParseState
+        self.central = central
+        self.address = address
+        self.name = name
+        self.client = client
+        self.listeners = []
+        self.state = _ParseState()
+        # The longest packet the link takes (its MTU less the ATT header)
+        self.payload = max(20, min(getattr(client, 'mtu_size', 23) - 3, 512))
+        self.start = time.monotonic()
+
+    def received(self, sender, data) -> None:
+        from pyxelwidgets.devices.ble_midi import ble_midi_messages
+        for message in ble_midi_messages(bytes(data), self.state):
+            for listener in list(self.listeners):
+                listener(message)
+
+    def send(self, message) -> None:
+        from pyxelwidgets.devices.ble_midi import CHARACTERISTIC, ble_packets
+        milliseconds = int((time.monotonic() - self.start) * 1000)
+        for packet in ble_packets([list(message)], milliseconds, self.payload):
+            self.central._later(self.client.write_gatt_char(CHARACTERISTIC, packet, response = False))
+
+class _Port:
+    """One of a connected device's ports for ``MIDI`` (like rtmidi's MidiIn/MidiOut)."""
+
+    def __init__(self, connection: _Connection):
+        self._connection = connection
+        self._listener = None
+
+    def set_callback(self, callback) -> None:
+        self.close_port()
+        self._listener = lambda message: callback((message, 0.0), None)
+        self._connection.listeners.append(self._listener)
+
+    def ignore_types(self, **types) -> None:
+        pass
+
+    def send_message(self, message) -> None:
+        self._connection.send(message)
+
+    def close_port(self) -> None:
+        if self._listener is not None and self._listener in self._connection.listeners:
+            self._connection.listeners.remove(self._listener)
+        self._listener = None
+
+class BleakCentral:
+    """
+    Bluetooth MIDI devices through bleak (macOS, Windows, Linux): this program
+    connects and speaks BLE MIDI itself, on an asyncio loop of its own.
+    """
+
+    #: Seconds a connection may take
+    connect_timeout = 20.0
+
+    def __init__(self):
+        self._loop = None
+        self._start = threading.Lock()
+        self._connections = {}
+        # Devices seen by the last scans: connecting to one needs no scan of its own
+        self._seen = {}
+
+    def _run(self, coroutine, timeout: float):
+        with self._start:
+            if self._loop is None:
+                self._loop = asyncio.new_event_loop()
+                threading.Thread(target = self._loop.run_forever, name = 'Bluetooth', daemon = True).start()
+        return asyncio.run_coroutine_threadsafe(coroutine, self._loop).result(timeout)
+
+    def _later(self, coroutine) -> None:
+        future = asyncio.run_coroutine_threadsafe(coroutine, self._loop)
+        future.add_done_callback(lambda done: done.exception())
+
+    def problem(self, ask: bool = False) -> str | None:
+        try:
+            import bleak  # noqa: F401
+        except ImportError:
+            return 'Bluetooth MIDI needs bleak: pip install "pyxelwidgets[bluetooth]"'
+        return None
+
+    @staticmethod
+    def _error(error: Exception) -> OSError:
+        text = str(error) or type(error).__name__
+        if 'turned off' in text.lower() or type(error).__name__ == 'BleakBluetoothNotAvailableError':
+            return OSError(f'Bluetooth is off or not available: {text}')
+        return OSError(text)
+
+    def scan(self, seconds: float) -> list[dict]:
+        import bleak
+        from pyxelwidgets.devices.ble_midi import SERVICE
+
+        async def discover():
+            return await bleak.BleakScanner.discover(timeout = seconds, service_uuids = [SERVICE], return_adv = True)
+
+        try:
+            found = self._run(discover(), seconds + 10)
+        except Exception as error:
+            raise self._error(error) from None
+        self._seen.update({address: device for address, (device, _) in found.items()})
+        return [{'address': address, 'name': advertisement.local_name or device.name or address, 'rssi': advertisement.rssi}
+                for address, (device, advertisement) in found.items() if address not in self._connections]
+
+    def connect(self, address: str) -> str:
+        import bleak
+        from pyxelwidgets.devices.ble_midi import CHARACTERISTIC
+        if address in self._connections:
+            return self._connections[address].name
+
+        async def connect():
+            device = self._seen.pop(address, None) or await bleak.BleakScanner.find_device_by_address(address, timeout = self.connect_timeout / 2)
+            if device is None:
+                raise OSError(f'{address} isn\'t advertising (is it on, in range, and not connected to something else?)')
+            client = bleak.BleakClient(device, disconnected_callback = lambda client: self._lost(address))
+            await client.connect(timeout = self.connect_timeout / 2)
+            connection = _Connection(self, address, device.name or address, client)
+            await client.start_notify(CHARACTERISTIC, connection.received)
+            return connection
+
+        try:
+            connection = self._run(connect(), self.connect_timeout + 5)
+        except OSError:
+            raise
+        except Exception as error:
+            raise self._error(error) from None
+        self._connections[address] = connection
+        return connection.name
+
+    def _lost(self, address: str) -> None:
+        self._connections.pop(address, None)
+
+    def disconnect(self, address: str) -> None:
+        connection = self._connections.pop(address, None)
+        if connection is not None:
+            try:
+                self._run(connection.client.disconnect(), 10)
+            except Exception:
+                pass
+
+    def connected(self) -> list[dict]:
+        return [{'address': address, 'name': connection.name} for address, connection in list(self._connections.items())]
+
+    def ports(self) -> list[str]:
+        """Names of the connected devices, listed as both input and output MIDI ports."""
+        return [connection.name for connection in list(self._connections.values())]
+
+    def open(self, name: str) -> _Port:
+        for connection in list(self._connections.values()):
+            if connection.name == name:
+                return _Port(connection)
+        raise OSError(f'No Bluetooth MIDI device {name} connected')
+
 def _android() -> bool:
     import sys
     return hasattr(sys, 'getandroidapilevel')
@@ -72,10 +233,10 @@ def _android() -> bool:
 _central = None
 
 def central():
-    """This system's backend, or None where Bluetooth MIDI isn't supported yet."""
+    """This system's backend: Android's MIDI service, or bleak elsewhere."""
     global _central
-    if _central is None and _android():
-        _central = AndroidCentral()
+    if _central is None:
+        _central = AndroidCentral() if _android() else BleakCentral()
     return _central
 
 class Bluetooth:
@@ -105,8 +266,15 @@ class Bluetooth:
 
     def problem(self, ask: bool = False) -> str | None:
         if self.backend is None:
-            return 'Bluetooth MIDI devices can be connected from the Android app for now'
+            return 'No Bluetooth MIDI here'
         return self.backend.problem(ask)
+
+    def ports(self) -> list[str]:
+        """Connected devices' MIDI port names this program adds to the system's (none where the system lists them)."""
+        return self.backend.ports() if hasattr(self.backend, 'ports') else []
+
+    def open(self, name: str):
+        return self.backend.open(name)
 
     def status(self) -> dict:
         problem = self.problem()
@@ -164,6 +332,11 @@ class Bluetooth:
                 self.errors[entry['address']] = str(error)
         return done
 
+    def keep_connected_if_remembered(self) -> None:
+        """``keep_connected`` when devices are remembered (else bleak isn't even loaded)."""
+        if self.remembered():
+            self.keep_connected()
+
     def keep_connected(self) -> None:
         """Connect remembered devices now and whenever they're back (a thread, every ``retry_interval``)."""
         if self._keeping is not None or self.backend is None:
@@ -187,6 +360,13 @@ class Bluetooth:
 
 _manager = None
 _manager_lock = threading.Lock()
+
+def added_ports() -> list[str]:
+    """MIDI port names of Bluetooth devices this program connected itself (``MIDI`` lists them; empty until one is)."""
+    return _manager.ports() if _manager is not None else []
+
+def open_port(name: str):
+    return _manager.open(name)
 
 def manager() -> Bluetooth:
     """The program's ``Bluetooth`` (the designer and the Android app share it)."""

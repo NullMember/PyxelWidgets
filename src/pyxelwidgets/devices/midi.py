@@ -89,8 +89,30 @@ def _backend():
 #: Lists and opens MIDI ports: ``RtMidi`` or, on Android, ``android_midi.AndroidMidi``
 backend = _backend()
 
+def _bluetooth():
+    """pyxelwidgets.devices.bluetooth once loaded (it is when Bluetooth MIDI devices are used), else None."""
+    return sys.modules.get('pyxelwidgets.devices.bluetooth')
+
 def _list_ports() -> tuple:
-    return backend.list_ports()
+    inputs, outputs = backend.list_ports()
+    bluetooth = _bluetooth()
+    added = [name for name in bluetooth.added_ports() if name not in inputs and name not in outputs] if bluetooth else []
+    # Bluetooth MIDI devices this program connected itself (on Android the system lists them)
+    return list(inputs) + added, list(outputs) + added
+
+def _open(port, output: bool) -> tuple:
+    """Open ``port`` (a name, or an index into ``_list_ports``): a connected Bluetooth device's, or the backend's."""
+    bluetooth = _bluetooth()
+    added = bluetooth.added_ports() if bluetooth else []
+    if added:
+        if isinstance(port, int):
+            names = _list_ports()[1 if output else 0]
+            if not 0 <= port < len(names):
+                raise ValueError(f'No MIDI port {port}')
+            port = names[port]
+        if port in added:
+            return bluetooth.open_port(port), port
+    return backend.open_output(port) if output else backend.open_input(port)
 
 class InvalidMIDIPortException(Exception):
     def __init__(self, *args: object) -> None:
@@ -149,11 +171,11 @@ class MIDI(pyxelwidgets.devices.Device):
             in_port, out_port = self.find_ports()
         super().connect()
         if in_port is not None:
-            self._midi_input, self._midi_input_name = midi_thread.call(backend.open_input, in_port)
+            self._midi_input, self._midi_input_name = midi_thread.call(_open, in_port, False)
             self._midi_input.ignore_types(sysex = False, timing = False)
             self._midi_input.set_callback(self.process_midi)
         if out_port is not None:
-            self._midi_output, self._midi_output_name = midi_thread.call(backend.open_output, out_port)
+            self._midi_output, self._midi_output_name = midi_thread.call(_open, out_port, True)
         if self._midi_input is None and self._midi_output is None:
             self.connected = False
             # Not plugged in: check() connects it when it is
