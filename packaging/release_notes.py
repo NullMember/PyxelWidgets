@@ -18,7 +18,7 @@ DOWNLOADS = '''
 |--------|------|--------------|
 | macOS (Apple silicon) | `PyxelWidgets-{version}-macos-arm64.zip` | Unzip and move PyxelWidgets to Applications. |
 | Windows | `PyxelWidgets-{version}-windows-x86_64.zip` | Unzip and run `PyxelWidgets.exe`; SmartScreen may ask: *More info → Run anyway*. |
-| Linux | `PyxelWidgets-{version}-linux-x86_64.zip` | Unzip and run `PyxelWidgets/PyxelWidgets` (needs `libxcb-cursor0` on Debian/Ubuntu). |
+| Linux | `PyxelWidgets-{version}-linux-x86_64.tar.gz` | `tar xzf` it and run `PyxelWidgets/PyxelWidgets` (needs `libxcb-cursor0` on Debian/Ubuntu). |
 | Android 7+ | `PyxelWidgets-{version}-android.apk` | Open it on the phone and allow installing from your browser or file manager. |
 
 The Python package: `pip install pyxelwidgets=={version}`, then `pyxelwidgets designer`.

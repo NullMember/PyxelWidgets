@@ -11,14 +11,15 @@ python packaging/build.py            # fresh build environment in build/app-venv
 python packaging/build.py --reuse    # keep its packages: faster rebuilds
 ```
 
-The result goes into `dist/`, along with a zip named
-`PyxelWidgets-<version>-<system>-<machine>.zip`:
+The result goes into `dist/`, along with an archive named
+`PyxelWidgets-<version>-<system>-<machine>.zip` (`.tar.gz` on Linux, which
+keeps the build's symlinks):
 
 | System  | Result                          | Web view                                   |
 |---------|---------------------------------|--------------------------------------------|
 | macOS   | `dist/PyxelWidgets.app`         | WKWebView (built in)                       |
 | Windows | `dist/PyxelWidgets/PyxelWidgets.exe` | WebView2 (built into Windows 10/11)   |
-| Linux   | `dist/PyxelWidgets/PyxelWidgets` | Qt WebEngine (inside the build)           |
+| Linux   | `dist/PyxelWidgets/PyxelWidgets` | Qt WebEngine (inside the build, trimmed to what the window loads) |
 
 The build includes the `osc`, `network`, `desktop` and `app` extras, so
 REAPER/OSC, network MIDI, keyboard/mouse output and the window all work.

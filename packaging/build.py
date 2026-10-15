@@ -7,7 +7,8 @@ pyxelwidgets.designer.window) for the system it runs on, with PyInstaller:
 
 It makes its own virtual environment in build/app-venv with the package and its
 extras (osc, network, desktop, app), so the Python running it only needs venv.
-The result is also zipped as dist/PyxelWidgets-<version>-<system>-<machine>.zip.
+The result is also archived as dist/PyxelWidgets-<version>-<system>-<machine>.zip
+(.tar.gz on Linux, which keeps symlinks).
 See packaging/README.md for each system's requirements.
 
 On macOS, with ``PYXELWIDGETS_SIGN_IDENTITY`` set (a "Developer ID
@@ -18,17 +19,17 @@ store-credentials`` profile) or ``PYXELWIDGETS_NOTARY_KEY``/``_KEY_ID``/``_ISSUE
 signed ad hoc.
 """
 
-import os
-
 import argparse
+import os
+import pathlib
 import platform
 import plistlib
 import re
 import shutil
 import subprocess
 import sys
+import tarfile
 import venv
-import pathlib
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 BUILD = ROOT / 'build'
@@ -92,8 +93,59 @@ def pyinstaller(icon_folder: pathlib.Path) -> None:
         '--osx-bundle-identifier', BUNDLE_ID,
     ]
     if system() == 'linux':
-        command += ['--collect-submodules', 'qtpy']
+        # Only the Qt modules pywebview's Qt window uses (collecting all of qtpy pulls in every PyQt6 module and its libraries)
+        for module in QT_MODULES:
+            command += ['--hidden-import', f'qtpy.{module}', '--hidden-import', f'PyQt6.{module}']
     run(*command, cwd = BUILD)
+    if system() == 'linux':
+        trim_qt()
+
+#: What webview/platforms/qt.py imports
+QT_MODULES = ('QtCore', 'QtGui', 'QtWidgets', 'QtNetwork', 'QtWebChannel', 'QtWebEngineCore', 'QtWebEngineWidgets')
+
+#: Qt plugin folders the window can use (screens, themes, input, images, TLS); the rest (multimedia, sensors, SQL...) go
+QT_PLUGINS = {'platforms', 'platformthemes', 'platforminputcontexts', 'imageformats', 'iconengines', 'tls',
+              'xcbglintegrations', 'wayland-decoration-client', 'wayland-graphics-integration-client',
+              'wayland-shell-integration', 'egldeviceintegrations', 'generic'}
+#: Of the platforms: X11, Wayland and offscreen
+QT_PLATFORMS = ('libqxcb', 'libqwayland', 'libqoffscreen')
+
+def trim_qt() -> None:
+    """
+    Leave out what the window never loads: Qt WebEngine's translations of
+    its own menus (English is the fallback), QML, unused plugins, and the Qt
+    libraries nothing kept links to (found with ldd from the PyQt6 modules,
+    the kept plugins and QtWebEngineProcess).
+    """
+    internal = DIST / NAME / '_internal'
+    qt = internal / 'PyQt6' / 'Qt6'
+    for path in (qt / 'translations' / 'qtwebengine_locales').glob('*.pak'):
+        if path.name != 'en-US.pak':
+            path.unlink()
+    shutil.rmtree(qt / 'qml', ignore_errors = True)
+    for folder in (qt / 'plugins').iterdir():
+        if folder.name not in QT_PLUGINS:
+            shutil.rmtree(folder)
+    for path in (qt / 'plugins' / 'platforms').iterdir():
+        if not path.name.startswith(QT_PLATFORMS):
+            path.unlink()
+    roots = [*(internal / 'PyQt6').glob('*.so'), *(qt / 'plugins').rglob('*.so'), qt / 'libexec' / 'QtWebEngineProcess']
+    environment = dict(os.environ, LD_LIBRARY_PATH = f'{qt / "lib"}:{internal}')
+    needed = set()
+    for root in roots:
+        listing = subprocess.run(['ldd', str(root)], capture_output = True, text = True, env = environment).stdout
+        needed.update(pathlib.Path(match).name for match in re.findall(r'=> (\S+) \(', listing)
+                      if pathlib.Path(match).resolve().parent == (qt / 'lib').resolve())
+    removed = 0
+    for path in (qt / 'lib').iterdir():
+        if path.name.startswith('lib') and '.so' in path.name and path.name not in needed:
+            removed += path.stat().st_size
+            path.unlink()
+    # PyInstaller's links to them in _internal
+    for path in internal.iterdir():
+        if path.is_symlink() and not path.exists():
+            path.unlink()
+    print(f'Left out {removed / 2 ** 20:.0f} MB of Qt libraries', flush = True)
 
 def mac_bundle() -> pathlib.Path:
     """Info.plist entries PyInstaller doesn't write, then a fresh ad-hoc signature (the plist is signed too)."""
@@ -159,6 +211,12 @@ def archive(built: pathlib.Path) -> pathlib.Path:
     if system() == 'macos':
         # ditto keeps the bundle's symlinks and signature
         run('ditto', '-c', '-k', '--keepParent', built, target)
+    elif system() == 'linux':
+        # A tarball keeps PyInstaller's symlinks (a zip would store each linked library twice)
+        target = target.with_name(target.name.replace('.zip', '.tar.gz'))
+        target.unlink(missing_ok = True)
+        with tarfile.open(target, 'w:gz') as archive:
+            archive.add(built, arcname = built.name)
     else:
         shutil.make_archive(str(target.with_suffix('')), 'zip', built.parent, built.name)
     return target
