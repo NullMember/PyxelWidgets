@@ -5,7 +5,8 @@ Qt or GTK on Linux), with native menus and file dialogs, and a question before
 closing with unsaved changes. ``pyxelwidgets app`` and the packaged application
 (``packaging/``) start it; player mode (``--perform``, ``--play``) opens the
 layout in Perform mode, playing, and ``--headless`` plays it without a window
-(``pyxelwidgets run``, for the packaged application).
+(``pyxelwidgets run``, for the packaged application). ``--server`` runs only the
+designer's server, ``--host 0.0.0.0`` shares it on the network.
 """
 
 import argparse
@@ -16,7 +17,7 @@ import threading
 import urllib.parse
 
 import pyxelwidgets.designer
-from pyxelwidgets.designer.__main__ import load_module
+from pyxelwidgets.designer.__main__ import announce, load_module, serve_until_stopped
 
 __all__ = ['main', 'data_folder', 'PORTS']
 
@@ -81,11 +82,11 @@ class Bridge:
         return _chosen(self._window.create_file_dialog(webview.FileDialog.SAVE, directory = str(folder), save_filename = name,
                                                        file_types = LAYOUTS))
 
-def _server(layout, port, **options):
+def _server(layout, port, host = '127.0.0.1', **options):
     """The designer's server on ``port``, else the first free one of ``PORTS``, else any."""
     for candidate in ([port] if port is not None else [*PORTS, 0]):
         try:
-            return pyxelwidgets.designer.serve(layout, candidate, **options)
+            return pyxelwidgets.designer.serve(layout, candidate, host, **options)
         except OSError:
             if port is not None:
                 raise
@@ -120,6 +121,11 @@ def main(argv = None, prog = 'pyxelwidgets app') -> None:
     parser.add_argument('--perform', action = 'store_true', help = 'player mode: open in Perform mode (no editing grid)')
     parser.add_argument('--play', action = 'store_true', help = "start the layout's transport")
     parser.add_argument('--port', type = int, help = f'server port (default: the first free of {PORTS.start}-{PORTS.stop - 1})')
+    parser.add_argument('--host', default = '127.0.0.1',
+                        help = 'address to listen on: 0.0.0.0 shares the designer with other computers on the network '
+                               '(they need the key in the address it shows); default 127.0.0.1, this computer only')
+    parser.add_argument('--server', action = 'store_true',
+                        help = "the designer's server without a window: open the printed address in a browser")
     parser.add_argument('--offline', action = 'store_true', help = "don't connect the layout's devices and outputs")
     parser.add_argument('--import', dest = 'imports', action = 'append', default = [], metavar = 'MODULE',
                         help = 'a module (or .py file) registering widgets or devices of your own with parser.register; repeatable')
@@ -136,18 +142,29 @@ def main(argv = None, prog = 'pyxelwidgets app') -> None:
             parser.error('--headless needs a layout file')
         import pyxelwidgets.__main__
         sys.exit(pyxelwidgets.__main__.run(args))
+    if args.layout:
+        args.layout = str(pathlib.Path(args.layout).expanduser().resolve())
+    if args.server:
+        for module in args.imports:
+            load_module(module)
+        server = _server(args.layout, args.port, args.host, connect = not args.offline, snippets = args.snippets)
+        announce(server)
+        if args.play:
+            server.RequestHandlerClass.designer.preview.play()
+        serve_until_stopped(server)
+        return
     try:
         import webview
     except ImportError:
         sys.exit('The window needs pywebview: pip install "pyxelwidgets[app]" (or use pyxelwidgets designer, which opens a browser)')
     for module in args.imports:
         load_module(module)
-    if args.layout:
-        args.layout = str(pathlib.Path(args.layout).expanduser().resolve())
-    server = _server(args.layout, args.port, connect = not args.offline, snippets = args.snippets)
+    server = _server(args.layout, args.port, args.host, connect = not args.offline, snippets = args.snippets)
     designer = server.RequestHandlerClass.designer
+    if designer.fixed():
+        announce(server, 'close the window to stop')
     query = {key: value for key, value in (('mode', 'perform' if args.perform else None), ('play', '1' if args.play else None)) if value}
-    url = f'http://{server.server_address[0]}:{server.server_address[1]}/' + (f'?{urllib.parse.urlencode(query)}' if query else '')
+    url = designer.local_url() + (f'?{urllib.parse.urlencode(query)}' if query else '')
     threading.Thread(target = server.serve_forever, name = 'designer server', daemon = True).start()
     bridge = Bridge()
     window = webview.create_window('PyxelWidgets', url, js_api = bridge, width = 1440, height = 900, min_size = (800, 500),

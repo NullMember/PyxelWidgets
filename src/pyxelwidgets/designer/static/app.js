@@ -22,6 +22,7 @@ import { addWidget, clearGhost, dragOver, drop, addDevice, removeSelection, dupl
 import { showPaletteTab, loadSnippets, renderSnippets, saveSnippet } from './snippets.js';
 import { stopLearning } from './learn.js';
 import { openStart, closeStart } from './start.js';
+import { loadSharing, showShare } from './share.js';
 import { addRecent, save, saveAs, showOpen, importFile, showFileMenu, showDetect, setMode, download } from './files.js';
 
 function bindToolbar() {
@@ -69,6 +70,7 @@ function bindToolbar() {
   $('toggle-left').onclick = () => togglePanel('left');
   $('toggle-right').onclick = () => togglePanel('right');
   $('help').onclick = showShortcuts;
+  $('share').onclick = showShare;
   $('problems').onclick = () => openDrawer('problems');
   $('layer-search').addEventListener('input', renderTree);
   bindFolds();
@@ -245,6 +247,7 @@ async function start() {
   render();
   sendHidden();
   poll();
+  loadSharing();
   // ?mode=edit|try|perform and ?play=1 (the window's player mode)
   const query = new URLSearchParams(location.search);
   const mode = query.get('mode');

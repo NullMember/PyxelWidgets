@@ -55,6 +55,11 @@ input:focus, select:focus, button:focus-visible { outline: 2px solid var(--accen
 .picker { flex-direction: column; align-items: stretch !important; }
 .picker select, .picker input { width: 100%; }
 #play.on { color: var(--ok); border-color: var(--ok); }
+#share.on { color: var(--accent); border-color: var(--accent); }
+.share-urls { display: grid; gap: 6px; margin: 4px 0 10px; }
+.share-url { display: flex; gap: 8px; align-items: center; }
+.share-url code { flex: 1; min-width: 0; overflow-wrap: anywhere; user-select: all; background: var(--bg); border: 1px solid var(--line); border-radius: 5px; padding: 5px 8px; font-size: 12px; }
+.hint.warning { color: var(--device); }
 .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--muted); flex: none; }
 .dot.on { background: var(--ok); }
 .dot.off { background: var(--danger); }

@@ -11,6 +11,7 @@ for ``pyxelwidgets.parser.load``.
 import collections
 import copy
 import dataclasses
+import http.cookies
 import http.server
 import importlib
 import ipaddress
@@ -21,6 +22,8 @@ import mimetypes
 import pathlib
 import re
 import platform
+import secrets
+import socket
 import threading
 import time
 import urllib.parse
@@ -885,7 +888,8 @@ class Preview:
 class Designer:
     """The designer's state: the preview and the file it saves to."""
 
-    def __init__(self, path: str | None = None, *, connect: bool = True, snippets: str | None = None, dialogs: bool = True):
+    def __init__(self, path: str | None = None, *, connect: bool = True, snippets: str | None = None, dialogs: bool = True,
+                 key: str | None = None):
         self.path = pathlib.Path(path) if path else None
         layout = json.loads(self.path.read_text()) if self.path and self.path.exists() else new_layout()
         self.preview = Preview(layout, connect = connect)
@@ -895,10 +899,66 @@ class Designer:
         #: Shows the system's file dialog for Open and Save As: ``pick(mode, path)`` → a path or None (cancelled);
         #: None asks for paths in the page instead
         self.pick = pick_file if dialogs else None
+        #: The server answering for this designer (set by ``serve``)
+        self.server = None
+        self._key = key
+        self._shared = None
+        self._sharing = threading.Lock()
 
     def close(self) -> None:
         """Stop the transport and close connected hardware."""
+        self.share(False)
         self.preview.close()
+
+    @property
+    def key(self) -> str:
+        """What other computers need to open the designer (the shared address carries it), kept in ``SHARE_KEY``."""
+        if self._key is None:
+            self._key = share_key()
+        return self._key
+
+    def fixed(self) -> bool:
+        """Whether the server itself listens beyond this computer (``--host``), so sharing can't be turned off."""
+        return self.server is not None and not ipaddress.ip_address(self.server.server_address[0]).is_loopback
+
+    def local_url(self) -> str:
+        host, port = self.server.server_address[:2]
+        return f'http://{"127.0.0.1" if self.fixed() and ipaddress.ip_address(host).is_unspecified else host}:{port}/'
+
+    def network_urls(self) -> list[str]:
+        """The addresses other computers open (with the key), or none while not shared."""
+        listener = self.server if self.fixed() else self._shared
+        if listener is None:
+            return []
+        host, port = listener.server_address[:2]
+        hosts = [network_address()] if ipaddress.ip_address(host).is_unspecified else [host]
+        return [f'http://{host}:{port}/?key={self.key}' for host in hosts]
+
+    def sharing(self) -> dict:
+        return {'shared': self.fixed() or self._shared is not None, 'fixed': self.fixed(), 'urls': self.network_urls()}
+
+    def share(self, on: bool) -> dict:
+        """
+        Open the designer to other computers on the network (another listener on
+        0.0.0.0, the same port when the system allows it) or close it again.
+        """
+        with self._sharing:
+            if on and self._shared is None and not self.fixed() and self.server is not None:
+                port = self.server.server_address[1]
+                for candidate in [port, *range(port + 1, port + 10), 0]:
+                    try:
+                        self._shared = http.server.ThreadingHTTPServer(('0.0.0.0', candidate), self.server.RequestHandlerClass)
+                        break
+                    except OSError:
+                        continue
+                else:
+                    raise OSError('No port to share the designer on')
+                threading.Thread(target = self._shared.serve_forever, name = 'designer sharing', daemon = True).start()
+            elif not on and self._shared is not None:
+                self._shared.shutdown()
+                self._shared.server_close()
+                self._shared = None
+        return self.sharing()
 
     def save(self, layout: dict, path: str | None = None) -> None:
         """Save to the layout file, or to ``path``, which becomes the layout file (Save As)."""
@@ -959,6 +1019,37 @@ def templates() -> list:
         if (TEMPLATES / f'{name}.json').is_file():
             found.append({'name': name, 'title': title, 'doc': doc})
     return found
+
+#: The key other computers need to open a shared designer: made once, so their bookmarks keep working
+SHARE_KEY = pathlib.Path.home() / '.pyxelwidgets' / 'share-key'
+KEY_COOKIE = 'pyxelwidgets_key'
+
+def share_key(path: pathlib.Path = None) -> str:
+    """The key kept in ``path`` (default ``SHARE_KEY``), made on first use (readable only by you)."""
+    path = path or SHARE_KEY
+    try:
+        key = path.read_text().strip()
+        if key:
+            return key
+    except OSError:
+        pass
+    key = secrets.token_urlsafe(12)
+    path.parent.mkdir(parents = True, exist_ok = True)
+    path.write_text(key + '\n')
+    try:
+        path.chmod(0o600)
+    except OSError:
+        pass
+    return key
+
+def network_address() -> str:
+    """This computer's address on the network (no traffic is sent)."""
+    try:
+        with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as probe:
+            probe.connect(('10.255.255.255', 1))
+            return probe.getsockname()[0]
+    except OSError:
+        return '127.0.0.1'
 
 #: Pieces of layouts to add (widgets with their links, messages and outputs): built in, and your own
 SNIPPETS = pathlib.Path(__file__).parent / 'snippets'
@@ -1087,8 +1178,35 @@ class Handler(http.server.BaseHTTPRequestHandler):
     def log_message(self, format, *args) -> None:
         pass
 
+    def _allowed(self) -> bool:
+        """
+        This computer (and SSH tunnels) always; other computers with the key, from the
+        shared address (``?key=``, then remembered in a cookie). Else answers 403.
+        """
+        self._cookie = None
+        if ipaddress.ip_address(self.client_address[0]).is_loopback:
+            return True
+        cookies = http.cookies.SimpleCookie()
+        try:
+            cookies.load(self.headers.get('Cookie', ''))
+        except http.cookies.CookieError:
+            pass
+        given = cookies[KEY_COOKIE].value if KEY_COOKIE in cookies else ''
+        key = self.designer.key
+        if given and secrets.compare_digest(given, key):
+            return True
+        given = urllib.parse.parse_qs(urllib.parse.urlparse(self.path).query).get('key', [''])[0]
+        if given and secrets.compare_digest(given, key):
+            self._cookie = f'{KEY_COOKIE}={key}; Path=/; HttpOnly; SameSite=Strict; Max-Age=31536000'
+            return True
+        self._send(403, b'This designer is shared with a key: open the whole address it shows under Share '
+                        b'(or that pyxelwidgets printed), including ?key=...', 'text/plain; charset=utf-8')
+        return False
+
     def _send(self, status: int, body: bytes, content_type: str) -> None:
         self.send_response(status)
+        if getattr(self, '_cookie', None):
+            self.send_header('Set-Cookie', self._cookie)
         self.send_header('Content-Type', content_type)
         self.send_header('Content-Length', str(len(body)))
         self.send_header('Cache-Control', 'no-store')
@@ -1103,9 +1221,14 @@ class Handler(http.server.BaseHTTPRequestHandler):
         return json.loads(self.rfile.read(length) or b'null')
 
     def do_GET(self) -> None:
+        if not self._allowed():
+            return
         url = urllib.parse.urlparse(self.path)
         preview = self.designer.preview
-        if url.path == '/api/catalog':
+        if url.path == '/api/share':
+            # local: whether this page may change it
+            self._json({**self.designer.sharing(), 'local': ipaddress.ip_address(self.client_address[0]).is_loopback})
+        elif url.path == '/api/catalog':
             self._json(self.designer.catalog)
         elif url.path == '/api/templates':
             self._json({'templates': templates()})
@@ -1140,6 +1263,8 @@ class Handler(http.server.BaseHTTPRequestHandler):
             self._send(200, resource.read_bytes(), content_type)
 
     def do_PUT(self) -> None:
+        if not self._allowed():
+            return
         if urllib.parse.urlparse(self.path).path != '/api/layout':
             self._send(404, b'Not found', 'text/plain')
             return
@@ -1152,6 +1277,8 @@ class Handler(http.server.BaseHTTPRequestHandler):
         self._json({'ok': True, 'layout': self.designer.preview.layout})
 
     def do_POST(self) -> None:
+        if not self._allowed():
+            return
         path = urllib.parse.urlparse(self.path).path
         preview = self.designer.preview
         try:
@@ -1175,6 +1302,13 @@ class Handler(http.server.BaseHTTPRequestHandler):
                     body = body if isinstance(body, dict) else {}
                     self.designer.new(body.get('template'), body.get('layout'))
                 self._json({'ok': True, 'file': str(self.designer.path) if self.designer.path else None, 'layout': preview.layout})
+                return
+            elif path == '/api/share':
+                # {"shared": bool}: only from this computer (a shared page could only cut itself off)
+                if not ipaddress.ip_address(self.client_address[0]).is_loopback:
+                    self._json({'ok': False, 'error': 'Only this computer can change sharing', **self.designer.sharing()}, 403)
+                    return
+                self._json({'ok': True, **self.designer.share(bool(body.get('shared')))})
                 return
             elif path == '/api/pick':
                 # {"mode": open|save, "path"}: the system's file dialog, only for a browser on this computer
@@ -1234,12 +1368,18 @@ class Handler(http.server.BaseHTTPRequestHandler):
         self._json({'ok': True})
 
 def serve(path: str | None = None, port: int = 8765, host: str = '127.0.0.1', *, connect: bool = True,
-          snippets: str | None = None, dialogs: bool = True) -> http.server.ThreadingHTTPServer:
+          snippets: str | None = None, dialogs: bool = True, key: str | None = None) -> http.server.ThreadingHTTPServer:
     """
     Start the designer's web server (not yet serving: call ``serve_forever``).
     With ``connect`` (default), the layout's devices and outputs connect as they're added.
     ``snippets`` is where snippets you save go (default ``~/.pyxelwidgets/snippets``).
     With ``dialogs`` (default), Open and Save As show the system's file dialog (to a browser on this computer).
+    A ``host`` beyond this computer (``'0.0.0.0'``: every network) shares it, as the Share button does:
+    other computers need ``key`` (default: ``share_key()``), which ``designer.network_urls()`` carry.
     """
-    handler = type('DesignerHandler', (Handler,), {'designer': Designer(path, connect = connect, snippets = snippets, dialogs = dialogs)})
-    return http.server.ThreadingHTTPServer((host, port), handler)
+    handler = type('DesignerHandler', (Handler,), {})
+    # Bound before the designer exists: a taken port doesn't connect devices for nothing
+    server = http.server.ThreadingHTTPServer((host, port), handler)
+    handler.designer = Designer(path, connect = connect, snippets = snippets, dialogs = dialogs, key = key)
+    handler.designer.server = server
+    return server
