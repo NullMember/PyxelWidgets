@@ -22,10 +22,17 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: ${{ matrix.python-version }}
-      - name: ALSA (python-rtmidi on Linux)
+      - name: ALSA and a display (Linux)
         if: runner.os == 'Linux'
-        run: sudo apt-get update && sudo apt-get install -y libasound2-dev
+        run: |
+          sudo apt-get update && sudo apt-get install -y libasound2-dev xvfb
+          # The ALSA sequencer for the hot-plug tests, where the runner's kernel has it
+          sudo apt-get install -y "linux-modules-extra-$(uname -r)" && sudo modprobe snd-seq && sudo chmod a+rw /dev/snd/seq || true
       - name: Install
         run: python -m pip install ".[test,osc,network]"
+      - name: Test (Linux, on a virtual display for the Tk grid)
+        if: runner.os == 'Linux'
+        run: xvfb-run -a python -m pytest -v
       - name: Test
+        if: runner.os != 'Linux'
         run: python -m pytest -v
