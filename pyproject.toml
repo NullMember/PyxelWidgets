@@ -28,6 +28,7 @@ osc = ["python-osc >= 1.8"]
 network = ["zeroconf >= 0.100"]
 bluetooth = ["dbus-fast >= 2.0; platform_system == 'Linux'"]
 desktop = ["pynput >= 1.7"]
+app = ["pywebview >= 5.0"]
 test = ["pytest >= 7"]
 
 [project.scripts]

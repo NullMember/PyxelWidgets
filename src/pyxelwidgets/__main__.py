@@ -1,7 +1,8 @@
 """
 The ``pyxelwidgets`` command: ``pyxelwidgets run layout.json`` plays a layout
 without the designer (devices, outputs, links, clocks, hot-plug); stored presets
-go back into the layout file. ``pyxelwidgets designer ...`` opens the designer.
+go back into the layout file. ``pyxelwidgets designer ...`` opens the designer,
+``pyxelwidgets app ...`` the designer in a window of its own.
 """
 
 import argparse
@@ -53,6 +54,9 @@ def main(argv = None) -> None:
     if argv[:1] == ['designer']:
         import pyxelwidgets.designer.__main__
         return pyxelwidgets.designer.__main__.main(argv[1:], prog = 'pyxelwidgets designer')
+    if argv[:1] == ['app']:
+        import pyxelwidgets.designer.window
+        return pyxelwidgets.designer.window.main(argv[1:], prog = 'pyxelwidgets app')
     parser = argparse.ArgumentParser(prog = 'pyxelwidgets', description = 'Play PyxelWidgets layouts, or design them.')
     commands = parser.add_subparsers(dest = 'command', required = True)
     play = commands.add_parser('run', help = 'play a layout on its devices, without the designer',
@@ -65,6 +69,7 @@ def main(argv = None) -> None:
     play.add_argument('--import', dest = 'imports', action = 'append', default = [], metavar = 'MODULE',
                       help = 'a module (or .py file) registering widgets or devices of your own with parser.register; repeatable')
     commands.add_parser('designer', help = 'design layouts in the browser (pyxelwidgets designer --help)', add_help = False)
+    commands.add_parser('app', help = 'the designer in a window of its own, or a player (pyxelwidgets app --help)', add_help = False)
     args = parser.parse_args(argv)
     sys.exit(run(args))
 
