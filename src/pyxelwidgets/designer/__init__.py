@@ -13,6 +13,7 @@ import copy
 import dataclasses
 import http.cookies
 import http.server
+import socketserver
 import importlib
 import ipaddress
 import importlib.resources
@@ -986,7 +987,7 @@ class Designer:
                 port = self.server.server_address[1]
                 for candidate in [port, *range(port + 1, port + 10), 0]:
                     try:
-                        self._shared = http.server.ThreadingHTTPServer(('0.0.0.0', candidate), self.server.RequestHandlerClass)
+                        self._shared = _Server(('0.0.0.0', candidate), self.server.RequestHandlerClass)
                         break
                     except OSError:
                         continue
@@ -1486,6 +1487,13 @@ class Handler(http.server.BaseHTTPRequestHandler):
             return
         self._json({'ok': True})
 
+class _Server(http.server.ThreadingHTTPServer):
+    """Without the reverse DNS lookup of its own address when it starts (on macOS an mDNS query that waits for the local network permission)."""
+
+    def server_bind(self) -> None:
+        socketserver.TCPServer.server_bind(self)
+        self.server_name, self.server_port = self.server_address[:2]
+
 def serve(path: str | None = None, port: int = 8765, host: str = '127.0.0.1', *, connect: bool = True,
           snippets: str | None = None, dialogs: bool = True, key: str | None = None) -> http.server.ThreadingHTTPServer:
     """
@@ -1498,7 +1506,7 @@ def serve(path: str | None = None, port: int = 8765, host: str = '127.0.0.1', *,
     """
     handler = type('DesignerHandler', (Handler,), {})
     # Bound before the designer exists: a taken port doesn't connect devices for nothing
-    server = http.server.ThreadingHTTPServer((host, port), handler)
+    server = _Server((host, port), handler)
     handler.designer = Designer(path, connect = connect, snippets = snippets, dialogs = dialogs, key = key)
     handler.designer.server = server
     return server
