@@ -298,7 +298,8 @@ class LaunchpadMiniMK3(_MK3):
         Programmer  = 127
 
     model = 'Launchpad Mini MK3'
-    ports = ('LPMiniMK3 MIDI', 'Launchpad Mini MK3 MIDI')
+    # Android has no port names: its second port (the first is DAW) is the MIDI one
+    ports = ('LPMiniMK3 MIDI', 'Launchpad Mini MK3 MIDI', 'Launchpad Mini MK3 2')
     grid = (9, 9)
     origin = (1, 1)
     device_id = 13
