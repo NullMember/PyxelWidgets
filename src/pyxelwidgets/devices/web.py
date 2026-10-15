@@ -196,6 +196,11 @@ class WebGrid(pyxelwidgets.devices.Device):
         request.send_header('Sec-WebSocket-Accept', accept)
         request.end_headers()
         request.wfile.flush()
+        # Small frames go out at once: else TCP holds each until the browser acknowledges the last (~100 ms)
+        try:
+            request.connection.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
+        except OSError:
+            pass
         client = _Client(request.connection)
         # Registered first, so no update is missed; updates wait for the client's lock until it has everything
         with client.lock:
@@ -374,6 +379,9 @@ function release(event) {
 addEventListener('pointerup', release);
 addEventListener('pointercancel', release);
 addEventListener('contextmenu', (event) => event.preventDefault());
+// Touches are this page's own (pointer events above): said so, Chrome doesn't hold network messages,
+// the pads' new colors among them, for up to 100 ms after each touchstart
+for (const type of ['touchstart', 'touchmove', 'touchend']) addEventListener(type, (event) => event.preventDefault(), { passive: false });
 addEventListener('resize', layout);
 
 function open() {
