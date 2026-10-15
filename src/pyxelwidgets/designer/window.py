@@ -4,7 +4,8 @@ view through pywebview (extra ``app``: WKWebView on macOS, WebView2 on Windows,
 Qt or GTK on Linux), with native menus and file dialogs, and a question before
 closing with unsaved changes. ``pyxelwidgets app`` and the packaged application
 (``packaging/``) start it; player mode (``--perform``, ``--play``) opens the
-layout in Perform mode, playing.
+layout in Perform mode, playing, and ``--headless`` plays it without a window
+(``pyxelwidgets run``, for the packaged application).
 """
 
 import argparse
@@ -124,7 +125,17 @@ def main(argv = None, prog = 'pyxelwidgets app') -> None:
                         help = 'a module (or .py file) registering widgets or devices of your own with parser.register; repeatable')
     parser.add_argument('--snippets', metavar = 'FOLDER', help = 'where snippets you save go (default ~/.pyxelwidgets/snippets)')
     parser.add_argument('--debug', action = 'store_true', help = "allow the web view's developer tools")
+    headless = parser.add_argument_group('headless', 'Without the window, like pyxelwidgets run: plays the layout on its '
+                                         'devices and outputs until stopped (Ctrl+C, SIGTERM)')
+    headless.add_argument('--headless', action = 'store_true', help = 'play the layout without a window (needs a layout)')
+    headless.add_argument('--fps', type = float, default = 60.0, help = 'frames per second sent to the devices (default 60)')
+    headless.add_argument('--quiet', action = 'store_true', help = 'print only errors')
     args = parser.parse_args(argv)
+    if args.headless:
+        if not args.layout:
+            parser.error('--headless needs a layout file')
+        import pyxelwidgets.__main__
+        sys.exit(pyxelwidgets.__main__.run(args))
     try:
         import webview
     except ImportError:
