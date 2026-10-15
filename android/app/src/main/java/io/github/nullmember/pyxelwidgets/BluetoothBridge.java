@@ -9,7 +9,10 @@ import android.bluetooth.le.ScanCallback;
 import android.bluetooth.le.ScanFilter;
 import android.bluetooth.le.ScanResult;
 import android.bluetooth.le.ScanSettings;
+import android.content.BroadcastReceiver;
 import android.content.Context;
+import android.content.Intent;
+import android.content.IntentFilter;
 import android.content.pm.PackageManager;
 import android.media.midi.MidiDevice;
 import android.media.midi.MidiDeviceInfo;
@@ -34,19 +37,23 @@ import java.util.concurrent.TimeUnit;
  * the BLE MIDI service, and connecting through Android's MIDI service, which then
  * lists the device's ports like a USB device's (MidiBridge).
  *
- * Results are tab-separated strings ("address\tname\trssi"), simple to read from Python.
+ * Results are tab-separated strings ("address\tname\trssi\tpaired"), simple to read from Python.
  */
 public final class BluetoothBridge {
     private static final String TAG = "PyxelWidgetsBluetooth";
     /** The BLE MIDI service (Apple's specification, adopted by the MIDI Association) */
     public static final ParcelUuid MIDI_SERVICE = ParcelUuid.fromString("03B80E5A-EDE8-4B33-A751-6CE34EC4C700");
     private static final long CONNECT_TIMEOUT = 20;
+    /** Seconds the person has to accept a pairing request */
+    private static final long PAIR_TIMEOUT = 60;
 
     private static Context context;
     private static Handler handler;
     /** Open Bluetooth MIDI devices by address, and their names */
     private static final Map<String, MidiDevice> devices = Collections.synchronizedMap(new LinkedHashMap<>());
     private static final Map<String, String> names = Collections.synchronizedMap(new LinkedHashMap<>());
+    /** Devices found by scans (they know their LE address type) */
+    private static final Map<String, BluetoothDevice> scanned = Collections.synchronizedMap(new LinkedHashMap<>());
 
     private BluetoothBridge() {}
 
@@ -149,7 +156,8 @@ public final class BluetoothBridge {
             @Override
             public void onScanResult(int type, ScanResult result) {
                 BluetoothDevice device = result.getDevice();
-                found.put(device.getAddress(), device.getAddress() + "\t" + nameOf(device, result) + "\t" + result.getRssi());
+                scanned.put(device.getAddress(), device);
+                found.put(device.getAddress(), device.getAddress() + "\t" + nameOf(device, result) + "\t" + result.getRssi() + "\t" + (paired(device) ? 1 : 0));
             }
 
             @Override
@@ -216,6 +224,92 @@ public final class BluetoothBridge {
         return name;
     }
 
+    @SuppressWarnings("MissingPermission")
+    private static boolean paired(BluetoothDevice device) {
+        try {
+            return device.getBondState() == BluetoothDevice.BOND_BONDED;
+        } catch (SecurityException error) {
+            return false;
+        }
+    }
+
+    /**
+     * Pair (bond) with the device at ``address``: Android asks the person to
+     * accept; waits for the answer. Devices that encrypt MIDI stay silent
+     * until they're paired (Android's own request, made when connecting, is
+     * only a notification that times out unseen).
+     */
+    @SuppressWarnings("MissingPermission")
+    public static void pair(String address) throws IOException {
+        String problem = problem(true);
+        if (problem != null) {
+            throw new IOException(problem);
+        }
+        BluetoothDevice device;
+        try {
+            device = adapter().getRemoteDevice(address);
+        } catch (IllegalArgumentException error) {
+            throw new IOException("No Bluetooth address " + address);
+        }
+        if (paired(device)) {
+            return;
+        }
+        final int[] state = {BluetoothDevice.BOND_NONE};
+        final CountDownLatch done = new CountDownLatch(1);
+        BroadcastReceiver receiver = new BroadcastReceiver() {
+            @Override
+            public void onReceive(Context receiving, Intent intent) {
+                BluetoothDevice changed = intent.getParcelableExtra(BluetoothDevice.EXTRA_DEVICE);
+                if (changed == null || !address.equals(changed.getAddress())) {
+                    return;
+                }
+                int now = intent.getIntExtra(BluetoothDevice.EXTRA_BOND_STATE, BluetoothDevice.BOND_NONE);
+                int before = intent.getIntExtra(BluetoothDevice.EXTRA_PREVIOUS_BOND_STATE, BluetoothDevice.BOND_NONE);
+                state[0] = now;
+                if (now == BluetoothDevice.BOND_BONDED || (now == BluetoothDevice.BOND_NONE && before == BluetoothDevice.BOND_BONDING)) {
+                    done.countDown();
+                }
+            }
+        };
+        context.registerReceiver(receiver, new IntentFilter(BluetoothDevice.ACTION_BOND_STATE_CHANGED), null, handler);
+        try {
+            if (!bondOverLe(device) && device.getBondState() != BluetoothDevice.BOND_BONDING) {
+                throw new IOException("Android didn't start pairing with " + address + " (is it on and in range?)");
+            }
+            if (!done.await(PAIR_TIMEOUT, TimeUnit.SECONDS)) {
+                throw new IOException("No answer to the pairing request: accept it on this phone (a dialog or a notification)");
+            }
+        } catch (InterruptedException error) {
+            throw new IOException("Interrupted pairing with " + address);
+        } finally {
+            context.unregisterReceiver(receiver);
+        }
+        if (state[0] != BluetoothDevice.BOND_BONDED) {
+            throw new IOException("Pairing with " + address + " was refused or failed");
+        }
+        Log.i(TAG, "Paired " + address);
+    }
+
+    /**
+     * Start bonding over Bluetooth LE, where MIDI is: plain createBond() picks
+     * classic Bluetooth for a dual-mode device (a Raspberry Pi, a computer),
+     * which may refuse it.
+     */
+    @SuppressWarnings("MissingPermission")
+    private static boolean bondOverLe(BluetoothDevice device) {
+        try {
+            java.lang.reflect.Method method = BluetoothDevice.class.getMethod("createBond", int.class);
+            return (Boolean) method.invoke(device, BluetoothDevice.TRANSPORT_LE);
+        } catch (ReflectiveOperationException | RuntimeException hidden) {
+            Log.i(TAG, "createBond(TRANSPORT_LE) unavailable: " + hidden);
+        }
+        BluetoothDevice seen = scanned.get(device.getAddress());
+        if (Build.VERSION.SDK_INT >= 35 && seen != null) {
+            return adapter().getRemoteLeDevice(device.getAddress(), seen.getAddressType()).createBond();
+        }
+        return device.createBond();
+    }
+
     public static void disconnect(String address) {
         close(address);
     }
@@ -232,12 +326,15 @@ public final class BluetoothBridge {
         }
     }
 
-    /** Connected devices: "address\tname". */
+    /** Connected devices: "address\tname\tpaired". */
     public static String[] connected() {
         List<String> list = new ArrayList<>();
         synchronized (names) {
             for (Map.Entry<String, String> entry : names.entrySet()) {
-                list.add(entry.getKey() + "\t" + entry.getValue());
+                MidiDevice open = devices.get(entry.getKey());
+                BluetoothDevice device = open == null ? null
+                    : open.getInfo().getProperties().getParcelable(MidiDeviceInfo.PROPERTY_BLUETOOTH_DEVICE);
+                list.add(entry.getKey() + "\t" + entry.getValue() + "\t" + (device != null && paired(device) ? 1 : 0));
             }
         }
         return list.toArray(new String[0]);
