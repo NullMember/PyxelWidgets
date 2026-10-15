@@ -2354,6 +2354,10 @@ with `sync = True` it follows an external clock (see
 Every `check_interval` seconds devices notice being unplugged and
 reconnect when they're back (`Surface.check_devices`); None doesn't.
 
+A pad or control answered by the widgets is drawn at once
+(`Surface.input_arrived`), not at the next frame, at most every
+`input_gap` seconds.
+
 - **`lock`**: Hold this when changing widgets from a thread the App doesn't manage.
 - **`attach(widget)`**: Play `widget` (a Sequencer, Tracker or ClipLauncher) on its clock: the app's transport (`clock = Clock.Transport`) or a clock of its own following its `bpm` (`Clock.Own`, closed with the App). Returns the Subscription, or None for `Clock.Off`.
 - **`step()`**: Render one frame; use this to drive the App from your own loop.
@@ -3404,7 +3408,8 @@ connect to me: Anyone").
 
 Announcing the session uses the `zeroconf` package when installed (`pip
 install "pyxelwidgets[network]"`), else the system's `dns-sd` (macOS,
-Windows with Bonjour) or `avahi-publish-service` (Linux, avahi-utils).
+Windows with Bonjour) or `avahi-publish-service` (Linux, avahi-utils); in
+the Android app, Android's own (NsdManager).
 Messages go without a recovery journal: fine on a local network.
 
 ### `RtpMidi` (Device)
