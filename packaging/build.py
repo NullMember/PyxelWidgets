@@ -109,6 +109,17 @@ QT_PLUGINS = {'platforms', 'platformthemes', 'platforminputcontexts', 'imageform
               'wayland-shell-integration', 'egldeviceintegrations', 'generic'}
 #: Of the platforms: X11, Wayland and offscreen
 QT_PLATFORMS = ('libqxcb', 'libqwayland', 'libqoffscreen')
+#: Platform themes: the GTK one would load the build machine's GTK into the window
+QT_THEMES_LEFT_OUT = ('libqgtk3',)
+#: Libraries every Linux desktop has, that have to be the system's own: the C++
+#: runtime and graphics libraries the GPU drivers load with them (an older
+#: bundled libstdc++ kept Mesa from loading on a Steam Deck), ALSA (its plugins,
+#: e.g. PipeWire's, follow the system's version) and fonts (the system's
+#: configuration). The build machine is the oldest system supported, so the
+#: system's are as new or newer.
+HOST_LIBRARIES = ('libstdc++.so', 'libgcc_s.so', 'libgbm.so', 'libdrm.so', 'libEGL.so', 'libGL.so', 'libGLX.so',
+                  'libGLdispatch.so', 'libxcb-glx.so', 'libvulkan.so', 'libasound.so', 'libfontconfig.so',
+                  'libfreetype.so')
 
 def trim_qt() -> None:
     """
@@ -128,6 +139,13 @@ def trim_qt() -> None:
             shutil.rmtree(folder)
     for path in (qt / 'plugins' / 'platforms').iterdir():
         if not path.name.startswith(QT_PLATFORMS):
+            path.unlink()
+    for path in (qt / 'plugins' / 'platformthemes').glob('*'):
+        if path.name.startswith(QT_THEMES_LEFT_OUT):
+            path.unlink()
+    for path in internal.iterdir():
+        if path.name.startswith(HOST_LIBRARIES):
+            print(f'Left out {path.name}: the system has its own', flush = True)
             path.unlink()
     roots = [*(internal / 'PyQt6').glob('*.so'), *(qt / 'plugins').rglob('*.so'), qt / 'libexec' / 'QtWebEngineProcess']
     environment = dict(os.environ, LD_LIBRARY_PATH = f'{qt / "lib"}:{internal}')
