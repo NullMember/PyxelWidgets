@@ -73,7 +73,15 @@ export function renderOutputs() {
 export function outputProperties(panel, index) {
   const output = outputsOf()[index];
   const info = outputInfo(output);
-  const setPort = (key) => (name) => change(() => { if (name) output[key] = name; else delete output[key]; });
+  // A virtual port or ports, not both: with a virtual port the output ignores its ports
+  const setPort = (key) => (name) => {
+    const others = name ? (key === 'virtual' ? ['input', 'output'] : ['virtual']).filter((other) => output[other]) : [];
+    change(() => {
+      if (name) output[key] = name; else delete output[key];
+      for (const other of others) delete output[other];
+    });
+    if (others.length) setStatus(key === 'virtual' ? 'Input and output ports cleared: a virtual port replaces them' : 'Virtual port cleared: the output uses the ports you pick instead', 'ok');
+  };
   const port = (key, label, placeholder) => [
     el('label', { for: key === 'virtual' ? `output-${key}` : `output-${key}-pick` }, label),
     key === 'virtual' ? el('div', { class: 'control' }, el('input', {
@@ -85,7 +93,7 @@ export function outputProperties(panel, index) {
   fill(panel,
     el('h3', {}, info?.model || output.type),
     el('p', { class: 'doc' }, info?.midi
-      ? 'Other software (a DAW, a synth) picks the virtual port, or set existing input/output ports instead.'
+      ? 'Either a virtual port other software (a DAW, a synth) picks, or existing input/output ports: picking one clears the other.'
       : output.type.startsWith('osc.') ? 'Sends OSC to host:send port and listens on the receive port.' : (info?.doc || '').replace(/``/g, '')),
     info && info.auto_connect === false ? el('p', { class: 'hint' },
       'Not connected by itself in the designer: press Connect in Outputs when its actions should happen for real. The event log shows them either way.') : null,

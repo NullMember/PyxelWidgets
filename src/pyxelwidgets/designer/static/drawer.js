@@ -154,6 +154,9 @@ function findProblems() {
     if (info?.midi && !output.virtual && !output.input && !output.output) {
       problems.push(['warning', `Output ${output.name} has no port: give it a virtual port name, or input/output ports`, () => select({ kind: 'output', index })]);
     }
+    if (info?.midi && output.virtual && (output.input || output.output)) {
+      problems.push(['warning', `Output ${output.name} uses its virtual port "${output.virtual}" and ignores its input/output ports: clear one or the other`, () => select({ kind: 'output', index })]);
+    }
     const status = state.hardware.outputs?.[index];
     if (status && !status.connected && status.error) problems.push(['warning', `Output ${output.name}: ${status.error}`, () => select({ kind: 'output', index })]);
     if (status?.warning) problems.push(['warning', `Output ${output.name}: ${status.warning}`, () => select({ kind: 'output', index })]);
