@@ -10,7 +10,7 @@ They need no Python. Download them from the
 |--------|----------|---------|
 | macOS 14+ (Apple silicon) | `PyxelWidgets-<version>-macos-arm64.zip` | Unzip, move *PyxelWidgets* to Applications, open it. |
 | Windows 10/11 | `PyxelWidgets-<version>-windows-x86_64.zip` | Unzip anywhere, run `PyxelWidgets.exe`. SmartScreen may warn about an unknown program: *More info → Run anyway*. |
-| Linux x86_64 (Ubuntu 22.04 or newer, or similar) | `PyxelWidgets-<version>-linux-x86_64.zip` | Unzip, run `PyxelWidgets/PyxelWidgets`. Debian/Ubuntu may need `sudo apt install libxcb-cursor0`. |
+| Linux x86_64 (Ubuntu 22.04 or newer, or similar) | `PyxelWidgets-<version>-linux-x86_64.tar.gz` | `tar xzf` it, run `PyxelWidgets/PyxelWidgets`. Debian/Ubuntu may need `sudo apt install libxcb-cursor0`. |
 
 On first use, macOS asks whether PyxelWidgets may find devices on your local
 network (for Web Grid, OSC and network MIDI) and use Bluetooth (for Bluetooth
