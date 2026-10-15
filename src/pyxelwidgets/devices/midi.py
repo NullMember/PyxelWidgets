@@ -1,9 +1,7 @@
 import platform
 import queue
+import sys
 import threading
-
-import rtmidi
-import rtmidi.midiutil
 
 import pyxelwidgets.devices
 import pyxelwidgets.devices.te_virtual_midi
@@ -50,16 +48,49 @@ class _MidiThread:
 #: Opens, closes and lists MIDI ports (see _MidiThread)
 midi_thread = _MidiThread()
 
-def _list_ports() -> tuple:
-    # A port still appearing can have no name yet
-    return ([name for name in rtmidi.MidiIn().get_ports() if name is not None],
-            [name for name in rtmidi.MidiOut().get_ports() if name is not None])
+class RtMidi:
+    """
+    The MIDI backend on macOS, Windows and Linux: python-rtmidi, imported on
+    first use. A backend lists port names and opens ports by name or index,
+    returning ``(port, name)``; ports have ``send_message(bytes)``,
+    ``set_callback(function)`` (called with ``((bytes, delta), None)``),
+    ``ignore_types(**types)`` and ``close_port()``, as rtmidi's do.
+    """
 
-def _open_virtual(port: str) -> tuple:
-    midi_input, midi_output = rtmidi.MidiIn(), rtmidi.MidiOut()
-    midi_input.open_virtual_port(port)
-    midi_output.open_virtual_port(port)
-    return midi_input, midi_output
+    def list_ports(self) -> tuple:
+        import rtmidi
+        # A port still appearing can have no name yet
+        return ([name for name in rtmidi.MidiIn().get_ports() if name is not None],
+                [name for name in rtmidi.MidiOut().get_ports() if name is not None])
+
+    def open_input(self, port) -> tuple:
+        import rtmidi.midiutil
+        return rtmidi.midiutil.open_midiinput(port, interactive = False)
+
+    def open_output(self, port) -> tuple:
+        import rtmidi.midiutil
+        return rtmidi.midiutil.open_midioutput(port, interactive = False)
+
+    def open_virtual(self, port: str) -> tuple:
+        """Input and output ports other software connects to."""
+        import rtmidi
+        midi_input, midi_output = rtmidi.MidiIn(), rtmidi.MidiOut()
+        midi_input.open_virtual_port(port)
+        midi_output.open_virtual_port(port)
+        return midi_input, midi_output
+
+def _backend():
+    if hasattr(sys, 'getandroidapilevel'):
+        # Android's own MIDI service (USB and Bluetooth MIDI devices), through the app's Java bridge
+        import pyxelwidgets.devices.android_midi
+        return pyxelwidgets.devices.android_midi.AndroidMidi()
+    return RtMidi()
+
+#: Lists and opens MIDI ports: ``RtMidi`` or, on Android, ``android_midi.AndroidMidi``
+backend = _backend()
+
+def _list_ports() -> tuple:
+    return backend.list_ports()
 
 class InvalidMIDIPortException(Exception):
     def __init__(self, *args: object) -> None:
@@ -67,8 +98,8 @@ class InvalidMIDIPortException(Exception):
 
 class MIDI(pyxelwidgets.devices.Device):
     """
-    A device talking MIDI through rtmidi (or teVirtualMIDI for virtual ports on
-    Windows). Subclasses implement ``decode`` for input, ``send_pixel(s)`` for
+    A device talking MIDI through ``backend`` (rtmidi, Android's MIDI service, or
+    teVirtualMIDI for virtual ports on Windows). Subclasses implement ``decode`` for input, ``send_pixel(s)`` for
     output, and ``on_connect`` / ``on_disconnect`` for mode switching messages.
 
     Without a grid (the default 1x1 with no output) it's a plain MIDI port pair:
@@ -118,11 +149,11 @@ class MIDI(pyxelwidgets.devices.Device):
             in_port, out_port = self.find_ports()
         super().connect()
         if in_port is not None:
-            self._midi_input, self._midi_input_name = midi_thread.call(rtmidi.midiutil.open_midiinput, in_port, interactive = False)
+            self._midi_input, self._midi_input_name = midi_thread.call(backend.open_input, in_port)
             self._midi_input.ignore_types(sysex = False, timing = False)
             self._midi_input.set_callback(self.process_midi)
         if out_port is not None:
-            self._midi_output, self._midi_output_name = midi_thread.call(rtmidi.midiutil.open_midioutput, out_port, interactive = False)
+            self._midi_output, self._midi_output_name = midi_thread.call(backend.open_output, out_port)
         if self._midi_input is None and self._midi_output is None:
             self.connected = False
             # Not plugged in: check() connects it when it is
@@ -144,7 +175,7 @@ class MIDI(pyxelwidgets.devices.Device):
             else:
                 self.connected = False
         else:
-            midi_input, midi_output = midi_thread.call(_open_virtual, port)
+            midi_input, midi_output = midi_thread.call(backend.open_virtual, port)
             self._midi_input, self._midi_input_name = (midi_input, port)
             self._midi_input.ignore_types(sysex = False, timing = False)
             self._midi_input.set_callback(self.process_midi)
@@ -238,7 +269,7 @@ class MIDI(pyxelwidgets.devices.Device):
         """Override to return the device to its standalone mode."""
 
     def process_midi(self, message, _) -> None:
-        """rtmidi callback: ``message`` is ``(bytes, delta_time)``."""
+        """The port's callback: ``message`` is ``(bytes, delta_time)``."""
         midi = list(message[0])
         for listener in self.raw_listeners:
             listener(midi)
