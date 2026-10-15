@@ -81,7 +81,8 @@ jobs:
           python-version: "3.13"
       - name: Build tools (Linux)
         if: runner.os == 'Linux'
-        run: sudo apt-get update && sudo apt-get install -y libasound2-dev libdbus-1-dev
+        # A display while building: pynput (keyboard and mouse output) only imports with one
+        run: sudo apt-get update && sudo apt-get install -y libasound2-dev libdbus-1-dev xvfb
       - name: Signing certificate (macOS)
         if: runner.os == 'macOS' && env.HAS_CERTIFICATE == 'true'
         env:
@@ -110,11 +111,17 @@ jobs:
           fi
         shell: bash
       - name: Build
+        if: runner.os != 'Linux'
         run: python packaging/build.py
+      - name: Build (Linux)
+        if: runner.os == 'Linux'
+        run: xvfb-run -a python packaging/build.py
       - uses: actions/upload-artifact@v4
         with:
           name: app-${{ matrix.name }}
-          path: dist/*.zip
+          path: |
+            dist/*.zip
+            dist/*.tar.gz
 
   android:
     name: App (Android)
