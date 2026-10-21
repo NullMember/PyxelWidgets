@@ -36,6 +36,12 @@ class Surface(pyxelwidgets.events.Emitter):
     (``control`` gives a device's control to them in place of a widget);
     ``formula`` keeps an option at what an expression of others computes.
 
+    Devices' control lights, LED rings and screens show what their controls
+    do: a bound control's widget (its color or value; a screen shows the
+    widget's name and value for ``value_time`` seconds after its control
+    moves), a held button lights up, and ``light``/``screen`` give links a
+    control's light color and a screen's text to set.
+
     ``lock`` is held while processing input and rendering. Hold it when changing
     widgets from another thread, e.g. a MIDI callback of your own.
     """
@@ -63,6 +69,15 @@ class Surface(pyxelwidgets.events.Emitter):
         self._revealed = None
         # Frames shown on devices instead of the widgets (test_pattern), by device name
         self._patterns = {}
+        #: Control lights and screens links can set (``light``, ``screen``)
+        self.lights = []
+        self.screens = []
+        # (device name, control) of held controls; lights and screens shown, by device name;
+        # the binding a device's screen shows and until when (time.monotonic)
+        self._held = set()
+        self._shown_lights = {}
+        self._shown_screens = {}
+        self._showing = {}
         Surface._count += 1
 
     # Widgets
@@ -90,6 +105,7 @@ class Surface(pyxelwidgets.events.Emitter):
         def control(event):
             with self.lock:
                 self.emit(event)
+                self._control_moved(event)
             self.input_arrived.set()
         with self.lock:
             device.on(pyxelwidgets.events.PadEvent, pad)
@@ -109,6 +125,9 @@ class Surface(pyxelwidgets.events.Emitter):
                 entry['device'].off(event_type, handler)
             for binding in [b for b in self.bindings if b.device is entry['device']]:
                 self.unbind(binding)
+            for state in (self._shown_lights, self._shown_screens, self._showing):
+                state.pop(name, None)
+            self._held = {held for held in self._held if held[0] != name}
 
     # Bindings
 
@@ -133,6 +152,28 @@ class Surface(pyxelwidgets.events.Emitter):
         and ``link``: ``surface.link(surface.control(launchpad, 'Knob1'), ...)``.
         """
         return pyxelwidgets.events.ControlInput(self, control, device = device)
+
+    def light(self, device, control: str) -> ControlLight:
+        """
+        ``device``'s ``control`` light (a device or its name) as a target for
+        ``link`` and ``formula``: its ``light`` option, a Color, wins over what
+        the control shows by itself (Invisible: back to that).
+        """
+        with self.lock:
+            light = ControlLight(device, control)
+            self.lights.append(light)
+            return light
+
+    def screen(self, device, name: str = 'Screen') -> DeviceScreen:
+        """
+        ``device``'s screen ``name`` (a device or its name) as a target for
+        ``link`` and ``formula``: its ``text`` option, lines separated by
+        newlines, shows when no moved control's value does.
+        """
+        with self.lock:
+            screen = DeviceScreen(device, name)
+            self.screens.append(screen)
+            return screen
 
     # Mappings
 
@@ -262,7 +303,7 @@ class Surface(pyxelwidgets.events.Emitter):
                 area = self.rect.intersect(entry['rect'])
                 if area:
                     entry['device'].show(frame[area.slice], area.x - entry['rect'].x, area.y - entry['rect'].y)
-            self._light_controls()
+            self._show_controls()
 
     def test_pattern(self, device, frame = None) -> None:
         """
@@ -311,16 +352,101 @@ class Surface(pyxelwidgets.events.Emitter):
         paint(self.root, 0, 0, self.rect)
         return frame
 
-    def _light_controls(self) -> None:
-        """Bound controls with a light (a Launchpad's side buttons...) show what they control."""
-        for binding in self.bindings:
-            device = binding.device
-            lights = getattr(device, 'lights', None)
-            if lights is None or not lights():
+    #: Seconds a device's screen shows a moved control's widget and value
+    value_time = 1.5
+    #: The light of a held button that nothing else lights
+    held_color = pyxelwidgets.color.Colors.White
+
+    def _control_moved(self, event) -> None:
+        device = event.device
+        name = getattr(device, 'name', None)
+        if isinstance(event, pyxelwidgets.events.ControlReleased):
+            self._held.discard((name, event.control))
+            return
+        if isinstance(event, pyxelwidgets.events.ControlPressed):
+            self._held.add((name, event.control))
+        if not getattr(device, 'screens', None) or self.value_time <= 0:
+            return
+        binding = next((b for b in self.bindings if b.device is device and b.control == event.control), None)
+        if binding is not None:
+            self._showing[name] = (binding, time.monotonic() + self.value_time)
+
+    @staticmethod
+    def _targets(targets, device) -> list:
+        return [target for target in targets if target.device is device or target.device == device.name]
+
+    def _show_controls(self) -> None:
+        """Devices' control lights, LED rings and screens show what their controls do."""
+        for entry in self.devices.values():
+            device = entry['device']
+            lights = device.lights() if hasattr(device, 'lights') else ()
+            rings = getattr(device, 'ring_controls', ())
+            screens = getattr(device, 'screens', None) or {}
+            if not (lights or rings or screens):
                 continue
-            color = self.control_light(binding)
-            if color is not None:
-                device.set_control(binding.control, color)
+            bindings = [binding for binding in self.bindings if binding.device is device]
+            if lights:
+                self._show_lights(device, lights, bindings)
+            for binding in bindings:
+                if binding.control in rings and not binding.is_action:
+                    device.set_ring(binding.control, float(binding.get()))
+            if screens:
+                self._show_screens(device, screens)
+
+    def _show_lights(self, device, lights, bindings) -> None:
+        colors = {control: self.held_color for name, control in self._held if name == device.name and control in lights}
+        for binding in bindings:
+            if binding.control in lights:
+                color = self.control_light(binding)
+                if color is not None:
+                    colors[binding.control] = color
+        for light in self._targets(self.lights, device):
+            if light.control in lights and light.light.a > 0:
+                colors[light.control] = light.light
+        shown = self._shown_lights.setdefault(device.name, set())
+        # Lit before and not now: dark
+        for control in shown - set(colors):
+            device.set_control(control, pyxelwidgets.color.Colors.Black)
+        for control, color in colors.items():
+            device.set_control(control, color)
+        shown |= set(colors)
+
+    def _show_screens(self, device, screens) -> None:
+        texts = {screen.name: screen.text.split('\n') for screen in self._targets(self.screens, device) if screen.name in screens}
+        showing = self._showing.get(device.name)
+        if showing is not None:
+            binding, until = showing
+            if time.monotonic() < until and binding in self.bindings:
+                # Every screen of the device shows it (devices have one)
+                for name in screens:
+                    texts[name] = list(self.value_lines(binding))
+            else:
+                del self._showing[device.name]
+        shown = self._shown_screens.setdefault(device.name, set())
+        for name in shown - set(texts):
+            device.set_screen(name, ())
+        for name, lines in texts.items():
+            device.set_screen(name, lines)
+        shown |= set(texts)
+
+    @staticmethod
+    def value_lines(binding) -> tuple:
+        """What a screen shows for a moved control: its widget's (or action's) name, then the value."""
+        target = binding.target
+        if binding.is_action:
+            owner = getattr(target, '__self__', None)
+            label = getattr(target, '__name__', 'action').replace('_', ' ')
+            if hasattr(owner, 'playing'):
+                return label, 'Playing' if owner.playing else 'Stopped'
+            return label, ''
+        label = getattr(target, 'name', type(target).__name__)
+        if hasattr(target, 'number'):
+            # Stepper: the number it shows
+            return label, str(target.number)
+        value = binding.get()
+        if isinstance(target, pyxelwidgets.widgets.Button) or isinstance(value, bool):
+            return label, 'On' if value else 'Off'
+        return label, f'{round(float(value) * 100)}%'
 
     @staticmethod
     def control_light(binding):
@@ -357,3 +483,43 @@ class Surface(pyxelwidgets.events.Emitter):
         # Closed outside the lock: closing may wait for threads that need it
         for device in devices:
             device.close()
+
+
+class ControlLight:
+    """
+    A device control's light as a link or formula target (``Surface.light``):
+    set ``light`` (a Color) to show it instead of what the control shows by
+    itself; ``Colors.Invisible`` (the default) gives it back.
+    """
+
+    def __init__(self, device, control: str) -> None:
+        #: The device or its name
+        self.device = device
+        self.control = control
+        self.name = control
+        self.light = pyxelwidgets.color.Colors.Invisible
+
+    def configure(self, **options) -> None:
+        for option, value in options.items():
+            if option != 'light':
+                raise TypeError(f'a control light has no option {option!r}')
+            self.light = value
+
+class DeviceScreen:
+    """
+    A device's screen as a link or formula target (``Surface.screen``): its
+    ``text`` (lines separated by newlines) shows while no moved control's
+    widget does.
+    """
+
+    def __init__(self, device, name: str = 'Screen') -> None:
+        #: The device or its name
+        self.device = device
+        self.name = name
+        self.text = ''
+
+    def configure(self, **options) -> None:
+        for option, value in options.items():
+            if option != 'text':
+                raise TypeError(f'a screen has no option {option!r}')
+            self.text = str(value)
