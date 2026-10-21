@@ -93,8 +93,11 @@ A widget's *Behaviour* section lists what it does and what changes it:
   (or *Learn* it) under *Messages and links*, then *Add message* or *Add
   link*. These rules stay when widgets are deleted and go with their device.
 
-**M** opens the messages and links window: every rule of the selected widgets,
-or of all widgets. Click, Shift+click and Ctrl/Cmd+click pick rules, and
+**M** (or *Editor* in the toolbar) opens the messages and links window: every
+rule of the selected widgets, or of all widgets and controls. Its first column
+lists every widget and device to pick from (Shift or Ctrl/Cmd+click adds
+widgets; a device shows its controls and the one new rules start from). Click,
+Shift+click and Ctrl/Cmd+click pick rules, and
 picked ones are edited together. Copy them onto other widgets, duplicate them,
 delete them.
 
