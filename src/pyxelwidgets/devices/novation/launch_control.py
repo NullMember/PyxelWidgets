@@ -90,7 +90,8 @@ class LaunchControlXL(pyxelwidgets.devices.midi.MIDI):
     """
     Launch Control XL: 8x2 buttons as a 8x5 grid (rows 2-4 are the knob LEDs,
     output only), knobs, faders and buttons. Input works in factory template 8
-    (``Templates.Factory_7``), which connecting selects.
+    (``Templates.Factory_7``), which connecting selects. Device, Mute, Solo,
+    Record Arm and the arrows light up for their bound widget (on or off).
     """
 
     class Controls(enum.Enum):
@@ -177,6 +178,11 @@ class LaunchControlXL(pyxelwidgets.devices.midi.MIDI):
     color_model = pyxelwidgets.devices.Levels(colors, gamma = False)
     controls = tuple(pyxelwidgets.devices.Control(c.name, 'absolute' if c.value < 0x64 else 'button') for c in Controls) \
              + tuple(pyxelwidgets.devices.Control(b.name, 'button') for b in Buttons)
+    #: The buttons' LED indices in the LED SysEx
+    button_leds = {'Device': 40, 'Mute': 41, 'Solo': 42, 'RecordArm': 43, 'Up': 44, 'Down': 45, 'Left': 46, 'Right': 47}
+    lit_controls = tuple(button_leds)
+    #: One color lights (yellow or red): off, full red and green
+    light = pyxelwidgets.devices.Brightness([0x0C, 0x3F])
 
     def __init__(self, **kwargs):
         self.current_template = LaunchControlXL.Templates.User_0
@@ -195,6 +201,12 @@ class LaunchControlXL(pyxelwidgets.devices.midi.MIDI):
             self.send_note_on(LaunchControlXL.leds[x][y], value, 0xF)
         else:
             self.send_sysex([0x00, 0x20, 0x29, 0x02, 0x11, 0x78, 0xF, LaunchControlXL.leds_sysex[x][y], value])
+
+    def light_model(self, name: str) -> pyxelwidgets.devices.ColorModel:
+        return self.light
+
+    def send_control(self, name: str, value) -> None:
+        self.send_sysex([0x00, 0x20, 0x29, 0x02, 0x11, 0x78, 0xF, self.button_leds[name], value])
 
     def on_connect(self) -> None:
         self.select_template(LaunchControlXL.Templates.Factory_7)

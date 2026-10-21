@@ -127,7 +127,8 @@ class MiniLab3(_MiniLab):
     MiniLab 3 in DAW mode: 16 RGB pads (two banks of 8), 8 knobs, 4 faders and
     the clickable display encoder. Select the DAW program on the device; Shift
     with pads 1-5 are the Loop, Stop, Play, Record and Tap buttons.
-    ``show_text`` writes on the screen.
+    ``Screen`` shows two lines (``set_screen``, or ``show_text``) until the
+    device draws over them (e.g. when its own controls move).
     """
 
     class Controls(enum.Enum):
@@ -160,6 +161,7 @@ class MiniLab3(_MiniLab):
     color_model = pyxelwidgets.devices.RGB(bits = 7)
     controls = tuple(pyxelwidgets.devices.Control(c.name, 'relative' if c.value in _RELATIVE else 'button' if c.value in _BUTTONS else 'absolute')
                      for c in Controls)
+    screens = {'Screen': (10, 18)}
 
     def set_daw_mode(self, enabled: bool) -> None:
         self.send_sysex(_HEADER + [0x02, 0x00, 0x40, 0x6A, 0x21 if enabled else 0x20])
@@ -170,6 +172,9 @@ class MiniLab3(_MiniLab):
             return [ord(c) if 32 <= ord(c) < 127 else ord('?') for c in text[:width].strip()]
         self.send_sysex(_HEADER + [0x04, 0x02, 0x60, 0x1F, 0x07, 0x01, 0, 0, 0, 0]
                         + [0x01] + line(top, 10) + [0, 0x02] + line(bottom, 18) + [0])
+
+    def send_screen(self, name: str, lines: tuple) -> None:
+        self.show_text(*lines)
 
     def on_connect(self) -> None:
         self.set_daw_mode(True)

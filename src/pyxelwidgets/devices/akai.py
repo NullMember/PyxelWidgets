@@ -13,6 +13,8 @@ __all__ = ['APCMini', 'APC40MK2']
 class APCMini(pyxelwidgets.devices.midi.MIDI):
     """
     APC Mini: 8x8 pads lit green, red or yellow, extra buttons and faders.
+    The track buttons (``Button_1``-``8``) have red lights, the scene buttons
+    (``Button_10``-``17``) green ones.
 
     Thanks to TomasHubelbauer for his amazing documentation:
         https://github.com/TomasHubelbauer/akai-apc-mini
@@ -61,6 +63,16 @@ class APCMini(pyxelwidgets.devices.midi.MIDI):
     color_model = pyxelwidgets.devices.Levels([0x00, 0x03, 0x05, 0x01])
     controls = tuple(pyxelwidgets.devices.Control(n.name, 'button') for n in Notes) \
              + tuple(pyxelwidgets.devices.Control(c.name, 'absolute') for c in Controls)
+    # Shift (Button_9) has no light
+    lit_controls = tuple(n.name for n in Notes if n.value != 98)
+    #: One color lights: off, on (2 would blink)
+    light = pyxelwidgets.devices.Brightness([0x00, 0x01])
+
+    def light_model(self, name: str) -> pyxelwidgets.devices.ColorModel:
+        return self.light
+
+    def send_control(self, name: str, value) -> None:
+        self.send_note_on(APCMini.Notes[name].value, value)
 
     def send_color(self, x: int, y: int, color: Colors) -> None:
         self.send_note_on((x + (y * 8)) & 0x7F, color.value)
@@ -86,7 +98,11 @@ class APCMini(pyxelwidgets.devices.midi.MIDI):
                 self.emit(pyxelwidgets.events.ControlChanged(self, control.name, value / 127.0))
 
 class APC40MK2(pyxelwidgets.devices.midi.MIDI):
-    """APC40 MK2: 8x5 RGB pads, knobs, faders and buttons, in Ableton Live mode."""
+    """
+    APC40 MK2: 8x5 RGB pads, knobs, faders and buttons, in Ableton Live mode.
+    Buttons with a light show their bound widget (the scene buttons in color,
+    the others on or off); the knobs' LED rings show their widget's value.
+    """
 
     class Modes(enum.Enum):
         Generic = 0x40
@@ -234,6 +250,12 @@ class APC40MK2(pyxelwidgets.devices.midi.MIDI):
     color_model = pyxelwidgets.devices.Palette(palette)
     controls = tuple(pyxelwidgets.devices.Control(c.name, 'relative' if c.name in ('Cue', 'Tempo') else 'absolute') for c in Controls) \
              + tuple(pyxelwidgets.devices.Control(b.name, 'button') for b in Buttons)
+    # From Akai's APC40 Mk2 Communications Protocol 1.2: the LED is the button's note
+    # (track buttons on the track's channel); Stop All, the arrows, Shift, Tap, Nudge and Bank have none
+    lit_controls = tuple(b.name for b in Buttons if b.value[1] not in (81, 94, 95, 96, 97, 98, 99, 100, 101, 103))
+    ring_controls = tuple(c.name for c in Controls if c.name.startswith(('DeviceKnob', 'SceneKnob')))
+    #: One color lights: off, on (2 would blink)
+    light = pyxelwidgets.devices.Brightness([0x00, 0x01])
 
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
@@ -250,7 +272,19 @@ class APC40MK2(pyxelwidgets.devices.midi.MIDI):
 
     def send_pixel(self, x: int, y: int, value) -> None:
         self.send_note_on(x + (y * 8), value)
-    
+
+    def light_model(self, name: str) -> pyxelwidgets.devices.ColorModel:
+        # Scene launch buttons are RGB like the pads
+        return self.color_model if name.startswith('Scene_') else self.light
+
+    def send_control(self, name: str, value) -> None:
+        channel, note = APC40MK2.Buttons[name].value
+        self.send_note_on(note, value, channel)
+
+    def send_ring(self, name: str, value: float) -> None:
+        channel, number = APC40MK2.Controls[name].value
+        self.send_control_change(number, round(value * 127), channel)
+
     def decode(self, midi: list) -> None:
         cmd, channel, number, value = midi[0] & 0xF0, midi[0] & 0x0F, midi[1], midi[2]
         if cmd == 0x80 or cmd == 0x90:

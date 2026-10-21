@@ -83,3 +83,21 @@ class Levels(ColorModel):
 
     def describe(self) -> dict:
         return {'model': 'Levels', 'levels': len(self.values), 'gamma': self.gamma}
+
+class Brightness(ColorModel):
+    """
+    One color (or white) LEDs: the brightest channel of the alpha blended
+    color, split into ``len(values)`` equal steps, picks one of ``values``
+    (darkest first). Unlike ``Levels`` a pure red is as bright as white.
+    """
+
+    def __init__(self, values):
+        self.values = list(values)
+
+    def convert(self, rgba: numpy.ndarray) -> list:
+        brightest = blend(rgba).max(axis = 1)
+        step = 256 // len(self.values)
+        return [self.values[min(i, len(self.values) - 1)] for i in (brightest // step).tolist()]
+
+    def describe(self) -> dict:
+        return {'model': 'Brightness', 'levels': len(self.values)}

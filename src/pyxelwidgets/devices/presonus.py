@@ -9,7 +9,10 @@ import pyxelwidgets.events
 __all__ = ['ATOM']
 
 class ATOM(pyxelwidgets.devices.midi.MIDI):
-    """ATOM: 4x4 RGB pads, encoders and buttons, in native control mode."""
+    """
+    ATOM: 4x4 RGB pads, encoders and buttons, in native control mode. Buttons
+    light up bright or dim for their bound widget; Bank, Preset and Play in color.
+    """
 
     class Controls(enum.Enum):
         Encoder_0 = 14
@@ -45,6 +48,10 @@ class ATOM(pyxelwidgets.devices.midi.MIDI):
     grid = (4, 4)
     color_model = pyxelwidgets.devices.RGB(bits = 7)
     controls = tuple(pyxelwidgets.devices.Control(c.name, 'button' if c.value > 17 else 'relative') for c in Controls)
+    lit_controls = tuple(c.name for c in Controls if c.value > 17)
+    #: Buttons with RGB lights (the others are bright or dim)
+    rgb_buttons = ('Bank', 'Preset', 'Play')
+    light = pyxelwidgets.devices.Brightness([0, 127])
 
     def set_native_control(self, state: NativeControl) -> None:
         self.send_note_off(0, state.value, 15)
@@ -66,6 +73,18 @@ class ATOM(pyxelwidgets.devices.midi.MIDI):
         self.send_note_on(index, green, 2)
         self.send_note_on(index, blue, 3)
     
+    def light_model(self, name: str) -> pyxelwidgets.devices.ColorModel:
+        return self.color_model if name in self.rgb_buttons else self.light
+
+    def send_control(self, name: str, value) -> None:
+        number = ATOM.Controls[name].value
+        if name in self.rgb_buttons:
+            # Color on channels 2-4, then on (127) or off on channel 1
+            for channel, level in enumerate(value, 1):
+                self.send_control_change(number, level, channel)
+            value = 127 if any(value) else 0
+        self.send_control_change(number, value)
+
     def decode(self, midi: list) -> None:
         cmd, number, value = midi[0] & 0xF0, midi[1], midi[2]
         if (cmd == 0x80 or cmd == 0x90) and 36 <= number < 52:

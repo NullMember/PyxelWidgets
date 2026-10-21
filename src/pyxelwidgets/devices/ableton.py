@@ -11,7 +11,12 @@ import pyxelwidgets.events
 __all__ = ['Push2']
 
 class Push2(pyxelwidgets.devices.midi.MIDI):
-    """Push 2: 8x8 RGB pads, encoders (relative, touch sensitive) and buttons, in dual MIDI mode."""
+    """
+    Push 2: 8x8 RGB pads, encoders (relative, touch sensitive) and buttons, in
+    dual MIDI mode. Buttons light up for their bound widget: the rows above and
+    below the display, the time division buttons, Play, Record and Automate in
+    color, the others in white.
+    """
 
     class Mode(enum.Enum):
         Live = 0
@@ -175,6 +180,11 @@ class Push2(pyxelwidgets.devices.midi.MIDI):
     color_model = pyxelwidgets.devices.Palette(palette)
     controls = tuple(pyxelwidgets.devices.Control(c.name, 'relative' if 'Encoder' in c.name else 'button') for c in Controls) \
              + tuple(pyxelwidgets.devices.Control(n.name, 'touch') for n in Notes)
+    lit_controls = tuple(c.name for c in Controls if 'Encoder' not in c.name)
+    #: Buttons with RGB lights (the others are white)
+    rgb_buttons = frozenset(c.name for c in Controls if c.name.startswith(('Button', 'Bar')) or c.name in ('Play', 'Record', 'Automate'))
+    #: White lights: palette indices whose white is 0, 32, 84 and 128 (the default palette, from Ableton's Push 2 interface document)
+    white = pyxelwidgets.devices.Brightness([0, 16, 48, 127])
 
     header = [0x00, 0x21, 0x1D, 0x01, 0x01]
     
@@ -192,6 +202,12 @@ class Push2(pyxelwidgets.devices.midi.MIDI):
     
     def send_pixel(self, x: int, y: int, value) -> None:
         self.send_note_on(x + (y * 8) + 36, value)
+
+    def light_model(self, name: str) -> pyxelwidgets.devices.ColorModel:
+        return self.color_model if name in self.rgb_buttons else self.white
+
+    def send_control(self, name: str, value) -> None:
+        self.send_control_change(Push2.Controls[name].value, value)
     
     def decode(self, midi: list) -> None:
         if len(midi) == 2 and midi[0] & 0xF0 == 0xD0:

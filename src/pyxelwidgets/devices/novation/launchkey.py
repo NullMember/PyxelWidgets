@@ -168,7 +168,11 @@ class LaunchkeyMK2(_Launchkey):
         self.set_mode(LaunchkeyMK2.Mode.Basic)
 
 class LaunchkeyMK3(_Launchkey):
-    """Launchkey MK3: RGB (palette) pads in DAW mode."""
+    """
+    Launchkey MK3: RGB (palette) pads in DAW mode. The 49, 61 and 88 key
+    models have a 16x2 character ``Screen`` (``set_screen``), shown while the
+    keyboard's own controls and menus don't show theirs.
+    """
 
     class Mode(enum.Enum):
         Other = 0
@@ -216,6 +220,20 @@ class LaunchkeyMK3(_Launchkey):
     ports = ('Launchkey MK3',)
     grid = (8, 2)
     color_model = pyxelwidgets.devices.Palette(palette)
+    screens = {'Screen': (16, 16)}
+
+    def _sysex(self, *body) -> None:
+        # The 88 key model has its own product id
+        product = 0x12 if '88' in (getattr(self, '_midi_output_name', None) or '') else 0x0F
+        self.send_sysex([0x00, 0x20, 0x29, 0x02, product, *body])
+
+    def send_screen(self, name: str, lines: tuple) -> None:
+        if not any(lines):
+            # Gives the default display back to the keyboard
+            self._sysex(0x06)
+            return
+        for row, line in enumerate(lines):
+            self._sysex(0x04, row, *(ord(c) if 32 <= ord(c) < 127 else ord('?') for c in line))
 
     def set_mode(self, mode: Mode) -> None:
         self.send_note_on(12, mode.value, 15)

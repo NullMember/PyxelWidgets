@@ -35,6 +35,8 @@ class Launchpad(pyxelwidgets.devices.midi.MIDI):
         info = super().describe()
         info['main'] = {'x': cls.main[0], 'y': cls.main[1], 'width': 8, 'height': 8}
         info['side_buttons'] = [{'name': name, 'x': x, 'y': y} for (x, y), name in sorted(cls._side_names().items())]
+        # Lights with side_buttons = False
+        info['lights'] = list(cls._side_names().values())
         return info
 
     @classmethod

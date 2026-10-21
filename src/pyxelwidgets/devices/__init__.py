@@ -17,10 +17,10 @@ import numpy
 import pyxelwidgets.buffer
 import pyxelwidgets.events
 import pyxelwidgets.rectangle
-from pyxelwidgets.devices.colors import ColorModel, Levels, Palette, PassThrough, RGB
+from pyxelwidgets.devices.colors import Brightness, ColorModel, Levels, Palette, PassThrough, RGB
 from pyxelwidgets.devices.input import PadInput
 
-__all__ = ['Control', 'Device', 'ColorModel', 'Levels', 'Palette', 'PassThrough', 'RGB']
+__all__ = ['Control', 'Device', 'Brightness', 'ColorModel', 'Levels', 'Palette', 'PassThrough', 'RGB']
 
 @dataclasses.dataclass(frozen = True)
 class Control:
@@ -51,6 +51,12 @@ class Device(pyxelwidgets.events.Emitter):
     color_model: ColorModel = PassThrough()
     #: Named controls besides the grid
     controls: tuple = ()
+    #: Controls with a light (``set_control``), by name
+    lit_controls: tuple = ()
+    #: Controls with an LED ring showing a value (``set_ring``), by name
+    ring_controls: tuple = ()
+    #: Text screens (``set_screen``): name -> the characters each line holds
+    screens: dict = {}
 
     # Per class counters for default names (LaunchpadX_0, Virtual_0, ...)
     _counts = {}
@@ -76,8 +82,10 @@ class Device(pyxelwidgets.events.Emitter):
         self.buffer = pyxelwidgets.buffer.new(width, height)
         self.pads = PadInput(held_time, double_press_time)
         self._input_timer = None
-        # What lit controls show (set_control), by name
+        # What lit controls, rings and screens show (set_control, set_ring, set_screen), by name
         self._lit = {}
+        self._rings = {}
+        self._texts = {}
 
     @property
     def width(self) -> int:
@@ -98,6 +106,9 @@ class Device(pyxelwidgets.events.Emitter):
             'grid': {'width': cls.grid[0], 'height': cls.grid[1]},
             'colors': cls.color_model.describe(),
             'controls': [{'name': control.name, 'kind': control.kind} for control in cls.controls],
+            'lights': list(cls.lit_controls),
+            'rings': list(cls.ring_controls),
+            'screens': {name: list(lines) for name, lines in cls.screens.items()},
         }
 
     # Lifecycle
@@ -192,10 +203,16 @@ class Device(pyxelwidgets.events.Emitter):
         """Forget what the device shows, so the next ``show`` sends every pixel."""
         self.buffer[:] = 0
         self._lit = {}
+        self._rings = {}
+        self._texts = {}
 
     def lights(self) -> tuple:
-        """Names of the controls with a light ``set_control`` can set (e.g. a Launchpad's side buttons); none by default."""
-        return ()
+        """Names of the controls with a light ``set_control`` can set (e.g. a Launchpad's side buttons): ``lit_controls``."""
+        return self.lit_controls
+
+    def light_model(self, name: str) -> ColorModel:
+        """How control ``name``'s light takes colors: ``color_model`` unless its LED differs (one color, white)."""
+        return self.color_model
 
     def set_control(self, name: str, color) -> None:
         """
@@ -209,11 +226,48 @@ class Device(pyxelwidgets.events.Emitter):
         if self._lit.get(name) == key:
             return
         self._lit[name] = key
-        self.send_control(name, self.color_model.convert(cell[None])[0])
+        self.send_control(name, self.light_model(name).convert(cell[None])[0])
 
     def send_control(self, name: str, value) -> None:
-        """Send a control's light, ``value`` from ``color_model``. Override with ``lights``."""
+        """Send a control's light, ``value`` from ``light_model(name)``. Override with ``lights``."""
         raise NotImplementedError(f'{type(self).__name__} has no control lights')
+
+    def set_ring(self, name: str, value: float) -> None:
+        """
+        Show ``value`` (0.0-1.0) on control ``name``'s LED ring; only changes
+        are sent, and controls without a ring (``ring_controls``) are ignored.
+        """
+        if not self.connected or name not in self.ring_controls:
+            return
+        value = min(1.0, max(0.0, float(value)))
+        if self._rings.get(name) == value:
+            return
+        self._rings[name] = value
+        self.send_ring(name, value)
+
+    def send_ring(self, name: str, value: float) -> None:
+        """Send a ring's ``value`` (0.0-1.0). Override with ``ring_controls``."""
+        raise NotImplementedError(f'{type(self).__name__} has no LED rings')
+
+    def set_screen(self, name: str, lines) -> None:
+        """
+        Show ``lines`` (texts, top first) on screen ``name``: each is cut to the
+        line's width, missing lines are blank; only changes are sent, unknown
+        screens are ignored. The device may draw over it (e.g. while a menu shows).
+        """
+        if not self.connected or name not in self.screens:
+            return
+        widths = self.screens[name]
+        lines = list(lines)[:len(widths)]
+        lines = tuple(str(line)[:width] for line, width in zip(lines + [''] * len(widths), widths))
+        if self._texts.get(name) == lines:
+            return
+        self._texts[name] = lines
+        self.send_screen(name, lines)
+
+    def send_screen(self, name: str, lines: tuple) -> None:
+        """Send screen ``name``'s ``lines`` (one per line, cut to width). Override with ``screens``."""
+        raise NotImplementedError(f'{type(self).__name__} has no screens')
 
     def send_pixels(self, pixels: list) -> None:
         """Send ``(x, y, value)`` triples, values from ``color_model``. Override to batch."""
