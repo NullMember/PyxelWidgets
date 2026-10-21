@@ -37,6 +37,7 @@
       <button id="undo" title="Undo (Ctrl+Z)">Undo</button>
       <button id="redo" title="Redo (Ctrl+Shift+Z)">Redo</button>
       <span class="divider"></span>
+      <button id="rules-open" title="Messages and links editor: what every widget and device control sends and changes (M)">Editor</button>
       <button id="problems" class="problems" title="Problems in the layout" hidden></button>
       <button id="share" class="share">Share</button>
       <button id="help" class="icon" title="Keyboard shortcuts (?)" aria-label="Keyboard shortcuts">?</button>
@@ -143,7 +144,7 @@
       <h3>Messages and links <span id="rules-title" class="window-note"></span></h3>
       <div class="segmented" role="group" aria-label="Whose">
         <button id="rules-selected" title="The selected widgets' messages and links">Selected</button>
-        <button id="rules-all" title="Every widget's messages and links">All widgets</button>
+        <button id="rules-all" title="Every widget's and control's messages and links">All</button>
       </div>
       <button id="rules-close" class="icon" title="Close (Escape, M)" aria-label="Close">×</button>
     </header>
@@ -161,6 +162,7 @@
       <input type="search" id="rules-search" placeholder="Find" aria-label="Find a message or link">
     </div>
     <div class="window-body">
+      <ul id="rules-owners" class="rule-owners" aria-label="Widgets and devices"></ul>
       <ul id="rules-list" class="rule-list" aria-label="Messages and links"></ul>
       <section id="rules-editor" class="rule-pane"></section>
     </div>

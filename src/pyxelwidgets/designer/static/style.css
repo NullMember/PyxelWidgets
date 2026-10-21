@@ -456,7 +456,20 @@ body.dragging #start { display: none; }
 .window-note { color: var(--muted); font-weight: 400; margin-left: 6px; }
 .window-tools { display: flex; align-items: center; gap: 6px; padding: 6px 10px; border-bottom: 1px solid var(--line); flex-wrap: wrap; }
 .window-tools input[type=search] { margin-left: auto; width: 140px; }
-.window-body { flex: 1; min-height: 0; display: grid; grid-template-columns: minmax(200px, 38%) 1fr; }
+.window-body { flex: 1; min-height: 0; display: grid; grid-template-columns: minmax(170px, 22%) minmax(200px, 30%) 1fr; }
+/* Whose messages and links show: widgets (indented by group) and devices with their controls */
+.rule-owners { list-style: none; margin: 0; padding: 4px; overflow: auto; border-right: 1px solid var(--line); user-select: none; }
+.rule-owners .owner-head { color: var(--muted); font-size: 10px; text-transform: uppercase; letter-spacing: 0.06em; padding: 8px 6px 4px; }
+.rule-owners .owner { display: flex; gap: 6px; align-items: baseline; padding: 3px 6px; border-radius: 6px; cursor: pointer; }
+.rule-owners .owner:hover { background: var(--panel-2); }
+.rule-owners .owner.picked { background: var(--accent-soft); }
+.rule-owners .name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.rule-owners .type { color: var(--muted); font-size: 11px; white-space: nowrap; }
+.rule-owners .count { margin-left: auto; color: var(--muted); font-size: 11px; }
+.rule-owners .owner-picker { padding: 4px 6px 6px 18px; }
+.rule-owners .owner-picker .control { flex-wrap: wrap; }
+.rule-owners .owner-picker select { min-width: 0; width: 100%; }
+.rule-owners .hint { padding: 2px 6px; }
 .rule-list { list-style: none; margin: 0; padding: 4px; overflow: auto; border-right: 1px solid var(--line); user-select: none; }
 .rule-pane { overflow: auto; padding: 10px 12px; }
 .rule-widget { display: flex; gap: 6px; align-items: baseline; padding: 6px 6px 2px; font-weight: 600; cursor: pointer; }
@@ -482,8 +495,8 @@ body.dragging #start { display: none; }
 .rule-summary li.more { color: var(--muted); padding-left: 10px; }
 @media (max-width: 700px) {
   .window { min-width: 0; }
-  .window-body { grid-template-columns: 1fr; grid-template-rows: 40% 1fr; }
-  .rule-list { border-right: none; border-bottom: 1px solid var(--line); }
+  .window-body { grid-template-columns: 1fr; grid-template-rows: 25% 30% 1fr; }
+  .rule-list, .rule-owners { border-right: none; border-bottom: 1px solid var(--line); }
 }
 
 /* Learn buttons sit next to the picker they fill in */

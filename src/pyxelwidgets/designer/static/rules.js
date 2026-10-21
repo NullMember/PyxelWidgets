@@ -3,7 +3,8 @@
 import { state, $, fill, el } from './core.js';
 import { prefs, savePrefs } from './prefs.js';
 import { widgetAt, allWidgets, widgetSelection, selectedPaths, ruleOwner, ownerEvents, ownerKey, ownerRef, controlOwner,
-  controlOwners, isControlRule, deviceControls } from './model.js';
+  controlOwners, isControlRule, deviceControls, deviceInfo, isSelected, controlSelect } from './model.js';
+import { learnButton } from './learn.js';
 import { outputsOf, outputInfo, setMappings, defaultEvent, defaultMessage, messageSources, sourceNames,
   mappingCard } from './mappings.js';
 import { setLinks, widgetNamed, defaultLinkValue, describeValue, linkCard } from './links.js';
@@ -461,6 +462,7 @@ export function buildRules() {
   });
   new ResizeObserver(() => { if (!window_.hidden) saveRulesPlace(); }).observe(window_);
   $('rules-close').onclick = closeRules;
+  $('rules-open').onclick = () => (state.rules.open ? closeRules() : openRules());
   $('rules-selected').onclick = () => { state.rules.all = false; renderRules(); };
   $('rules-all').onclick = () => { state.rules.all = true; renderRules(); };
   $('rules-search').addEventListener('input', (e) => { state.rules.query = e.target.value; renderRules(); });
@@ -492,7 +494,7 @@ function placeRules() {
   const window_ = $('rules');
   const stage = $('stage').getBoundingClientRect();
   const place = prefs.rulesWindow || {
-    width: Math.min(820, Math.max(480, stage.width - 32)), height: Math.min(560, Math.max(360, stage.height - 32)),
+    width: Math.min(1000, Math.max(560, stage.width - 32)), height: Math.min(560, Math.max(360, stage.height - 32)),
     left: stage.left + 16, top: stage.top + 16,
   };
   const width = Math.min(place.width, innerWidth - 16), height = Math.min(place.height, innerHeight - 16);
@@ -505,6 +507,7 @@ function placeRules() {
 export function renderRules() {
   const window_ = $('rules');
   const open = state.rules.open;
+  $('rules-open').classList.toggle('active', open);
   if (window_.hidden === open) {
     window_.hidden = !open;
     if (open) placeRules();
@@ -567,7 +570,72 @@ export function renderRules() {
         : 'No messages or links yet: add one above.'));
   }
   list.replaceChildren(...items);
+  renderOwners();
   fill($('rules-editor'), ruleEditor(picked));
+}
+
+// The window's first column: every widget and device, picking whose messages and links show
+// (the selection, as on the grid: Shift or Ctrl/Cmd+click adds widgets); a picked device lists its controls
+function renderOwners() {
+  const counts = new Map();
+  for (const object of [...(state.layout.mappings || []), ...(state.layout.links || [])]) {
+    counts.set(ownerKey(object), (counts.get(ownerKey(object)) || 0) + 1);
+  }
+  const count = (number) => (number ? el('span', { class: 'count', title: `${number} message${number > 1 ? 's or links' : ' or link'}` }, number) : null);
+  const show = (selection) => {
+    state.rules.all = false;
+    state.selection = selection;
+    render();
+  };
+  const items = [el('li', { class: 'owner-head' }, 'Widgets')];
+  const widgets = allWidgets();
+  for (const { widget, path } of widgets) {
+    items.push(el('li', {
+      class: `owner${!state.rules.all && isSelected(path) ? ' picked' : ''}`, dataset: { owner: ownerKey(widget) },
+      style: `padding-left: ${6 + 12 * (path.length - 1)}px`, title: `${widget.name} (${widget.type})`,
+      onclick: (event) => {
+        if (!(event.shiftKey || event.ctrlKey || event.metaKey) || state.rules.all) return show(widgetSelection([path]));
+        const paths = selectedPaths();
+        show(widgetSelection(isSelected(path) ? paths.filter((other) => other.join() !== path.join()) : [...paths, path]));
+      },
+    }, el('span', { class: 'name' }, widget.name), el('span', { class: 'type' }, widget.type), count(counts.get(ownerKey(widget)))));
+  }
+  if (!widgets.length) items.push(el('li', { class: 'hint' }, 'No widgets yet.'));
+  items.push(el('li', { class: 'owner-head' }, 'Devices'));
+  state.layout.devices.forEach((device, index) => {
+    const picked = !state.rules.all && state.selection?.kind === 'device' && state.selection.index === index;
+    const total = [...counts].filter(([key]) => key.startsWith(`control:${index}:`)).reduce((sum, [, number]) => sum + number, 0);
+    items.push(el('li', {
+      class: `owner device${picked ? ' picked' : ''}`, dataset: { owner: `device:${index}` },
+      title: deviceControls(device).length ? 'Its controls\' messages and links' : 'It has no controls (on a Launchpad, turn side buttons off)',
+      onclick: () => show({ kind: 'device', index }),
+    }, el('span', { class: 'name' }, `${index + 1}. ${deviceInfo(device)?.model || device.type}`), count(total)));
+    if (!picked || !deviceControls(device).length) return;
+    // Its controls with messages or links, and the one new ones start from
+    const current = pickedControl();
+    const choose = (control) => {
+      state.deviceControls[index] = control;
+      render();
+    };
+    for (const owner of controlOwners(index)) {
+      items.push(el('li', {
+        class: `owner control${current && ownerKey(owner) === ownerKey(current) ? ' picked' : ''}`, dataset: { owner: ownerKey(owner) },
+        style: 'padding-left: 18px', title: 'New messages and links start from this control', onclick: () => choose(owner.control),
+      }, el('span', { class: 'name' }, owner.control), el('span', { class: 'type' }, owner.kind || ''), count(counts.get(ownerKey(owner)))));
+    }
+    items.push(el('li', { class: 'owner-picker' }, el('div', { class: 'control learnable' },
+      controlSelect('rules-control', current ? { device: index, control: current.control } : null, (_, control) => choose(control), false, index),
+      learnButton('rules-control', 'control', (event) => {
+        state.selection = { kind: 'device', index: event._device };
+        state.deviceControls[event._device] = event.control;
+        render();
+      }))));
+  });
+  if (!state.layout.devices.length) items.push(el('li', { class: 'hint' }, 'No devices yet.'));
+  const list = $('rules-owners');
+  const scroll = list.scrollTop;
+  list.replaceChildren(...items);
+  list.scrollTop = scroll;
 }
 
 function ruleEditor(picked) {
