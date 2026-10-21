@@ -362,6 +362,18 @@ class _Writer:
         return lines
 
     def app(self) -> list:
+        lines = self._app()
+        names = self.ui.clock_settings()
+        if names:
+            sender = importlib.import_module('pyxelwidgets.devices.midi_clock').ClockSender
+            lines.append('# The DAW follows the transport: MIDI clock, start/stop and position')
+            for name in names:
+                variable = self.variable(('clock', name), f'{_snake(name)}_clock')
+                lines += [f'{variable} = {self.name(sender)}(app.transport, {self.variables[("output", name)]})',
+                          f'app.clocks.append({variable})  # closed with the app']
+        return lines
+
+    def _app(self) -> list:
         settings = self.ui.transport_settings()
         options = [(key, self.value(tuple(value) if key == 'signature' else value)) for key, value in settings.items()
                    if not _same(tuple(value) if key == 'signature' else value, {'bpm': 120, 'signature': (4, 4)}[key])]
