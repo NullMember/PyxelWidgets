@@ -35,7 +35,9 @@ class Subscription:
 
     def __init__(self, transport, rate, callback: typing.Callable, offset, divisions: int = 1) -> None:
         self.transport = transport
-        self.rate = rate
+        # A function giving the rate: read on each call, so the rate can change (a widget's)
+        self.source = rate if callable(rate) else None
+        self.rate = rate() if callable(rate) else rate
         self.offset = offset
         self.divisions = divisions
         self.callback = callback
@@ -204,7 +206,9 @@ class Transport(pyxelwidgets.events.Emitter):
         """
         Call ``callback(count)`` every ``rate`` while playing, where ``count``
         is the number of ``rate`` lengths since the start (e.g. the 16th note
-        number), so the callback follows ``locate`` too. ``offset`` (a rate,
+        number), so the callback follows ``locate`` too. ``rate`` can be a
+        function giving it (e.g. ``lambda: widget.rate``): when its answer
+        changes, the calls follow the new rate. ``offset`` (a rate,
         e.g. ``'1/32'``) delays the calls. With ``divisions`` the callback is
         called that many times per ``rate`` (as often as ticks allow; counts in
         between may be skipped), counting divisions: a Sequencer times swing and
@@ -280,6 +284,14 @@ class Transport(pyxelwidgets.events.Emitter):
                 return
             if tick < subscription.next:
                 continue
+            if subscription.source is not None:
+                rate = subscription.source()
+                if rate != subscription.rate:
+                    # The new rate's boundaries from here on
+                    subscription.rate = rate
+                    self._arm(subscription)
+                    if tick < subscription.next:
+                        continue
             if subscription.whole is not None:
                 start, interval = subscription.whole
                 count = (tick - start) // interval
