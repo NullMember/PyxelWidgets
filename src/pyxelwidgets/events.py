@@ -265,6 +265,18 @@ class ControlTurned(ControlEvent):
     """A relative control (endless encoder) turned by ``delta`` steps; negative is counter-clockwise."""
     delta: int
 
+@dataclasses.dataclass(frozen = True)
+class KeyPressed(ControlEvent):
+    """A key of a device's keyboard (a control of kind ``keys``) went down: its MIDI ``note`` and ``velocity`` (0.0-1.0)."""
+    note: int
+    velocity: float
+
+@dataclasses.dataclass(frozen = True)
+class KeyReleased(ControlEvent):
+    """A key of a device's keyboard came up."""
+    note: int
+    velocity: float
+
 class ControlInput(Emitter):
     """
     One named control of a device as an emitter of its control events, so
