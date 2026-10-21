@@ -57,6 +57,8 @@ class Device(pyxelwidgets.events.Emitter):
     ring_controls: tuple = ()
     #: Text screens (``set_screen``): name -> the characters each line holds
     screens: dict = {}
+    #: Controls whose kind an on/off option changes: option -> {control: kind while it's on}
+    option_kinds: dict = {}
 
     # Per class counters for default names (LaunchpadX_0, Virtual_0, ...)
     _counts = {}
@@ -109,6 +111,7 @@ class Device(pyxelwidgets.events.Emitter):
             'lights': list(cls.lit_controls),
             'rings': list(cls.ring_controls),
             'screens': {name: list(lines) for name, lines in cls.screens.items()},
+            'option_kinds': {option: dict(kinds) for option, kinds in cls.option_kinds.items()},
         }
 
     # Lifecycle

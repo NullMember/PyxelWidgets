@@ -134,6 +134,8 @@ class MiniLab3(_MiniLab):
     lines (``set_screen``, or ``show_text``) until the device draws over them
     (e.g. when its own controls move). The knobs are endless: ``set_ring``
     sets the value they go on from, so a bound knob turns from its widget's value.
+    With ``relative_knobs`` they're encoders instead: each turn is a
+    ControlTurned by how far it went, with no ends.
     """
 
     class Controls(enum.Enum):
@@ -173,9 +175,21 @@ class MiniLab3(_MiniLab):
     screens = {'Screen': (10, 18)}
     lit_controls = tuple(button_leds)
     ring_controls = tuple(knob_ids)
+    option_kinds = {'relative_knobs': {name: 'relative' for name in knob_ids}}
+    #: Relative knobs are put back in the middle when they get this close to an end
+    recentre_margin = 16
 
-    def __init__(self, **kwargs):
+    def __init__(self, *, relative_knobs: bool = False, **kwargs):
+        """
+        relative_knobs: bool = False, optional
+            The knobs send how far they turned (ControlTurned, like encoders) instead of where they are.
+        """
         super().__init__(**kwargs)
+        self.relative_knobs = relative_knobs
+        if relative_knobs:
+            # Each knob's last value: they're kept away from the ends, so a turn never stops
+            self.ring_controls = ()
+            self._knob_values = {}
         #: Whether the DAW program is on (None: not known yet)
         self.daw = None
         self.warning = None
@@ -210,6 +224,16 @@ class MiniLab3(_MiniLab):
     def on_connect(self) -> None:
         self.set_daw_mode(True)
         self.request_program()
+        self._centre_knobs()
+
+    def _centre_knobs(self) -> None:
+        if self.relative_knobs:
+            for name in self.knob_ids:
+                self._centre(name)
+
+    def _centre(self, name: str) -> None:
+        self.send_sysex(_HEADER + [0x21, 0x10, 0x00, self.knob_ids[name], 0x00, 64])
+        self._knob_values[name] = 64
 
     def on_disconnect(self) -> None:
         for led in self.pad_leds:
@@ -233,6 +257,7 @@ class MiniLab3(_MiniLab):
         if loaded and self.connected:
             # Tell it again, and show everything again
             self.set_daw_mode(True)
+            self._centre_knobs()
             self.invalidate()
 
     def decode_control(self, channel: int, number: int, value: int) -> None:
@@ -249,5 +274,12 @@ class MiniLab3(_MiniLab):
                 self.emit(pyxelwidgets.events.ControlTurned(self, control.name, value - 64))
             elif value < 64:
                 self.emit(pyxelwidgets.events.ControlTurned(self, control.name, min(-1, value - 63)))
+        elif self.relative_knobs and control.name in self.knob_ids:
+            last = self._knob_values.get(control.name, 64)
+            self._knob_values[control.name] = value
+            if value != last:
+                self.emit(pyxelwidgets.events.ControlTurned(self, control.name, value - last))
+            if not self.recentre_margin <= value <= 127 - self.recentre_margin:
+                self._centre(control.name)
         else:
             self.emit(pyxelwidgets.events.ControlChanged(self, control.name, value / 127))
