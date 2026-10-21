@@ -12,6 +12,11 @@
 - **Fixes:** a Switch Button starting on turns off on the first press;
   TapTempo has a `tap` action (a controller's Tap button).
 - **Layout format version 4:** `transport.clock` and keyboard events.
+- **The DAW output and DAW scripts:** one set of commands for every DAW
+  (transport, mixer, macros, clips, names back), carried out by a script in
+  the DAW: `pyxelwidgets daw install reaper|live|cubase`. Tried with REAPER.
+- **MIDI inputs close cleanly** while messages keep coming (closing used to
+  hang when a DAW kept sending).
 
 - **Control lights, rings and screens:** buttons with a light on more
   controllers (APC Mini, APC40 MK2, Push 2, ATOM, Launch Control XL) show the

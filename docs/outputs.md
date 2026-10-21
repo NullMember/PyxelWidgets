@@ -7,12 +7,43 @@ updates the widgets, so a DAW can light the pads.
 | Output | For | Tried with |
 |--------|-----|------------|
 | MIDI port | any MIDI software, a virtual port or an existing one | macOS, Android (USB and Bluetooth ports) |
+| DAW (PyxelWidgets script) | the same commands in every DAW: transport, mixer, macros, clips, names | REAPER 7.82; Ableton Live and Cubase not yet |
 | Mackie Control | a DAW's mixer, transport, plug-ins and tracks by name | REAPER, Logic Pro, Cubase 15 |
 | HUI | Pro Tools (mixer, transport, plug-ins by name) | Pro Tools |
 | OSC, REAPER | OSC apps; REAPER's tracks and plug-ins by name | REAPER 7 |
 | Network MIDI | another computer over the network (RTP-MIDI) | macOS, an Android phone |
 | Bluetooth MIDI | a computer connecting to the grid (BLE MIDI) | macOS with a Raspberry Pi and an Android phone |
 | Keyboard and mouse | shortcuts, typing, the pointer (macro boards) | not yet |
+
+## A DAW, the same way everywhere
+
+Controller makers ship a script per DAW so their controller works the same in
+each. PyxelWidgets does too: the **DAW** output speaks one set of commands
+(`Play`, `Record`, `Loop`, `Track Left`, `Bank Right`, `Volume 1`-`8`,
+`Mute 1`-`8`, `Macro 1`-`8`, `Launch 1`-`8`...; the full list is in
+`pyxelwidgets.devices.daw`) and a small script inside the DAW carries them out
+and sends back lights, values and names (`Track Name 1`, `Selected Name`,
+`Device Name`, `Macro Name 1`, `Macro Value 1`). A layout made this way works
+with every DAW that has the script:
+
+```sh
+pyxelwidgets daw list                 # the DAWs with a script, and where it goes
+pyxelwidgets daw install reaper       # writes it there and says how to turn it on
+```
+
+| DAW | Script | Turn it on | Status |
+|-----|--------|------------|--------|
+| REAPER | Lua (`Scripts/PyxelWidgets`) | enable the "PyxelWidgets DAW" MIDI input and output, run the script (or make it a startup action) | tried (REAPER 7.82: every command) |
+| Ableton Live | remote script (`User Library/Remote Scripts`) | a Control Surface slot "PyxelWidgets" with that port as input and output | not tried yet |
+| Cubase, Nuendo | MIDI Remote (`MIDI Remote/Driver Scripts/Local`) | MIDI Remote Manager > Reload Scripts: it finds the port by name | not tried yet |
+| Logic, Pro Tools | none: no way to add scripts | use the Mackie Control or HUI output | |
+
+Macros are the selected track's first plug-in (REAPER), its selected device
+(Live) or its quick controls (Cubase), 8 at a time (`Macro Page Left`/`Right`).
+Clip and scene commands only do something in Live. Start PyxelWidgets before
+the DAW, or reload the script, so the DAW sees the port. In the designer: add a
+*DAW (PyxelWidgets script)* output with the virtual port `PyxelWidgets DAW`;
+its commands are in the message editor's pickers like Mackie's.
 
 ## Messages
 
