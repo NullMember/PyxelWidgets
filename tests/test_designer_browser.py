@@ -1525,6 +1525,56 @@ def test_learn_controls_and_messages(page, fake_hardware):
     assert saved_layout(page)['mappings'][0]['message'] == {'type': 'ControlChange', 'control': 7, 'value': {'source': 'value'}, 'channel': 3}
 
 
+def test_messages_and_links_from_device_controls(page, fake_hardware):
+    from pyxelwidgets.events import ControlChanged, ControlPressed
+    layout = {'format': 'pyxelwidgets.layout', 'version': parser.VERSION, 'surface': {'width': 8, 'height': 8},
+              'devices': [{'type': 'novation.LaunchControlXL', 'x': 0, 'y': 0, 'options': {}}],
+              'outputs': [{'name': 'daw', 'type': 'midi_port.MidiPort', 'virtual': 'PyxelWidgets controls', 'options': {}}],
+              'widgets': [{'type': 'Fader', 'name': 'level', 'x': 7, 'y': 0, 'width': 1, 'height': 8, 'options': {}}]}
+    page.evaluate("layout => fetch('/api/layout', {method: 'PUT', body: JSON.stringify(layout)})", layout)
+    page.reload()
+    page.wait_for_selector('#devices .connect')
+    page.click('#devices .connect')
+    page.wait_for_selector('#devices .dot.on')
+    xl = fake_hardware['devices'][-1]
+    # The device's panel picks the control new rules start from: learned here
+    page.click('#devices li .name >> nth=0')
+    page.click('#device-control-learn')
+    xl.emit(ControlChanged(xl, 'Fader_3', 0.5))
+    page.wait_for_function("document.querySelector('#device-control').value === '0:Fader_3'")
+    page.click('#properties button:has-text("Add message")')
+    page.wait_for_selector('#mapping-0-control')
+    assert page.input_value('#mapping-0-on') == 'ControlChanged' and page.locator('#mapping-0-feedback').count() == 0
+    assert page.locator('#mapping-0-on option[value=""]').count() == 0
+    assert saved_layout(page)['mappings'] == [{'device': 0, 'control': 'Fader_3', 'on': 'ControlChanged', 'output': 'daw',
+                                               'message': {'type': 'ControlChange', 'control': 1, 'value': {'source': 'value'}, 'channel': 1}}]
+    # A link from a button: picking it in the card makes it a press toggling the option
+    page.click('#properties button:has-text("Add link")')
+    page.wait_for_selector('#link-0-control')
+    page.select_option('#link-0-control', '0:Solo')
+    page.wait_for_function("document.querySelector('#link-0-on').value === 'ControlPressed'")
+    shot(page, '15-control-rules')
+    assert saved_layout(page)['links'] == [{'device': 0, 'control': 'Solo', 'on': 'ControlPressed', 'target': 'level', 'option': 'visible', 'change': 'Toggle'}]
+    xl.emit(ControlPressed(xl, 'Solo', 1.0))
+    assert not page.designer.preview.ui['level'].visible
+    xl.emit(ControlChanged(xl, 'Fader_3', 1.0))
+    page.wait_for_function("document.querySelector('#events').textContent.includes('→ ControlChange')")
+    # Listed where they come from, and in Connections
+    close_rules(page)
+    assert page.locator('#properties .rule-summary li').count() == 2
+    page.click('.tabs button[data-tab="connections"]')
+    assert 'Solo · 1. Launch Control XL' in page.inner_text('#connections')
+    # Deleting the widget keeps the message; removing the device takes both
+    page.click('#tree .node:has-text("level")')
+    page.keyboard.press('Delete')
+    saved = saved_layout(page)
+    assert len(saved['mappings']) == 1 and 'links' not in saved
+    page.click('#devices li .name >> nth=0')
+    page.click('text=Remove device')
+    saved = saved_layout(page)
+    assert 'mappings' not in saved and saved['devices'] == []
+
+
 def test_pad_info_in_try_mode(page):
     layout = {'format': 'pyxelwidgets.layout', 'version': parser.VERSION, 'surface': {'width': 8, 'height': 8},
               'outputs': [{'name': 'synth', 'type': 'midi_port.MidiPort', 'virtual': 'PyxelWidgets pads', 'options': {}}],

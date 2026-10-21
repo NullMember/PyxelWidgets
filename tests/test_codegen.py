@@ -161,3 +161,25 @@ def test_sync():
                                'transport': {'sync': {'output': 'synth'}}})
     assert 'daw_clock = ClockFollower(app.transport, synth)' in code
     assert "DAW's MIDI clock" in codegen.loader(layout)
+
+
+def test_controls_start_links_and_mappings():
+    from pyxelwidgets.events import ControlChanged
+    layout = {**EVERYTHING,
+              'devices': [{'type': 'akai.APCMini', 'x': 0, 'y': 0}],
+              'outputs': [{'name': 'synth', 'type': 'midi_port.MidiPort', 'virtual': 'Synth'}],
+              'links': [{'device': 0, 'control': 'Fader_1', 'on': 'ControlChanged', 'target': 'class', 'option': 'active_color', 'value': {'source': 'value'}},
+                        {'device': 0, 'control': 'Button_1', 'on': 'ControlPressed', 'action': 'debug'}],
+              'mappings': [{'device': 0, 'control': 'Fader_1', 'on': 'ControlChanged', 'output': 'synth',
+                            'message': {'type': 'ControlChange', 'control': 7, 'value': {'source': 'value'}}}]}
+    code = codegen.standalone(layout)
+    assert "fader_1 = surface.control(apc_mini, 'Fader_1')" in code
+    assert "surface.map(fader_1, synth, ControlChange(control = 7), on = ControlChanged)" in code
+    assert "surface.link(fader_1, class_, 'active_color', Source('value'), on = ControlChanged)" in code
+    assert "    button_1, lambda text: print('Button_1:', text),\n" in code
+    namespace = run(layout)
+    device = namespace['apc_mini']
+    sent = []
+    namespace['synth'].send = sent.append
+    device.emit(ControlChanged(device, 'Fader_1', 1.0))
+    assert namespace['class_'].active_color.r == 255 and sent[0].value == 127

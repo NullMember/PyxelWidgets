@@ -4,8 +4,9 @@ import types
 
 import pytest
 
-from pyxelwidgets import Changed, Colors, Fader, Group, Pressed, Sequencer
+from pyxelwidgets import Changed, Colors, ControlReleased, Fader, Group, Pressed, Sequencer
 from pyxelwidgets.devices import Device
+from pyxelwidgets.events import Emitter
 from pyxelwidgets import parser
 from pyxelwidgets.parser import FORMAT, VERSION, LayoutError, Parser, load, schema, text_to_color, color_to_text
 
@@ -155,9 +156,12 @@ def test_upgrades_step_by_step(monkeypatch):
     assert upgrade(new) is new
 
 
-def test_current_version_is_1():
-    from pyxelwidgets.parser import UPGRADES, VERSION
-    assert VERSION == 1 and UPGRADES == {}
+def test_current_version_is_2():
+    from pyxelwidgets.parser import UPGRADES, VERSION, upgrade
+    assert VERSION == 2 and list(UPGRADES) == [1]
+    # 2 added links and mappings from device controls: nothing else changes
+    old = {'format': FORMAT, 'version': 1, 'surface': {'width': 8, 'height': 8}, 'links': [{'widget': 'a'}]}
+    assert upgrade(old) == {**old, 'version': 2}
 
 
 @pytest.mark.parametrize('data, message', [
@@ -275,6 +279,105 @@ def test_widget_animation():
     clip, intro = ui['clip'].animation, ui['intro'].animation
     assert isinstance(clip, Blink) and clip.rate == '1/8' and clip.off_color == Colors.Red
     assert isinstance(intro, Fade) and intro.rate == 2 and intro.out
+
+
+def control_rules(links = (), mappings = ()):
+    data = with_bindings()
+    data['widgets'].append({'type': 'Button', 'name': 'show', 'options': {'mode': 'Switch'}})
+    return {**data, 'links': list(links), 'mappings': list(mappings),
+            'outputs': [{'name': 'synth', 'type': 'midi_port.MidiPort', 'virtual': 'PyxelWidgets Test'}]}
+
+
+class Output(Emitter):
+    def __init__(self):
+        self.sent = []
+
+    def send(self, message):
+        self.sent.append(message)
+
+
+def test_links_and_mappings_from_device_controls(layout_devices):
+    from pyxelwidgets import ControlChanged, ControlPressed, ControlTurned
+    from pyxelwidgets.message import ControlChange, NoteOn
+    data = control_rules(links = [
+        {'device': 0, 'control': 'Knob1', 'on': 'ControlChanged', 'target': 'volume', 'option': 'active_color', 'value': {'source': 'value'}},
+        {'device': 0, 'control': 'Encoder1', 'on': 'ControlTurned', 'target': 'drums', 'option': 'step', 'change': 'Add', 'value': {'source': 'delta'}},
+        {'device': 0, 'control': 'Shift', 'on': 'ControlPressed', 'target': 'show', 'option': 'visible', 'change': 'Toggle'},
+        {'device': 0, 'control': 'Shift', 'on': 'ControlReleased', 'action': 'debug', 'value': 'up {velocity}'},
+    ], mappings = [
+        {'device': 0, 'control': 'Knob1', 'on': 'ControlChanged', 'output': 'synth',
+         'message': {'type': 'ControlChange', 'control': 74, 'value': {'source': 'value'}}},
+        {'device': 0, 'control': 'Shift', 'on': 'ControlPressed', 'output': 'synth', 'message': {'type': 'NoteOn', 'note': 60}},
+    ])
+    ui = load(data)
+    printed = []
+    ui.debug = lambda name, text: printed.append((name, text))
+    synth = Output()
+    ui.map({'synth': synth})
+    device = ui.devices[0]
+    device.emit(ControlChanged(device, 'Knob1', 0.5))
+    # Another control, or the same name on another device, does nothing
+    device.emit(ControlChanged(device, 'Knob2', 1.0))
+    other = LayoutDevice()
+    ui.surface.add_device(other)
+    other.emit(ControlChanged(other, 'Knob1', 1.0))
+    assert ui['volume'].active_color.g in (127, 128) and ui['volume'].active_color.r == 0
+    assert synth.sent == [ControlChange(74, 64)]
+    device.emit(ControlTurned(device, 'Encoder1', 3))
+    assert ui['drums'].step == 3
+    device.emit(ControlPressed(device, 'Shift', 1.0))
+    assert not ui['show'].visible and synth.sent[-1] == NoteOn(60, 127)
+    device.emit(ControlReleased(device, 'Shift', 0.0))
+    assert printed == [('Shift', 'up 0.0')]
+
+
+def test_device_controls_follow_the_devices_given_later(layout_devices):
+    from pyxelwidgets import ControlChanged
+    data = control_rules(links = [
+        {'device': 0, 'control': 'Knob1', 'on': 'ControlChanged', 'target': 'volume', 'option': 'active_color', 'value': {'source': 'value'}}])
+    ui = load(data, devices = False)
+    device = LayoutDevice()
+    device.connect()
+    ui.surface.add_device(device)
+    device.emit(ControlChanged(device, 'Knob1', 0.5))
+    assert ui['volume'].active_color == Colors.Cyan
+    ui.place_controls([device])
+    device.emit(ControlChanged(device, 'Knob1', 0.5))
+    assert ui['volume'].active_color.g in (127, 128)
+    ui.place_controls([None])
+    device.emit(ControlChanged(device, 'Knob1', 1.0))
+    assert ui['volume'].active_color.g in (127, 128)
+
+
+@pytest.mark.parametrize('rule, message', [
+    ({'device': 1, 'control': 'Knob1', 'on': 'ControlChanged'}, r'links\[0\]\.device: must be the index of one of the 1 devices'),
+    ({'device': 0, 'control': '', 'on': 'ControlChanged'}, r'links\[0\]\.control'),
+    ({'device': 0, 'control': 'Knob1', 'widget': 'volume', 'on': 'ControlChanged'}, r'not both'),
+    ({'device': 0, 'control': 'Knob1', 'on': 'Changed'}, r"links\[0\]\.on: Knob1 \(control of devices\[0\]\) has no event 'Changed'"),
+    ({'device': 0, 'control': 'Knob1', 'on': 'ControlTurned', 'value': {'source': 'value'}}, r"ControlTurned has no 'value'"),
+])
+def test_invalid_control_links(layout_devices, rule, message):
+    link = {'target': 'volume', 'option': 'active_color', 'value': {'source': 'delta'}, **rule}
+    with pytest.raises(LayoutError, match = message):
+        load(control_rules(links = [link]), devices = False)
+
+
+@pytest.mark.parametrize('rule, message', [
+    ({'on': 'ControlChanged', 'feedback': True}, r'mappings\[0\]\.feedback: a device\'s control only sends'),
+    ({}, r'needs "on"'),
+    ({'on': 'ControlPressed', 'message': {'type': 'ControlChange', 'value': {'source': 'value'}}}, r"ControlPressed has no 'value'"),
+])
+def test_invalid_control_mappings(layout_devices, rule, message):
+    mapping = {'device': 0, 'control': 'Knob1', 'output': 'synth', 'message': {'type': 'ControlChange', 'value': {'source': 'value'}}, **rule}
+    with pytest.raises(LayoutError, match = message):
+        load(control_rules(mappings = [mapping]), devices = False)
+
+
+def test_schema_describes_control_events():
+    described = schema()
+    assert described['controls']['relative'] == ['ControlTurned']
+    assert described['events']['ControlTurned']['sources'] == ['delta']
+    assert described['events']['ControlChanged']['sources'][:2] == ['value', 'delta']
 
 
 @pytest.mark.parametrize('animation, message', [

@@ -279,6 +279,30 @@ def test_hardware_bindings_work_in_preview(hardware):
     preview.close()
 
 
+def test_control_messages_and_links_in_preview(hardware):
+    from pyxelwidgets.events import ControlChanged, ControlPressed
+    layout = with_devices({'type': 'designertest.Hardware'})
+    layout['widgets'].append({'type': 'Fader', 'name': 'level', 'x': 0, 'y': 0, 'width': 1, 'height': 2})
+    layout['outputs'] = [{'name': 'synth', 'type': 'midi_port.MidiPort', 'virtual': 'PyxelWidgets Test'}]
+    layout['links'] = [{'device': 0, 'control': 'Play', 'on': 'ControlPressed', 'target': 'level', 'option': 'visible', 'change': 'Toggle'}]
+    layout['mappings'] = [{'device': 0, 'control': 'Knob1', 'on': 'ControlChanged', 'output': 'synth',
+                           'message': {'type': 'ControlChange', 'control': 7, 'value': {'source': 'value'}}}]
+    preview = Preview(layout, connect = False)
+    preview.set_connected('devices', 0, True)
+    device = hardware[0]
+    device.emit(ControlPressed(device, 'Play', 1.0))
+    assert not preview.ui['level'].visible
+    device.emit(ControlChanged(device, 'Knob1', 1.0))
+    assert [e for _, e in preview.events if e['event'] == '→ ControlChange'] == [
+        {'event': '→ ControlChange', 'widget': 'synth', 'control': 7, 'value': 127, 'channel': 1}]
+    # Rebuilt after an edit (keeping what the link changed), still from the device
+    preview.load(layout)
+    assert not preview.ui['level'].visible
+    device.emit(ControlPressed(device, 'Play', 1.0))
+    assert preview.ui['level'].visible
+    preview.close()
+
+
 def test_preview_logs_messages_and_forwards_feedback(monkeypatch):
     from pyxelwidgets.devices.midi_port import MidiPort
     from pyxelwidgets.message import ControlChange
