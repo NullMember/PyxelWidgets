@@ -1,0 +1,374 @@
+{
+  "format": "pyxelwidgets.layout",
+  "version": 3,
+  "surface": {
+    "width": 8,
+    "height": 2
+  },
+  "transport": {
+    "bpm": 120,
+    "signature": [
+      4,
+      4
+    ]
+  },
+  "devices": [
+    {
+      "type": "arturia.MiniLab3",
+      "x": 0,
+      "y": 0,
+      "options": {}
+    }
+  ],
+  "bindings": [
+    {
+      "device": 0,
+      "control": "Knob_0",
+      "widget": "knob1",
+      "options": {
+        "takeover": "Jump"
+      }
+    },
+    {
+      "device": 0,
+      "control": "Knob_1",
+      "widget": "knob2",
+      "options": {
+        "takeover": "Jump"
+      }
+    },
+    {
+      "device": 0,
+      "control": "Knob_2",
+      "widget": "knob3",
+      "options": {
+        "takeover": "Jump"
+      }
+    },
+    {
+      "device": 0,
+      "control": "Knob_3",
+      "widget": "knob4",
+      "options": {
+        "takeover": "Jump"
+      }
+    },
+    {
+      "device": 0,
+      "control": "Knob_4",
+      "widget": "knob5",
+      "options": {
+        "takeover": "Jump"
+      }
+    },
+    {
+      "device": 0,
+      "control": "Knob_5",
+      "widget": "knob6",
+      "options": {
+        "takeover": "Jump"
+      }
+    },
+    {
+      "device": 0,
+      "control": "Knob_6",
+      "widget": "knob7",
+      "options": {
+        "takeover": "Jump"
+      }
+    },
+    {
+      "device": 0,
+      "control": "Knob_7",
+      "widget": "knob8",
+      "options": {
+        "takeover": "Jump"
+      }
+    },
+    {
+      "device": 0,
+      "control": "Fader_0",
+      "widget": "fader1"
+    },
+    {
+      "device": 0,
+      "control": "Fader_1",
+      "widget": "fader2"
+    },
+    {
+      "device": 0,
+      "control": "Fader_2",
+      "widget": "fader3"
+    },
+    {
+      "device": 0,
+      "control": "Fader_3",
+      "widget": "fader4"
+    },
+    {
+      "device": 0,
+      "control": "Record",
+      "widget": "rec"
+    },
+    {
+      "device": 0,
+      "control": "Display",
+      "widget": "tempo",
+      "options": {
+        "step": 0.008333333333333333
+      }
+    },
+    {
+      "device": 0,
+      "control": "Shift_Display",
+      "widget": "tempo",
+      "options": {
+        "step": 0.08333333333333333
+      }
+    },
+    {
+      "device": 0,
+      "control": "Display_Press",
+      "action": "surface.reveal"
+    },
+    {
+      "device": 0,
+      "control": "Shift_Display_Press",
+      "action": "transport.rewind"
+    },
+    {
+      "device": 0,
+      "control": "Play",
+      "action": "transport.toggle"
+    },
+    {
+      "device": 0,
+      "control": "Stop",
+      "action": "transport.stop"
+    }
+  ],
+  "links": [
+    {
+      "widget": "tempo",
+      "on": "Changed",
+      "action": "transport.tempo",
+      "value": {
+        "source": "value"
+      },
+      "min": 60,
+      "max": 180
+    },
+    {
+      "widget": "tempo",
+      "on": "Changed",
+      "target": {
+        "device": 0,
+        "control": "Screen"
+      },
+      "option": "text",
+      "value": "Tempo\n{round(60 + value * 120)} bpm"
+    },
+    {
+      "widget": "knob1",
+      "on": "Changed",
+      "target": {
+        "device": 0,
+        "control": "Loop"
+      },
+      "option": "light",
+      "value": {
+        "if": {
+          "source": "value"
+        },
+        "op": ">",
+        "to": 0.5,
+        "then": "#ff0000",
+        "else": "#00000000"
+      }
+    },
+    {
+      "device": 0,
+      "control": "Loop",
+      "on": "ControlPressed",
+      "target": {
+        "device": 0,
+        "control": "Screen"
+      },
+      "option": "text",
+      "value": "PyxelWidgets\nMiniLab 3 test"
+    },
+    {
+      "device": 0,
+      "control": "Tap",
+      "on": "ControlPressed",
+      "target": {
+        "device": 0,
+        "control": "Screen"
+      },
+      "option": "text",
+      "value": "Tap\nvelocity {round(velocity * 127)}"
+    }
+  ],
+  "widgets": [
+    {
+      "type": "Fader",
+      "name": "knob1",
+      "x": 0,
+      "y": 0,
+      "width": 1,
+      "height": 1,
+      "options": {
+        "active_color": "#ff0000"
+      }
+    },
+    {
+      "type": "Fader",
+      "name": "knob2",
+      "x": 1,
+      "y": 0,
+      "width": 1,
+      "height": 1,
+      "options": {
+        "active_color": "#ff8000"
+      }
+    },
+    {
+      "type": "Fader",
+      "name": "knob3",
+      "x": 2,
+      "y": 0,
+      "width": 1,
+      "height": 1,
+      "options": {
+        "active_color": "#ffff00"
+      }
+    },
+    {
+      "type": "Fader",
+      "name": "knob4",
+      "x": 3,
+      "y": 0,
+      "width": 1,
+      "height": 1,
+      "options": {
+        "active_color": "#00ff00"
+      }
+    },
+    {
+      "type": "Fader",
+      "name": "knob5",
+      "x": 4,
+      "y": 0,
+      "width": 1,
+      "height": 1,
+      "options": {
+        "active_color": "#00ffff"
+      }
+    },
+    {
+      "type": "Fader",
+      "name": "knob6",
+      "x": 5,
+      "y": 0,
+      "width": 1,
+      "height": 1,
+      "options": {
+        "active_color": "#0060ff"
+      }
+    },
+    {
+      "type": "Fader",
+      "name": "knob7",
+      "x": 6,
+      "y": 0,
+      "width": 1,
+      "height": 1,
+      "options": {
+        "active_color": "#8000ff"
+      }
+    },
+    {
+      "type": "Fader",
+      "name": "knob8",
+      "x": 7,
+      "y": 0,
+      "width": 1,
+      "height": 1,
+      "options": {
+        "active_color": "#ff00ff"
+      }
+    },
+    {
+      "type": "Fader",
+      "name": "fader1",
+      "x": 0,
+      "y": 1,
+      "width": 1,
+      "height": 1,
+      "options": {
+        "active_color": "#ffffff"
+      }
+    },
+    {
+      "type": "Fader",
+      "name": "fader2",
+      "x": 1,
+      "y": 1,
+      "width": 1,
+      "height": 1,
+      "options": {
+        "active_color": "#ffffff"
+      }
+    },
+    {
+      "type": "Fader",
+      "name": "fader3",
+      "x": 2,
+      "y": 1,
+      "width": 1,
+      "height": 1,
+      "options": {
+        "active_color": "#ffffff"
+      }
+    },
+    {
+      "type": "Fader",
+      "name": "fader4",
+      "x": 3,
+      "y": 1,
+      "width": 1,
+      "height": 1,
+      "options": {
+        "active_color": "#ffffff"
+      }
+    },
+    {
+      "type": "Button",
+      "name": "rec",
+      "x": 4,
+      "y": 1,
+      "width": 1,
+      "height": 1,
+      "options": {
+        "mode": "Switch",
+        "active_color": "#ff0000",
+        "inactive_color": "#200000"
+      }
+    },
+    {
+      "type": "Fader",
+      "name": "tempo",
+      "x": 5,
+      "y": 1,
+      "width": 3,
+      "height": 1,
+      "options": {
+        "direction": "Horizontal",
+        "value": 0.5,
+        "active_color": "#ff8000",
+        "inactive_color": "#100800",
+        "mode": "Simple"
+      }
+    }
+  ]
+}
