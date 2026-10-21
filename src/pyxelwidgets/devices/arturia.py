@@ -4,8 +4,8 @@ switches them), shown as an 8x2 grid: the bottom row is the first bank, the
 top row the second, so a frame lights both banks and the pads show the bank
 selected on the device.
 
-Written from the messages Ableton Live's own MiniLab scripts send; not tried
-on hardware yet.
+Written from the messages Ableton Live's own MiniLab scripts send. The
+MiniLab 3 was tried on the author's (2026-10-22); the mkII hasn't been.
 """
 
 import enum
@@ -50,8 +50,9 @@ class _MiniLab(pyxelwidgets.devices.midi.MIDI):
         """Turn a control change into control events."""
 
     def _button(self, name: str, value: int) -> None:
+        # The Shift + pad buttons are pads: they send how hard they're hit
         if value > 0:
-            self.emit(pyxelwidgets.events.ControlPressed(self, name, 1.0))
+            self.emit(pyxelwidgets.events.ControlPressed(self, name, value / 127))
         else:
             self.emit(pyxelwidgets.events.ControlReleased(self, name, 0.0))
 
@@ -124,11 +125,15 @@ class MiniLabMK2(_MiniLab):
 
 class MiniLab3(_MiniLab):
     """
-    MiniLab 3 in DAW mode: 16 RGB pads (two banks of 8), 8 knobs, 4 faders and
-    the clickable display encoder. Select the DAW program on the device; Shift
-    with pads 1-5 are the Loop, Stop, Play, Record and Tap buttons.
-    ``Screen`` shows two lines (``set_screen``, or ``show_text``) until the
-    device draws over them (e.g. when its own controls move).
+    MiniLab 3 in its DAW program: 16 RGB pads (two banks of 8), 8 knobs, 4
+    faders and the clickable display encoder. Pick the DAW program on the
+    device (``daw`` tells whether it's on; ``warning`` says so while it isn't):
+    the pads' lights, the screen and the Shift buttons only work there, and
+    loading it shows everything again. Shift with pads 4-8 are the Loop, Stop,
+    Play, Record and Tap buttons, lit while Shift is held. ``Screen`` shows two
+    lines (``set_screen``, or ``show_text``) until the device draws over them
+    (e.g. when its own controls move). The knobs are endless: ``set_ring``
+    sets the value they go on from, so a bound knob turns from its widget's value.
     """
 
     class Controls(enum.Enum):
@@ -156,15 +161,34 @@ class MiniLab3(_MiniLab):
         Tap = 109
     #: LED ids of pads 1-8 in bank A, then bank B
     pad_leds = tuple(range(0x34, 0x3C)) + tuple(range(0x44, 0x4C))
+    #: LED ids of the Shift + pad buttons
+    button_leds = {'Loop': 87, 'Stop': 88, 'Play': 89, 'Record': 90, 'Tap': 91}
+    #: The knobs' ids for setting the value they go on from
+    knob_ids = {f'Knob_{i}': 7 + i for i in range(8)}
     model = 'MiniLab 3'
     ports = ('Minilab3 MIDI', 'Minilab3', 'MiniLab 3')
     color_model = pyxelwidgets.devices.RGB(bits = 7)
     controls = tuple(pyxelwidgets.devices.Control(c.name, 'relative' if c.value in _RELATIVE else 'button' if c.value in _BUTTONS else 'absolute')
                      for c in Controls)
     screens = {'Screen': (10, 18)}
+    lit_controls = tuple(button_leds)
+    ring_controls = tuple(knob_ids)
+
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+        #: Whether the DAW program is on (None: not known yet)
+        self.daw = None
+        self.warning = None
+        # The screen's lines, shown again after Shift (the device draws its own page while it's held)
+        self._screen = None
 
     def set_daw_mode(self, enabled: bool) -> None:
+        """Tell the DAW program a host is there (or gone); the program itself is picked on the device."""
         self.send_sysex(_HEADER + [0x02, 0x00, 0x40, 0x6A, 0x21 if enabled else 0x20])
+
+    def request_program(self) -> None:
+        """Ask which program is on: the answer sets ``daw``."""
+        self.send_sysex(_HEADER + [0x01, 0x00, 0x40, 0x01])
 
     def show_text(self, top: str, bottom: str = '') -> None:
         """Show two lines (10 and 18 characters) on the screen until the device draws over them."""
@@ -174,10 +198,18 @@ class MiniLab3(_MiniLab):
                         + [0x01] + line(top, 10) + [0, 0x02] + line(bottom, 18) + [0])
 
     def send_screen(self, name: str, lines: tuple) -> None:
+        self._screen = lines
         self.show_text(*lines)
+
+    def send_control(self, name: str, value) -> None:
+        self.send_sysex(_HEADER + [0x02, 0x02, 0x16, self.button_leds[name], *value])
+
+    def send_ring(self, name: str, value: float) -> None:
+        self.send_sysex(_HEADER + [0x21, 0x10, 0x00, self.knob_ids[name], 0x00, round(value * 127)])
 
     def on_connect(self) -> None:
         self.set_daw_mode(True)
+        self.request_program()
 
     def on_disconnect(self) -> None:
         for led in self.pad_leds:
@@ -187,14 +219,35 @@ class MiniLab3(_MiniLab):
     def send_pixel(self, x: int, y: int, value) -> None:
         self.send_sysex(_HEADER + [0x02, 0x02, 0x16, self.pad_leds[x + y * 8], *value])
 
+    def decode(self, midi: list) -> None:
+        # The program: asked for (01, the DAW program is 1) or just loaded (62, it's 2)
+        if midi[:9] == [0xF0, *_HEADER, 0x02, 0x00, 0x40] and len(midi) == 12 and midi[9] in (0x01, 0x62):
+            self._program(midi[10] == (1 if midi[9] == 0x01 else 2))
+            return
+        super().decode(midi)
+
+    def _program(self, daw: bool) -> None:
+        loaded = daw and self.daw is False
+        self.daw = daw
+        self.warning = None if daw else 'pick the DAW program on the MiniLab 3: its pads, Shift buttons and screen only follow PyxelWidgets there'
+        if loaded and self.connected:
+            # Tell it again, and show everything again
+            self.set_daw_mode(True)
+            self.invalidate()
+
     def decode_control(self, channel: int, number: int, value: int) -> None:
         control = MiniLab3.Controls._value2member_map_.get(number)
         if channel != 0 or control is None:
             return
         if number in _BUTTONS:
             self._button(control.name, value)
+            if control is MiniLab3.Controls.Shift and value == 0 and self._screen is not None:
+                self.show_text(*self._screen)
         elif number in _RELATIVE:
-            if value != 64:
+            # One click is 65 one way and 62 the other (seen on the author's; 63 counts as one too)
+            if value > 64:
                 self.emit(pyxelwidgets.events.ControlTurned(self, control.name, value - 64))
+            elif value < 64:
+                self.emit(pyxelwidgets.events.ControlTurned(self, control.name, min(-1, value - 63)))
         else:
             self.emit(pyxelwidgets.events.ControlChanged(self, control.name, value / 127))
