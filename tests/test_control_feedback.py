@@ -257,3 +257,20 @@ def test_a_screen_link_replaces_the_moved_control_popup():
     lab.emit(ControlTurned(lab, 'Display', 32))
     surface.update()
     assert lab._texts['Screen'] == ('Tempo 120', '')
+
+
+def test_minilab3_knobs_as_encoders():
+    from pyxelwidgets.events import Event
+    lab = device(MiniLab3, relative_knobs = True)
+    assert lab.ring_controls == () and MiniLab3.describe()['option_kinds']['relative_knobs']['Knob_0'] == 'relative'
+    seen = []
+    lab.on(Event, seen.append)
+    centre = [0xF0, 0, 0x20, 0x6B, 0x7F, 0x42, 0x21, 0x10, 0, 7, 0, 64, 0xF7]
+    # Turns count from the middle; near an end the knob is put back there (as on the author's)
+    for value in (66, 68, 110, 112, 66, 63):
+        lab.decode([0xB0, 86, value])
+    assert [e.delta for e in seen] == [2, 2, 42, 2, 2, -3]
+    assert sent(lab) == [centre]
+    plain = device(MiniLab3)
+    plain.decode([0xB0, 86, 127])
+    assert plain.ring_controls and not sent(plain)
