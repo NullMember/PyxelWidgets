@@ -1693,3 +1693,32 @@ def test_device_check(page, fake_hardware):
     page.click('#check-done')
     page.wait_for_selector('#check', state = 'detached')
     assert page.designer.preview.check is None
+
+
+def test_link_to_device_lights_and_screens(page):
+    layout = {'format': 'pyxelwidgets.layout', 'version': 3, 'surface': {'width': 8, 'height': 8},
+              'devices': [{'type': 'arturia.MiniLab3', 'x': 0, 'y': 0}, {'type': 'akai.APCMini', 'x': 0, 'y': 0}],
+              'widgets': [{'type': 'Fader', 'name': 'cutoff', 'x': 0, 'y': 0, 'width': 1, 'height': 8}]}
+    page.evaluate("async (layout) => { await fetch('/api/layout', {method: 'PUT', body: JSON.stringify(layout)}); }", layout)
+    page.reload()
+    node(page, 'cutoff').click()
+    page.click('text=Add link')
+    # The devices' screens and lights are targets: a light takes a color, a screen a text
+    page.select_option('#link-0-target', label = 'Button_1 light')
+    assert page.input_value('#link-0-option') == 'option:light'
+    page.select_option('#link-0-target', label = 'Screen (text)')
+    assert page.input_value('#link-0-option') == 'option:text'
+    shot(page, 'device-targets')
+    # Starts as the widget's name and value
+    assert saved_layout(page)['links'][0]['value'] == 'cutoff\n{round(value * 100)}%'
+    page.fill('#link-0-constant', 'Cutoff\n{value}')
+    page.locator('#link-0-constant').blur()
+    links = saved_layout(page)['links']
+    assert links == [{'widget': 'cutoff', 'on': 'Changed', 'target': {'device': 0, 'control': 'Screen'}, 'option': 'text', 'value': 'Cutoff\n{value}'}]
+    parser.load(saved_layout(page), devices = False)
+    page.click('.tabs button[data-tab="connections"]')
+    assert 'Screen · 1. MiniLab 3' in page.inner_text('#connections')
+    # Removing the device removes the links to its screen
+    page.click('#devices li:has-text("MiniLab 3") .label')
+    page.click('#properties button.danger:has-text("Remove device")')
+    assert 'links' not in saved_layout(page)
