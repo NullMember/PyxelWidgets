@@ -51,6 +51,10 @@ export function removeOutput(index) {
     setMappings(layout, (layout.mappings || []).filter((mapping) => mapping.output !== removed.name));
     // The transport stops following its clock
     if (layout.transport?.sync?.output === removed.name) delete layout.transport.sync;
+    if (layout.transport?.clock) {
+      layout.transport.clock = layout.transport.clock.filter((name) => name !== removed.name);
+      if (!layout.transport.clock.length) delete layout.transport.clock;
+    }
     state.selection = null;
   });
 }
@@ -113,6 +117,7 @@ export function outputProperties(panel, index) {
           change((layout) => {
             for (const mapping of layout.mappings || []) if (mapping.output === output.name) mapping.output = name;
             if (layout.transport?.sync?.output === output.name) layout.transport.sync = { output: name };
+            if (layout.transport?.clock) layout.transport.clock = layout.transport.clock.map((each) => (each === output.name ? name : each));
             output.name = name;
           });
         },

@@ -341,6 +341,8 @@ class Preview:
         self.proxies = {}
         # Following a DAW's clock (the layout's transport.sync): {'key', 'input' (a MidiClockInput or None), 'error'}
         self.sync = None
+        # Sending the transport's clock while playing (the layout's transport.clock): ClockSenders
+        self.clock_out = []
         # A device being checked (check_device): its test pattern and what it reported
         self.check = None
         self._render_stop = None
@@ -829,6 +831,8 @@ class Preview:
             self.ui.attach(self.transport)
             # Animations follow the music while playing
             self.ui.surface.transport = self.transport
+            # The connected outputs of transport.clock follow it
+            self.clock_out = self.ui.clock_senders(self.transport, self._sync_outputs())
             self.transport.play()
 
     def _settings(self, ui) -> dict:
@@ -918,8 +922,11 @@ class Preview:
                 # The DAW stops it
                 return
             transport, self.transport = self.transport, None
+            senders, self.clock_out = self.clock_out, []
             if self.ui is not None:
                 self.ui.surface.transport = self._idle(self.ui)
+        for sender in senders:
+            sender.close()
         if transport is not None:
             transport.close()
 

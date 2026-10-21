@@ -485,6 +485,7 @@ export function renderProperties() {
       }))),
     el('p', { class: 'hint' }, 'Select a widget to edit it; Shift+click or drag on empty pads to select several. Drag a device by its name. In Try mode, click pads to press them; hold for a Held event.'),
     syncFields(),
+    clockFields(),
     el('h4', {}, 'Transport and surface controls'),
     transportControls(),
   );
@@ -626,6 +627,27 @@ function syncFields() {
         : kind === 'output'
           ? 'In the DAW, send MIDI clock (and song position) to this output\'s port (the Bluetooth or network MIDI device it connected to), then play from the DAW.'
           : 'Route the DAW\'s MIDI clock to this input (on macOS the IAC Driver, on Windows loopMIDI), then play from the DAW.'));
+}
+
+// The transport's MIDI clock sent out through outputs (transport.clock), so a DAW or drum machine follows
+function clockFields() {
+  const clock = state.layout.transport?.clock || [];
+  // Outputs sending MIDI: MIDI ports, Mackie/HUI, Bluetooth and network MIDI
+  const midi = outputsOf().filter((output) => outputInfo(output)?.midi || outputInfo(output)?.clock).map((output) => output.name);
+  const set = (name, on) => change((layout) => {
+    const next = { ...(layout.transport || {}) };
+    const names = (next.clock || []).filter((each) => each !== name);
+    if (on) names.push(name);
+    if (names.length) next.clock = names;
+    else delete next.clock;
+    layout.transport = next;
+  });
+  return el('div', { class: 'sync clock-out' },
+    el('h4', {}, 'Send MIDI clock'),
+    midi.length ? midi.map((name) => el('label', { class: 'check' },
+      el('input', { type: 'checkbox', id: `clock-${name}`, checked: clock.includes(name), onchange: (e) => set(name, e.target.checked) }), ` ${name}`))
+      : el('p', { class: 'hint' }, 'Add a MIDI output to send the clock through.'),
+    el('p', { class: 'hint' }, 'While playing, the transport\'s tempo, play, stop and position go out as MIDI clock: set the DAW (or a drum machine) to follow it.'));
 }
 
 export function syncStatus() {
