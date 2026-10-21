@@ -80,10 +80,35 @@ def main(argv = None) -> None:
     play.add_argument('--quiet', action = 'store_true', help = 'print only errors')
     play.add_argument('--import', dest = 'imports', action = 'append', default = [], metavar = 'MODULE',
                       help = 'a module (or .py file) registering widgets or devices of your own with parser.register; repeatable')
+    daw = commands.add_parser('daw', help = 'install the script that makes a DAW speak to the DAW output',
+                              description = 'Write the PyxelWidgets DAW script for a DAW where it looks for such scripts '
+                                            '(or into --to), then say how to turn it on.')
+    daw.add_argument('action', choices = ['install', 'list'], help = 'install a script, or list the DAWs')
+    daw.add_argument('name', nargs = '?', help = 'the DAW: reaper, live or cubase')
+    daw.add_argument('--to', metavar = 'FOLDER', help = 'write it here instead')
     commands.add_parser('designer', help = 'design layouts in the browser (pyxelwidgets designer --help)', add_help = False)
     commands.add_parser('app', help = 'the designer in a window of its own, or a player (pyxelwidgets app --help)', add_help = False)
     args = parser.parse_args(argv)
+    if args.command == 'daw':
+        sys.exit(install_daw(args))
     sys.exit(run(args))
+
+def install_daw(args) -> int:
+    """``pyxelwidgets daw list`` / ``pyxelwidgets daw install <daw> [--to folder]``."""
+    import pyxelwidgets.daws
+    if args.action == 'list' or args.name is None:
+        for name, (title, _, folder, _) in pyxelwidgets.daws.DAWS.items():
+            print(f'{name:8} {title} (installs into {folder()})')
+        print('Logic and Pro Tools: use the Mackie Control and HUI outputs.')
+        return 0 if args.action == 'list' else 2
+    if args.name not in pyxelwidgets.daws.DAWS:
+        print(f'No script for {args.name!r}: {", ".join(pyxelwidgets.daws.DAWS)}', file = sys.stderr)
+        return 2
+    for path in pyxelwidgets.daws.install(args.name, args.to):
+        print(f'Wrote {path}')
+    print(pyxelwidgets.daws.DAWS[args.name][3])
+    print('In PyxelWidgets, add a "DAW (PyxelWidgets script)" output with the virtual port "PyxelWidgets DAW".')
+    return 0
 
 if __name__ == '__main__':
     main()

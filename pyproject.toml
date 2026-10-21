@@ -53,6 +53,7 @@ version = { attr = "pyxelwidgets.__version__" }
 
 [tool.setuptools.package-data]
 "pyxelwidgets.designer" = ["static/*", "templates/*.json", "snippets/*.json"]
+"pyxelwidgets.daws" = ["reaper/*", "live/PyxelWidgets/*", "cubase/pyxelwidgets/daw/*"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
