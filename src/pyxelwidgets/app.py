@@ -57,7 +57,7 @@ class App():
         if widget.clock == pyxelwidgets.widgets.Clock.Transport:
             # A Sequencer's sounding step ends when the transport stops
             self.transport.on(pyxelwidgets.events.TransportStopped, lambda event: widget.silence())
-            return self.transport.every(widget.rate, widget.tick, divisions = divisions)
+            return self.transport.every(lambda: widget.rate, widget.tick, divisions = divisions)
         if widget.clock != pyxelwidgets.widgets.Clock.Own:
             return None
         clock = pyxelwidgets.transport.Transport(widget.bpm, signature = self.transport.signature, lock = self.lock)
@@ -65,7 +65,7 @@ class App():
             # The widget's tempo may change (e.g. from a link)
             clock.bpm = widget.bpm
             widget.tick(count)
-        subscription = clock.every(widget.rate, tick, divisions = divisions)
+        subscription = clock.every(lambda: widget.rate, tick, divisions = divisions)
         clock.on(pyxelwidgets.events.TransportStopped, lambda event: widget.silence())
         clock.play()
         self.clocks.append(clock)
