@@ -1011,6 +1011,8 @@ def test_sync_to_a_daw_and_sequencer_feel(page, monkeypatch):
     # Swing and gates are Sequencer options
     page.fill('#option-swing', '66')
     page.press('#option-swing', 'Enter')
+    # A feel tweak: under More options
+    page.click('#properties details.more summary')
     page.fill('#option-gate_random', '0.2')
     page.press('#option-gate_random', 'Enter')
     options = saved_layout(page)['widgets'][0]['options']
@@ -1418,7 +1420,8 @@ def test_presets_are_kept_in_the_layout(page):
     page.click('#save')
     page.wait_for_selector('#status.ok')
     assert 'presets' not in json.loads(page.layout_path.read_text())['widgets'][0]['options']
-    # Save off: stored presets stay out of the layout
+    # Save off (under More options): stored presets stay out of the layout
+    page.click('#properties details.more summary')
     page.click('#option-save')
     page.click('#mode-try')
     pad(page, 2, 3).click()
