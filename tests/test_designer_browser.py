@@ -1575,6 +1575,41 @@ def test_messages_and_links_from_device_controls(page, fake_hardware):
     assert 'mappings' not in saved and saved['devices'] == []
 
 
+def test_rules_window_lists_widgets_and_devices(page, fake_hardware):
+    layout = {'format': 'pyxelwidgets.layout', 'version': parser.VERSION, 'surface': {'width': 8, 'height': 8},
+              'devices': [{'type': 'novation.LaunchControlXL', 'x': 0, 'y': 0, 'options': {}}],
+              'outputs': [{'name': 'daw', 'type': 'midi_port.MidiPort', 'virtual': 'PyxelWidgets owners', 'options': {}}],
+              'widgets': [{'type': 'Fader', 'name': 'level', 'x': 7, 'y': 0, 'width': 1, 'height': 8, 'options': {}},
+                          {'type': 'Group', 'name': 'box', 'x': 0, 'y': 0, 'width': 4, 'height': 4, 'options': {}, 'widgets': [
+                              {'type': 'Button', 'name': 'go', 'x': 0, 'y': 0, 'width': 1, 'height': 1, 'options': {}}]}],
+              'links': [{'widget': 'go', 'on': 'Pressed', 'target': 'level', 'option': 'visible', 'change': 'Toggle'},
+                        {'device': 0, 'control': 'Solo', 'on': 'ControlPressed', 'action': 'transport.toggle'}]}
+    page.evaluate("layout => fetch('/api/layout', {method: 'PUT', body: JSON.stringify(layout)})", layout)
+    page.reload()
+    page.wait_for_selector('#palette button')
+    # The toolbar button opens and closes it
+    page.click('#rules-open')
+    assert page.is_visible('#rules') and 'active' in page.get_attribute('#rules-open', 'class')
+    owners = page.locator('#rules-owners')
+    assert owners.locator('.owner').all_inner_texts() == ['level\nFader', 'box\nGroup', 'go\nButton\n1', '1. Launch Control XL\n1']
+    # A widget there shows its messages and links (and selects it)
+    owners.locator('[data-owner="widget:go"]').click()
+    assert page.locator('#rules-list .rule-row').count() == 1 and page.inner_text('#rules-title') == 'go'
+    owners.locator('[data-owner="widget:level"]').click(modifiers = ['Shift'])
+    assert page.inner_text('#rules-title') == '2 widgets'
+    # A device: its controls' rules, and the control new ones start from
+    owners.locator('[data-owner="device:0"]').click()
+    assert page.locator('#rules-list .rule-row').count() == 1
+    assert owners.locator('[data-owner="control:0:Solo"]').count() == 1
+    page.select_option('#rules-control', '0:Knob_2')
+    page.click('#rules-add-message')
+    page.wait_for_selector('#mapping-0-control')
+    assert page.input_value('#mapping-0-control') == '0:Knob_2'
+    shot(page, '16-rules-owners')
+    page.click('#rules-open')
+    assert page.is_hidden('#rules')
+
+
 def test_pad_info_in_try_mode(page):
     layout = {'format': 'pyxelwidgets.layout', 'version': parser.VERSION, 'surface': {'width': 8, 'height': 8},
               'outputs': [{'name': 'synth', 'type': 'midi_port.MidiPort', 'virtual': 'PyxelWidgets pads', 'options': {}}],
