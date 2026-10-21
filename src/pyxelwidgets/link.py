@@ -8,6 +8,11 @@ the way mappings send messages::
     Link(level, pad, 'active_color', Source('value'), on = Changed)       # a fader dims a color
     Link(mode, fader, 'mode', on = Pressed, change = Link.Change.Toggle)  # next Fader.Mode
 
+A device's control starts links too (``events.ControlInput``)::
+
+    Link(surface.control(launchpad, 'Knob1'), pad, 'active_color', Source('value'), on = ControlChanged)
+    Link(surface.control(launchpad, 'Encoder1'), keys, 'octave', Source('delta'), on = ControlTurned, change = Link.Change.Add)
+
 Without an option the target is an action, called on each event, with the
 value as its argument if there is one::
 
