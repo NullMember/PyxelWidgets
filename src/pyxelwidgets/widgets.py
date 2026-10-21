@@ -646,7 +646,8 @@ class Button(ValueWidget):
         """
         super().__init__(x, y, width, height, **kwargs)
         self.mode = mode
-        self.state = False
+        # A switch starting on (value) turns off on the first press
+        self.state = self._value > 0
         self.is_hold = False
 
     def handle_press(self, x: int, y: int, velocity: float):
@@ -4189,7 +4190,7 @@ class TapTempo(Widget):
 
     emits = (pyxelwidgets.events.TempoTapped,)
 
-    actions = {'reset': None}
+    actions = {'tap': None, 'reset': None}
 
     def __init__(self, x: int = 0, y: int = 0, width: int = 1, height: int = 1, *,
                  taps: int = 4,
@@ -4234,6 +4235,10 @@ class TapTempo(Widget):
             return
         self.bpm = round(min(max(60.0 / interval, self.minimum), self.maximum), 2)
         self.emit(pyxelwidgets.events.TempoTapped(self, self.bpm))
+
+    def tap(self, x: int = 0, y: int = 0, velocity: float = 1.0) -> None:
+        """A tap (a press and release), e.g. from a controller's Tap button through a link."""
+        super().tap(x, y, velocity)
 
     def reset(self) -> None:
         """Forget the taps."""
