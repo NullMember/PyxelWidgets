@@ -1,7 +1,7 @@
 // Links (layout.links): widgets changing widgets, and their editors
 
 import { state, $, el } from './core.js';
-import { allWidgets, ownerEvents, controlField, controlOwner } from './model.js';
+import { allWidgets, ownerEvents, controlField, controlOwner, deviceLights, deviceScreens, isDeviceTarget, targetLabel } from './model.js';
 import { INTEGER_SOURCES, sourceNames } from './mappings.js';
 import { change } from './history.js';
 import { optionControl, isFormula, formulaSeed, formulaControl } from './properties.js';
@@ -15,9 +15,19 @@ export function widgetNamed(name) {
   return allWidgets().find(({ widget }) => widget.name === name)?.widget;
 }
 
-// The options of a widget a link can change: position, size and its options
+// What a link changes: a widget, a stand-in for a device's light or screen with its one option, or undefined (the transport)
+export function linkTarget(link) {
+  const target = link.target;
+  if (!isDeviceTarget(target)) return widgetNamed(target);
+  const entry = state.layout.devices[target.device];
+  const screen = !!entry && deviceScreens(entry).includes(target.control);
+  const option = screen ? { name: 'text', kind: 'str', default: '', lines: true } : { name: 'light', kind: 'color', default: '#ff0000' };
+  return { name: targetLabel(target), device: true, options: {}, linkable: [option] };
+}
+
+// The options of a widget a link can change: position, size and its options (a device light or screen: its one)
 export function linkOptions(widget) {
-  return state.catalog.widgets[widget?.type]?.linkable || [];
+  return widget?.linkable || state.catalog.widgets[widget?.type]?.linkable || [];
 }
 
 // Set always; Add to numbers and choices; Toggle on/off options and choices
@@ -45,7 +55,7 @@ function linkSources(on, kind, change) {
 
 // A first change and value that suit the event and the option: a value from the event where one fits
 export function defaultLinkValue(link) {
-  const target = widgetNamed(link.target);
+  const target = linkTarget(link);
   const option = linkOptions(target).find((candidate) => candidate.name === link.option);
   for (const key of ['value', 'min', 'max', 'change']) delete link[key];
   if (!option) return;
@@ -79,10 +89,13 @@ export function defaultLinkValue(link) {
     }
     case 'float':
     case 'color':
-      link.value = level ? { source: level } : layoutValue(target, option);
+      // A light gets a color, not its range from black
+      link.value = level && !target.device ? { source: level } : layoutValue(target, option);
       return;
     case 'str':
-      if (level) Object.assign(link, { value: { source: level }, min: 0, max: 100 });
+      // A screen: what changed, and its value in %
+      if (target.device) link.value = level ? `${link.widget ?? link.control}\n{round(${level} * 100)}%` : link.widget ?? link.control;
+      else if (level) Object.assign(link, { value: { source: level }, min: 0, max: 100 });
       else link.value = layoutValue(target, option) ?? '';
       return;
     default:
@@ -183,7 +196,7 @@ function linkValueEditor(link, option, id, edit) {
   const isExpression = option.kind !== 'str' && isFormula(link.value);
   const isChoice = !!(link.value && typeof link.value === 'object' && 'choose' in link.value);
   const isSource = !isCondition && !isChoice && link.value && typeof link.value === 'object' && !Array.isArray(link.value);
-  const constant = change === 'Add' ? 1 : option.action ? 0 : layoutValue(widgetNamed(link.target), option);
+  const constant = change === 'Add' ? 1 : option.action ? 0 : layoutValue(linkTarget(link), option);
   const mode = el('select', {
     id: id('value'), title: 'A constant, a value from the event, a formula, a condition choosing between two values, or a list an event value picks from',
     onchange: (e) => edit(() => {
@@ -247,6 +260,13 @@ function linkValueEditor(link, option, id, edit) {
         title: option.kind === 'enum' ? 'Choices to move by' : 'Added each time',
         onchange: (e) => edit(() => { link.value = option.kind === 'float' ? Number(e.target.value) : parseInt(e.target.value || '0', 10); }),
       });
+    } else if (option.lines) {
+      // A screen's text: a line each
+      detail = el('textarea', {
+        id: id('constant'), rows: 2, class: 'lines',
+        title: "A line each; {value}, {round(value * 100)}... take the event's values",
+        onchange: (e) => edit(() => { link.value = e.target.value; }),
+      }, typeof link.value === 'string' ? link.value : '');
     } else {
       [detail] = optionControl(option, link.value, (value) => edit(() => { link.value = Number.isNaN(value) ? constant : value ?? constant; }), id('constant'));
     }
@@ -263,7 +283,7 @@ function linkValueEditor(link, option, id, edit) {
     const title = 'The range 0.0-1.0 covers';
     if (option.kind === 'color') {
       const bound = (key, fallback) => optionControl({ kind: 'color' }, link[key] ?? fallback, (value) => edit(() => { link[key] = value; }), id(key))[0];
-      detail = el('span', { class: 'range', title }, bound('min', '#000000'), '–', bound('max', layoutValue(widgetNamed(link.target), option)));
+      detail = el('span', { class: 'range', title }, bound('min', '#000000'), '–', bound('max', layoutValue(linkTarget(link), option)));
     } else if (option.kind === 'enum') {
       const bound = (key, fallback) => el('select', {
         id: id(key), title: key,
@@ -279,6 +299,7 @@ function linkValueEditor(link, option, id, edit) {
 
 // Actions a link can call on a target: a widget's methods, or the transport's (target '')
 function linkActions(target) {
+  if (target?.device) return {};
   if (!target) return Object.fromEntries(Object.entries(state.catalog.link.actions).filter(([name]) => name !== 'debug'));
   return state.catalog.widgets[target.type]?.actions || {};
 }
@@ -286,7 +307,7 @@ function linkActions(target) {
 // An action's first value: the pad's cell or the event's step where there is one; a tempo from a fader
 function defaultActionValue(link) {
   for (const key of ['value', 'min', 'max', 'change']) delete link[key];
-  if (linkActions(widgetNamed(link.target))[link.action] === null) return;
+  if (linkActions(linkTarget(link))[link.action] === null) return;
   const sources = sourceNames(link.on);
   if (link.action === 'transport.tempo') {
     // A TapTempo's tempo as it is
@@ -301,7 +322,7 @@ function defaultActionValue(link) {
     return;
   }
   // A value (0-1) for actions taking one, e.g. a fader setting a step's velocity
-  if (linkActions(widgetNamed(link.target))[link.action] === 'float' && sources.includes('value')) {
+  if (linkActions(linkTarget(link))[link.action] === 'float' && sources.includes('value')) {
     link.value = { source: 'value' };
     return;
   }
@@ -365,11 +386,24 @@ function debugCard(widget, link, index, events) {
         `Shows in Events (filter: Only debug); printed when the layout runs. Values: ${sources.map((name) => `{${name}}`).join(' ')} {all}`)));
 }
 
+// Lights and screens of the layout's devices as target choices, a group per device
+function deviceTargets(current) {
+  return state.layout.devices.map((device, index) => {
+    const controls = [...deviceScreens(device), ...deviceLights(device)];
+    const picked = isDeviceTarget(current) && current.device === index ? current.control : null;
+    if (picked !== null && !controls.includes(picked)) controls.push(picked);
+    if (!controls.length) return null;
+    return el('optgroup', { label: `${index + 1}. ${targetLabel({ device: index, control: '' }).split('. ').slice(1).join('. ')}` },
+      controls.map((control) => el('option', { value: `\u0001${JSON.stringify([index, control])}`, selected: control === picked },
+        deviceScreens(device).includes(control) ? `${control} (text)` : `${control} light`)));
+  });
+}
+
 export function linkCard(widget, link, index) {
   const events = ownerEvents(widget);
   if (link.action === 'debug') return debugCard(widget, link, index, events);
   const transport = !link.target;
-  const target = transport ? null : widgetNamed(link.target);
+  const target = transport ? null : linkTarget(link);
   const options = transport ? [] : linkOptions(target);
   const actions = linkActions(target);
   const isAction = link.action !== undefined;
@@ -384,11 +418,11 @@ export function linkCard(widget, link, index) {
   const actionLabel = (name) => name.replace(/^transport\./, '');
   const valueFields = () => {
     if (isAction) {
-      if (!(link.action in actions)) return el('p', { class: 'hint' }, `${link.target || 'The transport'} has no action ${link.action}`);
+      if (!(link.action in actions)) return el('p', { class: 'hint' }, `${targetLabel(link.target) || 'The transport'} has no action ${link.action}`);
       const label = { play: 'step', 'transport.tempo': 'bpm', 'transport.tempo_add': 'by' }[link.action] || 'with';
       return option ? [el('label', { for: id('value') }, label), linkValueEditor(link, option, id, edit)] : null;
     }
-    if (!option) return el('p', { class: 'hint' }, `${link.target} has no option ${link.option}`);
+    if (!option) return el('p', { class: 'hint' }, `${targetLabel(link.target)} has no option ${link.option}`);
     return [
       el('label', { for: id('change') }, 'change'),
       el('div', { class: 'control' }, el('select', {
@@ -436,7 +470,7 @@ export function linkCard(widget, link, index) {
       }, events.map((name) => el('option', { value: name, selected: name === link.on }, name))),
       el('span', { class: 'arrow' }, '→'),
       el('select', {
-        id: id('target'), title: 'The widget whose option changes, or the transport',
+        id: id('target'), title: "The widget whose option changes, a device's light or screen, or the transport",
         onchange: (e) => edit(() => {
           for (const key of ['value', 'min', 'max', 'change']) delete link[key];
           if (!e.target.value || e.target.value === '\u0000debug') {
@@ -444,6 +478,15 @@ export function linkCard(widget, link, index) {
             delete link.target;
             delete link.option;
             link.action = e.target.value ? 'debug' : 'transport.toggle';
+            return;
+          }
+          if (e.target.value.startsWith('\u0001')) {
+            // A device's light or screen: its one option
+            const [device, control] = JSON.parse(e.target.value.slice(1));
+            link.target = { device, control };
+            delete link.action;
+            link.option = linkOptions(linkTarget(link))[0].name;
+            defaultLinkValue(link);
             return;
           }
           link.target = e.target.value;
@@ -457,7 +500,8 @@ export function linkCard(widget, link, index) {
       el('option', { value: '', selected: transport }, 'Transport'),
       el('option', { value: '\u0000debug' }, 'Debug log'),
       allWidgets().map(({ widget: candidate }) => el('option', { value: candidate.name, selected: candidate.name === link.target },
-        candidate === widget ? `${candidate.name} (itself)` : candidate.name))),
+        candidate === widget ? `${candidate.name} (itself)` : candidate.name)),
+      deviceTargets(link.target)),
       el('button', {
         class: 'link remove', title: 'Remove this link',
         onclick: () => change((layout) => setLinks(layout, layout.links.filter((_, i) => i !== index))),

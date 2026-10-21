@@ -342,6 +342,8 @@ button.active { background: var(--accent-soft); border-color: var(--accent); col
 .control.value { flex-wrap: wrap; }
 .control.value select { flex: 1 1 110px; min-width: 0; }
 .control.value .range { display: flex; gap: 4px; align-items: center; color: var(--muted); }
+/* A screen's text: a line each */
+.control.value > textarea.lines { flex: 1 1 100%; box-sizing: border-box; background: var(--bg); color: var(--text); border: 1px solid var(--line); border-radius: 6px; padding: 4px 6px; font: 12px ui-monospace, monospace; resize: vertical; }
 input.small { width: 58px !important; flex: none; }
 .args { display: flex; flex-direction: column; gap: 4px; align-items: flex-start; min-width: 0; }
 .arg { display: flex; gap: 4px; align-items: center; width: 100%; }

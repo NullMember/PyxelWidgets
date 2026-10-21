@@ -64,6 +64,30 @@ export function deviceControls(device) {
   return controls;
 }
 
+// Controls of a layout device with a light links can set; a Launchpad's side buttons with side_buttons off
+export function deviceLights(device) {
+  const info = deviceInfo(device);
+  if (info?.side_buttons) return device.options?.side_buttons === false ? info.lights || [] : [];
+  return info?.lights || [];
+}
+
+// A layout device's screens links can write to
+export function deviceScreens(device) {
+  return Object.keys(deviceInfo(device)?.screens || {});
+}
+
+// A link target that is a device's control light or screen ({device, control}), not a widget name
+export function isDeviceTarget(target) {
+  return !!target && typeof target === 'object';
+}
+
+// What a link goes to, in words: a widget's name, a device's light or screen, or undefined (the transport, debug)
+export function targetLabel(target) {
+  if (!isDeviceTarget(target)) return target;
+  const entry = state.layout.devices[target.device];
+  return `${target.control} · ${target.device + 1}. ${entry ? deviceInfo(entry)?.model || entry.type : 'missing device'}`;
+}
+
 function controlKind(binding) {
   const device = state.layout.devices[binding.device];
   return device ? deviceControls(device).find((control) => control.name === binding.control)?.kind : undefined;

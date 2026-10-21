@@ -2,7 +2,7 @@
 
 import { DEFAULT_SIZE, state, $, el } from './core.js';
 import { childrenOf, widgetAt, containerSize, absolute, allWidgets, uniqueName, isGroup, currentPage,
-  hiddenBy, samePath, widgetSelection, topSelected, pathsOf } from './model.js';
+  hiddenBy, samePath, widgetSelection, topSelected, pathsOf, isDeviceTarget } from './model.js';
 import { outputsOf, setMappings, removeOutput } from './mappings.js';
 import { setLinks } from './links.js';
 import { change, setStatus } from './history.js';
@@ -130,7 +130,7 @@ export function removeSelection() {
       // Rules from device controls stay, unless they change a deleted widget
       const kept = (object) => object.widget === undefined || names.has(object.widget);
       setMappings(layout, (layout.mappings || []).filter(kept));
-      setLinks(layout, (layout.links || []).filter((link) => kept(link) && (link.target === undefined || names.has(link.target))));
+      setLinks(layout, (layout.links || []).filter((link) => kept(link) && (link.target === undefined || isDeviceTarget(link.target) || names.has(link.target))));
     } else {
       // The device's bindings and the rules from its controls go; later devices move up
       const moved = (list) => list.filter((entry) => entry.device !== selection.index || entry.control === undefined)
@@ -138,7 +138,10 @@ export function removeSelection() {
       layout.devices.splice(selection.index, 1);
       bindings = moved(bindings);
       setMappings(layout, moved(layout.mappings || []));
-      setLinks(layout, moved(layout.links || []));
+      // So do links to its lights and screen
+      const target = (link) => (!isDeviceTarget(link.target) ? link
+        : link.target.device > selection.index ? { ...link, target: { ...link.target, device: link.target.device - 1 } } : link);
+      setLinks(layout, moved(layout.links || []).filter((link) => !isDeviceTarget(link.target) || link.target.device !== selection.index).map(target));
     }
     if (bindings.length) layout.bindings = bindings;
     else delete layout.bindings;
@@ -192,7 +195,7 @@ function copyBehaviour(layout, renames, links = layout.links || [], mappings = l
   for (const link of links) {
     if (!renames.has(link.widget)) continue;
     const copy = { ...link, widget: renames.get(link.widget) };
-    if (link.target !== undefined) {
+    if (link.target !== undefined && !isDeviceTarget(link.target)) {
       if (renames.has(link.target)) copy.target = renames.get(link.target);
       else if (!names.has(link.target)) {
         dropped++;

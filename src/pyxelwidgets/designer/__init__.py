@@ -283,7 +283,7 @@ def _carry_state(old_ui, old_layout: dict, ui, layout: dict) -> None:
     """Give the widgets of a rebuilt layout the state of the ones they replace (same name and type)."""
     entries = pyxelwidgets.parser.widget_entries
     before, after = entries(old_layout.get('widgets')), entries(layout.get('widgets'))
-    linked = {(link.get('target'), link.get('option')) for link in layout.get('links') or []}
+    linked = {(link.get('target'), link.get('option')) for link in layout.get('links') or [] if not isinstance(link.get('target'), dict)}
     for name, widget in ui.widgets.items():
         old = old_ui.widgets.get(name)
         if old is None or type(old) is not type(widget):

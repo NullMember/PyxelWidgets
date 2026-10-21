@@ -3,7 +3,7 @@
 import { state, $, fill, el } from './core.js';
 import { prefs, savePrefs } from './prefs.js';
 import { widgetAt, allWidgets, widgetSelection, selectedPaths, ruleOwner, ownerEvents, ownerKey, ownerRef, controlOwner,
-  controlOwners, isControlRule, deviceControls, deviceInfo, isSelected, controlSelect } from './model.js';
+  controlOwners, isControlRule, deviceControls, deviceInfo, isSelected, controlSelect, isDeviceTarget, targetLabel } from './model.js';
 import { learnButton } from './learn.js';
 import { outputsOf, outputInfo, setMappings, defaultEvent, defaultMessage, messageSources, sourceNames,
   mappingCard } from './mappings.js';
@@ -91,7 +91,7 @@ export function ruleText(rule, object = ruleObject(rule)) {
   if (object.action === 'debug') return [object.on, 'Debug log', `"${object.value ?? `${object.on} {all}`}"`];
   const what = object.action ? object.action.replace(/^transport\./, '') : `${(object.change || 'set').toLowerCase()} ${object.option}`;
   const value = describeValue(object);
-  return [object.on, object.target || 'Transport', value ? `${what} ${object.change === 'Add' ? 'by' : object.action ? '' : '='} ${value}`.replace(/  +/g, ' ') : what];
+  return [object.on, targetLabel(object.target) || 'Transport', value ? `${what} ${object.change === 'Add' ? 'by' : object.action ? '' : '='} ${value}`.replace(/  +/g, ' ') : what];
 }
 
 // The rows the window lists: [{rule, widget, text}], by widget, messages before links
@@ -344,7 +344,10 @@ function adaptRule(kind, rule, widget) {
   const needs = kind === 'mapping' ? messageSources(copy.message)
     : [copy.value?.source, copy.value?.if?.source, copy.value?.by?.source ?? copy.value?.by].filter(Boolean);
   if (kind === 'mapping' && !outputsOf().some((output) => output.name === copy.output)) return null;
-  if (kind === 'link' && copy.target !== undefined) {
+  if (kind === 'link' && isDeviceTarget(copy.target)) {
+    // A device's light or screen: while that device is there
+    if (!state.layout.devices[copy.target.device]) return null;
+  } else if (kind === 'link' && copy.target !== undefined) {
     // A link changing its own widget changes the new one
     if (rule.widget !== undefined && copy.target === rule.widget && widget.type !== 'control') copy.target = widget.name;
     else if (!widgetNamed(copy.target)) return null;

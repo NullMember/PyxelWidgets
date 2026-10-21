@@ -2,7 +2,8 @@
 
 import { state, $, fill, el } from './core.js';
 import { prefs, savePrefs } from './prefs.js';
-import { widgetAt, allWidgets, deviceInfo, widgetSelection, selectedPaths, isControlRule, ruleLabel, selectOwner, deviceControls } from './model.js';
+import { widgetAt, allWidgets, deviceInfo, widgetSelection, selectedPaths, isControlRule, ruleLabel, selectOwner, deviceControls,
+  isDeviceTarget, targetLabel, deviceLights, deviceScreens } from './model.js';
 import { outputsOf, outputInfo } from './mappings.js';
 import { linkOptions, describeValue } from './links.js';
 import { openRules } from './rules.js';
@@ -84,7 +85,7 @@ export function renderDrawer() {
 function connectionRows() {
   const rows = [];
   (state.layout.links || []).forEach((link, index) => {
-    const to = link.target || (link.action === 'debug' ? 'Debug log' : 'Transport');
+    const to = targetLabel(link.target) || (link.action === 'debug' ? 'Debug log' : 'Transport');
     const what = link.action ? `${link.on} → ${link.action.replace(/^transport\./, '')}` : `${link.on} → ${(link.change || 'set').toLowerCase()} ${link.option}`;
     const value = describeValue(link);
     rows.push(['link', ruleLabel(link), to, value ? `${what} = ${value}` : what, () => openRules([{ kind: 'link', index }])]);
@@ -152,6 +153,12 @@ function findProblems() {
   for (const link of state.layout.links || []) {
     if (isControlRule(link) ? controlProblem(link, 'link') : !names.has(link.widget)) {
       if (!isControlRule(link)) problems.push(['error', `A link from a missing widget "${link.widget}"`, null]);
+    } else if (isDeviceTarget(link.target)) {
+      const device = state.layout.devices[link.target.device];
+      if (!device) problems.push(['error', `${ruleLabel(link)}: links to a light or screen of a missing device ${link.target.device + 1}`, () => selectOwner(link)]);
+      else if (![...deviceLights(device), ...deviceScreens(device)].includes(link.target.control)) {
+        problems.push(['warning', `${ruleLabel(link)}: ${targetLabel(link.target)} has no light or screen (on a Launchpad, side buttons light with side buttons off)`, () => selectOwner(link)]);
+      }
     } else if (link.target && !names.has(link.target)) problems.push(['error', `${ruleLabel(link)}: links to a missing widget "${link.target}"`, () => selectOwner(link)]);
     else if (link.option && !linkOptions(names.get(link.target).widget).some((option) => option.name === link.option)) {
       problems.push(['error', `${ruleLabel(link)}: ${link.target} has no option "${link.option}"`, () => selectOwner(link)]);

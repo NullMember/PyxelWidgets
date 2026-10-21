@@ -146,7 +146,7 @@ export function place(node, x, y, width, height) {
 function relations(name) {
   const links = state.layout.links || [];
   return {
-    affects: new Set(links.filter((link) => link.widget === name && link.target && link.target !== name).map((link) => link.target)),
+    affects: new Set(links.filter((link) => link.widget === name && typeof link.target === 'string' && link.target !== name).map((link) => link.target)),
     affectedBy: new Set(links.filter((link) => link.target === name && link.widget !== name).map((link) => link.widget)),
   };
 }
