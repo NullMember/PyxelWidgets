@@ -156,13 +156,14 @@ def test_upgrades_step_by_step(monkeypatch):
     assert upgrade(new) is new
 
 
-def test_current_version_is_3():
+def test_current_version_is_4():
     from pyxelwidgets.parser import UPGRADES, VERSION, upgrade
-    assert VERSION == 3 and list(UPGRADES) == [1, 2]
-    # 2 added links and mappings from device controls, 3 device lights and screens as link targets: nothing else changes
+    assert VERSION == 4 and list(UPGRADES) == [1, 2, 3]
+    # 2 added links and mappings from device controls, 3 device lights and screens as link targets,
+    # 4 transport.clock and keyboard events: nothing else changes
     old = {'format': FORMAT, 'version': 1, 'surface': {'width': 8, 'height': 8}, 'links': [{'widget': 'a'}]}
-    assert upgrade(old) == {**old, 'version': 3}
-    assert upgrade({**old, 'version': 2}) == {**old, 'version': 3}
+    assert upgrade(old) == {**old, 'version': 4}
+    assert upgrade({**old, 'version': 3}) == {**old, 'version': 4}
 
 
 @pytest.mark.parametrize('data, message', [

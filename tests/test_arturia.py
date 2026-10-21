@@ -1,6 +1,8 @@
+import pytest
+
 from pyxelwidgets.color import Colors
 from pyxelwidgets.devices.arturia import MiniLab3, MiniLabMK2
-from pyxelwidgets.events import ControlChanged, ControlPressed, ControlReleased, ControlTurned, Event, PadPressed, PadPressure, PadReleased
+from pyxelwidgets.events import ControlChanged, ControlPressed, ControlReleased, ControlTurned, Event, KeyPressed, PadPressed, PadPressure, PadReleased
 
 HEADER = [0xF0, 0x00, 0x20, 0x6B, 0x7F, 0x42]
 
@@ -34,8 +36,9 @@ def test_pads_are_two_banks_from_the_bottom():
         pad.decode([0xA9, 51, 127])
         pad.decode([0x89, 36, 0])
         pad.decode([0x90, 36, 127])       # keys: another channel
-        assert [type(e) for e in seen] == [PadPressed, PadPressed, PadPressure, PadReleased]
-        assert [(e.x, e.y) for e in seen] == [(0, 0), (7, 1), (7, 1), (0, 0)]
+        assert [type(e) for e in seen] == [PadPressed, PadPressed, PadPressure, PadReleased, KeyPressed]
+        assert [(e.x, e.y) for e in seen[:4]] == [(0, 0), (7, 1), (7, 1), (0, 0)]
+        assert (seen[4].control, seen[4].note, seen[4].velocity) == ('Keys', 36, 1.0)
 
 
 def test_mk2_sets_up_the_working_memory():
@@ -87,3 +90,17 @@ def test_minilab3_controls():
     assert (seen[0].value, seen[2].delta, seen[3].delta) == (1.0, 2, -1)
     kinds = {c['name']: c['kind'] for c in MiniLab3.describe()['controls']}
     assert (kinds['Knob_0'], kinds['Display'], kinds['Shift']) == ('absolute', 'relative', 'button')
+
+
+def test_minilab_keyboard_strips_and_pedal():
+    pad, seen = device(MiniLab3)
+    pad.decode([0x90, 60, 64])
+    pad.decode([0x90, 60, 0])         # a note on with velocity 0 is a release
+    pad.decode([0xE0, 0x00, 0x40])    # pitch strip in the middle
+    pad.decode([0xB0, 1, 127])        # mod strip
+    pad.decode([0xB0, 64, 127])       # sustain
+    assert [(type(e).__name__, e.control) for e in seen] == [('KeyPressed', 'Keys'), ('KeyReleased', 'Keys'), ('ControlChanged', 'Pitch'),
+                                                              ('ControlChanged', 'Mod'), ('ControlPressed', 'Sustain')]
+    assert seen[2].value == pytest.approx(0.5, abs = 0.001) and seen[3].value == 1.0
+    kinds = {c['name']: c['kind'] for c in MiniLab3.describe()['controls']}
+    assert kinds['Keys'] == 'keys' and kinds['Pitch'] == 'absolute'

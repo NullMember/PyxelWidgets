@@ -117,3 +117,11 @@ def test_non_interactive_widget_ignores_input_but_reports_it():
     button.tap(0, 0)
     assert button.value == 0.0
     assert [e.value for e in events] == [1.0, 0.0]
+
+
+def test_switch_starting_on_turns_off_on_the_first_press():
+    from pyxelwidgets import Button
+    button = Button(0, 0, 1, 1, mode = Button.Mode.Switch, value = 1.0)
+    button.press(0, 0, 1.0)
+    button.release(0, 0, 0.0)
+    assert button.value == 0.0

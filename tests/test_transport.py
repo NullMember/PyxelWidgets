@@ -521,3 +521,17 @@ def test_sequencer_options_are_checked():
     for options in ({'swing': 40}, {'swing': 80}, {'gate': 0}, {'gate': 1.5}, {'gate_random': -0.1}):
         with pytest.raises(ValueError):
             Sequencer(0, 0, 4, 1, **options)
+
+
+def test_every_follows_a_changing_rate():
+    # A widget's rate read on each call: a link or formula changing it changes the calls
+    transport = Transport(sync = True, ppq = 24)
+    rate = ['1/16']
+    calls = []
+    transport.every(lambda: rate[0], lambda count: calls.append((count, transport.tick)))
+    transport.play()
+    pulses(transport, 13)
+    rate[0] = '1/8'
+    pulses(transport, 24)
+    # 16ths at 0, 6, 12; then 8th notes counted from the start: number 2 at 24, 3 at 36
+    assert calls == [(0, 0), (1, 6), (2, 12), (2, 24), (3, 36)]
