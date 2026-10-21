@@ -2343,7 +2343,7 @@ other software and `link` lets widgets change each other's options
 Devices' control lights, LED rings and screens show what their controls
 do: a bound control's widget (its color or value; a screen shows the
 widget's name and value for `value_time` seconds after its control
-moves), a held button lights up, and `light`/`screen` give links a
+moves, unless a link of the widget writes to that screen), a held button lights up, and `light`/`screen` give links a
 control's light color and a screen's text to set.
 
 `lock` is held while processing input and rendering. Hold it when changing
@@ -3319,8 +3319,8 @@ switches them), shown as an 8x2 grid: the bottom row is the first bank, the
 top row the second, so a frame lights both banks and the pads show the bank
 selected on the device.
 
-Written from the messages Ableton Live's own MiniLab scripts send; not tried
-on hardware yet.
+Written from the messages Ableton Live's own MiniLab scripts send. The
+MiniLab 3 was tried on the author's (2026-10-22); the mkII hasn't been.
 
 ### `MiniLabMK2` (_MiniLab)
 
@@ -3343,18 +3343,30 @@ Members: `Encoder_0`, `Encoder_1`, `Encoder_2`, `Encoder_3`, `Encoder_4`, `Encod
 
 ### `MiniLab3` (_MiniLab)
 
-MiniLab 3 in DAW mode: 16 RGB pads (two banks of 8), 8 knobs, 4 faders and
-the clickable display encoder. Select the DAW program on the device; Shift
-with pads 1-5 are the Loop, Stop, Play, Record and Tap buttons.
-`Screen` shows two lines (`set_screen`, or `show_text`) until the
-device draws over them (e.g. when its own controls move).
+```python
+MiniLab3(**kwargs)
+```
 
-- **`set_daw_mode(enabled: bool)`**
+MiniLab 3 in its DAW program: 16 RGB pads (two banks of 8), 8 knobs, 4
+faders and the clickable display encoder. Pick the DAW program on the
+device (`daw` tells whether it's on; `warning` says so while it isn't):
+the pads' lights, the screen and the Shift buttons only work there, and
+loading it shows everything again. Shift with pads 4-8 are the Loop, Stop,
+Play, Record and Tap buttons, lit while Shift is held. `Screen` shows two
+lines (`set_screen`, or `show_text`) until the device draws over them
+(e.g. when its own controls move). The knobs are endless: `set_ring`
+sets the value they go on from, so a bound knob turns from its widget's value.
+
+- **`set_daw_mode(enabled: bool)`**: Tell the DAW program a host is there (or gone); the program itself is picked on the device.
+- **`request_program()`**: Ask which program is on: the answer sets `daw`.
 - **`show_text(top: str, bottom: str = '')`**: Show two lines (10 and 18 characters) on the screen until the device draws over them.
 - **`send_screen(name: str, lines: tuple)`**
+- **`send_control(name: str, value)`**
+- **`send_ring(name: str, value: float)`**
 - **`on_connect()`**
 - **`on_disconnect()`**
 - **`send_pixel(x: int, y: int, value)`**
+- **`decode(midi: list)`**
 - **`decode_control(channel: int, number: int, value: int)`**
 
 #### `Controls` (Enum)

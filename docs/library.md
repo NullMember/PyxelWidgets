@@ -261,7 +261,10 @@ play/toggle while the transport plays. A held button that nothing lights
 shows `surface.held_color` (white). Knobs with an LED ring (APC40 MK2) show
 their widget's value. Devices with a screen (MiniLab 3, Launchkey MK3 49/61/88)
 show a moved control's widget and value for `surface.value_time` seconds
-(1.5). `Device.describe()` lists `lights`, `rings` and `screens`.
+(1.5), unless a link of that widget writes to the screen (e.g. a tempo
+fader writing `Tempo\n{round(60 + value * 120)} bpm`). `Device.describe()`
+lists `lights`, `rings` and `screens`; on a MiniLab 3 the "rings" are the
+endless knobs' values, so a knob goes on from its widget's value.
 
 Links set a light or a screen's text like a widget's option:
 

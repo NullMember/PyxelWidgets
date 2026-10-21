@@ -28,7 +28,7 @@ through it and makes a report to attach to an
 | Akai APC40 MK2 | `akai.APC40MK2` | 8x5 | RGB | knobs, faders, buttons, encoders | Untested |
 | Ableton Push 2 | `ableton.Push2` | 8x8 | RGB | buttons, encoders, pressure | Untested |
 | Arturia MiniLab mkII | `arturia.MiniLabMK2` | 8x2 | 8 colors | encoders | Untested, new |
-| Arturia MiniLab 3 | `arturia.MiniLab3` | 8x2 | RGB | knobs, faders, buttons, encoders, screen | Untested, new |
+| Arturia MiniLab 3 | `arturia.MiniLab3` | 8x2 (both pad banks) | RGB | knobs, faders, buttons, encoder, screen | **Tested** (DAW program) |
 | PreSonus ATOM | `presonus.ATOM` | 4x4 | RGB | buttons, encoders | Untested |
 
 "Untested" drivers send what the 2022 drivers did, except where a fix was
@@ -46,8 +46,14 @@ Known questions for owners:
 - **Pressure** (Launchpad X, Pro, Pro MK3, Push 2): decoded from the manuals.
 - **Arturia MiniLab mkII:** the encoder clicks aren't read yet. Disconnecting
   leaves the controller's settings changed (pick a memory on it to restore).
-- **Arturia MiniLab 3:** the port name is a guess (`Minilab3 MIDI`). Pads send
-  their notes only in its DAW program.
+- **Arturia MiniLab 3** (tried 2026-10-22; `examples/MiniLab3` uses every
+  control): pick the **DAW program** on the device, PyxelWidgets can't switch
+  to it (a warning says so until you do; loading it shows everything again).
+  Ports are `Minilab3 MIDI` (used), `DIN THRU`, `MCU/HUI` and `ALV` (Analog
+  Lab). Shift + pads 4-8 are Loop, Stop, Play, Record, Tap (lit while Shift is
+  held, velocity sensitive); the knobs are endless and go on from their bound
+  widget's value; the screen shows two lines and is drawn again after Shift.
+  Not tried: Shift + encoder click, pad pressure.
 - **Control lights, rings and screens** (2026-10-21, from the makers'
   documents, untested): APC Mini track/scene buttons (on/off), APC40 MK2
   buttons (scene buttons in color) and knob rings, Push 2 buttons (white
@@ -56,7 +62,7 @@ Known questions for owners:
   buttons (Bank, Preset and Play colored on channels 2-4, as a reverse
   engineered library does it), Launch Control XL Device/Mute/Solo/Record
   Arm/arrows (LED indices 40-47), Launchkey MK3 screen (SysEx `04`/`06`;
-  `0x12` for the 88), MiniLab 3 screen. Launchkey MK1-MK3 buttons aren't read
+  `0x12` for the 88). The MiniLab 3's were tried (above). Launchkey MK1-MK3 buttons aren't read
   yet, so they have no lights.
 
 ## Without hardware
