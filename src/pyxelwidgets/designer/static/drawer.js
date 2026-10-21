@@ -185,6 +185,7 @@ function findProblems() {
     if (status && !status.connected && status.error && !device.type.startsWith('virtual.')) {
       problems.push(['warning', `${deviceInfo(device)?.model || device.type}: ${status.error}`, () => select({ kind: 'device', index })]);
     }
+    if (status?.warning) problems.push(['warning', `${deviceInfo(device)?.model || device.type}: ${status.warning}`, () => select({ kind: 'device', index })]);
   });
   const { width, height } = state.layout.surface;
   for (const { widget, path } of allWidgets()) {
