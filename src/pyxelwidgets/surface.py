@@ -39,7 +39,7 @@ class Surface(pyxelwidgets.events.Emitter):
     Devices' control lights, LED rings and screens show what their controls
     do: a bound control's widget (its color or value; a screen shows the
     widget's name and value for ``value_time`` seconds after its control
-    moves), a held button lights up, and ``light``/``screen`` give links a
+    moves, unless a link of the widget writes to that screen), a held button lights up, and ``light``/``screen`` give links a
     control's light color and a screen's text to set.
 
     ``lock`` is held while processing input and rendering. Hold it when changing
@@ -368,7 +368,9 @@ class Surface(pyxelwidgets.events.Emitter):
         if not getattr(device, 'screens', None) or self.value_time <= 0:
             return
         binding = next((b for b in self.bindings if b.device is device and b.control == event.control), None)
-        if binding is not None:
+        # A widget with a link writing to the device's screen shows what the link writes instead
+        if binding is not None and not any(link.widget is binding.target and isinstance(link.target, DeviceScreen)
+                                           and (link.target.device is device or link.target.device == name) for link in self.links):
             self._showing[name] = (binding, time.monotonic() + self.value_time)
 
     @staticmethod
