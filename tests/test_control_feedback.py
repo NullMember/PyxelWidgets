@@ -10,7 +10,7 @@ from pyxelwidgets.devices.akai import APC40MK2, APCMini
 from pyxelwidgets.devices.arturia import MiniLab3
 from pyxelwidgets.devices.novation import LaunchControlXL, LaunchkeyMK3, LaunchpadMiniMK3
 from pyxelwidgets.devices.presonus import ATOM
-from pyxelwidgets.events import ControlChanged, ControlPressed, ControlReleased
+from pyxelwidgets.events import Changed, ControlChanged, ControlPressed, ControlReleased, ControlTurned
 
 
 class Output:
@@ -212,3 +212,48 @@ def test_python_code_for_device_link_targets():
     assert "button_1_light = surface.light(apc_mini, 'Button_1')" in code
     assert "surface.link(cutoff, screen, 'text', 'Cutoff', on = Changed)" in code
     assert "surface.link(cutoff, button_1_light, 'light', Colors.Red, on = Changed)" in code
+
+
+def test_minilab3_as_tried_on_hardware():
+    from pyxelwidgets.events import ControlTurned, Event
+    lab = device(MiniLab3)
+    seen = []
+    lab.on(Event, seen.append)
+    # The program: asked for when connecting (1 = DAW), reported when loaded (2 = DAW)
+    lab.decode([0xF0, 0, 0x20, 0x6B, 0x7F, 0x42, 2, 0, 0x40, 0x01, 0x00, 0xF7])
+    assert lab.daw is False and 'DAW program' in lab.warning
+    lab.set_screen('Screen', ['Hi'])
+    sent(lab)
+    lab.decode([0xF0, 0, 0x20, 0x6B, 0x7F, 0x42, 2, 0, 0x40, 0x62, 0x02, 0xF7])
+    assert lab.daw is True and lab.warning is None
+    assert sent(lab) == [[0xF0, 0, 0x20, 0x6B, 0x7F, 0x42, 2, 0, 0x40, 0x6A, 0x21, 0xF7]]
+    assert lab._texts == {}                      # everything is sent again
+    # The encoder clicks 65 one way, 62 the other
+    for value in (0x41, 0x3E, 0x3F, 0x40, 0x3C):
+        lab.decode([0xB0, 28, value])
+    assert [e.delta for e in seen if isinstance(e, ControlTurned)] == [1, -1, -1, -3]
+    # Shift + pad buttons send their velocity; letting go of Shift shows the screen again
+    lab.decode([0xB0, 109, 0x51])
+    assert [e.velocity for e in seen if isinstance(e, ControlPressed)] == [0x51 / 127]
+    lab.set_screen('Screen', ['Tempo', '120 bpm'])
+    sent(lab)
+    lab.decode([0xB0, 27, 0x7F])
+    lab.decode([0xB0, 27, 0])
+    assert b'Tempo' in bytes(sent(lab)[0])
+    # Shift + pad lights and knob values
+    lab.set_control('Play', Colors.Lime)
+    lab.set_ring('Knob_0', 100 / 127)
+    assert sent(lab) == [[0xF0, 0, 0x20, 0x6B, 0x7F, 0x42, 2, 2, 0x16, 89, 0, 127, 0, 0xF7],
+                         [0xF0, 0, 0x20, 0x6B, 0x7F, 0x42, 0x21, 0x10, 0, 7, 0, 100, 0xF7]]
+
+
+def test_a_screen_link_replaces_the_moved_control_popup():
+    lab = device(MiniLab3)
+    surface = surface_with(lab, 8, 2)
+    tempo = surface.add(Fader(0, 0, 1, 2, name = 'tempo'))
+    surface.bind(lab, 'Display', tempo)
+    from pyxelwidgets.expression import Template
+    surface.link(tempo, surface.screen(lab), 'text', Template('Tempo {round(60 + value * 120)}', {}), on = Changed)
+    lab.emit(ControlTurned(lab, 'Display', 32))
+    surface.update()
+    assert lab._texts['Screen'] == ('Tempo 120', '')

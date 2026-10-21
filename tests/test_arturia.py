@@ -63,9 +63,10 @@ def test_mk2_colors_and_encoders():
 def test_minilab3_daw_mode_leds_and_screen():
     pad, seen = device(MiniLab3)
     pad.on_connect()
-    assert pad._midi_output.messages[-1] == HEADER + [0x02, 0x00, 0x40, 0x6A, 0x21, 0xF7]
+    # Connected, then which program is on
+    assert pad._midi_output.messages == [HEADER + [0x02, 0x00, 0x40, 0x6A, 0x21, 0xF7], HEADER + [0x01, 0x00, 0x40, 0x01, 0xF7]]
     pad.fill(Colors.Red)
-    leds = {m[9]: m[10:13] for m in pad._midi_output.messages[1:]}
+    leds = {m[9]: m[10:13] for m in pad._midi_output.messages[2:]}
     assert sorted(leds) == list(range(0x34, 0x3C)) + list(range(0x44, 0x4C))
     assert leds[0x34] == [127, 0, 0]
     pad.show_text('Hello', 'World')
@@ -78,7 +79,7 @@ def test_minilab3_controls():
     pad.decode([0xB0, 86, 127])
     pad.decode([0xB0, 31, 0])
     pad.decode([0xB0, 28, 66])
-    pad.decode([0xB0, 28, 63])
+    pad.decode([0xB0, 28, 62])       # one click back, as the author's sends it
     pad.decode([0xB0, 107, 127])
     pad.decode([0xB0, 107, 0])
     assert [type(e) for e in seen] == [ControlChanged, ControlChanged, ControlTurned, ControlTurned, ControlPressed, ControlReleased]
