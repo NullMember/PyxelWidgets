@@ -291,8 +291,23 @@ function numberInput(label, value, onchange, attrs = {}) {
 
 // Options most layouts leave alone: shown under "More options"
 // Mackie Control's plug-in mode buttons too
+// Options people rarely set by hand, under "More options": starting states that playing and links change
+// (values, steps, view positions), feel tweaks with good defaults, and input details
 export const ADVANCED = new Set(['visible', 'propagation', 'interactive', 'held_time', 'double_press_time',
-  'plugin_button', 'channel_button', 'next_page', 'previous_page']);
+  'plugin_button', 'channel_button', 'next_page', 'previous_page',
+  'value', 'selected', 'step', 'bar', 'column', 'running', 'velocity_curve', 'fixed_velocity', 'velocity_random',
+  'gate_random', 'current_active_color', 'blink_rate', 'resolution', 'slew', 'hold', 'falloff', 'repeat', 'rest',
+  'taps', 'timeout', 'reseed', 'density', 'max_notes', 'send', 'save']);
+
+// The same for one widget type only: elsewhere these are main options (Pages' page, a Stepper's range)
+const ADVANCED_BY_TYPE = {
+  Sequencer: new Set(['page', 'row']), PianoRoll: new Set(['page']), Tracker: new Set(['page']),
+  TapTempo: new Set(['minimum', 'maximum']), Pages: new Set(['background']),
+};
+
+export function isAdvanced(target, name) {
+  return ADVANCED.has(name) || !!ADVANCED_BY_TYPE[target?.type]?.has(name);
+}
 
 // A collapsible group of the properties panel; open or closed is remembered in this browser
 export function group(key, title, children, { count = null, open = true } = {}) {
@@ -310,8 +325,8 @@ export function group(key, title, children, { count = null, open = true } = {}) 
 
 // Option fields, the rarely changed ones folded away (open when one of them is set)
 export function optionFields(target, options, prefix = 'option') {
-  const main = options.filter((option) => !ADVANCED.has(option.name));
-  const more = options.filter((option) => ADVANCED.has(option.name));
+  const main = options.filter((option) => !isAdvanced(target, option.name));
+  const more = options.filter((option) => isAdvanced(target, option.name));
   const changed = more.some((option) => option.name in (target.options || {}));
   return [
     main.flatMap((option) => optionField(target, option, prefix)),
@@ -393,9 +408,9 @@ export function renderProperties() {
           type: 'text', id: 'widget-name', value: widget.name,
           onchange: (e) => renameWidget(widget, e.target.value),
         })),
-        optionFields(widget, (info?.options || []).filter((option) => !ADVANCED.has(option.name))),
+        optionFields(widget, (info?.options || []).filter((option) => !isAdvanced(widget, option.name))),
         info?.bindable ? bindingFields(widget) : null),
-      optionFields(widget, (info?.options || []).filter((option) => ADVANCED.has(option.name))),
+      optionFields(widget, (info?.options || []).filter((option) => isAdvanced(widget, option.name))),
       widget.type === 'Group' ? el('div', { class: 'actions' }, el('button', { onclick: () => ungroup(path), title: 'Move its widgets out (Ctrl+Shift+G)' }, 'Ungroup')) : null,
       widget.type === 'Pages' ? [
         el('p', { class: 'hint' }, `Page ${currentPage(widget) + 1} of ${widget.widgets?.length || 0} shown. Widgets added from the palette go on it; select a widget in Layers to show its page.`),
@@ -436,8 +451,8 @@ export function renderProperties() {
         el('label', {}, 'height', el('input', { type: 'number', value: height, disabled: true }))),
       el('div', { class: 'fields' },
         info?.ports?.length ? [port('input', 'input port'), port('output', 'output port')] : null,
-        optionFields(device, (info?.options || []).filter((option) => !ADVANCED.has(option.name)))),
-      optionFields(device, (info?.options || []).filter((option) => ADVANCED.has(option.name))),
+        optionFields(device, (info?.options || []).filter((option) => !isAdvanced(device, option.name)))),
+      optionFields(device, (info?.options || []).filter((option) => isAdvanced(device, option.name))),
       deviceRules(selection.index),
       el('div', { class: 'actions' },
         device.type.startsWith('virtual.') || device.type.startsWith('web.') ? null : el('button', {

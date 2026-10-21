@@ -5,7 +5,7 @@ import { trackValueSource } from './drawer.js';
 import { change, setStatus } from './history.js';
 import { render } from './board.js';
 import { learnButton, learnedMessage } from './learn.js';
-import { hardwareDot, connectButton, select, optionField, ADVANCED, group, optionFields, isFormula, formulaControl, formulaSources, portPicker } from './properties.js';
+import { hardwareDot, connectButton, select, optionField, isAdvanced, group, optionFields, isFormula, formulaControl, formulaSources, portPicker } from './properties.js';
 import { ownerEvents, ruleLabel, controlField, controlOwner } from './model.js';
 
 export const INTEGER_SOURCES = new Set(['x', 'y', 'cell', 'note', 'step', 'row', 'column', 'page', 'delta']);
@@ -118,8 +118,8 @@ export function outputProperties(panel, index) {
         },
       })),
       info?.midi ? [port('virtual', 'virtual port', 'none'), port('input', 'input port', 'none'), port('output', 'output port', 'none')] : null,
-      (info?.options || []).filter((option) => !ADVANCED.has(option.name)).flatMap((option) => optionField(output, option))),
-    optionFields(output, (info?.options || []).filter((option) => ADVANCED.has(option.name))),
+      (info?.options || []).filter((option) => !isAdvanced(output, option.name)).flatMap((option) => optionField(output, option))),
+    optionFields(output, (info?.options || []).filter((option) => isAdvanced(output, option.name))),
     el('p', { class: 'hint note' }, used.length
       ? `${used.length} message${used.length > 1 ? 's' : ''} from ${[...new Set(used.map(ruleLabel))].join(', ')}.`
       : 'Select a widget and add a message to send its events here.'),
