@@ -1,0 +1,2842 @@
+{
+  "format": "pyxelwidgets.layout",
+  "version": 3,
+  "surface": {
+    "width": 9,
+    "height": 11
+  },
+  "transport": {
+    "bpm": 120,
+    "signature": [
+      4,
+      4
+    ]
+  },
+  "devices": [
+    {
+      "type": "novation.LaunchpadMiniMK3",
+      "x": 0,
+      "y": 0,
+      "options": {}
+    },
+    {
+      "type": "arturia.MiniLab3",
+      "x": 0,
+      "y": 9,
+      "options": {}
+    }
+  ],
+  "outputs": [
+    {
+      "name": "midi",
+      "type": "midi_port.MidiPort",
+      "virtual": "PyxelWidgets Groovebox",
+      "options": {}
+    }
+  ],
+  "bindings": [
+    {
+      "device": 1,
+      "control": "Play",
+      "action": "transport.toggle"
+    },
+    {
+      "device": 1,
+      "control": "Display_Press",
+      "action": "surface.reveal"
+    },
+    {
+      "device": 1,
+      "control": "Shift_Display_Press",
+      "action": "transport.rewind"
+    },
+    {
+      "device": 1,
+      "control": "Display",
+      "widget": "tempo",
+      "options": {
+        "step": 0.008333333333333333
+      }
+    },
+    {
+      "device": 1,
+      "control": "Shift_Display",
+      "widget": "tempo",
+      "options": {
+        "step": 0.08333333333333333
+      }
+    },
+    {
+      "device": 1,
+      "control": "Knob_0",
+      "widget": "kick_level",
+      "options": {
+        "takeover": "Jump"
+      }
+    },
+    {
+      "device": 1,
+      "control": "Knob_1",
+      "widget": "snare_level",
+      "options": {
+        "takeover": "Jump"
+      }
+    },
+    {
+      "device": 1,
+      "control": "Knob_2",
+      "widget": "clap_level",
+      "options": {
+        "takeover": "Jump"
+      }
+    },
+    {
+      "device": 1,
+      "control": "Knob_3",
+      "widget": "chat_level",
+      "options": {
+        "takeover": "Jump"
+      }
+    },
+    {
+      "device": 1,
+      "control": "Knob_4",
+      "widget": "ohat_level",
+      "options": {
+        "takeover": "Jump"
+      }
+    },
+    {
+      "device": 1,
+      "control": "Knob_5",
+      "widget": "perc_level",
+      "options": {
+        "takeover": "Jump"
+      }
+    },
+    {
+      "device": 1,
+      "control": "Knob_6",
+      "widget": "bass_level",
+      "options": {
+        "takeover": "Jump"
+      }
+    },
+    {
+      "device": 1,
+      "control": "Knob_7",
+      "widget": "lead_level",
+      "options": {
+        "takeover": "Jump"
+      }
+    }
+  ],
+  "links": [
+    {
+      "widget": "kick_vel",
+      "on": "Pressed",
+      "target": "kick",
+      "action": "set_velocity",
+      "value": {
+        "choose": [
+          0.25,
+          0.5,
+          0.75,
+          1.0
+        ],
+        "by": "x"
+      }
+    },
+    {
+      "widget": "kick_chance",
+      "on": "Pressed",
+      "target": "kick",
+      "action": "set_probability",
+      "value": {
+        "choose": [
+          0.5,
+          1.0
+        ],
+        "by": "x"
+      }
+    },
+    {
+      "widget": "kick_ratchet",
+      "on": "Pressed",
+      "target": "kick",
+      "action": "set_ratchets",
+      "value": {
+        "choose": [
+          1,
+          2
+        ],
+        "by": "x"
+      }
+    },
+    {
+      "widget": "kick_clear",
+      "on": "Pressed",
+      "target": "kick",
+      "action": "reset"
+    },
+    {
+      "widget": "snare_vel",
+      "on": "Pressed",
+      "target": "snare",
+      "action": "set_velocity",
+      "value": {
+        "choose": [
+          0.25,
+          0.5,
+          0.75,
+          1.0
+        ],
+        "by": "x"
+      }
+    },
+    {
+      "widget": "snare_chance",
+      "on": "Pressed",
+      "target": "snare",
+      "action": "set_probability",
+      "value": {
+        "choose": [
+          0.5,
+          1.0
+        ],
+        "by": "x"
+      }
+    },
+    {
+      "widget": "snare_ratchet",
+      "on": "Pressed",
+      "target": "snare",
+      "action": "set_ratchets",
+      "value": {
+        "choose": [
+          1,
+          2
+        ],
+        "by": "x"
+      }
+    },
+    {
+      "widget": "snare_clear",
+      "on": "Pressed",
+      "target": "snare",
+      "action": "reset"
+    },
+    {
+      "widget": "clap_vel",
+      "on": "Pressed",
+      "target": "clap",
+      "action": "set_velocity",
+      "value": {
+        "choose": [
+          0.25,
+          0.5,
+          0.75,
+          1.0
+        ],
+        "by": "x"
+      }
+    },
+    {
+      "widget": "clap_chance",
+      "on": "Pressed",
+      "target": "clap",
+      "action": "set_probability",
+      "value": {
+        "choose": [
+          0.5,
+          1.0
+        ],
+        "by": "x"
+      }
+    },
+    {
+      "widget": "clap_ratchet",
+      "on": "Pressed",
+      "target": "clap",
+      "action": "set_ratchets",
+      "value": {
+        "choose": [
+          1,
+          2
+        ],
+        "by": "x"
+      }
+    },
+    {
+      "widget": "clap_clear",
+      "on": "Pressed",
+      "target": "clap",
+      "action": "reset"
+    },
+    {
+      "widget": "chat_vel",
+      "on": "Pressed",
+      "target": "chat",
+      "action": "set_velocity",
+      "value": {
+        "choose": [
+          0.25,
+          0.5,
+          0.75,
+          1.0
+        ],
+        "by": "x"
+      }
+    },
+    {
+      "widget": "chat_chance",
+      "on": "Pressed",
+      "target": "chat",
+      "action": "set_probability",
+      "value": {
+        "choose": [
+          0.5,
+          1.0
+        ],
+        "by": "x"
+      }
+    },
+    {
+      "widget": "chat_ratchet",
+      "on": "Pressed",
+      "target": "chat",
+      "action": "set_ratchets",
+      "value": {
+        "choose": [
+          1,
+          2
+        ],
+        "by": "x"
+      }
+    },
+    {
+      "widget": "chat_clear",
+      "on": "Pressed",
+      "target": "chat",
+      "action": "reset"
+    },
+    {
+      "widget": "ohat_vel",
+      "on": "Pressed",
+      "target": "ohat",
+      "action": "set_velocity",
+      "value": {
+        "choose": [
+          0.25,
+          0.5,
+          0.75,
+          1.0
+        ],
+        "by": "x"
+      }
+    },
+    {
+      "widget": "ohat_chance",
+      "on": "Pressed",
+      "target": "ohat",
+      "action": "set_probability",
+      "value": {
+        "choose": [
+          0.5,
+          1.0
+        ],
+        "by": "x"
+      }
+    },
+    {
+      "widget": "ohat_ratchet",
+      "on": "Pressed",
+      "target": "ohat",
+      "action": "set_ratchets",
+      "value": {
+        "choose": [
+          1,
+          2
+        ],
+        "by": "x"
+      }
+    },
+    {
+      "widget": "ohat_clear",
+      "on": "Pressed",
+      "target": "ohat",
+      "action": "reset"
+    },
+    {
+      "widget": "perc_vel",
+      "on": "Pressed",
+      "target": "perc",
+      "action": "set_velocity",
+      "value": {
+        "choose": [
+          0.25,
+          0.5,
+          0.75,
+          1.0
+        ],
+        "by": "x"
+      }
+    },
+    {
+      "widget": "perc_chance",
+      "on": "Pressed",
+      "target": "perc",
+      "action": "set_probability",
+      "value": {
+        "choose": [
+          0.5,
+          1.0
+        ],
+        "by": "x"
+      }
+    },
+    {
+      "widget": "perc_ratchet",
+      "on": "Pressed",
+      "target": "perc",
+      "action": "set_ratchets",
+      "value": {
+        "choose": [
+          1,
+          2
+        ],
+        "by": "x"
+      }
+    },
+    {
+      "widget": "perc_clear",
+      "on": "Pressed",
+      "target": "perc",
+      "action": "reset"
+    },
+    {
+      "widget": "bass_down",
+      "on": "Pressed",
+      "target": "bass",
+      "option": "octave",
+      "change": "Add",
+      "value": -1,
+      "min": 0,
+      "max": 7
+    },
+    {
+      "widget": "bass_up",
+      "on": "Pressed",
+      "target": "bass",
+      "option": "octave",
+      "change": "Add",
+      "value": 1,
+      "min": 0,
+      "max": 7
+    },
+    {
+      "widget": "bass_back",
+      "on": "Pressed",
+      "target": "bass",
+      "action": "previous_page"
+    },
+    {
+      "widget": "bass_forward",
+      "on": "Pressed",
+      "target": "bass",
+      "action": "next_page"
+    },
+    {
+      "widget": "bass_clear",
+      "on": "Pressed",
+      "target": "bass",
+      "action": "reset"
+    },
+    {
+      "widget": "lead_down",
+      "on": "Pressed",
+      "target": "lead",
+      "option": "octave",
+      "change": "Add",
+      "value": -1,
+      "min": 0,
+      "max": 7
+    },
+    {
+      "widget": "lead_up",
+      "on": "Pressed",
+      "target": "lead",
+      "option": "octave",
+      "change": "Add",
+      "value": 1,
+      "min": 0,
+      "max": 7
+    },
+    {
+      "widget": "lead_back",
+      "on": "Pressed",
+      "target": "lead",
+      "action": "previous_page"
+    },
+    {
+      "widget": "lead_forward",
+      "on": "Pressed",
+      "target": "lead",
+      "action": "next_page"
+    },
+    {
+      "widget": "lead_clear",
+      "on": "Pressed",
+      "target": "lead",
+      "action": "reset"
+    },
+    {
+      "widget": "select",
+      "on": "Pressed",
+      "target": "tracks",
+      "option": "page",
+      "value": {
+        "source": "cell"
+      }
+    },
+    {
+      "widget": "play",
+      "on": "Pressed",
+      "action": "transport.toggle"
+    },
+    {
+      "widget": "stop",
+      "on": "Pressed",
+      "action": "transport.stop"
+    },
+    {
+      "widget": "stop",
+      "on": "Pressed",
+      "action": "transport.rewind"
+    },
+    {
+      "widget": "tap",
+      "on": "TempoTapped",
+      "action": "transport.tempo",
+      "value": {
+        "source": "bpm"
+      }
+    },
+    {
+      "widget": "tap",
+      "on": "TempoTapped",
+      "target": "tempo",
+      "option": "value",
+      "value": "{(bpm - 60) / 120}"
+    },
+    {
+      "widget": "tap",
+      "on": "TempoTapped",
+      "target": {
+        "device": 1,
+        "control": "Screen"
+      },
+      "option": "text",
+      "value": "Tapped\n{round(bpm)} bpm"
+    },
+    {
+      "widget": "labselect",
+      "on": "Pressed",
+      "target": "tracks",
+      "option": "page",
+      "value": {
+        "source": "cell"
+      }
+    },
+    {
+      "widget": "mute_kick",
+      "on": "Changed",
+      "target": "labmute_kick",
+      "option": "value",
+      "value": {
+        "source": "value"
+      }
+    },
+    {
+      "widget": "labmute_kick",
+      "on": "Changed",
+      "target": "mute_kick",
+      "option": "value",
+      "value": {
+        "source": "value"
+      }
+    },
+    {
+      "widget": "mute_snare",
+      "on": "Changed",
+      "target": "labmute_snare",
+      "option": "value",
+      "value": {
+        "source": "value"
+      }
+    },
+    {
+      "widget": "labmute_snare",
+      "on": "Changed",
+      "target": "mute_snare",
+      "option": "value",
+      "value": {
+        "source": "value"
+      }
+    },
+    {
+      "widget": "mute_clap",
+      "on": "Changed",
+      "target": "labmute_clap",
+      "option": "value",
+      "value": {
+        "source": "value"
+      }
+    },
+    {
+      "widget": "labmute_clap",
+      "on": "Changed",
+      "target": "mute_clap",
+      "option": "value",
+      "value": {
+        "source": "value"
+      }
+    },
+    {
+      "widget": "mute_chat",
+      "on": "Changed",
+      "target": "labmute_chat",
+      "option": "value",
+      "value": {
+        "source": "value"
+      }
+    },
+    {
+      "widget": "labmute_chat",
+      "on": "Changed",
+      "target": "mute_chat",
+      "option": "value",
+      "value": {
+        "source": "value"
+      }
+    },
+    {
+      "widget": "mute_ohat",
+      "on": "Changed",
+      "target": "labmute_ohat",
+      "option": "value",
+      "value": {
+        "source": "value"
+      }
+    },
+    {
+      "widget": "labmute_ohat",
+      "on": "Changed",
+      "target": "mute_ohat",
+      "option": "value",
+      "value": {
+        "source": "value"
+      }
+    },
+    {
+      "widget": "mute_perc",
+      "on": "Changed",
+      "target": "labmute_perc",
+      "option": "value",
+      "value": {
+        "source": "value"
+      }
+    },
+    {
+      "widget": "labmute_perc",
+      "on": "Changed",
+      "target": "mute_perc",
+      "option": "value",
+      "value": {
+        "source": "value"
+      }
+    },
+    {
+      "widget": "mute_bass",
+      "on": "Changed",
+      "target": "labmute_bass",
+      "option": "value",
+      "value": {
+        "source": "value"
+      }
+    },
+    {
+      "widget": "labmute_bass",
+      "on": "Changed",
+      "target": "mute_bass",
+      "option": "value",
+      "value": {
+        "source": "value"
+      }
+    },
+    {
+      "widget": "mute_lead",
+      "on": "Changed",
+      "target": "labmute_lead",
+      "option": "value",
+      "value": {
+        "source": "value"
+      }
+    },
+    {
+      "widget": "labmute_lead",
+      "on": "Changed",
+      "target": "mute_lead",
+      "option": "value",
+      "value": {
+        "source": "value"
+      }
+    },
+    {
+      "device": 1,
+      "control": "Loop",
+      "on": "ControlPressed",
+      "target": "lab",
+      "option": "page",
+      "value": 0
+    },
+    {
+      "widget": "lab",
+      "on": "PageChanged",
+      "target": {
+        "device": 1,
+        "control": "Loop"
+      },
+      "option": "light",
+      "value": {
+        "if": {
+          "source": "page"
+        },
+        "op": "==",
+        "to": 0,
+        "then": "#00ff00",
+        "else": "#00000000"
+      }
+    },
+    {
+      "device": 1,
+      "control": "Stop",
+      "on": "ControlPressed",
+      "target": "lab",
+      "option": "page",
+      "value": 1
+    },
+    {
+      "widget": "lab",
+      "on": "PageChanged",
+      "target": {
+        "device": 1,
+        "control": "Stop"
+      },
+      "option": "light",
+      "value": {
+        "if": {
+          "source": "page"
+        },
+        "op": "==",
+        "to": 1,
+        "then": "#ffa000",
+        "else": "#00000000"
+      }
+    },
+    {
+      "device": 1,
+      "control": "Record",
+      "on": "ControlPressed",
+      "target": "lab",
+      "option": "page",
+      "value": 2
+    },
+    {
+      "widget": "lab",
+      "on": "PageChanged",
+      "target": {
+        "device": 1,
+        "control": "Record"
+      },
+      "option": "light",
+      "value": {
+        "if": {
+          "source": "page"
+        },
+        "op": "==",
+        "to": 2,
+        "then": "#ff00ff",
+        "else": "#00000000"
+      }
+    },
+    {
+      "widget": "lab",
+      "on": "PageChanged",
+      "target": {
+        "device": 1,
+        "control": "Screen"
+      },
+      "option": "text",
+      "value": {
+        "choose": [
+          "Tracks\nselect / mute",
+          "Drums\n16 pads",
+          "Key\nroot / scale"
+        ],
+        "by": "page"
+      }
+    },
+    {
+      "device": 1,
+      "control": "Tap",
+      "on": "ControlPressed",
+      "target": "tap",
+      "action": "tap"
+    },
+    {
+      "widget": "tempo",
+      "on": "Changed",
+      "action": "transport.tempo",
+      "value": {
+        "source": "value"
+      },
+      "min": 60,
+      "max": 180
+    },
+    {
+      "widget": "tempo",
+      "on": "Changed",
+      "target": {
+        "device": 1,
+        "control": "Screen"
+      },
+      "option": "text",
+      "value": "Tempo\n{round(60 + value * 120)} bpm"
+    },
+    {
+      "device": 1,
+      "control": "Knob_0",
+      "on": "ControlChanged",
+      "target": "tracks",
+      "option": "page",
+      "value": 0
+    },
+    {
+      "widget": "kick_level",
+      "on": "Changed",
+      "target": {
+        "device": 1,
+        "control": "Screen"
+      },
+      "option": "text",
+      "value": "Kick\nLevel {round(value * 100)}%"
+    },
+    {
+      "device": 1,
+      "control": "Knob_1",
+      "on": "ControlChanged",
+      "target": "tracks",
+      "option": "page",
+      "value": 1
+    },
+    {
+      "widget": "snare_level",
+      "on": "Changed",
+      "target": {
+        "device": 1,
+        "control": "Screen"
+      },
+      "option": "text",
+      "value": "Snare\nLevel {round(value * 100)}%"
+    },
+    {
+      "device": 1,
+      "control": "Knob_2",
+      "on": "ControlChanged",
+      "target": "tracks",
+      "option": "page",
+      "value": 2
+    },
+    {
+      "widget": "clap_level",
+      "on": "Changed",
+      "target": {
+        "device": 1,
+        "control": "Screen"
+      },
+      "option": "text",
+      "value": "Clap\nLevel {round(value * 100)}%"
+    },
+    {
+      "device": 1,
+      "control": "Knob_3",
+      "on": "ControlChanged",
+      "target": "tracks",
+      "option": "page",
+      "value": 3
+    },
+    {
+      "widget": "chat_level",
+      "on": "Changed",
+      "target": {
+        "device": 1,
+        "control": "Screen"
+      },
+      "option": "text",
+      "value": "Hat\nLevel {round(value * 100)}%"
+    },
+    {
+      "device": 1,
+      "control": "Knob_4",
+      "on": "ControlChanged",
+      "target": "tracks",
+      "option": "page",
+      "value": 4
+    },
+    {
+      "widget": "ohat_level",
+      "on": "Changed",
+      "target": {
+        "device": 1,
+        "control": "Screen"
+      },
+      "option": "text",
+      "value": "Open hat\nLevel {round(value * 100)}%"
+    },
+    {
+      "device": 1,
+      "control": "Knob_5",
+      "on": "ControlChanged",
+      "target": "tracks",
+      "option": "page",
+      "value": 5
+    },
+    {
+      "widget": "perc_level",
+      "on": "Changed",
+      "target": {
+        "device": 1,
+        "control": "Screen"
+      },
+      "option": "text",
+      "value": "Perc\nLevel {round(value * 100)}%"
+    },
+    {
+      "device": 1,
+      "control": "Knob_6",
+      "on": "ControlChanged",
+      "target": "tracks",
+      "option": "page",
+      "value": 6
+    },
+    {
+      "widget": "bass_level",
+      "on": "Changed",
+      "target": {
+        "device": 1,
+        "control": "Screen"
+      },
+      "option": "text",
+      "value": "Bass\nLevel {round(value * 100)}%"
+    },
+    {
+      "device": 1,
+      "control": "Knob_7",
+      "on": "ControlChanged",
+      "target": "tracks",
+      "option": "page",
+      "value": 7
+    },
+    {
+      "widget": "lead_level",
+      "on": "Changed",
+      "target": {
+        "device": 1,
+        "control": "Screen"
+      },
+      "option": "text",
+      "value": "Lead\nLevel {round(value * 100)}%"
+    },
+    {
+      "widget": "tracks",
+      "on": "PageChanged",
+      "target": {
+        "device": 1,
+        "control": "Screen"
+      },
+      "option": "text",
+      "value": {
+        "choose": [
+          "Kick\nLevel {round(kick_level.value * 100)}%",
+          "Snare\nLevel {round(snare_level.value * 100)}%",
+          "Clap\nLevel {round(clap_level.value * 100)}%",
+          "Hat\nLevel {round(chat_level.value * 100)}%",
+          "Open hat\nLevel {round(ohat_level.value * 100)}%",
+          "Perc\nLevel {round(perc_level.value * 100)}%",
+          "Bass\nLevel {round(bass_level.value * 100)}%",
+          "Lead\nLevel {round(lead_level.value * 100)}%"
+        ],
+        "by": "page"
+      }
+    },
+    {
+      "device": 1,
+      "control": "Fader_0",
+      "on": "ControlChanged",
+      "target": "kick",
+      "option": "swing",
+      "value": "{50 + value * 25 if tracks.page == 0 else kick.swing}"
+    },
+    {
+      "device": 1,
+      "control": "Fader_0",
+      "on": "ControlChanged",
+      "target": "snare",
+      "option": "swing",
+      "value": "{50 + value * 25 if tracks.page == 1 else snare.swing}"
+    },
+    {
+      "device": 1,
+      "control": "Fader_0",
+      "on": "ControlChanged",
+      "target": "clap",
+      "option": "swing",
+      "value": "{50 + value * 25 if tracks.page == 2 else clap.swing}"
+    },
+    {
+      "device": 1,
+      "control": "Fader_0",
+      "on": "ControlChanged",
+      "target": "chat",
+      "option": "swing",
+      "value": "{50 + value * 25 if tracks.page == 3 else chat.swing}"
+    },
+    {
+      "device": 1,
+      "control": "Fader_0",
+      "on": "ControlChanged",
+      "target": "ohat",
+      "option": "swing",
+      "value": "{50 + value * 25 if tracks.page == 4 else ohat.swing}"
+    },
+    {
+      "device": 1,
+      "control": "Fader_0",
+      "on": "ControlChanged",
+      "target": "perc",
+      "option": "swing",
+      "value": "{50 + value * 25 if tracks.page == 5 else perc.swing}"
+    },
+    {
+      "device": 1,
+      "control": "Fader_0",
+      "on": "ControlChanged",
+      "target": {
+        "device": 1,
+        "control": "Screen"
+      },
+      "option": "text",
+      "value": "Swing\n{round(50 + value * 25)}%"
+    },
+    {
+      "device": 1,
+      "control": "Fader_1",
+      "on": "ControlChanged",
+      "target": "kick",
+      "option": "gate",
+      "value": "{max(0.05, value) if tracks.page == 0 else kick.gate}"
+    },
+    {
+      "device": 1,
+      "control": "Fader_1",
+      "on": "ControlChanged",
+      "target": "snare",
+      "option": "gate",
+      "value": "{max(0.05, value) if tracks.page == 1 else snare.gate}"
+    },
+    {
+      "device": 1,
+      "control": "Fader_1",
+      "on": "ControlChanged",
+      "target": "clap",
+      "option": "gate",
+      "value": "{max(0.05, value) if tracks.page == 2 else clap.gate}"
+    },
+    {
+      "device": 1,
+      "control": "Fader_1",
+      "on": "ControlChanged",
+      "target": "chat",
+      "option": "gate",
+      "value": "{max(0.05, value) if tracks.page == 3 else chat.gate}"
+    },
+    {
+      "device": 1,
+      "control": "Fader_1",
+      "on": "ControlChanged",
+      "target": "ohat",
+      "option": "gate",
+      "value": "{max(0.05, value) if tracks.page == 4 else ohat.gate}"
+    },
+    {
+      "device": 1,
+      "control": "Fader_1",
+      "on": "ControlChanged",
+      "target": "perc",
+      "option": "gate",
+      "value": "{max(0.05, value) if tracks.page == 5 else perc.gate}"
+    },
+    {
+      "device": 1,
+      "control": "Fader_1",
+      "on": "ControlChanged",
+      "target": {
+        "device": 1,
+        "control": "Screen"
+      },
+      "option": "text",
+      "value": "Gate\n{round(max(0.05, value) * 100)}%"
+    },
+    {
+      "device": 1,
+      "control": "Fader_2",
+      "on": "ControlChanged",
+      "target": "kick",
+      "option": "gate_random",
+      "value": "{value * 0.5 if tracks.page == 0 else kick.gate_random}"
+    },
+    {
+      "device": 1,
+      "control": "Fader_2",
+      "on": "ControlChanged",
+      "target": "snare",
+      "option": "gate_random",
+      "value": "{value * 0.5 if tracks.page == 1 else snare.gate_random}"
+    },
+    {
+      "device": 1,
+      "control": "Fader_2",
+      "on": "ControlChanged",
+      "target": "clap",
+      "option": "gate_random",
+      "value": "{value * 0.5 if tracks.page == 2 else clap.gate_random}"
+    },
+    {
+      "device": 1,
+      "control": "Fader_2",
+      "on": "ControlChanged",
+      "target": "chat",
+      "option": "gate_random",
+      "value": "{value * 0.5 if tracks.page == 3 else chat.gate_random}"
+    },
+    {
+      "device": 1,
+      "control": "Fader_2",
+      "on": "ControlChanged",
+      "target": "ohat",
+      "option": "gate_random",
+      "value": "{value * 0.5 if tracks.page == 4 else ohat.gate_random}"
+    },
+    {
+      "device": 1,
+      "control": "Fader_2",
+      "on": "ControlChanged",
+      "target": "perc",
+      "option": "gate_random",
+      "value": "{value * 0.5 if tracks.page == 5 else perc.gate_random}"
+    },
+    {
+      "device": 1,
+      "control": "Fader_2",
+      "on": "ControlChanged",
+      "target": {
+        "device": 1,
+        "control": "Screen"
+      },
+      "option": "text",
+      "value": "Gate humanize\n{round(value * 50)}%"
+    },
+    {
+      "device": 1,
+      "control": "Fader_3",
+      "on": "ControlChanged",
+      "target": "kick",
+      "option": "velocity_random",
+      "value": "{value * 0.5 if tracks.page == 0 else kick.velocity_random}"
+    },
+    {
+      "device": 1,
+      "control": "Fader_3",
+      "on": "ControlChanged",
+      "target": "snare",
+      "option": "velocity_random",
+      "value": "{value * 0.5 if tracks.page == 1 else snare.velocity_random}"
+    },
+    {
+      "device": 1,
+      "control": "Fader_3",
+      "on": "ControlChanged",
+      "target": "clap",
+      "option": "velocity_random",
+      "value": "{value * 0.5 if tracks.page == 2 else clap.velocity_random}"
+    },
+    {
+      "device": 1,
+      "control": "Fader_3",
+      "on": "ControlChanged",
+      "target": "chat",
+      "option": "velocity_random",
+      "value": "{value * 0.5 if tracks.page == 3 else chat.velocity_random}"
+    },
+    {
+      "device": 1,
+      "control": "Fader_3",
+      "on": "ControlChanged",
+      "target": "ohat",
+      "option": "velocity_random",
+      "value": "{value * 0.5 if tracks.page == 4 else ohat.velocity_random}"
+    },
+    {
+      "device": 1,
+      "control": "Fader_3",
+      "on": "ControlChanged",
+      "target": "perc",
+      "option": "velocity_random",
+      "value": "{value * 0.5 if tracks.page == 5 else perc.velocity_random}"
+    },
+    {
+      "device": 1,
+      "control": "Fader_3",
+      "on": "ControlChanged",
+      "target": "bass",
+      "option": "velocity_random",
+      "value": "{value * 0.5 if tracks.page == 6 else bass.velocity_random}"
+    },
+    {
+      "device": 1,
+      "control": "Fader_3",
+      "on": "ControlChanged",
+      "target": "lead",
+      "option": "velocity_random",
+      "value": "{value * 0.5 if tracks.page == 7 else lead.velocity_random}"
+    },
+    {
+      "device": 1,
+      "control": "Fader_3",
+      "on": "ControlChanged",
+      "target": {
+        "device": 1,
+        "control": "Screen"
+      },
+      "option": "text",
+      "value": "Velocity humanize\n{round(value * 50)}%"
+    }
+  ],
+  "mappings": [
+    {
+      "widget": "kick",
+      "on": "StepPlayed",
+      "output": "midi",
+      "message": {
+        "type": "NoteOn",
+        "channel": 10,
+        "note": {
+          "source": "note"
+        },
+        "velocity": "{velocity * kick_level.value * 127}"
+      }
+    },
+    {
+      "widget": "kick",
+      "on": "StepEnded",
+      "output": "midi",
+      "message": {
+        "type": "NoteOff",
+        "channel": 10,
+        "note": {
+          "source": "note"
+        }
+      }
+    },
+    {
+      "widget": "snare",
+      "on": "StepPlayed",
+      "output": "midi",
+      "message": {
+        "type": "NoteOn",
+        "channel": 10,
+        "note": {
+          "source": "note"
+        },
+        "velocity": "{velocity * snare_level.value * 127}"
+      }
+    },
+    {
+      "widget": "snare",
+      "on": "StepEnded",
+      "output": "midi",
+      "message": {
+        "type": "NoteOff",
+        "channel": 10,
+        "note": {
+          "source": "note"
+        }
+      }
+    },
+    {
+      "widget": "clap",
+      "on": "StepPlayed",
+      "output": "midi",
+      "message": {
+        "type": "NoteOn",
+        "channel": 10,
+        "note": {
+          "source": "note"
+        },
+        "velocity": "{velocity * clap_level.value * 127}"
+      }
+    },
+    {
+      "widget": "clap",
+      "on": "StepEnded",
+      "output": "midi",
+      "message": {
+        "type": "NoteOff",
+        "channel": 10,
+        "note": {
+          "source": "note"
+        }
+      }
+    },
+    {
+      "widget": "chat",
+      "on": "StepPlayed",
+      "output": "midi",
+      "message": {
+        "type": "NoteOn",
+        "channel": 10,
+        "note": {
+          "source": "note"
+        },
+        "velocity": "{velocity * chat_level.value * 127}"
+      }
+    },
+    {
+      "widget": "chat",
+      "on": "StepEnded",
+      "output": "midi",
+      "message": {
+        "type": "NoteOff",
+        "channel": 10,
+        "note": {
+          "source": "note"
+        }
+      }
+    },
+    {
+      "widget": "ohat",
+      "on": "StepPlayed",
+      "output": "midi",
+      "message": {
+        "type": "NoteOn",
+        "channel": 10,
+        "note": {
+          "source": "note"
+        },
+        "velocity": "{velocity * ohat_level.value * 127}"
+      }
+    },
+    {
+      "widget": "ohat",
+      "on": "StepEnded",
+      "output": "midi",
+      "message": {
+        "type": "NoteOff",
+        "channel": 10,
+        "note": {
+          "source": "note"
+        }
+      }
+    },
+    {
+      "widget": "perc",
+      "on": "StepPlayed",
+      "output": "midi",
+      "message": {
+        "type": "NoteOn",
+        "channel": 10,
+        "note": {
+          "source": "note"
+        },
+        "velocity": "{velocity * perc_level.value * 127}"
+      }
+    },
+    {
+      "widget": "perc",
+      "on": "StepEnded",
+      "output": "midi",
+      "message": {
+        "type": "NoteOff",
+        "channel": 10,
+        "note": {
+          "source": "note"
+        }
+      }
+    },
+    {
+      "widget": "bass",
+      "on": "NoteOn",
+      "output": "midi",
+      "message": {
+        "type": "NoteOn",
+        "channel": 2,
+        "note": {
+          "source": "note"
+        },
+        "velocity": "{velocity * bass_level.value * 127}"
+      }
+    },
+    {
+      "widget": "bass",
+      "on": "NoteOff",
+      "output": "midi",
+      "message": {
+        "type": "NoteOff",
+        "channel": 2,
+        "note": {
+          "source": "note"
+        }
+      }
+    },
+    {
+      "widget": "lead",
+      "on": "NoteOn",
+      "output": "midi",
+      "message": {
+        "type": "NoteOn",
+        "channel": 3,
+        "note": {
+          "source": "note"
+        },
+        "velocity": "{velocity * lead_level.value * 127}"
+      }
+    },
+    {
+      "widget": "lead",
+      "on": "NoteOff",
+      "output": "midi",
+      "message": {
+        "type": "NoteOff",
+        "channel": 3,
+        "note": {
+          "source": "note"
+        }
+      }
+    },
+    {
+      "widget": "drums",
+      "on": "NoteOn",
+      "output": "midi",
+      "message": {
+        "type": "NoteOn",
+        "channel": 10,
+        "note": {
+          "source": "note"
+        },
+        "velocity": {
+          "source": "velocity"
+        }
+      }
+    },
+    {
+      "widget": "drums",
+      "on": "NoteOff",
+      "output": "midi",
+      "message": {
+        "type": "NoteOff",
+        "channel": 10,
+        "note": {
+          "source": "note"
+        }
+      }
+    }
+  ],
+  "widgets": [
+    {
+      "type": "Presets",
+      "name": "patterns",
+      "x": 0,
+      "y": 0,
+      "width": 9,
+      "height": 8,
+      "options": {
+        "selector": "Right",
+        "current_color": "#ffffff",
+        "stored_color": "#0050a0",
+        "empty_color": "#101010"
+      },
+      "widgets": [
+        {
+          "type": "Button",
+          "name": "mute_kick",
+          "x": 0,
+          "y": 0,
+          "width": 1,
+          "height": 1,
+          "options": {
+            "mode": "Switch",
+            "value": 1.0,
+            "active_color": "#ff2000",
+            "inactive_color": "#300400"
+          }
+        },
+        {
+          "type": "Button",
+          "name": "mute_snare",
+          "x": 1,
+          "y": 0,
+          "width": 1,
+          "height": 1,
+          "options": {
+            "mode": "Switch",
+            "value": 1.0,
+            "active_color": "#ff8000",
+            "inactive_color": "#301400"
+          }
+        },
+        {
+          "type": "Button",
+          "name": "mute_clap",
+          "x": 2,
+          "y": 0,
+          "width": 1,
+          "height": 1,
+          "options": {
+            "mode": "Switch",
+            "value": 1.0,
+            "active_color": "#ffe000",
+            "inactive_color": "#302800"
+          }
+        },
+        {
+          "type": "Button",
+          "name": "mute_chat",
+          "x": 3,
+          "y": 0,
+          "width": 1,
+          "height": 1,
+          "options": {
+            "mode": "Switch",
+            "value": 1.0,
+            "active_color": "#00ffc0",
+            "inactive_color": "#003020"
+          }
+        },
+        {
+          "type": "Button",
+          "name": "mute_ohat",
+          "x": 4,
+          "y": 0,
+          "width": 1,
+          "height": 1,
+          "options": {
+            "mode": "Switch",
+            "value": 1.0,
+            "active_color": "#0080ff",
+            "inactive_color": "#001030"
+          }
+        },
+        {
+          "type": "Button",
+          "name": "mute_perc",
+          "x": 5,
+          "y": 0,
+          "width": 1,
+          "height": 1,
+          "options": {
+            "mode": "Switch",
+            "value": 1.0,
+            "active_color": "#a040ff",
+            "inactive_color": "#140830"
+          }
+        },
+        {
+          "type": "Button",
+          "name": "mute_bass",
+          "x": 6,
+          "y": 0,
+          "width": 1,
+          "height": 1,
+          "options": {
+            "mode": "Switch",
+            "value": 1.0,
+            "active_color": "#40ff00",
+            "inactive_color": "#083000"
+          }
+        },
+        {
+          "type": "Button",
+          "name": "mute_lead",
+          "x": 7,
+          "y": 0,
+          "width": 1,
+          "height": 1,
+          "options": {
+            "mode": "Switch",
+            "value": 1.0,
+            "active_color": "#ff40c0",
+            "inactive_color": "#300818"
+          }
+        },
+        {
+          "type": "ButtonGroup",
+          "name": "select",
+          "x": 0,
+          "y": 1,
+          "width": 8,
+          "height": 1,
+          "options": {
+            "selected": "{tracks.page}",
+            "active_color": "#ffffff",
+            "inactive_color": "#202020"
+          }
+        },
+        {
+          "type": "Pages",
+          "name": "tracks",
+          "x": 0,
+          "y": 2,
+          "width": 8,
+          "height": 6,
+          "options": {
+            "selector": "Off"
+          },
+          "widgets": [
+            {
+              "type": "Group",
+              "name": "page_kick",
+              "x": 0,
+              "y": 0,
+              "width": 8,
+              "height": 6,
+              "options": {},
+              "widgets": [
+                {
+                  "type": "Sequencer",
+                  "name": "kick",
+                  "x": 0,
+                  "y": 2,
+                  "width": 8,
+                  "height": 4,
+                  "options": {
+                    "steps": 32,
+                    "length": "{8 if kick_length.selected == 0 else 16 if kick_length.selected == 1 else 32}",
+                    "note": 36,
+                    "rate": "{'1/32' if kick_rate.selected == 0 else '1/16' if kick_rate.selected == 1 else '1/16T' if kick_rate.selected == 2 else '1/8'}",
+                    "active_color": "#ff2000",
+                    "inactive_color": "#000000",
+                    "current_color": "#303030",
+                    "current_active_color": "#ffffff",
+                    "running": "{mute_kick.value > 0.5}"
+                  }
+                },
+                {
+                  "type": "ButtonGroup",
+                  "name": "kick_vel",
+                  "x": 0,
+                  "y": 1,
+                  "width": 4,
+                  "height": 1,
+                  "options": {
+                    "mode": "Button",
+                    "active_color": "#ffffff",
+                    "inactive_color": "#300400"
+                  }
+                },
+                {
+                  "type": "ButtonGroup",
+                  "name": "kick_chance",
+                  "x": 4,
+                  "y": 1,
+                  "width": 2,
+                  "height": 1,
+                  "options": {
+                    "mode": "Button",
+                    "active_color": "#ffffff",
+                    "inactive_color": "#202000"
+                  }
+                },
+                {
+                  "type": "ButtonGroup",
+                  "name": "kick_ratchet",
+                  "x": 6,
+                  "y": 1,
+                  "width": 2,
+                  "height": 1,
+                  "options": {
+                    "mode": "Button",
+                    "active_color": "#ffffff",
+                    "inactive_color": "#002020"
+                  }
+                },
+                {
+                  "type": "ButtonGroup",
+                  "name": "kick_length",
+                  "x": 0,
+                  "y": 0,
+                  "width": 3,
+                  "height": 1,
+                  "options": {
+                    "selected": 1,
+                    "active_color": "#ff2000",
+                    "inactive_color": "#101010"
+                  }
+                },
+                {
+                  "type": "ButtonGroup",
+                  "name": "kick_rate",
+                  "x": 3,
+                  "y": 0,
+                  "width": 4,
+                  "height": 1,
+                  "options": {
+                    "selected": 1,
+                    "active_color": "#ffffff",
+                    "inactive_color": "#101010"
+                  }
+                },
+                {
+                  "type": "Button",
+                  "name": "kick_clear",
+                  "x": 7,
+                  "y": 0,
+                  "width": 1,
+                  "height": 1,
+                  "options": {
+                    "active_color": "#ff0000",
+                    "inactive_color": "#200000"
+                  }
+                }
+              ]
+            },
+            {
+              "type": "Group",
+              "name": "page_snare",
+              "x": 0,
+              "y": 0,
+              "width": 8,
+              "height": 6,
+              "options": {},
+              "widgets": [
+                {
+                  "type": "Sequencer",
+                  "name": "snare",
+                  "x": 0,
+                  "y": 2,
+                  "width": 8,
+                  "height": 4,
+                  "options": {
+                    "steps": 32,
+                    "length": "{8 if snare_length.selected == 0 else 16 if snare_length.selected == 1 else 32}",
+                    "note": 37,
+                    "rate": "{'1/32' if snare_rate.selected == 0 else '1/16' if snare_rate.selected == 1 else '1/16T' if snare_rate.selected == 2 else '1/8'}",
+                    "active_color": "#ff8000",
+                    "inactive_color": "#000000",
+                    "current_color": "#303030",
+                    "current_active_color": "#ffffff",
+                    "running": "{mute_snare.value > 0.5}"
+                  }
+                },
+                {
+                  "type": "ButtonGroup",
+                  "name": "snare_vel",
+                  "x": 0,
+                  "y": 1,
+                  "width": 4,
+                  "height": 1,
+                  "options": {
+                    "mode": "Button",
+                    "active_color": "#ffffff",
+                    "inactive_color": "#301400"
+                  }
+                },
+                {
+                  "type": "ButtonGroup",
+                  "name": "snare_chance",
+                  "x": 4,
+                  "y": 1,
+                  "width": 2,
+                  "height": 1,
+                  "options": {
+                    "mode": "Button",
+                    "active_color": "#ffffff",
+                    "inactive_color": "#202000"
+                  }
+                },
+                {
+                  "type": "ButtonGroup",
+                  "name": "snare_ratchet",
+                  "x": 6,
+                  "y": 1,
+                  "width": 2,
+                  "height": 1,
+                  "options": {
+                    "mode": "Button",
+                    "active_color": "#ffffff",
+                    "inactive_color": "#002020"
+                  }
+                },
+                {
+                  "type": "ButtonGroup",
+                  "name": "snare_length",
+                  "x": 0,
+                  "y": 0,
+                  "width": 3,
+                  "height": 1,
+                  "options": {
+                    "selected": 1,
+                    "active_color": "#ff8000",
+                    "inactive_color": "#101010"
+                  }
+                },
+                {
+                  "type": "ButtonGroup",
+                  "name": "snare_rate",
+                  "x": 3,
+                  "y": 0,
+                  "width": 4,
+                  "height": 1,
+                  "options": {
+                    "selected": 1,
+                    "active_color": "#ffffff",
+                    "inactive_color": "#101010"
+                  }
+                },
+                {
+                  "type": "Button",
+                  "name": "snare_clear",
+                  "x": 7,
+                  "y": 0,
+                  "width": 1,
+                  "height": 1,
+                  "options": {
+                    "active_color": "#ff0000",
+                    "inactive_color": "#200000"
+                  }
+                }
+              ]
+            },
+            {
+              "type": "Group",
+              "name": "page_clap",
+              "x": 0,
+              "y": 0,
+              "width": 8,
+              "height": 6,
+              "options": {},
+              "widgets": [
+                {
+                  "type": "Sequencer",
+                  "name": "clap",
+                  "x": 0,
+                  "y": 2,
+                  "width": 8,
+                  "height": 4,
+                  "options": {
+                    "steps": 32,
+                    "length": "{8 if clap_length.selected == 0 else 16 if clap_length.selected == 1 else 32}",
+                    "note": 38,
+                    "rate": "{'1/32' if clap_rate.selected == 0 else '1/16' if clap_rate.selected == 1 else '1/16T' if clap_rate.selected == 2 else '1/8'}",
+                    "active_color": "#ffe000",
+                    "inactive_color": "#000000",
+                    "current_color": "#303030",
+                    "current_active_color": "#ffffff",
+                    "running": "{mute_clap.value > 0.5}"
+                  }
+                },
+                {
+                  "type": "ButtonGroup",
+                  "name": "clap_vel",
+                  "x": 0,
+                  "y": 1,
+                  "width": 4,
+                  "height": 1,
+                  "options": {
+                    "mode": "Button",
+                    "active_color": "#ffffff",
+                    "inactive_color": "#302800"
+                  }
+                },
+                {
+                  "type": "ButtonGroup",
+                  "name": "clap_chance",
+                  "x": 4,
+                  "y": 1,
+                  "width": 2,
+                  "height": 1,
+                  "options": {
+                    "mode": "Button",
+                    "active_color": "#ffffff",
+                    "inactive_color": "#202000"
+                  }
+                },
+                {
+                  "type": "ButtonGroup",
+                  "name": "clap_ratchet",
+                  "x": 6,
+                  "y": 1,
+                  "width": 2,
+                  "height": 1,
+                  "options": {
+                    "mode": "Button",
+                    "active_color": "#ffffff",
+                    "inactive_color": "#002020"
+                  }
+                },
+                {
+                  "type": "ButtonGroup",
+                  "name": "clap_length",
+                  "x": 0,
+                  "y": 0,
+                  "width": 3,
+                  "height": 1,
+                  "options": {
+                    "selected": 1,
+                    "active_color": "#ffe000",
+                    "inactive_color": "#101010"
+                  }
+                },
+                {
+                  "type": "ButtonGroup",
+                  "name": "clap_rate",
+                  "x": 3,
+                  "y": 0,
+                  "width": 4,
+                  "height": 1,
+                  "options": {
+                    "selected": 1,
+                    "active_color": "#ffffff",
+                    "inactive_color": "#101010"
+                  }
+                },
+                {
+                  "type": "Button",
+                  "name": "clap_clear",
+                  "x": 7,
+                  "y": 0,
+                  "width": 1,
+                  "height": 1,
+                  "options": {
+                    "active_color": "#ff0000",
+                    "inactive_color": "#200000"
+                  }
+                }
+              ]
+            },
+            {
+              "type": "Group",
+              "name": "page_chat",
+              "x": 0,
+              "y": 0,
+              "width": 8,
+              "height": 6,
+              "options": {},
+              "widgets": [
+                {
+                  "type": "Sequencer",
+                  "name": "chat",
+                  "x": 0,
+                  "y": 2,
+                  "width": 8,
+                  "height": 4,
+                  "options": {
+                    "steps": 32,
+                    "length": "{8 if chat_length.selected == 0 else 16 if chat_length.selected == 1 else 32}",
+                    "note": 39,
+                    "rate": "{'1/32' if chat_rate.selected == 0 else '1/16' if chat_rate.selected == 1 else '1/16T' if chat_rate.selected == 2 else '1/8'}",
+                    "active_color": "#00ffc0",
+                    "inactive_color": "#000000",
+                    "current_color": "#303030",
+                    "current_active_color": "#ffffff",
+                    "running": "{mute_chat.value > 0.5}"
+                  }
+                },
+                {
+                  "type": "ButtonGroup",
+                  "name": "chat_vel",
+                  "x": 0,
+                  "y": 1,
+                  "width": 4,
+                  "height": 1,
+                  "options": {
+                    "mode": "Button",
+                    "active_color": "#ffffff",
+                    "inactive_color": "#003020"
+                  }
+                },
+                {
+                  "type": "ButtonGroup",
+                  "name": "chat_chance",
+                  "x": 4,
+                  "y": 1,
+                  "width": 2,
+                  "height": 1,
+                  "options": {
+                    "mode": "Button",
+                    "active_color": "#ffffff",
+                    "inactive_color": "#202000"
+                  }
+                },
+                {
+                  "type": "ButtonGroup",
+                  "name": "chat_ratchet",
+                  "x": 6,
+                  "y": 1,
+                  "width": 2,
+                  "height": 1,
+                  "options": {
+                    "mode": "Button",
+                    "active_color": "#ffffff",
+                    "inactive_color": "#002020"
+                  }
+                },
+                {
+                  "type": "ButtonGroup",
+                  "name": "chat_length",
+                  "x": 0,
+                  "y": 0,
+                  "width": 3,
+                  "height": 1,
+                  "options": {
+                    "selected": 1,
+                    "active_color": "#00ffc0",
+                    "inactive_color": "#101010"
+                  }
+                },
+                {
+                  "type": "ButtonGroup",
+                  "name": "chat_rate",
+                  "x": 3,
+                  "y": 0,
+                  "width": 4,
+                  "height": 1,
+                  "options": {
+                    "selected": 1,
+                    "active_color": "#ffffff",
+                    "inactive_color": "#101010"
+                  }
+                },
+                {
+                  "type": "Button",
+                  "name": "chat_clear",
+                  "x": 7,
+                  "y": 0,
+                  "width": 1,
+                  "height": 1,
+                  "options": {
+                    "active_color": "#ff0000",
+                    "inactive_color": "#200000"
+                  }
+                }
+              ]
+            },
+            {
+              "type": "Group",
+              "name": "page_ohat",
+              "x": 0,
+              "y": 0,
+              "width": 8,
+              "height": 6,
+              "options": {},
+              "widgets": [
+                {
+                  "type": "Sequencer",
+                  "name": "ohat",
+                  "x": 0,
+                  "y": 2,
+                  "width": 8,
+                  "height": 4,
+                  "options": {
+                    "steps": 32,
+                    "length": "{8 if ohat_length.selected == 0 else 16 if ohat_length.selected == 1 else 32}",
+                    "note": 40,
+                    "rate": "{'1/32' if ohat_rate.selected == 0 else '1/16' if ohat_rate.selected == 1 else '1/16T' if ohat_rate.selected == 2 else '1/8'}",
+                    "active_color": "#0080ff",
+                    "inactive_color": "#000000",
+                    "current_color": "#303030",
+                    "current_active_color": "#ffffff",
+                    "running": "{mute_ohat.value > 0.5}"
+                  }
+                },
+                {
+                  "type": "ButtonGroup",
+                  "name": "ohat_vel",
+                  "x": 0,
+                  "y": 1,
+                  "width": 4,
+                  "height": 1,
+                  "options": {
+                    "mode": "Button",
+                    "active_color": "#ffffff",
+                    "inactive_color": "#001030"
+                  }
+                },
+                {
+                  "type": "ButtonGroup",
+                  "name": "ohat_chance",
+                  "x": 4,
+                  "y": 1,
+                  "width": 2,
+                  "height": 1,
+                  "options": {
+                    "mode": "Button",
+                    "active_color": "#ffffff",
+                    "inactive_color": "#202000"
+                  }
+                },
+                {
+                  "type": "ButtonGroup",
+                  "name": "ohat_ratchet",
+                  "x": 6,
+                  "y": 1,
+                  "width": 2,
+                  "height": 1,
+                  "options": {
+                    "mode": "Button",
+                    "active_color": "#ffffff",
+                    "inactive_color": "#002020"
+                  }
+                },
+                {
+                  "type": "ButtonGroup",
+                  "name": "ohat_length",
+                  "x": 0,
+                  "y": 0,
+                  "width": 3,
+                  "height": 1,
+                  "options": {
+                    "selected": 1,
+                    "active_color": "#0080ff",
+                    "inactive_color": "#101010"
+                  }
+                },
+                {
+                  "type": "ButtonGroup",
+                  "name": "ohat_rate",
+                  "x": 3,
+                  "y": 0,
+                  "width": 4,
+                  "height": 1,
+                  "options": {
+                    "selected": 1,
+                    "active_color": "#ffffff",
+                    "inactive_color": "#101010"
+                  }
+                },
+                {
+                  "type": "Button",
+                  "name": "ohat_clear",
+                  "x": 7,
+                  "y": 0,
+                  "width": 1,
+                  "height": 1,
+                  "options": {
+                    "active_color": "#ff0000",
+                    "inactive_color": "#200000"
+                  }
+                }
+              ]
+            },
+            {
+              "type": "Group",
+              "name": "page_perc",
+              "x": 0,
+              "y": 0,
+              "width": 8,
+              "height": 6,
+              "options": {},
+              "widgets": [
+                {
+                  "type": "Sequencer",
+                  "name": "perc",
+                  "x": 0,
+                  "y": 2,
+                  "width": 8,
+                  "height": 4,
+                  "options": {
+                    "steps": 32,
+                    "length": "{8 if perc_length.selected == 0 else 16 if perc_length.selected == 1 else 32}",
+                    "note": 41,
+                    "rate": "{'1/32' if perc_rate.selected == 0 else '1/16' if perc_rate.selected == 1 else '1/16T' if perc_rate.selected == 2 else '1/8'}",
+                    "active_color": "#a040ff",
+                    "inactive_color": "#000000",
+                    "current_color": "#303030",
+                    "current_active_color": "#ffffff",
+                    "running": "{mute_perc.value > 0.5}"
+                  }
+                },
+                {
+                  "type": "ButtonGroup",
+                  "name": "perc_vel",
+                  "x": 0,
+                  "y": 1,
+                  "width": 4,
+                  "height": 1,
+                  "options": {
+                    "mode": "Button",
+                    "active_color": "#ffffff",
+                    "inactive_color": "#140830"
+                  }
+                },
+                {
+                  "type": "ButtonGroup",
+                  "name": "perc_chance",
+                  "x": 4,
+                  "y": 1,
+                  "width": 2,
+                  "height": 1,
+                  "options": {
+                    "mode": "Button",
+                    "active_color": "#ffffff",
+                    "inactive_color": "#202000"
+                  }
+                },
+                {
+                  "type": "ButtonGroup",
+                  "name": "perc_ratchet",
+                  "x": 6,
+                  "y": 1,
+                  "width": 2,
+                  "height": 1,
+                  "options": {
+                    "mode": "Button",
+                    "active_color": "#ffffff",
+                    "inactive_color": "#002020"
+                  }
+                },
+                {
+                  "type": "ButtonGroup",
+                  "name": "perc_length",
+                  "x": 0,
+                  "y": 0,
+                  "width": 3,
+                  "height": 1,
+                  "options": {
+                    "selected": 1,
+                    "active_color": "#a040ff",
+                    "inactive_color": "#101010"
+                  }
+                },
+                {
+                  "type": "ButtonGroup",
+                  "name": "perc_rate",
+                  "x": 3,
+                  "y": 0,
+                  "width": 4,
+                  "height": 1,
+                  "options": {
+                    "selected": 1,
+                    "active_color": "#ffffff",
+                    "inactive_color": "#101010"
+                  }
+                },
+                {
+                  "type": "Button",
+                  "name": "perc_clear",
+                  "x": 7,
+                  "y": 0,
+                  "width": 1,
+                  "height": 1,
+                  "options": {
+                    "active_color": "#ff0000",
+                    "inactive_color": "#200000"
+                  }
+                }
+              ]
+            },
+            {
+              "type": "Group",
+              "name": "page_bass",
+              "x": 0,
+              "y": 0,
+              "width": 8,
+              "height": 6,
+              "options": {},
+              "widgets": [
+                {
+                  "type": "PianoRoll",
+                  "name": "bass",
+                  "x": 0,
+                  "y": 1,
+                  "width": 8,
+                  "height": 5,
+                  "options": {
+                    "steps": "{16 if bass_steps.selected == 0 else 32}",
+                    "octave": 2,
+                    "scale": "{'Minor' if scale.selected == 0 else 'Major' if scale.selected == 1 else 'Dorian' if scale.selected == 2 else 'Phrygian' if scale.selected == 3 else 'Mixolydian' if scale.selected == 4 else 'MinorPentatonic' if scale.selected == 5 else 'MinorHarmonic' if scale.selected == 6 else 'MinorBlues'}",
+                    "root": "{'C' if root.selected == 0 else 'D' if root.selected == 1 else 'E' if root.selected == 2 else 'F' if root.selected == 3 else 'G' if root.selected == 4 else 'A' if root.selected == 5 else 'B'}",
+                    "active_color": "#40ff00",
+                    "root_color": "#100018",
+                    "current_color": "#002000",
+                    "current_active_color": "#ffffff",
+                    "running": "{mute_bass.value > 0.5}"
+                  }
+                },
+                {
+                  "type": "ButtonGroup",
+                  "name": "bass_steps",
+                  "x": 0,
+                  "y": 0,
+                  "width": 2,
+                  "height": 1,
+                  "options": {
+                    "selected": 0,
+                    "active_color": "#40ff00",
+                    "inactive_color": "#101010"
+                  }
+                },
+                {
+                  "type": "Button",
+                  "name": "bass_down",
+                  "x": 2,
+                  "y": 0,
+                  "width": 1,
+                  "height": 1,
+                  "options": {
+                    "active_color": "#ffffff",
+                    "inactive_color": "#002030"
+                  }
+                },
+                {
+                  "type": "Button",
+                  "name": "bass_up",
+                  "x": 3,
+                  "y": 0,
+                  "width": 1,
+                  "height": 1,
+                  "options": {
+                    "active_color": "#ffffff",
+                    "inactive_color": "#002030"
+                  }
+                },
+                {
+                  "type": "Button",
+                  "name": "bass_back",
+                  "x": 4,
+                  "y": 0,
+                  "width": 1,
+                  "height": 1,
+                  "options": {
+                    "active_color": "#ffffff",
+                    "inactive_color": "#202020"
+                  }
+                },
+                {
+                  "type": "Button",
+                  "name": "bass_forward",
+                  "x": 5,
+                  "y": 0,
+                  "width": 1,
+                  "height": 1,
+                  "options": {
+                    "active_color": "#ffffff",
+                    "inactive_color": "#202020"
+                  }
+                },
+                {
+                  "type": "Button",
+                  "name": "bass_clear",
+                  "x": 7,
+                  "y": 0,
+                  "width": 1,
+                  "height": 1,
+                  "options": {
+                    "active_color": "#ff0000",
+                    "inactive_color": "#200000"
+                  }
+                }
+              ]
+            },
+            {
+              "type": "Group",
+              "name": "page_lead",
+              "x": 0,
+              "y": 0,
+              "width": 8,
+              "height": 6,
+              "options": {},
+              "widgets": [
+                {
+                  "type": "PianoRoll",
+                  "name": "lead",
+                  "x": 0,
+                  "y": 1,
+                  "width": 8,
+                  "height": 5,
+                  "options": {
+                    "steps": "{16 if lead_steps.selected == 0 else 32}",
+                    "octave": 4,
+                    "scale": "{'Minor' if scale.selected == 0 else 'Major' if scale.selected == 1 else 'Dorian' if scale.selected == 2 else 'Phrygian' if scale.selected == 3 else 'Mixolydian' if scale.selected == 4 else 'MinorPentatonic' if scale.selected == 5 else 'MinorHarmonic' if scale.selected == 6 else 'MinorBlues'}",
+                    "root": "{'C' if root.selected == 0 else 'D' if root.selected == 1 else 'E' if root.selected == 2 else 'F' if root.selected == 3 else 'G' if root.selected == 4 else 'A' if root.selected == 5 else 'B'}",
+                    "active_color": "#ff40c0",
+                    "root_color": "#100018",
+                    "current_color": "#002000",
+                    "current_active_color": "#ffffff",
+                    "running": "{mute_lead.value > 0.5}"
+                  }
+                },
+                {
+                  "type": "ButtonGroup",
+                  "name": "lead_steps",
+                  "x": 0,
+                  "y": 0,
+                  "width": 2,
+                  "height": 1,
+                  "options": {
+                    "selected": 0,
+                    "active_color": "#ff40c0",
+                    "inactive_color": "#101010"
+                  }
+                },
+                {
+                  "type": "Button",
+                  "name": "lead_down",
+                  "x": 2,
+                  "y": 0,
+                  "width": 1,
+                  "height": 1,
+                  "options": {
+                    "active_color": "#ffffff",
+                    "inactive_color": "#002030"
+                  }
+                },
+                {
+                  "type": "Button",
+                  "name": "lead_up",
+                  "x": 3,
+                  "y": 0,
+                  "width": 1,
+                  "height": 1,
+                  "options": {
+                    "active_color": "#ffffff",
+                    "inactive_color": "#002030"
+                  }
+                },
+                {
+                  "type": "Button",
+                  "name": "lead_back",
+                  "x": 4,
+                  "y": 0,
+                  "width": 1,
+                  "height": 1,
+                  "options": {
+                    "active_color": "#ffffff",
+                    "inactive_color": "#202020"
+                  }
+                },
+                {
+                  "type": "Button",
+                  "name": "lead_forward",
+                  "x": 5,
+                  "y": 0,
+                  "width": 1,
+                  "height": 1,
+                  "options": {
+                    "active_color": "#ffffff",
+                    "inactive_color": "#202020"
+                  }
+                },
+                {
+                  "type": "Button",
+                  "name": "lead_clear",
+                  "x": 7,
+                  "y": 0,
+                  "width": 1,
+                  "height": 1,
+                  "options": {
+                    "active_color": "#ff0000",
+                    "inactive_color": "#200000"
+                  }
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "type": "Button",
+      "name": "play",
+      "x": 0,
+      "y": 8,
+      "width": 1,
+      "height": 1,
+      "options": {
+        "active_color": "#00ff00",
+        "inactive_color": "#003000"
+      }
+    },
+    {
+      "type": "Button",
+      "name": "stop",
+      "x": 1,
+      "y": 8,
+      "width": 1,
+      "height": 1,
+      "options": {
+        "active_color": "#ffffff",
+        "inactive_color": "#300000"
+      }
+    },
+    {
+      "type": "TapTempo",
+      "name": "tap",
+      "x": 3,
+      "y": 8,
+      "width": 1,
+      "height": 1,
+      "options": {
+        "active_color": "#ff4000",
+        "inactive_color": "#100400"
+      }
+    },
+    {
+      "type": "Sequencer",
+      "name": "beats",
+      "x": 4,
+      "y": 8,
+      "width": 4,
+      "height": 1,
+      "options": {
+        "rate": "1/4",
+        "active_color": "#000000",
+        "inactive_color": "#080808",
+        "current_color": "#606060",
+        "current_active_color": "#606060"
+      }
+    },
+    {
+      "type": "Group",
+      "name": "hidden",
+      "x": 0,
+      "y": 9,
+      "width": 8,
+      "height": 2,
+      "options": {
+        "visible": false
+      },
+      "widgets": [
+        {
+          "type": "Fader",
+          "name": "kick_level",
+          "x": 0,
+          "y": 0,
+          "width": 1,
+          "height": 1,
+          "options": {
+            "value": 0.8
+          }
+        },
+        {
+          "type": "Fader",
+          "name": "snare_level",
+          "x": 1,
+          "y": 0,
+          "width": 1,
+          "height": 1,
+          "options": {
+            "value": 0.8
+          }
+        },
+        {
+          "type": "Fader",
+          "name": "clap_level",
+          "x": 2,
+          "y": 0,
+          "width": 1,
+          "height": 1,
+          "options": {
+            "value": 0.8
+          }
+        },
+        {
+          "type": "Fader",
+          "name": "chat_level",
+          "x": 3,
+          "y": 0,
+          "width": 1,
+          "height": 1,
+          "options": {
+            "value": 0.8
+          }
+        },
+        {
+          "type": "Fader",
+          "name": "ohat_level",
+          "x": 4,
+          "y": 0,
+          "width": 1,
+          "height": 1,
+          "options": {
+            "value": 0.8
+          }
+        },
+        {
+          "type": "Fader",
+          "name": "perc_level",
+          "x": 5,
+          "y": 0,
+          "width": 1,
+          "height": 1,
+          "options": {
+            "value": 0.8
+          }
+        },
+        {
+          "type": "Fader",
+          "name": "bass_level",
+          "x": 6,
+          "y": 0,
+          "width": 1,
+          "height": 1,
+          "options": {
+            "value": 0.8
+          }
+        },
+        {
+          "type": "Fader",
+          "name": "lead_level",
+          "x": 7,
+          "y": 0,
+          "width": 1,
+          "height": 1,
+          "options": {
+            "value": 0.8
+          }
+        },
+        {
+          "type": "Fader",
+          "name": "tempo",
+          "x": 0,
+          "y": 1,
+          "width": 1,
+          "height": 1,
+          "options": {
+            "value": 0.5
+          }
+        }
+      ]
+    },
+    {
+      "type": "Pages",
+      "name": "lab",
+      "x": 0,
+      "y": 9,
+      "width": 8,
+      "height": 2,
+      "options": {
+        "selector": "Off"
+      },
+      "widgets": [
+        {
+          "type": "Group",
+          "name": "lab_tracks",
+          "x": 0,
+          "y": 0,
+          "width": 8,
+          "height": 2,
+          "options": {},
+          "widgets": [
+            {
+              "type": "ButtonGroup",
+              "name": "labselect",
+              "x": 0,
+              "y": 0,
+              "width": 8,
+              "height": 1,
+              "options": {
+                "selected": "{tracks.page}",
+                "active_color": "#ffffff",
+                "inactive_color": "#202020"
+              }
+            },
+            {
+              "type": "Button",
+              "name": "labmute_kick",
+              "x": 0,
+              "y": 1,
+              "width": 1,
+              "height": 1,
+              "options": {
+                "mode": "Switch",
+                "value": 1.0,
+                "active_color": "#ff2000",
+                "inactive_color": "#300400"
+              }
+            },
+            {
+              "type": "Button",
+              "name": "labmute_snare",
+              "x": 1,
+              "y": 1,
+              "width": 1,
+              "height": 1,
+              "options": {
+                "mode": "Switch",
+                "value": 1.0,
+                "active_color": "#ff8000",
+                "inactive_color": "#301400"
+              }
+            },
+            {
+              "type": "Button",
+              "name": "labmute_clap",
+              "x": 2,
+              "y": 1,
+              "width": 1,
+              "height": 1,
+              "options": {
+                "mode": "Switch",
+                "value": 1.0,
+                "active_color": "#ffe000",
+                "inactive_color": "#302800"
+              }
+            },
+            {
+              "type": "Button",
+              "name": "labmute_chat",
+              "x": 3,
+              "y": 1,
+              "width": 1,
+              "height": 1,
+              "options": {
+                "mode": "Switch",
+                "value": 1.0,
+                "active_color": "#00ffc0",
+                "inactive_color": "#003020"
+              }
+            },
+            {
+              "type": "Button",
+              "name": "labmute_ohat",
+              "x": 4,
+              "y": 1,
+              "width": 1,
+              "height": 1,
+              "options": {
+                "mode": "Switch",
+                "value": 1.0,
+                "active_color": "#0080ff",
+                "inactive_color": "#001030"
+              }
+            },
+            {
+              "type": "Button",
+              "name": "labmute_perc",
+              "x": 5,
+              "y": 1,
+              "width": 1,
+              "height": 1,
+              "options": {
+                "mode": "Switch",
+                "value": 1.0,
+                "active_color": "#a040ff",
+                "inactive_color": "#140830"
+              }
+            },
+            {
+              "type": "Button",
+              "name": "labmute_bass",
+              "x": 6,
+              "y": 1,
+              "width": 1,
+              "height": 1,
+              "options": {
+                "mode": "Switch",
+                "value": 1.0,
+                "active_color": "#40ff00",
+                "inactive_color": "#083000"
+              }
+            },
+            {
+              "type": "Button",
+              "name": "labmute_lead",
+              "x": 7,
+              "y": 1,
+              "width": 1,
+              "height": 1,
+              "options": {
+                "mode": "Switch",
+                "value": 1.0,
+                "active_color": "#ff40c0",
+                "inactive_color": "#300818"
+              }
+            }
+          ]
+        },
+        {
+          "type": "Group",
+          "name": "lab_drums",
+          "x": 0,
+          "y": 0,
+          "width": 8,
+          "height": 2,
+          "options": {},
+          "widgets": [
+            {
+              "type": "DrumPads",
+              "name": "drums",
+              "x": 0,
+              "y": 0,
+              "width": 8,
+              "height": 2,
+              "options": {
+                "note": 36,
+                "active_color": "#ffa000",
+                "inactive_color": "#201000"
+              }
+            }
+          ]
+        },
+        {
+          "type": "Group",
+          "name": "lab_key",
+          "x": 0,
+          "y": 0,
+          "width": 8,
+          "height": 2,
+          "options": {},
+          "widgets": [
+            {
+              "type": "ButtonGroup",
+              "name": "root",
+              "x": 0,
+              "y": 0,
+              "width": 7,
+              "height": 1,
+              "options": {
+                "selected": 0,
+                "active_color": "#ff00ff",
+                "inactive_color": "#200020"
+              }
+            },
+            {
+              "type": "ButtonGroup",
+              "name": "scale",
+              "x": 0,
+              "y": 1,
+              "width": 8,
+              "height": 1,
+              "options": {
+                "selected": 0,
+                "active_color": "#00ffff",
+                "inactive_color": "#002020"
+              }
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}
