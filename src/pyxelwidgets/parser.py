@@ -3,7 +3,7 @@ Layout files: a JSON description of a Surface, the devices it is shown on and
 its widgets, as written by the designer (``python -m pyxelwidgets.designer``).
 
     {
-      "format": "pyxelwidgets.layout", "version": 3,
+      "format": "pyxelwidgets.layout", "version": 4,
       "surface": {"width": 9, "height": 9},
       "transport": {"bpm": 120, "signature": [4, 4]},
       "devices": [{"type": "novation.LaunchpadMiniMK3", "x": 0, "y": 0, "options": {}}],
@@ -45,7 +45,9 @@ with its options. Older versions are upgraded on load (``UPGRADES``).
 virtual port it can send to, ``{"virtual": "PyxelWidgets Clock"}``, or one of
 the layout's outputs the DAW connects to (a Bluetooth or network MIDI output,
 whose own port it is), ``{"output": "Bluetooth"}``. Its tempo, start, stop and
-position (song position) then come from there.
+position (song position) then come from there. ``transport.clock`` sends the
+transport's MIDI clock, start/stop and position out through some of the
+layout's outputs, so a DAW or drum machine follows: ``["midi"]``.
 
 Bindings connect a device's named controls (by the device's index in
 ``devices``) to a widget, with Binding options (``takeover``, ``glide_time``,
@@ -80,7 +82,7 @@ Instead of a ``widget``, a mapping or link can start from a device's
 control: ``"device"`` (its index in ``devices``) and ``"control"`` (its
 name), ``on`` one of ``CONTROL_EVENTS`` (``ControlChanged`` for knobs and
 faders, ``ControlTurned`` for encoders, ``ControlPressed``/``ControlReleased``
-for buttons); their mappings only send (no ``feedback``).
+for buttons, ``KeyPressed``/``KeyReleased`` with the ``note`` for keyboards); their mappings only send (no ``feedback``).
 
 A link's ``target`` can also be a device's control light or screen,
 ``{"device": 0, "control": "Top4"}``, with the option ``light`` (a color; the
@@ -136,7 +138,7 @@ import pyxelwidgets.transport
 import pyxelwidgets.widgets
 
 FORMAT = 'pyxelwidgets.layout'
-VERSION = 3
+VERSION = 4
 
 # Actions a binding can trigger, on the transport given to Parser.bind
 ACTIONS = {
@@ -159,9 +161,11 @@ VALUE_ACTIONS = {
 
 # Events of device controls that links and mappings can start from, and which kinds of control send them
 CONTROL_EVENTS = {cls.__name__: cls for cls in (pyxelwidgets.events.ControlChanged, pyxelwidgets.events.ControlTurned,
-                                                pyxelwidgets.events.ControlPressed, pyxelwidgets.events.ControlReleased)}
+                                                pyxelwidgets.events.ControlPressed, pyxelwidgets.events.ControlReleased,
+                                                pyxelwidgets.events.KeyPressed, pyxelwidgets.events.KeyReleased)}
 CONTROL_KINDS = {'absolute': ('ControlChanged',), 'relative': ('ControlTurned',),
-                 'button': ('ControlPressed', 'ControlReleased'), 'touch': ('ControlPressed', 'ControlReleased')}
+                 'button': ('ControlPressed', 'ControlReleased'), 'touch': ('ControlPressed', 'ControlReleased'),
+                 'keys': ('KeyPressed', 'KeyReleased')}
 
 # Options of device control lights and screens links can set, and their kinds
 DEVICE_TARGETS = {'light': 'color', 'text': 'str'}
@@ -718,6 +722,7 @@ class Parser():
         self.bindings = self.bind(self.devices) if devices else []
         self.outputs = {}
         self.mapping_settings()
+        self.clock_settings()
         if devices:
             for index, entry in enumerate(self.output_settings()):
                 self.outputs[entry['name']] = build_output(entry, f'outputs[{index}]')
@@ -894,6 +899,27 @@ class Parser():
                 raise LayoutError(f'transport.sync.output: {port!r} ({cls.__name__}) can\'t receive MIDI clock')
         return dict(sync)
 
+    def clock_settings(self) -> list:
+        """The layout's ``transport.clock``: the names of the outputs the transport's MIDI clock goes out through."""
+        import pyxelwidgets.devices.midi
+        names = (self.json.get('transport') or {}).get('clock') or []
+        if not isinstance(names, list) or not all(isinstance(name, str) for name in names):
+            raise LayoutError(f'transport.clock: must be a list of output names, got {names!r}')
+        for index, name in enumerate(names):
+            entry = next((entry for entry in self.output_settings() if entry['name'] == name), None)
+            if entry is None:
+                raise LayoutError(f'transport.clock[{index}]: no output called {name!r}')
+            cls = device_class(entry)
+            if not (issubclass(cls, pyxelwidgets.devices.midi.MIDI) or callable(getattr(cls, 'send_midi', None))):
+                raise LayoutError(f'transport.clock[{index}]: {name!r} ({cls.__name__}) doesn\'t send MIDI')
+        return list(names)
+
+    def clock_senders(self, transport, outputs: dict | None = None) -> list:
+        """A ClockSender for each ``transport.clock`` output (from ``outputs`` by name, default the layout's; missing ones are skipped)."""
+        import pyxelwidgets.devices.midi_clock
+        outputs = self.outputs if outputs is None else outputs
+        return [pyxelwidgets.devices.midi_clock.ClockSender(transport, outputs[name]) for name in self.clock_settings() if name in outputs]
+
     def sync_input(self, transport, outputs: dict | None = None):
         """
         Whatever drives ``transport`` (created with ``sync = True``) from the
@@ -925,7 +951,7 @@ class Parser():
             signature = pyxelwidgets.transport.parse_signature(settings.get('signature', (4, 4)))
         except ValueError as error:
             raise LayoutError(f'transport.signature: {error}') from None
-        unknown = set(settings) - {'bpm', 'signature', 'sync'}
+        unknown = set(settings) - {'bpm', 'signature', 'sync', 'clock'}
         if unknown:
             raise LayoutError(f'transport: unknown keys {", ".join(sorted(unknown))}')
         return {'bpm': bpm, 'signature': signature}
@@ -944,7 +970,8 @@ class Parser():
         subscriptions = []
         for widget in self.timed(pyxelwidgets.widgets.Clock.Transport):
             transport.on(pyxelwidgets.events.TransportStopped, lambda event, widget = widget: widget.silence())
-            subscriptions.append(transport.every(widget.rate, widget.tick, divisions = widget.divisions))
+            # Its rate is read on each call: links and formulas can change it
+            subscriptions.append(transport.every(lambda widget = widget: widget.rate, widget.tick, divisions = widget.divisions))
         return subscriptions
 
     def start_clocks(self, *, lock = None) -> list:
@@ -960,7 +987,7 @@ class Parser():
                 # The widget's tempo may change (e.g. from a link)
                 clock.bpm = widget.bpm
                 widget.tick(count)
-            clock.every(widget.rate, tick, divisions = widget.divisions)
+            clock.every(lambda widget = widget: widget.rate, tick, divisions = widget.divisions)
             clock.on(pyxelwidgets.events.TransportStopped, lambda event, widget = widget: widget.silence())
             clock.play()
             self.clocks.append(clock)
@@ -985,6 +1012,8 @@ class Parser():
             app.clocks.append(self.clock_input)
         self.attach(app.transport)
         app.clocks += self.start_clocks(lock = app.lock)
+        # The DAW (or a drum machine) follows the transport's clock
+        app.clocks += self.clock_senders(app.transport)
         self.bindings += self.bind(self.devices, app.transport, widgets = False)
         self.links += self.link(app.transport, widgets = False)
         return app
@@ -1470,6 +1499,8 @@ UPGRADES = {
     1: lambda layout: None,
     # 3 added device control lights and screens as link targets: the same
     2: lambda layout: None,
+    # 4 added transport.clock and keyboard events (KeyPressed/KeyReleased) of device controls: the same
+    3: lambda layout: None,
 }
 
 def upgrade(layout: dict) -> dict:
