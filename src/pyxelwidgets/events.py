@@ -265,6 +265,46 @@ class ControlTurned(ControlEvent):
     """A relative control (endless encoder) turned by ``delta`` steps; negative is counter-clockwise."""
     delta: int
 
+class ControlInput(Emitter):
+    """
+    One named control of a device as an emitter of its control events, so
+    links and mappings can start from a knob the way they start from a widget::
+
+        knob = ControlInput(surface, 'Knob1', device = launchpad)
+        surface.link(knob, keys, 'octave', Source('delta'), on = ControlTurned, change = Link.Change.Add)
+
+    ``source`` is the device, or a Surface (which re-emits its devices' control
+    events while holding its lock) with ``device`` picking the device (or its
+    name; None: any). ``device`` can be changed later, e.g. when the device is
+    replaced. It listens to ``source`` only while something listens to it.
+    """
+
+    def __init__(self, source, control: str, *, device = None) -> None:
+        self.source = source
+        self.control = control
+        self.device = device
+        self.name = control
+
+    def on(self, event_type: type, handler: typing.Callable = None):
+        if handler is None:
+            return lambda handler: self.on(event_type, handler)
+        if not self._event_handlers():
+            self.source.on(ControlEvent, self._forward)
+        return super().on(event_type, handler)
+
+    def off(self, event_type: type, handler: typing.Callable) -> None:
+        super().off(event_type, handler)
+        if not self._event_handlers():
+            self.source.off(ControlEvent, self._forward)
+
+    def _forward(self, event: ControlEvent) -> None:
+        if event.control != self.control:
+            return
+        device = self.device
+        if device is not None and event.device is not device and (not isinstance(device, str) or getattr(event.device, 'name', None) != device):
+            return
+        self.emit(event)
+
 @dataclasses.dataclass(frozen = True)
 class MessageReceived(Event):
     """An output (MIDI port, OSC, Mackie Control, ...) received ``message`` (see ``pyxelwidgets.message``)."""
