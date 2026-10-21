@@ -13,6 +13,7 @@
   while Shift is held, with velocity), knobs go on from their widget's value,
   the encoder steps evenly both ways, the screen comes back after Shift, and a
   warning says when the DAW program isn't on. `examples/MiniLab3` tries it all.
+  Its knobs can be encoders (`relative_knobs`).
 - **Layout format version 3:** a link's `target` can be a device's control,
   `{"device": 0, "control": "Play"}`, with the option `light` or `text`.
 

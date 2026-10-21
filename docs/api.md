@@ -3344,7 +3344,7 @@ Members: `Encoder_0`, `Encoder_1`, `Encoder_2`, `Encoder_3`, `Encoder_4`, `Encod
 ### `MiniLab3` (_MiniLab)
 
 ```python
-MiniLab3(**kwargs)
+MiniLab3(*, relative_knobs: bool = False, **kwargs)
 ```
 
 MiniLab 3 in its DAW program: 16 RGB pads (two banks of 8), 8 knobs, 4
@@ -3356,6 +3356,10 @@ Play, Record and Tap buttons, lit while Shift is held. `Screen` shows two
 lines (`set_screen`, or `show_text`) until the device draws over them
 (e.g. when its own controls move). The knobs are endless: `set_ring`
 sets the value they go on from, so a bound knob turns from its widget's value.
+With `relative_knobs` they're encoders instead: each turn is a
+ControlTurned by how far it went, with no ends.
+
+- `relative_knobs: bool = False, optional`: The knobs send how far they turned (ControlTurned, like encoders) instead of where they are.
 
 - **`set_daw_mode(enabled: bool)`**: Tell the DAW program a host is there (or gone); the program itself is picked on the device.
 - **`request_program()`**: Ask which program is on: the answer sets `daw`.

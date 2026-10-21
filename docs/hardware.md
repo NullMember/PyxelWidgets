@@ -52,7 +52,9 @@ Known questions for owners:
   Ports are `Minilab3 MIDI` (used), `DIN THRU`, `MCU/HUI` and `ALV` (Analog
   Lab). Shift + pads 4-8 are Loop, Stop, Play, Record, Tap (lit while Shift is
   held, velocity sensitive); the knobs are endless and go on from their bound
-  widget's value; the screen shows two lines and is drawn again after Shift.
+  widget's value, or with the option `relative_knobs` they're encoders
+  (ControlTurned; tried: no ends, no lost steps); the screen shows two lines
+  and is drawn again after Shift.
   Not tried: Shift + encoder click, pad pressure.
 - **Control lights, rings and screens** (2026-10-21, from the makers'
   documents, untested): APC Mini track/scene buttons (on/off), APC40 MK2
