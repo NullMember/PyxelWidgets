@@ -3,7 +3,7 @@ Layout files: a JSON description of a Surface, the devices it is shown on and
 its widgets, as written by the designer (``python -m pyxelwidgets.designer``).
 
     {
-      "format": "pyxelwidgets.layout", "version": 2,
+      "format": "pyxelwidgets.layout", "version": 3,
       "surface": {"width": 9, "height": 9},
       "transport": {"bpm": 120, "signature": [4, 4]},
       "devices": [{"type": "novation.LaunchpadMiniMK3", "x": 0, "y": 0, "options": {}}],
@@ -21,7 +21,8 @@ its widgets, as written by the designer (``python -m pyxelwidgets.designer``).
       "links": [
         {"widget": "show", "on": "Changed", "target": "page", "option": "visible", "value": {"source": "value"}},
         {"widget": "up", "on": "Pressed", "target": "keys", "option": "octave", "change": "Add", "value": 1, "max": 4},
-        {"device": 0, "control": "Top3", "on": "ControlPressed", "target": "page", "option": "visible", "change": "Toggle"}
+        {"device": 0, "control": "Top3", "on": "ControlPressed", "target": "page", "option": "visible", "change": "Toggle"},
+        {"widget": "volume", "on": "Changed", "target": {"device": 0, "control": "Top4"}, "option": "light", "value": "#ff0000"}
       ],
       "widgets": [
         {"type": "Fader", "name": "volume", "x": 0, "y": 0, "width": 1, "height": 8,
@@ -81,6 +82,13 @@ name), ``on`` one of ``CONTROL_EVENTS`` (``ControlChanged`` for knobs and
 faders, ``ControlTurned`` for encoders, ``ControlPressed``/``ControlReleased``
 for buttons); their mappings only send (no ``feedback``).
 
+A link's ``target`` can also be a device's control light or screen,
+``{"device": 0, "control": "Top4"}``, with the option ``light`` (a color; the
+control lights up in it instead of showing what it controls, ``#00000000``
+gives that back) or, for a screen (``"control": "Screen"``), ``text`` (lines
+separated by ``\n``; a moved control's widget and value show over it for a
+moment). See ``DEVICE_TARGETS``.
+
 Expressions (``pyxelwidgets.expression``): a widget option, a link value
 or a message field can be a formula in braces instead of a constant, e.g.
 ``"maximum": "{roll.steps - roll.width}"``. Names are widgets (their options
@@ -128,7 +136,7 @@ import pyxelwidgets.transport
 import pyxelwidgets.widgets
 
 FORMAT = 'pyxelwidgets.layout'
-VERSION = 2
+VERSION = 3
 
 # Actions a binding can trigger, on the transport given to Parser.bind
 ACTIONS = {
@@ -154,6 +162,9 @@ CONTROL_EVENTS = {cls.__name__: cls for cls in (pyxelwidgets.events.ControlChang
                                                 pyxelwidgets.events.ControlPressed, pyxelwidgets.events.ControlReleased)}
 CONTROL_KINDS = {'absolute': ('ControlChanged',), 'relative': ('ControlTurned',),
                  'button': ('ControlPressed', 'ControlReleased'), 'touch': ('ControlPressed', 'ControlReleased')}
+
+# Options of device control lights and screens links can set, and their kinds
+DEVICE_TARGETS = {'light': 'color', 'text': 'str'}
 
 # What the device of a control link or mapping is while it isn't there: no event comes from it
 _ABSENT = object()
@@ -423,6 +434,8 @@ def schema() -> dict:
             'link': {'changes': {name: sorted(kinds) if kinds else None for name, kinds in LINK_CHANGES.items()},
                      'sources': sorted(LINK_SOURCES),
                      'actions': {**{name: None for name in ACTIONS}, **{name: 'float' for name in VALUE_ACTIONS}, 'debug': 'text'},
+                     # Options of device control lights and screens as targets ({"device", "control"})
+                     'devices': dict(DEVICE_TARGETS),
                      'operators': list(pyxelwidgets.link.OPERATORS)},
             'expression': {'functions': list(pyxelwidgets.expression.FUNCTIONS),
                            'transport': ['bpm', 'playing', 'bar', 'beat', 'beats']}}
@@ -690,6 +703,8 @@ class Parser():
         self.surface = None
         #: Device controls links and mappings start from, by (device index, control name)
         self.controls = {}
+        #: Device control lights and screens links set, by (device index, control name, option)
+        self.targets = {}
         # Widget options that are formulas: (widget name, option, text, where)
         self._formulas = []
         self.get_surface()
@@ -1097,12 +1112,14 @@ class Parser():
         self.devices = list(devices)
         for (index, _), control in self.controls.items():
             control.device = self._present(index)
+        for (index, _, _), target in self.targets.items():
+            target.device = self._present(index)
 
     def link_settings(self) -> list:
         """
         The layout's links, checked, as dicts: ``widget`` and ``target`` names
-        (target None for transport actions; ``widget`` is (device index, control
-        name) for a device's control), ``on`` (event class), ``option`` or
+        (target None for transport actions; ``widget`` and ``target`` are (device
+        index, control name) for a device's control), ``on`` (event class), ``option`` or
         ``action``, ``value``, ``change`` (Link.Change), ``minimum``, ``maximum``.
         """
         links = self.json.get('links') or []
@@ -1122,6 +1139,10 @@ class Parser():
                 raise LayoutError(f'{where}.on: {self._describe(widget)} has no event {on!r} (events: {", ".join(events)})')
             if ('option' in entry) == ('action' in entry):
                 raise LayoutError(f'{where}: needs either "option" or "action"')
+            if isinstance(target, dict):
+                target = self._device_target(target, f'{where}.target')
+                if 'action' in entry:
+                    raise LayoutError(f'{where}.action: a device control has no actions, only the options {", ".join(DEVICE_TARGETS)}')
             setting = {'widget': widget, 'on': events[on], 'target': target, 'option': entry.get('option'), 'action': entry.get('action'),
                        'value': None, 'change': pyxelwidgets.link.Link.Change.Set, 'minimum': None, 'maximum': None}
             if 'action' in entry:
@@ -1130,6 +1151,27 @@ class Parser():
                 self._link_option(entry, setting, events[on], where)
             settings.append(setting)
         return settings
+
+    def _device_target(self, target: dict, where: str) -> tuple:
+        """A link target ``{"device": index, "control": name}`` as (index, name)."""
+        if set(target) != {'device', 'control'}:
+            raise LayoutError(f'{where}: a device control is {{"device": index, "control": name}}, got {target!r}')
+        device, control = target['device'], target['control']
+        count = len(self.json.get('devices') or [])
+        if isinstance(device, bool) or not isinstance(device, int) or not 0 <= device < count:
+            raise LayoutError(f'{where}.device: must be the index of one of the {count} devices, got {device!r}')
+        if not isinstance(control, str) or not control:
+            raise LayoutError(f'{where}.control: must be a control name, got {control!r}')
+        return device, control
+
+    def target(self, target: tuple, option: str):
+        """The light or screen (``Surface.light``/``screen``) a link's (device index, control) ``target`` sets ``option`` of."""
+        key = (*target, option)
+        if key not in self.targets:
+            index, control = target
+            made = self.surface.screen if option == 'text' else self.surface.light
+            self.targets[key] = made(self._present(index), control)
+        return self.targets[key]
 
     def _link_action(self, entry: dict, setting: dict, event: type, where: str) -> None:
         action, target = entry['action'], entry.get('target')
@@ -1200,13 +1242,20 @@ class Parser():
 
     def _link_option(self, entry: dict, setting: dict, event: type, where: str) -> None:
         target, option = entry.get('target'), entry.get('option')
-        if target not in self.widgets:
+        if isinstance(target, dict):
+            setting['target'] = self._device_target(target, f'{where}.target')
+            if option not in DEVICE_TARGETS:
+                raise LayoutError(f'{where}.option: a device control has the options {", ".join(DEVICE_TARGETS)}, got {option!r}')
+            # Decoded without a class (_link_constant)
+            cls, kind = None, DEVICE_TARGETS[option]
+        elif target not in self.widgets:
             raise LayoutError(f'{where}.target: no widget named {target!r}')
-        cls = type(self.widgets[target])
-        options = {item['name']: item for item in linkable(cls)}
-        if option not in options:
-            raise LayoutError(f'{where}.option: {target} ({cls.__name__}) has no option {option!r} (options: {", ".join(options)})')
-        kind = options[option]['kind']
+        else:
+            cls = type(self.widgets[target])
+            options = {item['name']: item for item in linkable(cls)}
+            if option not in options:
+                raise LayoutError(f'{where}.option: {target} ({cls.__name__}) has no option {option!r} (options: {", ".join(options)})')
+            kind = options[option]['kind']
         change = entry.get('change', 'Set')
         if change not in LINK_CHANGES:
             raise LayoutError(f'{where}.change: must be one of {", ".join(LINK_CHANGES)}, got {change!r}')
@@ -1315,7 +1364,16 @@ class Parser():
 
     @staticmethod
     def _link_constant(cls, option: str, kind: str, value, where: str):
-        """A link value or bound encoded like the option (geometry: whole numbers)."""
+        """A link value or bound encoded like the option (geometry: whole numbers; ``cls`` None: a device target)."""
+        if cls is None:
+            if kind == 'str':
+                if not isinstance(value, str):
+                    raise LayoutError(f'{where}: must be a text, got {value!r}')
+                return value
+            try:
+                return text_to_color(value)
+            except (TypeError, ValueError, AttributeError):
+                raise LayoutError(f'{where}: must be a color like "#ff0000" or "#00000000", got {value!r}') from None
         if option in ('x', 'y', 'width', 'height') or kind == 'int':
             if isinstance(value, bool) or not isinstance(value, int):
                 raise LayoutError(f'{where}: must be a whole number, got {value!r}')
@@ -1353,6 +1411,8 @@ class Parser():
                 continue
             elif action is not None:
                 target, option = getattr(self.widgets[target], action), None
+            elif isinstance(target, tuple):
+                target, option = self.target(target, setting['option']), setting['option']
             else:
                 target, option = self.widgets[target], setting['option']
             created.append(self.surface.link(self.sender(setting['widget']), target, option, setting['value'], on = setting['on'],
@@ -1408,6 +1468,8 @@ class Parser():
 UPGRADES = {
     # 2 added links and mappings from device controls: version 1 layouts are the same
     1: lambda layout: None,
+    # 3 added device control lights and screens as link targets: the same
+    2: lambda layout: None,
 }
 
 def upgrade(layout: dict) -> dict:
