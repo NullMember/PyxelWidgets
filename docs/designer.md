@@ -139,9 +139,10 @@ Under the grid (` shows or hides it, drag its edge to resize):
 
 ## The view
 
-The grid fills the space it has. The wheel zooms around the pointer (the
-toolbar's *Wheel zooms* switches it to moving the grid), and so do pinches,
-Ctrl/Cmd + wheel and Ctrl/Cmd +/-/0. *Fit* brings it back. Drag around the
+The grid fills the space it has. The zoom buttons sit at its top right. The
+wheel zooms around the pointer (*Wheel zooms* next to them switches it to
+moving the grid), and so do pinches, Ctrl/Cmd + wheel and Ctrl/Cmd +/-/0.
+*Fit* brings it back. Drag around the
 grid, Shift + wheel or the middle button to move it. Hide or resize the side
 panels; F shows the grid alone.
 
