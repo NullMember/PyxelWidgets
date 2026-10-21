@@ -27,13 +27,6 @@
       <button id="play" title="Play the transport so Sequencers and Trackers play (Space)">▶ Play</button>
       <span id="position" class="position" aria-live="off"></span>
       <span class="divider"></span>
-      <div class="segmented zoom" role="group" aria-label="Zoom">
-        <button id="zoom-out" title="Zoom out (Ctrl/Cmd -)">−</button>
-        <button id="zoom-fit" title="Fit the grid in the window (Ctrl/Cmd 0)">Fit</button>
-        <button id="zoom-in" title="Zoom in (Ctrl/Cmd +, or the wheel)">+</button>
-      </div>
-      <button id="wheel-mode" class="small-toggle"></button>
-      <span class="divider"></span>
       <button id="undo" title="Undo (Ctrl+Z)">Undo</button>
       <button id="redo" title="Redo (Ctrl+Shift+Z)">Redo</button>
       <span class="divider"></span>
@@ -103,6 +96,14 @@
     </aside>
     <section id="center">
       <section id="stage">
+        <div id="stage-tools" class="stage-tools">
+          <div class="segmented zoom" role="group" aria-label="Zoom">
+            <button id="zoom-out" title="Zoom out (Ctrl/Cmd -)">−</button>
+            <button id="zoom-fit" title="Fit the grid in the window (Ctrl/Cmd 0)">Fit</button>
+            <button id="zoom-in" title="Zoom in (Ctrl/Cmd +, or the wheel)">+</button>
+          </div>
+          <button id="wheel-mode" class="small-toggle"></button>
+        </div>
         <div id="board">
           <div id="pads"></div>
           <div id="overlay"></div>
