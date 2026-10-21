@@ -108,6 +108,8 @@ _exports = {
     'ControlReleased': 'events',
     'ControlChanged': 'events',
     'ControlTurned': 'events',
+    'KeyPressed': 'events',
+    'KeyReleased': 'events',
     'ControlInput': 'events',
     'TransportEvent': 'events',
     'TransportStarted': 'events',
