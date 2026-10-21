@@ -242,7 +242,7 @@ class _Writer:
 
     def _write(self, *, handlers: bool, run: bool) -> str:
         self.picture = False
-        sections = [self.surface(), self.devices(), self.widgets(), self.outputs(), self.app(), self.mappings(), self.bindings(),
+        sections = [self.surface(), self.devices(), self.widgets(), self.outputs(), self.app(), self.controls(), self.mappings(), self.bindings(),
                     self.links(), self.formulas(), self.clocks(), self.handlers() if handlers else []]
         body = []
         for section in sections:
@@ -331,12 +331,26 @@ class _Writer:
                 lines.append(f'{variable}.connect()')
         return lines
 
+    def controls(self) -> list:
+        # Device controls messages and links start from
+        lines = []
+        senders = [setting[0] for setting in self.ui.mapping_settings()] + [setting['widget'] for setting in self.ui.link_settings()]
+        for sender in senders:
+            if isinstance(sender, tuple) and ('control', sender) not in self.variables:
+                device, control = sender
+                variable = self.variable(('control', sender), _snake(control))
+                lines.append(f'{variable} = surface.control({self.variables[("device", device)]}, {control!r})')
+        return lines
+
+    def sender(self, sender) -> str:
+        return self.variables[('control', sender) if isinstance(sender, tuple) else ('widget', sender)]
+
     def mappings(self) -> list:
         # After the app: computed fields may read app.transport
         lines = []
         for widget, on, output, message, feedback in self.ui.mapping_settings():
             options = ([('on', self.name(on))] if on is not None else []) + ([('feedback', 'True')] if feedback else [])
-            lines.append(self.call('surface.map', [self.variables[('widget', widget)], self.variables[('output', output)], self.value(message)], options))
+            lines.append(self.call('surface.map', [self.sender(widget), self.variables[('output', output)], self.value(message)], options))
         return lines
 
     def app(self) -> list:
@@ -373,9 +387,10 @@ class _Writer:
     def links(self) -> list:
         lines = []
         for setting in self.ui.link_settings():
-            widget, action, value = self.variables[('widget', setting['widget'])], setting['action'], setting['value']
+            widget, action, value = self.sender(setting['widget']), setting['action'], setting['value']
             if action == 'debug':
-                args, keywords = [f'lambda text: print({setting["widget"] + ":"!r}, text)'], [('value', self.value(value))]
+                name = setting['widget'][1] if isinstance(setting['widget'], tuple) else setting['widget']
+                args, keywords = [f'lambda text: print({name + ":"!r}, text)'], [('value', self.value(value))]
             elif action is not None and action.startswith('transport.'):
                 args, keywords = [_ACTIONS[action].format('app.transport')], [] if value is None else [('value', self.value(value))]
             elif action is not None:
