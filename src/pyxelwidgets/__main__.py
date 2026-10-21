@@ -40,6 +40,15 @@ def run(args) -> int:
             say(f'    {output.warning}')
     if not ui.devices:
         say('  No devices in the layout: add one in the designer')
+    # Devices find out some things after connecting (e.g. the MiniLab 3's program): say when a warning comes or goes
+    warnings = {}
+    def check_warnings(event) -> None:
+        for device in ui.devices:
+            warning = getattr(device, 'warning', None)
+            if warning != warnings.get(device.name):
+                warnings[device.name] = warning
+                say(f'{type(device).__name__}: {warning}' if warning else f'{type(device).__name__}: fine now')
+    ui.surface.on(pyxelwidgets.events.Frame, check_warnings)
     if any(getattr(widget, 'save', False) and type(widget).__name__ == 'Presets' for widget in ui.widgets.values()):
         say(f'  Stored presets are saved to {args.layout}')
     if ui.clock_input is not None:
