@@ -1,7 +1,9 @@
+import gc
 import platform
 import queue
 import sys
 import threading
+import time
 
 import pyxelwidgets.devices
 import pyxelwidgets.devices.te_virtual_midi
@@ -99,6 +101,22 @@ def _list_ports() -> tuple:
     added = [name for name in bluetooth.added_ports() if name not in inputs and name not in outputs] if bluetooth else []
     # Bluetooth MIDI devices this program connected itself (on Android the system lists them)
     return list(inputs) + added, list(outputs) + added
+
+def _close(port) -> None:
+    """
+    Close ``port`` (on the MIDI thread). An input's callback is taken away
+    first and one already running gets to finish: closing waits for running
+    callbacks while holding the interpreter lock they need, a deadlock when
+    messages keep coming (a DAW's feedback). The callback is kept alive
+    meanwhile (rtmidi frees it when it's taken away).
+    """
+    cancel = getattr(port, 'cancel_callback', None)
+    if callable(cancel):
+        kept = gc.get_referents(port)
+        midi_thread.call(cancel)
+        time.sleep(0.02)
+        del kept
+    midi_thread.call(port.close_port)
 
 def _open(port, output: bool) -> tuple:
     """Open ``port`` (a name, or an index into ``_list_ports``): a connected Bluetooth device's, or the backend's."""
@@ -270,7 +288,7 @@ class MIDI(pyxelwidgets.devices.Device):
         for port in (self._midi_input, self._midi_output):
             if port is not None:
                 try:
-                    midi_thread.call(port.close_port)
+                    _close(port)
                 except Exception:
                     pass
         self._midi_input = self._midi_output = None
@@ -281,10 +299,10 @@ class MIDI(pyxelwidgets.devices.Device):
             self.on_disconnect()
         super().disconnect()
         if self._midi_input is not None:
-            midi_thread.call(self._midi_input.close_port)
+            _close(self._midi_input)
             self._midi_input = None
         if self._midi_output is not None:
-            midi_thread.call(self._midi_output.close_port)
+            _close(self._midi_output)
             self._midi_output = None
 
     def on_connect(self) -> None:
