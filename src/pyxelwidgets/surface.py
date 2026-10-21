@@ -32,7 +32,8 @@ class Surface(pyxelwidgets.events.Emitter):
     Emits ``Frame`` before rendering each frame, and re-emits every device's
     control events (ControlPressed, ControlChanged, ...). ``bind`` connects a
     device's controls to widgets or actions, ``map`` sends widget events to
-    other software and ``link`` lets widgets change each other's options;
+    other software and ``link`` lets widgets change each other's options
+    (``control`` gives a device's control to them in place of a widget);
     ``formula`` keeps an option at what an expression of others computes.
 
     ``lock`` is held while processing input and rendering. Hold it when changing
@@ -125,6 +126,13 @@ class Surface(pyxelwidgets.events.Emitter):
         with self.lock:
             binding.close()
             self.bindings.remove(binding)
+
+    def control(self, device, control: str) -> pyxelwidgets.events.ControlInput:
+        """
+        ``device``'s ``control`` (a device or its name) as a source for ``map``
+        and ``link``: ``surface.link(surface.control(launchpad, 'Knob1'), ...)``.
+        """
+        return pyxelwidgets.events.ControlInput(self, control, device = device)
 
     # Mappings
 
