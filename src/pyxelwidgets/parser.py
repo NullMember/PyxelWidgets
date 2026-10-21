@@ -3,7 +3,7 @@ Layout files: a JSON description of a Surface, the devices it is shown on and
 its widgets, as written by the designer (``python -m pyxelwidgets.designer``).
 
     {
-      "format": "pyxelwidgets.layout", "version": 1,
+      "format": "pyxelwidgets.layout", "version": 2,
       "surface": {"width": 9, "height": 9},
       "transport": {"bpm": 120, "signature": [4, 4]},
       "devices": [{"type": "novation.LaunchpadMiniMK3", "x": 0, "y": 0, "options": {}}],
@@ -14,11 +14,14 @@ its widgets, as written by the designer (``python -m pyxelwidgets.designer``).
       "outputs": [{"name": "daw", "type": "mackie.MackieControl", "virtual": "PyxelWidgets", "options": {}}],
       "mappings": [
         {"widget": "volume", "on": "Changed", "output": "daw", "feedback": true,
-         "message": {"type": "Command", "name": "Fader 1", "value": {"source": "value"}}}
+         "message": {"type": "Command", "name": "Fader 1", "value": {"source": "value"}}},
+        {"device": 0, "control": "Top2", "on": "ControlPressed", "output": "daw",
+         "message": {"type": "Command", "name": "Stop", "value": 1}}
       ],
       "links": [
         {"widget": "show", "on": "Changed", "target": "page", "option": "visible", "value": {"source": "value"}},
-        {"widget": "up", "on": "Pressed", "target": "keys", "option": "octave", "change": "Add", "value": 1, "max": 4}
+        {"widget": "up", "on": "Pressed", "target": "keys", "option": "octave", "change": "Add", "value": 1, "max": 4},
+        {"device": 0, "control": "Top3", "on": "ControlPressed", "target": "page", "option": "visible", "change": "Toggle"}
       ],
       "widgets": [
         {"type": "Fader", "name": "volume", "x": 0, "y": 0, "width": 1, "height": 8,
@@ -72,6 +75,12 @@ number: ``transport.tempo``, ``transport.tempo_add``), or ``debug``, which
 writes its ``value``, a text filled in from the event (``"pad {x}"``,
 ``{all}``: every value; the default), to ``Parser.debug``.
 
+Instead of a ``widget``, a mapping or link can start from a device's
+control: ``"device"`` (its index in ``devices``) and ``"control"`` (its
+name), ``on`` one of ``CONTROL_EVENTS`` (``ControlChanged`` for knobs and
+faders, ``ControlTurned`` for encoders, ``ControlPressed``/``ControlReleased``
+for buttons); their mappings only send (no ``feedback``).
+
 Expressions (``pyxelwidgets.expression``): a widget option, a link value
 or a message field can be a formula in braces instead of a constant, e.g.
 ``"maximum": "{roll.steps - roll.width}"``. Names are widgets (their options
@@ -119,7 +128,7 @@ import pyxelwidgets.transport
 import pyxelwidgets.widgets
 
 FORMAT = 'pyxelwidgets.layout'
-VERSION = 1
+VERSION = 2
 
 # Actions a binding can trigger, on the transport given to Parser.bind
 ACTIONS = {
@@ -139,6 +148,15 @@ VALUE_ACTIONS = {
     'transport.tempo': lambda transport: (lambda bpm: setattr(transport, 'bpm', max(1.0, float(bpm)))),
     'transport.tempo_add': lambda transport: (lambda amount: setattr(transport, 'bpm', max(1.0, transport.bpm + amount))),
 }
+
+# Events of device controls that links and mappings can start from, and which kinds of control send them
+CONTROL_EVENTS = {cls.__name__: cls for cls in (pyxelwidgets.events.ControlChanged, pyxelwidgets.events.ControlTurned,
+                                                pyxelwidgets.events.ControlPressed, pyxelwidgets.events.ControlReleased)}
+CONTROL_KINDS = {'absolute': ('ControlChanged',), 'relative': ('ControlTurned',),
+                 'button': ('ControlPressed', 'ControlReleased'), 'touch': ('ControlPressed', 'ControlReleased')}
+
+# What the device of a control link or mapping is while it isn't there: no event comes from it
+_ABSENT = object()
 
 # Animations a widget entry can have, by name
 ANIMATIONS = {cls.__name__: cls for cls in (pyxelwidgets.animation.Blink, pyxelwidgets.animation.Pulse, pyxelwidgets.animation.Fade)}
@@ -395,7 +413,10 @@ def schema() -> dict:
         }
     events = {event.__name__: {'doc': _doc(event), 'sources': pyxelwidgets.mapping.available(event)}
               for cls in widget_types().values() for event in cls.events()}
+    events.update({name: {'doc': _doc(event), 'sources': pyxelwidgets.mapping.available(event)} for name, event in CONTROL_EVENTS.items()})
     return {'format': FORMAT, 'version': VERSION, 'widgets': widgets,
+            # The events each kind of device control sends, for links and mappings starting from one
+            'controls': {kind: list(names) for kind, names in CONTROL_KINDS.items()},
             'animations': {name: {'doc': _doc(cls), 'options': option_schema(cls)} for name, cls in ANIMATIONS.items()},
             'binding': {'options': option_schema(pyxelwidgets.binding.Binding), 'actions': [*ACTIONS, *SURFACE_ACTIONS]},
             'events': events, 'messages': message_schema(),
@@ -667,6 +688,8 @@ class Parser():
         self.devices = []
         self.widgets = {}
         self.surface = None
+        #: Device controls links and mappings start from, by (device index, control name)
+        self.controls = {}
         # Widget options that are formulas: (widget name, option, text, where)
         self._formulas = []
         self.get_surface()
@@ -973,7 +996,11 @@ class Parser():
         return outputs
 
     def mapping_settings(self) -> list:
-        """The layout's mappings as (widget name, event class or None, output name, message, feedback)."""
+        """
+        The layout's mappings as (sender, event class or None, output name,
+        message, feedback); the sender is a widget name, or (device index,
+        control name) for a device's control.
+        """
         mappings = self.json.get('mappings') or []
         if not isinstance(mappings, list):
             raise LayoutError('mappings: must be a list')
@@ -983,19 +1010,19 @@ class Parser():
             where = f'mappings[{index}]'
             if not isinstance(entry, dict):
                 raise LayoutError(f'{where}: must be an object')
-            widget, on, output = entry.get('widget'), entry.get('on'), entry.get('output')
+            on, output = entry.get('on'), entry.get('output')
             feedback = entry.get('feedback', False)
-            if widget not in self.widgets:
-                raise LayoutError(f'{where}.widget: no widget named {widget!r}')
+            widget, events = self._sender(entry, where)
             if output not in outputs:
                 raise LayoutError(f'{where}.output: no output named {output!r} (outputs: {", ".join(outputs) or "none"})')
             if not isinstance(feedback, bool):
                 raise LayoutError(f'{where}.feedback: must be true or false')
+            if feedback and isinstance(widget, tuple):
+                raise LayoutError(f'{where}.feedback: a device\'s control only sends (feedback needs a widget to show it)')
             event = None
             if on is not None:
-                events = {cls.__name__: cls for cls in type(self.widgets[widget]).events()}
                 if on not in events:
-                    raise LayoutError(f'{where}.on: {widget} ({type(self.widgets[widget]).__name__}) has no event {on!r} (events: {", ".join(events)})')
+                    raise LayoutError(f'{where}.on: {self._describe(widget)} has no event {on!r} (events: {", ".join(events)})')
                 event = events[on]
             elif not feedback:
                 raise LayoutError(f'{where}: needs "on", "feedback" or both')
@@ -1023,13 +1050,59 @@ class Parser():
 
     def map(self, outputs: dict) -> list:
         """Create the layout's mappings on the surface for ``outputs`` (by name; missing ones are skipped)."""
-        return [self.surface.map(self.widgets[widget], outputs[output], message, on = on, feedback = feedback)
+        return [self.surface.map(self.sender(widget), outputs[output], message, on = on, feedback = feedback)
                 for widget, on, output, message, feedback in self.mapping_settings() if output in outputs]
+
+    def _sender(self, entry: dict, where: str) -> tuple:
+        """A mapping's or link's sender (a widget name, or (device index, control name)) and its events by name."""
+        if 'device' in entry or 'control' in entry:
+            if 'widget' in entry:
+                raise LayoutError(f'{where}: starts from a "widget", or a "device" and its "control", not both')
+            device, control = entry.get('device'), entry.get('control')
+            count = len(self.json.get('devices') or [])
+            if isinstance(device, bool) or not isinstance(device, int) or not 0 <= device < count:
+                raise LayoutError(f'{where}.device: must be the index of one of the {count} devices, got {device!r}')
+            if not isinstance(control, str) or not control:
+                raise LayoutError(f'{where}.control: must be a control name, got {control!r}')
+            return (device, control), CONTROL_EVENTS
+        widget = entry.get('widget')
+        if widget not in self.widgets:
+            raise LayoutError(f'{where}.widget: no widget named {widget!r}')
+        return widget, {cls.__name__: cls for cls in type(self.widgets[widget]).events()}
+
+    def _describe(self, sender) -> str:
+        if isinstance(sender, tuple):
+            return f'{sender[1]} (control of devices[{sender[0]}])'
+        return f'{sender} ({type(self.widgets[sender]).__name__})'
+
+    def sender(self, sender):
+        """The widget, or the device control (an ``events.ControlInput``), a ``sender`` from the settings names."""
+        if not isinstance(sender, tuple):
+            return self.widgets[sender]
+        if sender not in self.controls:
+            index, name = sender
+            self.controls[sender] = self.surface.control(self._present(index), name)
+        return self.controls[sender]
+
+    def _present(self, index: int):
+        device = self.devices[index] if index < len(self.devices) else None
+        return device if device is not None else _ABSENT
+
+    def place_controls(self, devices: list) -> None:
+        """
+        Point links and mappings from device controls at ``devices`` (in layout
+        order; None or missing: nothing comes from that one), e.g. after
+        connecting devices to a layout loaded with ``devices = False``.
+        """
+        self.devices = list(devices)
+        for (index, _), control in self.controls.items():
+            control.device = self._present(index)
 
     def link_settings(self) -> list:
         """
         The layout's links, checked, as dicts: ``widget`` and ``target`` names
-        (target None for transport actions), ``on`` (event class), ``option`` or
+        (target None for transport actions; ``widget`` is (device index, control
+        name) for a device's control), ``on`` (event class), ``option`` or
         ``action``, ``value``, ``change`` (Link.Change), ``minimum``, ``maximum``.
         """
         links = self.json.get('links') or []
@@ -1040,15 +1113,13 @@ class Parser():
             where = f'links[{index}]'
             if not isinstance(entry, dict):
                 raise LayoutError(f'{where}: must be an object')
-            unknown = set(entry) - {'widget', 'on', 'target', 'option', 'action', 'change', 'value', 'min', 'max'}
+            unknown = set(entry) - {'widget', 'device', 'control', 'on', 'target', 'option', 'action', 'change', 'value', 'min', 'max'}
             if unknown:
                 raise LayoutError(f'{where}: unknown keys {", ".join(sorted(unknown))}')
-            widget, on, target = entry.get('widget'), entry.get('on'), entry.get('target')
-            if widget not in self.widgets:
-                raise LayoutError(f'{where}.widget: no widget named {widget!r}')
-            events = {cls.__name__: cls for cls in type(self.widgets[widget]).events()}
+            on, target = entry.get('on'), entry.get('target')
+            widget, events = self._sender(entry, where)
             if on not in events:
-                raise LayoutError(f'{where}.on: {widget} ({type(self.widgets[widget]).__name__}) has no event {on!r} (events: {", ".join(events)})')
+                raise LayoutError(f'{where}.on: {self._describe(widget)} has no event {on!r} (events: {", ".join(events)})')
             if ('option' in entry) == ('action' in entry):
                 raise LayoutError(f'{where}: needs either "option" or "action"')
             setting = {'widget': widget, 'on': events[on], 'target': target, 'option': entry.get('option'), 'action': entry.get('action'),
@@ -1272,7 +1343,7 @@ class Parser():
             if action == 'debug':
                 if not widgets:
                     continue
-                name = setting['widget']
+                name = setting['widget'] if not isinstance(setting['widget'], tuple) else setting['widget'][1]
                 target, option = (lambda text, name = name: self.debug(name, text)), None
             elif action is not None and action.startswith('transport.'):
                 if transport is None:
@@ -1284,7 +1355,7 @@ class Parser():
                 target, option = getattr(self.widgets[target], action), None
             else:
                 target, option = self.widgets[target], setting['option']
-            created.append(self.surface.link(self.widgets[setting['widget']], target, option, setting['value'], on = setting['on'],
+            created.append(self.surface.link(self.sender(setting['widget']), target, option, setting['value'], on = setting['on'],
                                              change = setting['change'], minimum = setting['minimum'], maximum = setting['maximum']))
         return created
 
@@ -1334,7 +1405,10 @@ class Parser():
 #: Steps from each older version to the next: ``UPGRADES[n]`` turns a version
 #: ``n`` layout (a copy, changed in place) into a version ``n + 1`` one. Add one
 #: with each change of the format, and bump ``VERSION``.
-UPGRADES = {}
+UPGRADES = {
+    # 2 added links and mappings from device controls: version 1 layouts are the same
+    1: lambda layout: None,
+}
 
 def upgrade(layout: dict) -> dict:
     """``layout`` converted to the current version (a copy if it changes); raises LayoutError if it isn't a layout."""
