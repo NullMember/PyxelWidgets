@@ -118,6 +118,8 @@ everything.
 - **Sync to a DAW** (Surface panel) follows a DAW's MIDI clock instead: over
   a virtual port, a MIDI input, or an output such as network or Bluetooth
   MIDI. See [following a DAW's clock](outputs.md#following-a-daws-clock).
+  **Send MIDI clock** sends the transport's clock out through outputs instead,
+  for a DAW or drum machine to follow.
 - **Perform** mode (P) stops drawing the grid, so it costs almost nothing
   while you play on your devices. *Play on this screen* turns the page into a
   touch grid (a Web Grid on the layout), handy on a tablet or phone.

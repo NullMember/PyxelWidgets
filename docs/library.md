@@ -253,6 +253,20 @@ surface.link(surface.control(xl, 'Solo'), mixer, 'visible', on = ControlPressed,
 In the designer these are on the device's panel: pick the control (or
 *Learn* it), then *Add message* or *Add link*.
 
+A controller's keyboard is a control too (kind `keys`, a MiniLab's `Keys`):
+`KeyPressed`/`KeyReleased` carry the `note`, so keys can feed an
+Arpeggiator, set a root or play a synth on a channel of its own:
+
+```python
+from pyxelwidgets import KeyPressed, KeyReleased
+from pyxelwidgets.message import NoteOn
+
+keys = surface.control(minilab, 'Keys')
+surface.link(keys, arp.add, value = Source('note'), on = KeyPressed)
+surface.link(keys, arp.remove, value = Source('note'), on = KeyReleased)
+surface.map(keys, synth, NoteOn(Source('note'), Source('velocity'), channel = 4), on = KeyPressed)
+```
+
 ### Lights, rings and screens
 
 Controls with a light show what they're bound to: a Button's active or

@@ -462,6 +462,22 @@ ControlTurned(device: typing.Any, control: str, delta: int)
 
 A relative control (endless encoder) turned by `delta` steps; negative is counter-clockwise.
 
+### `KeyPressed` (ControlEvent)
+
+```python
+KeyPressed(device: typing.Any, control: str, note: int, velocity: float)
+```
+
+A key of a device's keyboard (a control of kind `keys`) went down: its MIDI `note` and `velocity` (0.0-1.0).
+
+### `KeyReleased` (ControlEvent)
+
+```python
+KeyReleased(device: typing.Any, control: str, note: int, velocity: float)
+```
+
+A key of a device's keyboard came up.
+
 ### `ControlInput` (Emitter)
 
 ```python
@@ -1839,6 +1855,7 @@ taps (link it to the transport's tempo). It blinks on the beat, and on taps.
 - `minimum, maximum: float, optional`: The slowest and fastest tempo it gives.
 
 - **`handle_press(x: int, y: int, velocity: float)`**
+- **`tap(x: int = 0, y: int = 0, velocity: float = 1.0)`**: A tap (a press and release), e.g. from a controller's Tap button through a link.
 - **`reset()`**: Forget the taps.
 - **`render(time = None)`**
 - **`draw()`**
@@ -2055,7 +2072,7 @@ handlers; it must be reentrant so they may control the transport.
 - **`toggle()`**
 - **`locate(beats: float = 0)`**: Move to `beats` quarter notes from the start; while playing, that position plays next.
 - **`close()`**: Stop and wait for the timer thread to finish.
-- **`every(rate, callback: Callable | None = None, *, offset = 0, divisions: int = 1)`**: Call `callback(count)` every `rate` while playing, where `count` is the number of `rate` lengths since the start (e.g. the 16th note number), so the callback follows `locate` too. `offset` (a rate, e.g. `'1/32'`) delays the calls. With `divisions` the callback is called that many times per `rate` (as often as ticks allow; counts in between may be skipped), counting divisions: a Sequencer times swing and gates with them. Returns a Subscription; usable as a decorator, which returns the function.
+- **`every(rate, callback: Callable | None = None, *, offset = 0, divisions: int = 1)`**: Call `callback(count)` every `rate` while playing, where `count` is the number of `rate` lengths since the start (e.g. the 16th note number), so the callback follows `locate` too. `rate` can be a function giving it (e.g. `lambda: widget.rate`): when its answer changes, the calls follow the new rate. `offset` (a rate, e.g. `'1/32'`) delays the calls. With `divisions` the callback is called that many times per `rate` (as often as ticks allow; counts in between may be skipped), counting divisions: a Sequencer times swing and gates with them. Returns a Subscription; usable as a decorator, which returns the function.
 - **`cancel(subscription)`**: Remove a Subscription, or every subscription of a callback.
 - **`subscriptions`**
 - **`pulse()`**: One MIDI Timing Clock (24 per quarter note): advances while playing. The tempo is measured once a beat, averaged over up to 4 beats.
@@ -2435,7 +2452,7 @@ Layout files: a JSON description of a Surface, the devices it is shown on and
 its widgets, as written by the designer (`python -m pyxelwidgets.designer`).
 
     {
-      "format": "pyxelwidgets.layout", "version": 3,
+      "format": "pyxelwidgets.layout", "version": 4,
       "surface": {"width": 9, "height": 9},
       "transport": {"bpm": 120, "signature": [4, 4]},
       "devices": [{"type": "novation.LaunchpadMiniMK3", "x": 0, "y": 0, "options": {}}],
@@ -2477,7 +2494,9 @@ with its options. Older versions are upgraded on load (`UPGRADES`).
 virtual port it can send to, `{"virtual": "PyxelWidgets Clock"}`, or one of
 the layout's outputs the DAW connects to (a Bluetooth or network MIDI output,
 whose own port it is), `{"output": "Bluetooth"}`. Its tempo, start, stop and
-position (song position) then come from there.
+position (song position) then come from there. `transport.clock` sends the
+transport's MIDI clock, start/stop and position out through some of the
+layout's outputs, so a DAW or drum machine follows: `["midi"]`.
 
 Bindings connect a device's named controls (by the device's index in
 `devices`) to a widget, with Binding options (`takeover`, `glide_time`,
@@ -2512,7 +2531,7 @@ Instead of a `widget`, a mapping or link can start from a device's
 control: `"device"` (its index in `devices`) and `"control"` (its
 name), `on` one of `CONTROL_EVENTS` (`ControlChanged` for knobs and
 faders, `ControlTurned` for encoders, `ControlPressed`/`ControlReleased`
-for buttons); their mappings only send (no `feedback`).
+for buttons, `KeyPressed`/`KeyReleased` with the `note` for keyboards); their mappings only send (no `feedback`).
 
 A link's `target` can also be a device's control light or screen,
 `{"device": 0, "control": "Top4"}`, with the option `light` (a color; the
@@ -2650,6 +2669,8 @@ in that file, unless their `save` option is off.
 - **`keep_presets()`**: Write what Presets groups store (with `save` on) into `path`, the layout file.
 - **`save_presets(name: str)`**: Write the presets of the Presets group `name` into its `presets` option in `path`. The file is read again first, so changes made to it meanwhile (e.g. saved by the designer) are kept. Failures are printed.
 - **`sync_settings()`**: The layout's `transport.sync`: `{"input": port}`, `{"virtual": port}` or `{"output": name}`, where a DAW's clock comes in; None if the transport keeps its own time.
+- **`clock_settings()`**: The layout's `transport.clock`: the names of the outputs the transport's MIDI clock goes out through.
+- **`clock_senders(transport, outputs: dict | None = None)`**: A ClockSender for each `transport.clock` output (from `outputs` by name, default the layout's; missing ones are skipped).
 - **`sync_input(transport, outputs: dict | None = None)`**: Whatever drives `transport` (created with `sync = True`) from the `sync` setting: a connected MidiClockInput for a port, a ClockFollower on the output (from `outputs` by name, default the layout's; it waits while that output is missing); None without sync.
 - **`transport_settings()`**: Keyword arguments for a Transport (or App) from the layout's `transport` (bpm and signature).
 - **`timed(clock: Clock)`**: The widgets (Sequencers, Trackers...) played by `clock`.
@@ -3472,6 +3493,8 @@ MIDI clock: follow another program's clock (e.g. a DAW) or send one.
     clock = MidiClockOutput(app.transport)
     clock.connect(out_port = 'IAC Driver Bus 1')
 
+    clock = ClockSender(app.transport, output)    # through a port already open (a layout's output)
+
 A Bluetooth or network MIDI output the DAW connects to (`BleMidi`,
 `RtpMidi`, or any device with `raw_listeners`) can carry the clock too:
 
@@ -3494,6 +3517,21 @@ waits for one).
 
 - **`connected`**: Whether the device it follows is connected.
 - **`attach(source)`**
+- **`close()`**
+
+### `ClockSender`
+
+```python
+ClockSender(transport, target)
+```
+
+Sends `transport`'s tempo and position as MIDI clock (24 per quarter
+note) with start, continue, stop and song position through `target`: a
+MIDI device or output (its port), or anything with `send_midi` (network
+and Bluetooth MIDI), e.g. one of a layout's outputs (`transport.clock`).
+Nothing is sent while the target has no port. `close()` stops sending
+(and sends stop if the transport was playing).
+
 - **`close()`**
 
 ### `MidiClockInput` (MIDI)

@@ -2,6 +2,17 @@
 
 ## Unreleased
 
+- **Clock out:** the transport's MIDI clock, start/stop and position go out
+  through outputs (`transport.clock`, *Send MIDI clock*), so a DAW follows the
+  controllers.
+- **Keyboards:** a controller's keys are a control (`KeyPressed`/`KeyReleased`
+  with the note): MiniLab keys, pitch and mod strips and sustain pedal.
+- **Rates follow changes:** a Sequencer's (or other timed widget's) `rate`
+  changed by a link or formula now changes when it plays.
+- **Fixes:** a Switch Button starting on turns off on the first press;
+  TapTempo has a `tap` action (a controller's Tap button).
+- **Layout format version 4:** `transport.clock` and keyboard events.
+
 - **Control lights, rings and screens:** buttons with a light on more
   controllers (APC Mini, APC40 MK2, Push 2, ATOM, Launch Control XL) show the
   widget they're bound to and light up while held; the APC40 MK2's knob rings

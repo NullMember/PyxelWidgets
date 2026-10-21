@@ -304,6 +304,17 @@ clock.connect_virtual('PyxelWidgets Clock')      # or ClockFollower(app.transpor
 
 See `examples/ClockSync`.
 
+### Sending the clock
+
+The other way round, the controllers keep time and the DAW follows: the
+transport's clock, start, stop and position go out through some of the
+layout's MIDI outputs while it plays (`"transport": {"clock": ["midi"]}`; in
+the designer *Send MIDI clock* on the Surface panel). Set the DAW to follow
+that port (REAPER: *Synchronize to MIDI clock* in the Project Settings and the
+port's input enabled; Ableton Live: the port's *Sync* switch under MIDI
+inputs; Logic: MIDI Sync > Listen to MIDI Clock). In code:
+`app.clocks.append(ClockSender(app.transport, output))`.
+
 ## Keyboard and mouse
 
 Your computer's keyboard and mouse are an output too, for macro boards and
