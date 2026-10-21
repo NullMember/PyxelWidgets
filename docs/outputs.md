@@ -45,9 +45,13 @@ take an `offset`. Names and OSC addresses take placeholders: `'Mute {x+1}'`,
 `'/track/{x+1}/volume'`. Widgets with `interactive = False` only show what the
 DAW sends back.
 
+A device's knob, fader or button sends messages directly too:
+`surface.map(surface.control(xl, 'Knob_0'), synth, ControlChange(74), on = ControlChanged)`
+(no feedback: there's no widget to show it).
+
 Layouts store outputs and mappings, and the designer edits them: add an output
-under *Outputs*, then *Add message* on a widget (it opens the messages and
-links window). Mackie Control and HUI
+under *Outputs*, then *Add message* on a widget, or on a device for one of its
+controls (it opens the messages and links window). Mackie Control and HUI
 commands (and REAPER's OSC addresses) are picked from a list, with one-per-pad
 variants such as `Mute {x+1}`. In Try mode the event log shows
 what would be sent; when the output is connected it is sent. See `examples/MidiDrums`

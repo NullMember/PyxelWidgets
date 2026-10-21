@@ -88,7 +88,10 @@ A widget's *Behaviour* section lists what it does and what changes it:
   text to the event log.
 - **Controls:** knobs, faders and buttons of a connected device can be bound
   to a widget (*control*), and to the transport and surface actions on the
-  Surface panel. *Learn* takes the next control you move.
+  Surface panel. *Learn* takes the next control you move. A control can also
+  send messages and start links itself: select the device, pick the control
+  (or *Learn* it) under *Messages and links*, then *Add message* or *Add
+  link*. These rules stay when widgets are deleted and go with their device.
 
 **M** opens the messages and links window: every rule of the selected widgets,
 or of all widgets. Click, Shift+click and Ctrl/Cmd+click pick rules, and

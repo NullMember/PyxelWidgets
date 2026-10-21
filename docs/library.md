@@ -233,6 +233,26 @@ Layouts store bindings too, and the designer edits them (a widget's *control*
 field, and *Transport controls* on the surface). Launchpad side buttons become
 controls with `side_buttons = False`.
 
+A control can also send messages and start links by itself, without a widget
+in between: `surface.control(device, name)` stands in for the widget, with the
+control's events (`ControlChanged` for knobs and faders, `ControlTurned` for
+encoders, `ControlPressed`/`ControlReleased` for buttons):
+
+```python
+from pyxelwidgets import ControlChanged, ControlPressed, ControlTurned, Link, Source
+from pyxelwidgets.message import ControlChange
+
+cutoff = surface.control(xl, 'Knob_0')
+surface.map(cutoff, synth, ControlChange(74), on = ControlChanged)
+surface.link(cutoff, pads, 'active_color', Source('value'), on = ControlChanged)
+surface.link(surface.control(push, 'Encoder1'), keys, 'octave', Source('delta'),
+             on = ControlTurned, change = Link.Change.Add, minimum = -2, maximum = 8)
+surface.link(surface.control(xl, 'Solo'), mixer, 'visible', on = ControlPressed, change = Link.Change.Toggle)
+```
+
+In the designer these are on the device's panel: pick the control (or
+*Learn* it), then *Add message* or *Add link*.
+
 ## Widgets changing widgets
 
 Links change a widget's options when another widget emits an event, so a

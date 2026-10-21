@@ -1,5 +1,15 @@
 # Changelog
 
+## Unreleased
+
+- **Controls send messages and start links themselves:** a device's knob,
+  fader, encoder or button can send messages to outputs and change widgets'
+  options without a widget in between (`surface.control(device, name)` in
+  code; on the device's panel in the designer).
+- **Layout format version 2:** mappings and links can start from
+  `"device"`/`"control"` instead of a `"widget"`. Version 1 layouts load as
+  they are; files saved by this version need it to open them.
+
 ## 1.0.0
 
 The first release since the 2022 thesis version (tag `thesis-2022`): a

@@ -462,6 +462,26 @@ ControlTurned(device: typing.Any, control: str, delta: int)
 
 A relative control (endless encoder) turned by `delta` steps; negative is counter-clockwise.
 
+### `ControlInput` (Emitter)
+
+```python
+ControlInput(source, control: str, *, device = None)
+```
+
+One named control of a device as an emitter of its control events, so
+links and mappings can start from a knob the way they start from a widget:
+
+    knob = ControlInput(surface, 'Knob1', device = launchpad)
+    surface.link(knob, keys, 'octave', Source('delta'), on = ControlTurned, change = Link.Change.Add)
+
+`source` is the device, or a Surface (which re-emits its devices' control
+events while holding its lock) with `device` picking the device (or its
+name; None: any). `device` can be changed later, e.g. when the device is
+replaced. It listens to `source` only while something listens to it.
+
+- **`on(event_type: type, handler: typing.Callable = None)`**
+- **`off(event_type: type, handler: typing.Callable)`**
+
 ### `MessageReceived` (Event)
 
 ```python
@@ -2120,11 +2140,15 @@ sends back on the widget:
     Mapping(volume, synth, ControlChange(7), on = Changed, feedback = True)
     Mapping(play, mackie, Command('Play'), on = Pressed, feedback = True)   # LED follows the DAW
     Mapping(clock, mackie, Command('Timecode', Source('text')), feedback = True)
+    Mapping(surface.control(launchpad, 'Knob1'), synth, ControlChange(74), on = ControlChanged)
 
 The message's Sources come from the event (see `sources`): its fields
 (`velocity`, `value`, `x`, `state`, `note`...) plus `cell` (the
 pad's number in the widget, left to right from the bottom row), `delta` (a
 value change in 1/127 steps) and `value_x`/`value_y` for two-axis values.
+
+A device's control (`events.ControlInput`) sends like a widget, with no
+feedback (it has nothing to show it on).
 
 Feedback calls `widget.receive(values)` with what the received message
 carries; widgets show it without emitting events, so nothing is sent back.
@@ -2161,6 +2185,11 @@ the way mappings send messages:
     Link(tabs, pages, 'page', Source('cell'), on = Toggled)               # a ButtonGroup picks the page
     Link(level, pad, 'active_color', Source('value'), on = Changed)       # a fader dims a color
     Link(mode, fader, 'mode', on = Pressed, change = Link.Change.Toggle)  # next Fader.Mode
+
+A device's control starts links too (`events.ControlInput`):
+
+    Link(surface.control(launchpad, 'Knob1'), pad, 'active_color', Source('value'), on = ControlChanged)
+    Link(surface.control(launchpad, 'Encoder1'), keys, 'octave', Source('delta'), on = ControlTurned, change = Link.Change.Add)
 
 Without an option the target is an action, called on each event, with the
 value as its argument if there is one:
@@ -2307,7 +2336,8 @@ offset, so several devices can form one larger surface.
 Emits `Frame` before rendering each frame, and re-emits every device's
 control events (ControlPressed, ControlChanged, ...). `bind` connects a
 device's controls to widgets or actions, `map` sends widget events to
-other software and `link` lets widgets change each other's options;
+other software and `link` lets widgets change each other's options
+(`control` gives a device's control to them in place of a widget);
 `formula` keeps an option at what an expression of others computes.
 
 `lock` is held while processing input and rendering. Hold it when changing
@@ -2320,6 +2350,7 @@ widgets from another thread, e.g. a MIDI callback of your own.
 - **`remove_device(device)`**: Remove a device, given the device or its name.
 - **`bind(device, control: str, target, **kwargs)`**: Connect `device`'s `control` (e.g. `'Knob1'`) to a widget or an action; see `pyxelwidgets.binding` for the options. Glides move every frame.
 - **`unbind(binding: pyxelwidgets.binding.Binding)`**
+- **`control(device, control: str)`**: `device`'s `control` (a device or its name) as a source for `map` and `link`: `surface.link(surface.control(launchpad, 'Knob1'), ...)`.
 - **`map(widget, output, message, *, on: type | None = None, feedback: bool = False)`**: Send `message` to `output` on each `on` event of `widget`; with `feedback` matching messages from the output update the widget. See `pyxelwidgets.mapping`.
 - **`unmap(mapping: pyxelwidgets.mapping.Mapping)`**
 - **`link(widget, target, option: str | None = None, value = None, *, on: type, **kwargs)`**: Change `option` of `target` on each `on` event of `widget`; see `pyxelwidgets.link` for `value`, `change`, `minimum` and `maximum`.
@@ -2371,7 +2402,7 @@ Layout files: a JSON description of a Surface, the devices it is shown on and
 its widgets, as written by the designer (`python -m pyxelwidgets.designer`).
 
     {
-      "format": "pyxelwidgets.layout", "version": 6,
+      "format": "pyxelwidgets.layout", "version": 2,
       "surface": {"width": 9, "height": 9},
       "transport": {"bpm": 120, "signature": [4, 4]},
       "devices": [{"type": "novation.LaunchpadMiniMK3", "x": 0, "y": 0, "options": {}}],
@@ -2382,11 +2413,14 @@ its widgets, as written by the designer (`python -m pyxelwidgets.designer`).
       "outputs": [{"name": "daw", "type": "mackie.MackieControl", "virtual": "PyxelWidgets", "options": {}}],
       "mappings": [
         {"widget": "volume", "on": "Changed", "output": "daw", "feedback": true,
-         "message": {"type": "Command", "name": "Fader 1", "value": {"source": "value"}}}
+         "message": {"type": "Command", "name": "Fader 1", "value": {"source": "value"}}},
+        {"device": 0, "control": "Top2", "on": "ControlPressed", "output": "daw",
+         "message": {"type": "Command", "name": "Stop", "value": 1}}
       ],
       "links": [
         {"widget": "show", "on": "Changed", "target": "page", "option": "visible", "value": {"source": "value"}},
-        {"widget": "up", "on": "Pressed", "target": "keys", "option": "octave", "change": "Add", "value": 1, "max": 4}
+        {"widget": "up", "on": "Pressed", "target": "keys", "option": "octave", "change": "Add", "value": 1, "max": 4},
+        {"device": 0, "control": "Top3", "on": "ControlPressed", "target": "page", "option": "visible", "change": "Toggle"}
       ],
       "widgets": [
         {"type": "Fader", "name": "volume", "x": 0, "y": 0, "width": 1, "height": 8,
@@ -2402,7 +2436,7 @@ or `#rrggbbaa`, enums by member name (`"Magnitude"` for `Fader.Mode`),
 rates as note values (`"1/16"`) or seconds where a widget allows both,
 Sprite frames as lists of rows from the top, each a list of colors (`null`
 is transparent). A widget's optional `animation` is one of `ANIMATIONS`
-with its options. Older versions are upgraded on load.
+with its options. Older versions are upgraded on load (`UPGRADES`).
 
 `transport.sync` makes the transport follow another program's MIDI clock
 (a DAW sending MIDI clock to a port): `{"input": "IAC Driver Bus 1"}` or a
@@ -2439,6 +2473,12 @@ one of the target widget's `actions` (`advance`, `play` with a step
 number: `transport.tempo`, `transport.tempo_add`), or `debug`, which
 writes its `value`, a text filled in from the event (`"pad {x}"`,
 `{all}`: every value; the default), to `Parser.debug`.
+
+Instead of a `widget`, a mapping or link can start from a device's
+control: `"device"` (its index in `devices`) and `"control"` (its
+name), `on` one of `CONTROL_EVENTS` (`ControlChanged` for knobs and
+faders, `ControlTurned` for encoders, `ControlPressed`/`ControlReleased`
+for buttons); their mappings only send (no `feedback`).
 
 Expressions (`pyxelwidgets.expression`): a widget option, a link value
 or a message field can be a formula in braces instead of a constant, e.g.
@@ -2576,9 +2616,11 @@ in that file, unless their `save` option is off.
 - **`close_clocks()`**
 - **`app(fps: float = 60.0)`**: An App running the surface, with the widgets following its transport, and their own clocks started. With `transport.sync` the transport follows the DAW's MIDI clock (`ui.clock_input`, closed with the App).
 - **`output_settings()`**: The layout's `outputs` entries, checked: unique names and known types.
-- **`mapping_settings()`**: The layout's mappings as (widget name, event class or None, output name, message, feedback).
+- **`mapping_settings()`**: The layout's mappings as (sender, event class or None, output name, message, feedback); the sender is a widget name, or (device index, control name) for a device's control.
 - **`map(outputs: dict)`**: Create the layout's mappings on the surface for `outputs` (by name; missing ones are skipped).
-- **`link_settings()`**: The layout's links, checked, as dicts: `widget` and `target` names (target None for transport actions), `on` (event class), `option` or `action`, `value`, `change` (Link.Change), `minimum`, `maximum`.
+- **`sender(sender)`**: The widget, or the device control (an `events.ControlInput`), a `sender` from the settings names.
+- **`place_controls(devices: list)`**: Point links and mappings from device controls at `devices` (in layout order; None or missing: nothing comes from that one), e.g. after connecting devices to a layout loaded with `devices = False`.
+- **`link_settings()`**: The layout's links, checked, as dicts: `widget` and `target` names (target None for transport actions; `widget` is (device index, control name) for a device's control), `on` (event class), `option` or `action`, `value`, `change` (Link.Change), `minimum`, `maximum`.
 - **`link(transport = None, *, widgets: bool = True)`**: Create the layout's links on the surface: links to widgets (with `widgets`) and, given a `transport`, transport actions. Returns the Links.
 - **`binding_settings()`**: The layout's bindings as (device index, control, widget or None, action or None, Binding options).
 - **`bind(devices: list, transport = None, *, widgets: bool = True)`**: Create the layout's bindings on the surface: widget bindings (with `widgets`) and, given a `transport`, action bindings. `devices` are in layout order; a missing one (None) is skipped. Returns the Bindings.
