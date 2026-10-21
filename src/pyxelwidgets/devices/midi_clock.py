@@ -8,6 +8,8 @@ MIDI clock: follow another program's clock (e.g. a DAW) or send one.
     clock = MidiClockOutput(app.transport)
     clock.connect(out_port = 'IAC Driver Bus 1')
 
+    clock = ClockSender(app.transport, output)    # through a port already open (a layout's output)
+
 A Bluetooth or network MIDI output the DAW connects to (``BleMidi``,
 ``RtpMidi``, or any device with ``raw_listeners``) can carry the clock too::
 
@@ -21,7 +23,7 @@ import the transport.
 import pyxelwidgets.devices.midi
 import pyxelwidgets.events
 
-__all__ = ['ClockFollower', 'MidiClockInput', 'MidiClockOutput', 'follow']
+__all__ = ['ClockFollower', 'ClockSender', 'MidiClockInput', 'MidiClockOutput', 'follow']
 
 CLOCK = 0xF8
 START = 0xFA
@@ -96,14 +98,19 @@ def follow(transport, midi: list) -> None:
         # Position in 16th notes
         transport.locate(((midi[2] << 7) | midi[1]) / 4)
 
-class MidiClockOutput(pyxelwidgets.devices.midi.MIDI):
-    """Sends a Transport's tempo and position as MIDI clock (24 per quarter note) with start, continue, stop and song position."""
+class ClockSender:
+    """
+    Sends ``transport``'s tempo and position as MIDI clock (24 per quarter
+    note) with start, continue, stop and song position through ``target``: a
+    MIDI device or output (its port), or anything with ``send_midi`` (network
+    and Bluetooth MIDI), e.g. one of a layout's outputs (``transport.clock``).
+    Nothing is sent while the target has no port. ``close()`` stops sending
+    (and sends stop if the transport was playing).
+    """
 
-    model = 'MIDI Clock Output'
-
-    def __init__(self, transport, **kwargs):
-        super().__init__(**kwargs)
+    def __init__(self, transport, target) -> None:
         self.transport = transport
+        self.target = target
         # A 96th note: 24 clocks per quarter note
         self._subscription = transport.every('1/96', self._clock)
         transport.on(pyxelwidgets.events.TransportStarted, self._started)
@@ -115,11 +122,16 @@ class MidiClockOutput(pyxelwidgets.devices.midi.MIDI):
         self.transport.off(pyxelwidgets.events.TransportStarted, self._started)
         self.transport.off(pyxelwidgets.events.TransportStopped, self._stopped)
         self.transport.off(pyxelwidgets.events.TransportLocated, self._located)
-        super().close()
+        if self.transport.playing:
+            self._send([STOP])
 
     def _send(self, message: list) -> None:
-        if self._midi_output is not None:
-            self._midi_output.send_message(message)
+        if hasattr(self.target, '_midi_output'):
+            port = self.target._midi_output
+            if port is not None:
+                port.send_message(message)
+        elif callable(getattr(self.target, 'send_midi', None)) and getattr(self.target, 'connected', True):
+            self.target.send_midi(message)
 
     def _clock(self, count: int) -> None:
         self._send([CLOCK])
@@ -146,3 +158,17 @@ class MidiClockOutput(pyxelwidgets.devices.midi.MIDI):
             self._send([CONTINUE])
         else:
             self._song_position(event.tick)
+
+class MidiClockOutput(pyxelwidgets.devices.midi.MIDI):
+    """Sends a Transport's tempo and position as MIDI clock (24 per quarter note) with start, continue, stop and song position."""
+
+    model = 'MIDI Clock Output'
+
+    def __init__(self, transport, **kwargs):
+        super().__init__(**kwargs)
+        self.transport = transport
+        self._sender = ClockSender(transport, self)
+
+    def close(self) -> None:
+        self._sender.close()
+        super().close()

@@ -25,13 +25,23 @@ _RELATIVE = (28, 29)
 _BUTTONS = (27, 118, 119, 105, 106, 107, 108, 109)
 
 class _MiniLab(pyxelwidgets.devices.midi.MIDI):
-    """Pads send notes 36-51 on channel 10: bank 1 is the bottom row, bank 2 the top."""
+    """
+    Pads send notes 36-51 on channel 10: bank 1 is the bottom row, bank 2 the
+    top. The keyboard is the control ``Keys`` (KeyPressed/KeyReleased with the
+    note), the touch strips ``Pitch`` (centred at 0.5) and ``Mod``, a sustain
+    pedal ``Sustain``: on any other channel.
+    """
 
     vendor = 'Arturia'
     grid = (8, 2)
+    #: The keyboard and what goes with it, on any channel but the pads'
+    keyboard = (pyxelwidgets.devices.Control('Keys', 'keys'), pyxelwidgets.devices.Control('Pitch', 'absolute'),
+                pyxelwidgets.devices.Control('Mod', 'absolute'), pyxelwidgets.devices.Control('Sustain', 'button'))
 
     def decode(self, midi: list) -> None:
         status, channel = midi[0] & 0xF0, midi[0] & 0x0F
+        if channel != _PAD_CHANNEL and self._keyboard(status, midi):
+            return
         if channel == _PAD_CHANNEL:
             if status == 0xD0:
                 self.set_channel_pressure(midi[1] / 127.0)
@@ -45,6 +55,25 @@ class _MiniLab(pyxelwidgets.devices.midi.MIDI):
                 self.set_pressure(pad % 8, pad // 8, midi[2] / 127.0)
         elif status == 0xB0:
             self.decode_control(channel, midi[1], midi[2])
+
+    def _keyboard(self, status: int, midi: list) -> bool:
+        """Keys, pitch bend, modulation and sustain: whether ``midi`` was one."""
+        if status in (0x80, 0x90) and len(midi) >= 3:
+            if status == 0x90 and midi[2] > 0:
+                self.emit(pyxelwidgets.events.KeyPressed(self, 'Keys', midi[1], midi[2] / 127))
+            else:
+                self.emit(pyxelwidgets.events.KeyReleased(self, 'Keys', midi[1], 0.0))
+            return True
+        if status == 0xE0 and len(midi) >= 3:
+            self.emit(pyxelwidgets.events.ControlChanged(self, 'Pitch', (midi[1] | midi[2] << 7) / 16383))
+            return True
+        if status == 0xB0 and len(midi) >= 3 and midi[1] in (1, 64):
+            if midi[1] == 1:
+                self.emit(pyxelwidgets.events.ControlChanged(self, 'Mod', midi[2] / 127))
+            else:
+                self._button('Sustain', midi[2])
+            return True
+        return False
 
     def decode_control(self, channel: int, number: int, value: int) -> None:
         """Turn a control change into control events."""
@@ -92,7 +121,7 @@ class MiniLabMK2(_MiniLab):
     ports = ('MiniLab mkII',)
     color_model = pyxelwidgets.devices.Palette([(0, 0, 0), (255, 0, 0), (0, 255, 0), (255, 255, 0),
                                                 (0, 0, 255), (255, 0, 255), (0, 255, 255), (255, 255, 255)])
-    controls = tuple(pyxelwidgets.devices.Control(c.name, 'relative') for c in Controls)
+    controls = tuple(pyxelwidgets.devices.Control(c.name, 'relative') for c in Controls) + _MiniLab.keyboard
 
     def set_property(self, setting: int, control: int, value: int) -> None:
         """Write one setting (mode 1, channel 2, number 3, option 6, color 16) of a control to the working memory."""
@@ -171,7 +200,7 @@ class MiniLab3(_MiniLab):
     ports = ('Minilab3 MIDI', 'Minilab3', 'MiniLab 3')
     color_model = pyxelwidgets.devices.RGB(bits = 7)
     controls = tuple(pyxelwidgets.devices.Control(c.name, 'relative' if c.value in _RELATIVE else 'button' if c.value in _BUTTONS else 'absolute')
-                     for c in Controls)
+                     for c in Controls) + _MiniLab.keyboard
     screens = {'Screen': (10, 18)}
     lit_controls = tuple(button_leds)
     ring_controls = tuple(knob_ids)
