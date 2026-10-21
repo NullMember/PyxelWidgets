@@ -340,6 +340,14 @@ class _Writer:
                 device, control = sender
                 variable = self.variable(('control', sender), _snake(control))
                 lines.append(f'{variable} = surface.control({self.variables[("device", device)]}, {control!r})')
+        # Device control lights and screens links set
+        for setting in self.ui.link_settings():
+            target, option = setting['target'], setting['option']
+            if isinstance(target, tuple) and ('target', target, option) not in self.variables:
+                device, control = target
+                made = 'screen' if option == 'text' else 'light'
+                variable = self.variable(('target', target, option), _snake(control) if made == 'screen' else f'{_snake(control)}_light')
+                lines.append(f'{variable} = surface.{made}({self.variables[("device", device)]}, {control!r})')
         return lines
 
     def sender(self, sender) -> str:
@@ -396,7 +404,9 @@ class _Writer:
             elif action is not None:
                 args, keywords = [f'{self.variables[("widget", setting["target"])]}.{action}'], [] if value is None else [('value', self.value(value))]
             else:
-                args = [self.variables[('widget', setting['target'])], repr(setting['option'])] + ([] if value is None else [self.value(value)])
+                target = setting['target']
+                key = ('target', target, setting['option']) if isinstance(target, tuple) else ('widget', target)
+                args = [self.variables[key], repr(setting['option'])] + ([] if value is None else [self.value(value)])
                 keywords = []
             keywords.append(('on', self.name(setting['on'])))
             if setting['change'] != pyxelwidgets.link.Link.Change.Set:
