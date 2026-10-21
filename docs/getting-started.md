@@ -80,7 +80,9 @@ reaches and the messages they send, worked out for that pad.
 **Knobs and faders on your controller:** select a widget, then under
 *control* press **Learn** and move the knob, fader or button you want. On a
 Launchpad, turn the device's *side buttons* option off to use its round
-buttons as controls. Bound buttons light up with what they control. Bind one
+buttons as controls. Bound buttons light up with what they control, knobs
+with LED rings show their widget's value, and a controller's screen shows the
+widget a knob moved and its value. Bind one
 to **show widgets** (in the Surface panel's *Transport and surface controls*) to light up
 every widget's area in its own color for a moment.
 

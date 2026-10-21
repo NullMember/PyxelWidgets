@@ -2340,6 +2340,12 @@ other software and `link` lets widgets change each other's options
 (`control` gives a device's control to them in place of a widget);
 `formula` keeps an option at what an expression of others computes.
 
+Devices' control lights, LED rings and screens show what their controls
+do: a bound control's widget (its color or value; a screen shows the
+widget's name and value for `value_time` seconds after its control
+moves), a held button lights up, and `light`/`screen` give links a
+control's light color and a screen's text to set.
+
 `lock` is held while processing input and rendering. Hold it when changing
 widgets from another thread, e.g. a MIDI callback of your own.
 
@@ -2351,6 +2357,8 @@ widgets from another thread, e.g. a MIDI callback of your own.
 - **`bind(device, control: str, target, **kwargs)`**: Connect `device`'s `control` (e.g. `'Knob1'`) to a widget or an action; see `pyxelwidgets.binding` for the options. Glides move every frame.
 - **`unbind(binding: pyxelwidgets.binding.Binding)`**
 - **`control(device, control: str)`**: `device`'s `control` (a device or its name) as a source for `map` and `link`: `surface.link(surface.control(launchpad, 'Knob1'), ...)`.
+- **`light(device, control: str)`**: `device`'s `control` light (a device or its name) as a target for `link` and `formula`: its `light` option, a Color, wins over what the control shows by itself (Invisible: back to that).
+- **`screen(device, name: str = 'Screen')`**: `device`'s screen `name` (a device or its name) as a target for `link` and `formula`: its `text` option, lines separated by newlines, shows when no moved control's value does.
 - **`map(widget, output, message, *, on: type | None = None, feedback: bool = False)`**: Send `message` to `output` on each `on` event of `widget`; with `feedback` matching messages from the output update the widget. See `pyxelwidgets.mapping`.
 - **`unmap(mapping: pyxelwidgets.mapping.Mapping)`**
 - **`link(widget, target, option: str | None = None, value = None, *, on: type, **kwargs)`**: Change `option` of `target` on each `on` event of `widget`; see `pyxelwidgets.link` for `value`, `change`, `minimum` and `maximum`.
@@ -2362,8 +2370,33 @@ widgets from another thread, e.g. a MIDI callback of your own.
 - **`update()`**: Render changed widgets and send changed pixels to every device.
 - **`test_pattern(device, frame = None)`**: Show `frame` (a buffer the device's size) on `device` instead of its part of the widgets, e.g. to check its lights; None goes back. Its pads still reach the widgets.
 - **`reveal(seconds: float = 2.0)`**: Show on the devices, for `seconds`, where the widgets are: each shown widget's area in a color of its own (later widgets over earlier ones). Called again while showing, it stops. A binding action (`surface.reveal` in layouts) for finding your way on a busy grid.
+- **`value_lines(binding)`**: What a screen shows for a moved control: its widget's (or action's) name, then the value.
 - **`control_light(binding)`**: The color a bound control shows: a Button's active or inactive color, another widget's active color dimmed by its value, lime for play/toggle while the transport plays; None leaves it as it is.
 - **`close()`**: Close all devices, and the outputs of the mappings.
+
+### `ControlLight`
+
+```python
+ControlLight(device, control: str)
+```
+
+A device control's light as a link or formula target (`Surface.light`):
+set `light` (a Color) to show it instead of what the control shows by
+itself; `Colors.Invisible` (the default) gives it back.
+
+- **`configure(**options)`**
+
+### `DeviceScreen`
+
+```python
+DeviceScreen(device, name: str = 'Screen')
+```
+
+A device's screen as a link or formula target (`Surface.screen`): its
+`text` (lines separated by newlines) shows while no moved control's
+widget does.
+
+- **`configure(**options)`**
 
 ## `pyxelwidgets.app`
 
@@ -2402,7 +2435,7 @@ Layout files: a JSON description of a Surface, the devices it is shown on and
 its widgets, as written by the designer (`python -m pyxelwidgets.designer`).
 
     {
-      "format": "pyxelwidgets.layout", "version": 2,
+      "format": "pyxelwidgets.layout", "version": 3,
       "surface": {"width": 9, "height": 9},
       "transport": {"bpm": 120, "signature": [4, 4]},
       "devices": [{"type": "novation.LaunchpadMiniMK3", "x": 0, "y": 0, "options": {}}],
@@ -2420,7 +2453,8 @@ its widgets, as written by the designer (`python -m pyxelwidgets.designer`).
       "links": [
         {"widget": "show", "on": "Changed", "target": "page", "option": "visible", "value": {"source": "value"}},
         {"widget": "up", "on": "Pressed", "target": "keys", "option": "octave", "change": "Add", "value": 1, "max": 4},
-        {"device": 0, "control": "Top3", "on": "ControlPressed", "target": "page", "option": "visible", "change": "Toggle"}
+        {"device": 0, "control": "Top3", "on": "ControlPressed", "target": "page", "option": "visible", "change": "Toggle"},
+        {"widget": "volume", "on": "Changed", "target": {"device": 0, "control": "Top4"}, "option": "light", "value": "#ff0000"}
       ],
       "widgets": [
         {"type": "Fader", "name": "volume", "x": 0, "y": 0, "width": 1, "height": 8,
@@ -2479,6 +2513,14 @@ control: `"device"` (its index in `devices`) and `"control"` (its
 name), `on` one of `CONTROL_EVENTS` (`ControlChanged` for knobs and
 faders, `ControlTurned` for encoders, `ControlPressed`/`ControlReleased`
 for buttons); their mappings only send (no `feedback`).
+
+A link's `target` can also be a device's control light or screen,
+`{"device": 0, "control": "Top4"}`, with the option `light` (a color; the
+control lights up in it instead of showing what it controls, `#00000000`
+gives that back) or, for a screen (`"control": "Screen"`), `text` (lines
+separated by `
+`; a moved control's widget and value show over it for a
+moment). See `DEVICE_TARGETS`.
 
 Expressions (`pyxelwidgets.expression`): a widget option, a link value
 or a message field can be a formula in braces instead of a constant, e.g.
@@ -2620,7 +2662,8 @@ in that file, unless their `save` option is off.
 - **`map(outputs: dict)`**: Create the layout's mappings on the surface for `outputs` (by name; missing ones are skipped).
 - **`sender(sender)`**: The widget, or the device control (an `events.ControlInput`), a `sender` from the settings names.
 - **`place_controls(devices: list)`**: Point links and mappings from device controls at `devices` (in layout order; None or missing: nothing comes from that one), e.g. after connecting devices to a layout loaded with `devices = False`.
-- **`link_settings()`**: The layout's links, checked, as dicts: `widget` and `target` names (target None for transport actions; `widget` is (device index, control name) for a device's control), `on` (event class), `option` or `action`, `value`, `change` (Link.Change), `minimum`, `maximum`.
+- **`link_settings()`**: The layout's links, checked, as dicts: `widget` and `target` names (target None for transport actions; `widget` and `target` are (device index, control name) for a device's control), `on` (event class), `option` or `action`, `value`, `change` (Link.Change), `minimum`, `maximum`.
+- **`target(target: tuple, option: str)`**: The light or screen (`Surface.light`/`screen`) a link's (device index, control) `target` sets `option` of.
 - **`link(transport = None, *, widgets: bool = True)`**: Create the layout's links on the surface: links to widgets (with `widgets`) and, given a `transport`, transport actions. Returns the Links.
 - **`binding_settings()`**: The layout's bindings as (device index, control, widget or None, action or None, Binding options).
 - **`bind(devices: list, transport = None, *, widgets: bool = True)`**: Create the layout's bindings on the surface: widget bindings (with `widgets`) and, given a `transport`, action bindings. `devices` are in layout order; a missing one (None) is skipped. Returns the Bindings.
@@ -2704,11 +2747,29 @@ PadDoublePressed and PadHeld events.
 - **`show(frame: ndarray, x: int = 0, y: int = 0)`**: Show an RGBA `frame` with its bottom left at grid `x`, `y`; only changed pixels are sent.
 - **`fill(color)`**: Show one color on the whole grid.
 - **`invalidate()`**: Forget what the device shows, so the next `show` sends every pixel.
-- **`lights()`**: Names of the controls with a light `set_control` can set (e.g. a Launchpad's side buttons); none by default.
+- **`lights()`**: Names of the controls with a light `set_control` can set (e.g. a Launchpad's side buttons): `lit_controls`.
+- **`light_model(name: str)`**: How control `name`'s light takes colors: `color_model` unless its LED differs (one color, white).
 - **`set_control(name: str, color)`**: Light control `name` in `color` (a Color); only changes are sent, and controls without a light (see `lights`) are ignored.
-- **`send_control(name: str, value)`**: Send a control's light, `value` from `color_model`. Override with `lights`.
+- **`send_control(name: str, value)`**: Send a control's light, `value` from `light_model(name)`. Override with `lights`.
+- **`set_ring(name: str, value: float)`**: Show `value` (0.0-1.0) on control `name`'s LED ring; only changes are sent, and controls without a ring (`ring_controls`) are ignored.
+- **`send_ring(name: str, value: float)`**: Send a ring's `value` (0.0-1.0). Override with `ring_controls`.
+- **`set_screen(name: str, lines)`**: Show `lines` (texts, top first) on screen `name`: each is cut to the line's width, missing lines are blank; only changes are sent, unknown screens are ignored. The device may draw over it (e.g. while a menu shows).
+- **`send_screen(name: str, lines: tuple)`**: Send screen `name`'s `lines` (one per line, cut to width). Override with `screens`.
 - **`send_pixels(pixels: list)`**: Send `(x, y, value)` triples, values from `color_model`. Override to batch.
 - **`send_pixel(x: int, y: int, value)`**
+
+### `Brightness` (ColorModel)
+
+```python
+Brightness(values)
+```
+
+One color (or white) LEDs: the brightest channel of the alpha blended
+color, split into `len(values)` equal steps, picks one of `values`
+(darkest first). Unlike `Levels` a pure red is as bright as white.
+
+- **`convert(rgba: ndarray)`**
+- **`describe()`**
 
 ### `ColorModel`
 
@@ -2812,6 +2873,19 @@ Levels(values, gamma: bool = True)
 Brightness mapped onto `values` (darkest first): the luminance range is
 split into `len(values)` equal steps. `gamma` uses `Color.gmono`
 instead of `Color.mono`.
+
+- **`convert(rgba: ndarray)`**
+- **`describe()`**
+
+### `Brightness` (ColorModel)
+
+```python
+Brightness(values)
+```
+
+One color (or white) LEDs: the brightest channel of the alpha blended
+color, split into `len(values)` equal steps, picks one of `values`
+(darkest first). Unlike `Levels` a pure red is as bright as white.
 
 - **`convert(rgba: ndarray)`**
 - **`describe()`**
@@ -2933,11 +3007,14 @@ LaunchControlXL(**kwargs)
 
 Launch Control XL: 8x2 buttons as a 8x5 grid (rows 2-4 are the knob LEDs,
 output only), knobs, faders and buttons. Input works in factory template 8
-(`Templates.Factory_7`), which connecting selects.
+(`Templates.Factory_7`), which connecting selects. Device, Mute, Solo,
+Record Arm and the arrows light up for their bound widget (on or off).
 
 - **`reset(template: LaunchControlXL.Templates)`**
 - **`select_template(template: LaunchControlXL.Templates)`**
 - **`send_pixel(x: int, y: int, value)`**
+- **`light_model(name: str)`**
+- **`send_control(name: str, value)`**
 - **`on_connect()`**
 - **`on_disconnect()`**
 - **`decode(midi: list)`**
@@ -3013,8 +3090,11 @@ Members: `pots`, `slider`, `pads`.
 
 ### `LaunchkeyMK3` (_Launchkey)
 
-Launchkey MK3: RGB (palette) pads in DAW mode.
+Launchkey MK3: RGB (palette) pads in DAW mode. The 49, 61 and 88 key
+models have a 16x2 character `Screen` (`set_screen`), shown while the
+keyboard's own controls and menus don't show theirs.
 
+- **`send_screen(name: str, lines: tuple)`**
 - **`set_mode(mode: LaunchkeyMK3.Mode)`**
 - **`set_layout(layout: LaunchkeyMK3.Layout)`**
 - **`on_connect()`**
@@ -3121,10 +3201,14 @@ Akai Professional APC controllers.
 ### `APCMini` (MIDI)
 
 APC Mini: 8x8 pads lit green, red or yellow, extra buttons and faders.
+The track buttons (`Button_1`-`8`) have red lights, the scene buttons
+(`Button_10`-`17`) green ones.
 
 Thanks to TomasHubelbauer for his amazing documentation:
     https://github.com/TomasHubelbauer/akai-apc-mini
 
+- **`light_model(name: str)`**
+- **`send_control(name: str, value)`**
 - **`send_color(x: int, y: int, color: APCMini.Colors)`**
 - **`send_pixel(x: int, y: int, value)`**
 - **`decode(midi: list)`**
@@ -3154,11 +3238,16 @@ APC40MK2(**kwargs)
 ```
 
 APC40 MK2: 8x5 RGB pads, knobs, faders and buttons, in Ableton Live mode.
+Buttons with a light show their bound widget (the scene buttons in color,
+the others on or off); the knobs' LED rings show their widget's value.
 
 - **`change_mode(mode: APC40MK2.Modes)`**
 - **`on_connect()`**
 - **`on_disconnect()`**
 - **`send_pixel(x: int, y: int, value)`**
+- **`light_model(name: str)`**
+- **`send_control(name: str, value)`**
+- **`send_ring(name: str, value: float)`**
 - **`decode(midi: list)`**
 
 #### `Modes` (Enum)
@@ -3185,13 +3274,18 @@ Ableton Push.
 
 ### `Push2` (MIDI)
 
-Push 2: 8x8 RGB pads, encoders (relative, touch sensitive) and buttons, in dual MIDI mode.
+Push 2: 8x8 RGB pads, encoders (relative, touch sensitive) and buttons, in
+dual MIDI mode. Buttons light up for their bound widget: the rows above and
+below the display, the time division buttons, Play, Record and Automate in
+color, the others in white.
 
 - **`send_command(command: Push2.Commands, *args)`**
 - **`set_midi_mode(mode: Push2.Mode)`**
 - **`on_connect()`**
 - **`on_disconnect()`**
 - **`send_pixel(x: int, y: int, value)`**
+- **`light_model(name: str)`**
+- **`send_control(name: str, value)`**
 - **`decode(midi: list)`**
 
 #### `Mode` (Enum)
@@ -3252,10 +3346,12 @@ Members: `Encoder_0`, `Encoder_1`, `Encoder_2`, `Encoder_3`, `Encoder_4`, `Encod
 MiniLab 3 in DAW mode: 16 RGB pads (two banks of 8), 8 knobs, 4 faders and
 the clickable display encoder. Select the DAW program on the device; Shift
 with pads 1-5 are the Loop, Stop, Play, Record and Tap buttons.
-`show_text` writes on the screen.
+`Screen` shows two lines (`set_screen`, or `show_text`) until the
+device draws over them (e.g. when its own controls move).
 
 - **`set_daw_mode(enabled: bool)`**
 - **`show_text(top: str, bottom: str = '')`**: Show two lines (10 and 18 characters) on the screen until the device draws over them.
+- **`send_screen(name: str, lines: tuple)`**
 - **`on_connect()`**
 - **`on_disconnect()`**
 - **`send_pixel(x: int, y: int, value)`**
@@ -3273,12 +3369,15 @@ Presonus controllers.
 
 ### `ATOM` (MIDI)
 
-ATOM: 4x4 RGB pads, encoders and buttons, in native control mode.
+ATOM: 4x4 RGB pads, encoders and buttons, in native control mode. Buttons
+light up bright or dim for their bound widget; Bank, Preset and Play in color.
 
 - **`set_native_control(state: ATOM.NativeControl)`**
 - **`on_connect()`**
 - **`on_disconnect()`**
 - **`send_pixel(x: int, y: int, value)`**
+- **`light_model(name: str)`**
+- **`send_control(name: str, value)`**
 - **`decode(midi: list)`**
 
 #### `Controls` (Enum)

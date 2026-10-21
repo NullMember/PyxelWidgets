@@ -253,6 +253,31 @@ surface.link(surface.control(xl, 'Solo'), mixer, 'visible', on = ControlPressed,
 In the designer these are on the device's panel: pick the control (or
 *Learn* it), then *Add message* or *Add link*.
 
+### Lights, rings and screens
+
+Controls with a light show what they're bound to: a Button's active or
+inactive color, another widget's color dimmed by its value, lime for a bound
+play/toggle while the transport plays. A held button that nothing lights
+shows `surface.held_color` (white). Knobs with an LED ring (APC40 MK2) show
+their widget's value. Devices with a screen (MiniLab 3, Launchkey MK3 49/61/88)
+show a moved control's widget and value for `surface.value_time` seconds
+(1.5). `Device.describe()` lists `lights`, `rings` and `screens`.
+
+Links set a light or a screen's text like a widget's option:
+
+```python
+from pyxelwidgets import Changed, Colors, Condition, Source
+
+surface.link(volume, surface.light(apc, 'Button_1'), 'light',
+             Condition(Source('value'), '>', 0.9, Colors.Red, Colors.Invisible), on = Changed)
+surface.link(volume, surface.screen(minilab), 'text', 'Volume\n{round(value * 100)}%', on = Changed)
+```
+
+A light set this way wins over what its control shows; `Colors.Invisible`
+gives it back. A screen's text shows while no moved control's value does.
+`device.set_control(name, color)`, `set_ring(name, value)` and
+`set_screen(name, lines)` drive them directly, without a surface.
+
 ## Widgets changing widgets
 
 Links change a widget's options when another widget emits an event, so a

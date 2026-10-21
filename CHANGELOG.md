@@ -2,6 +2,15 @@
 
 ## Unreleased
 
+- **Control lights, rings and screens:** buttons with a light on more
+  controllers (APC Mini, APC40 MK2, Push 2, ATOM, Launch Control XL) show the
+  widget they're bound to and light up while held; the APC40 MK2's knob rings
+  show their widget's value; the MiniLab 3's and Launchkey MK3's screens show
+  the widget a control moved and its value. Links can set a control's light
+  and a screen's text (`surface.light`, `surface.screen`).
+- **Layout format version 3:** a link's `target` can be a device's control,
+  `{"device": 0, "control": "Play"}`, with the option `light` or `text`.
+
 - **Controls send messages and start links themselves:** a device's knob,
   fader, encoder or button can send messages to outputs and change widgets'
   options without a widget in between (`surface.control(device, name)` in

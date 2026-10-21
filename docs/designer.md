@@ -85,7 +85,10 @@ A widget's *Behaviour* section lists what it does and what changes it:
   fader sets the tempo, a ButtonGroup cell picks a sequencer. A link's value
   can be a constant, a value from the event, a condition ("1 when cell is 3,
   else 0"), a pick from a list, or a formula. A link to the *Debug log* writes
-  text to the event log.
+  text to the event log. A link can also set a device's control light (a
+  color; transparent gives it back to what the control shows) or the text on
+  its screen (MiniLab 3, Launchkey MK3): they're listed under the device in
+  the target list.
 - **Controls:** knobs, faders and buttons of a connected device can be bound
   to a widget (*control*), and to the transport and surface actions on the
   Surface panel. *Learn* takes the next control you move. A control can also

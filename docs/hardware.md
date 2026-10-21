@@ -19,7 +19,7 @@ through it and makes a report to attach to an
 | Novation Launchpad Pro | `novation.LaunchpadPro` | 10x10 | RGB | side buttons, pressure | Untested |
 | Novation Launchpad MK2 | `novation.LaunchpadMK2` | 9x9 | RGB | side buttons | Untested |
 | Novation Launchpad, Launchpad S, Launchpad Mini (MK1, MK2) | `novation.LaunchpadMK1` | 9x9 | red/green | side buttons | Untested |
-| Novation Launchkey MK3 | `novation.LaunchkeyMK3` | 8x2 | RGB | knobs, buttons | Untested |
+| Novation Launchkey MK3 | `novation.LaunchkeyMK3` | 8x2 | RGB | knobs, buttons, screen (49/61/88) | Untested |
 | Novation Launchkey MK2 | `novation.LaunchkeyMK2` | 8x2 | RGB | knobs, faders, buttons | Untested |
 | Novation Launchkey (MK1) | `novation.LaunchkeyMK1` | 9x2 | red/green | knobs, faders, buttons | Untested |
 | Novation Launch Control XL | `novation.LaunchControlXL` | 8x5 | red/green | knobs, faders, buttons | Untested |
@@ -48,6 +48,16 @@ Known questions for owners:
   leaves the controller's settings changed (pick a memory on it to restore).
 - **Arturia MiniLab 3:** the port name is a guess (`Minilab3 MIDI`). Pads send
   their notes only in its DAW program.
+- **Control lights, rings and screens** (2026-10-21, from the makers'
+  documents, untested): APC Mini track/scene buttons (on/off), APC40 MK2
+  buttons (scene buttons in color) and knob rings, Push 2 buttons (white
+  levels from the documented palette entries; which buttons are RGB is a
+  guess: the display rows, the time divisions, Play, Record, Automate), ATOM
+  buttons (Bank, Preset and Play colored on channels 2-4, as a reverse
+  engineered library does it), Launch Control XL Device/Mute/Solo/Record
+  Arm/arrows (LED indices 40-47), Launchkey MK3 screen (SysEx `04`/`06`;
+  `0x12` for the 88), MiniLab 3 screen. Launchkey MK1-MK3 buttons aren't read
+  yet, so they have no lights.
 
 ## Without hardware
 
