@@ -6,6 +6,7 @@ import { change, setStatus } from './history.js';
 import { render } from './board.js';
 import { learnButton, learnedMessage } from './learn.js';
 import { hardwareDot, connectButton, select, optionField, ADVANCED, group, optionFields, isFormula, formulaControl, formulaSources, portPicker } from './properties.js';
+import { ownerEvents, ruleLabel, controlField, controlOwner } from './model.js';
 
 export const INTEGER_SOURCES = new Set(['x', 'y', 'cell', 'note', 'step', 'row', 'column', 'page', 'delta']);
 
@@ -120,22 +121,32 @@ export function outputProperties(panel, index) {
       (info?.options || []).filter((option) => !ADVANCED.has(option.name)).flatMap((option) => optionField(output, option))),
     optionFields(output, (info?.options || []).filter((option) => ADVANCED.has(option.name))),
     el('p', { class: 'hint note' }, used.length
-      ? `${used.length} message${used.length > 1 ? 's' : ''} from ${[...new Set(used.map((m) => m.widget))].join(', ')}.`
+      ? `${used.length} message${used.length > 1 ? 's' : ''} from ${[...new Set(used.map(ruleLabel))].join(', ')}.`
       : 'Select a widget and add a message to send its events here.'),
     el('div', { class: 'actions' }, el('button', { class: 'danger', onclick: () => removeOutput(index) }, 'Remove output')),
   );
 }
 
-// The event a new message is sent on: the widget's main one
+// The event a new message is sent on: the widget's (or control's) main one
 export function defaultEvent(widget) {
-  const events = state.catalog.widgets[widget.type]?.events || [];
-  return ['Changed', 'Toggled', 'NoteOn', 'StepPlayed', 'RowPlayed', 'ClipStarted', 'TempoTapped', 'PresetRecalled', 'PageChanged', 'Pressed'].find((name) => events.includes(name)) || events[0];
+  const events = ownerEvents(widget);
+  return ['Changed', 'Toggled', 'NoteOn', 'StepPlayed', 'RowPlayed', 'ClipStarted', 'TempoTapped', 'PresetRecalled', 'PageChanged', 'Pressed',
+    'ControlChanged', 'ControlTurned', 'ControlPressed'].find((name) => events.includes(name)) || events[0];
 }
 
 // A useful first message for an event on an output
 export function defaultMessage(widget, on, info) {
   const accepts = info?.messages || [];
   const source = (name, extra = {}) => ({ source: name, ...extra });
+  if (on === 'ControlTurned') {
+    // An encoder's steps: scrolling, a V-Pot, or a relative control change (64 = no move)
+    if (accepts.includes('Hotkey')) return { type: 'Scroll', dx: 0, dy: source('delta') };
+    if (accepts.includes('Command')) return { type: 'Command', name: 'V-Pot 1', value: source('delta') };
+    if (accepts.includes('OscMessage')) return { type: 'OscMessage', address: '/track/1/pan', args: [source('delta')] };
+    return { type: 'ControlChange', control: 1, value: source('delta', { offset: 64 }), channel: 1 };
+  }
+  // Other controls send like the widget events they're like
+  on = { ControlChanged: 'Changed', ControlPressed: 'Pressed', ControlReleased: 'Released' }[on] || on;
   const xy = widget.type === 'XY';
   if (accepts.includes('Hotkey')) {
     if (on === 'Changed' && xy) return { type: 'MouseMove', x: source('value_x'), y: source('value_y'), relative: false };
@@ -289,7 +300,7 @@ function pickName(widget, mapping, field, item) {
     // Sent on an event that has every value it uses ({x+1} needs x), else only received
     const needed = messageSources(mapping.message);
     if (mapping.on && !needed.every((name) => sourceNames(mapping.on).includes(name))) {
-      const event = (state.catalog.widgets[widget.type]?.events || []).find((name) => needed.every((source) => sourceNames(name).includes(source)));
+      const event = ownerEvents(widget).find((name) => needed.every((source) => sourceNames(name).includes(source)));
       if (event) mapping.on = event;
       else {
         delete mapping.on;
@@ -451,7 +462,9 @@ function scanField(id, name, mapping, output, commit) {
 }
 
 export function mappingCard(widget, mapping, index) {
-  const events = state.catalog.widgets[widget.type]?.events || [];
+  const events = ownerEvents(widget);
+  // A device's control only sends: there is nothing to show feedback on
+  const control = widget.type === 'control';
   const output = outputsOf().find((candidate) => candidate.name === mapping.output);
   const info = outputInfo(output);
   const message = mapping.message || {};
@@ -524,7 +537,7 @@ export function mappingCard(widget, mapping, index) {
   return el('div', { class: 'mapping' },
     el('div', { class: 'mapping-head' },
       el('select', {
-        id: id('on'), title: 'The widget event that sends it; receive only: just feedback',
+        id: id('on'), title: control ? 'The control\'s event that sends it' : 'The widget event that sends it; receive only: just feedback',
         onchange: (e) => edit(() => {
           if (e.target.value) {
             mapping.on = e.target.value;
@@ -540,7 +553,7 @@ export function mappingCard(widget, mapping, index) {
         }),
       },
       events.map((name) => el('option', { value: name, selected: name === mapping.on }, name)),
-      el('option', { value: '', selected: !mapping.on }, 'receive only')),
+      control ? null : el('option', { value: '', selected: !mapping.on }, 'receive only')),
       el('span', { class: 'arrow' }, '→'),
       el('select', {
         id: id('output'),
@@ -556,6 +569,11 @@ export function mappingCard(widget, mapping, index) {
         onclick: () => change((layout) => setMappings(layout, layout.mappings.filter((_, i) => i !== index))),
       }, '×')),
     el('div', { class: 'fields' },
+      control ? controlField(id('control'), mapping, (moved) => {
+        const owner = controlOwner(moved.device, moved.control);
+        moved.on = defaultEvent(owner);
+        moved.message = defaultMessage(owner, moved.on, info);
+      }) : null,
       el('label', { for: id('type') }, 'message'),
       el('div', { class: info?.receives === false ? 'control' : 'control learnable' }, el('select', {
         id: id('type'),
@@ -581,8 +599,8 @@ export function mappingCard(widget, mapping, index) {
         mapping.message = learnedMessage(mapping.message || {}, event._learn);
       }), mapping.output)),
       fieldEditors,
-      // Outputs that send nothing back (the keyboard and mouse) have no feedback
-      info?.receives === false ? null : [
+      // Outputs that send nothing back (the keyboard and mouse) have no feedback, nor controls
+      info?.receives === false || control ? null : [
         el('label', { for: id('feedback'), title: 'Matching messages from the output update the widget' }, 'feedback'),
         el('div', { class: 'control' }, el('input', {
           type: 'checkbox', id: id('feedback'), checked: !!mapping.feedback, disabled: !mapping.on,

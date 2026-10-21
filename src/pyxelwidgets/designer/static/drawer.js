@@ -2,7 +2,7 @@
 
 import { state, $, fill, el } from './core.js';
 import { prefs, savePrefs } from './prefs.js';
-import { widgetAt, allWidgets, deviceInfo, widgetSelection, selectedPaths } from './model.js';
+import { widgetAt, allWidgets, deviceInfo, widgetSelection, selectedPaths, isControlRule, ruleLabel, selectOwner, deviceControls } from './model.js';
 import { outputsOf, outputInfo } from './mappings.js';
 import { linkOptions, describeValue } from './links.js';
 import { openRules } from './rules.js';
@@ -87,12 +87,12 @@ function connectionRows() {
     const to = link.target || (link.action === 'debug' ? 'Debug log' : 'Transport');
     const what = link.action ? `${link.on} → ${link.action.replace(/^transport\./, '')}` : `${link.on} → ${(link.change || 'set').toLowerCase()} ${link.option}`;
     const value = describeValue(link);
-    rows.push(['link', link.widget, to, value ? `${what} = ${value}` : what, () => openRules([{ kind: 'link', index }])]);
+    rows.push(['link', ruleLabel(link), to, value ? `${what} = ${value}` : what, () => openRules([{ kind: 'link', index }])]);
   });
   (state.layout.mappings || []).forEach((mapping, index) => {
     const message = mapping.message || {};
     const what = `${mapping.on || 'receive only'} → ${message.type}${message.name ? ` ${message.name}` : ''}${message.address ? ` ${message.address}` : ''}${mapping.feedback ? ' · feedback' : ''}`;
-    rows.push(['message', mapping.widget, mapping.output, what, () => openRules([{ kind: 'mapping', index }])]);
+    rows.push(['message', ruleLabel(mapping), mapping.output, what, () => openRules([{ kind: 'mapping', index }])]);
   });
   for (const binding of state.layout.bindings || []) {
     const device = state.layout.devices[binding.device];
@@ -126,11 +126,12 @@ function findProblems() {
   if (state.error) problems.push(['error', state.error, null]);
   for (const mapping of state.layout.mappings || []) {
     const message = mapping.message || {};
+    if (isControlRule(mapping) && !state.layout.devices[mapping.device]) continue;
     if (message.type === 'PluginParameter' && !(message.track && message.plugin && message.parameter)) {
-      problems.push(['warning', `${mapping.widget}: pick the track, plug-in and parameter it controls`, () => selectWidgetNamed(mapping.widget)]);
+      problems.push(['warning', `${ruleLabel(mapping)}: pick the track, plug-in and parameter it controls`, () => selectOwner(mapping)]);
     }
     if (message.type === 'TrackParameter' && !message.track) {
-      problems.push(['warning', `${mapping.widget}: pick the track it controls`, () => selectWidgetNamed(mapping.widget)]);
+      problems.push(['warning', `${ruleLabel(mapping)}: pick the track it controls`, () => selectOwner(mapping)]);
     }
   }
   for (const formula of state.formulas) {
@@ -139,15 +140,26 @@ function findProblems() {
   if (state.hardware.sync?.error) problems.push(['warning', `Sync to a DAW: ${state.hardware.sync.error}`, () => select(null)]);
   const names = new Map(allWidgets().map(({ widget, path }) => [widget.name, { widget, path }]));
   const outputs = new Set(outputsOf().map((output) => output.name));
+  // Rules from device controls: the device is there and has the control
+  const controlProblem = (object, what) => {
+    const device = state.layout.devices[object.device];
+    if (!device) return problems.push(['error', `A ${what} from a control of a missing device ${object.device + 1}`, null]);
+    if (!deviceControls(device).some((control) => control.name === object.control)) {
+      problems.push(['warning', `${ruleLabel(object)}: the device has no control "${object.control}" (on a Launchpad, side buttons are controls with side buttons off)`, () => selectOwner(object)]);
+    }
+    return false;
+  };
   for (const link of state.layout.links || []) {
-    if (!names.has(link.widget)) problems.push(['error', `A link from a missing widget "${link.widget}"`, null]);
-    else if (link.target && !names.has(link.target)) problems.push(['error', `${link.widget}: links to a missing widget "${link.target}"`, () => selectWidgetNamed(link.widget)]);
+    if (isControlRule(link) ? controlProblem(link, 'link') : !names.has(link.widget)) {
+      if (!isControlRule(link)) problems.push(['error', `A link from a missing widget "${link.widget}"`, null]);
+    } else if (link.target && !names.has(link.target)) problems.push(['error', `${ruleLabel(link)}: links to a missing widget "${link.target}"`, () => selectOwner(link)]);
     else if (link.option && !linkOptions(names.get(link.target).widget).some((option) => option.name === link.option)) {
-      problems.push(['error', `${link.widget}: ${link.target} has no option "${link.option}"`, () => selectWidgetNamed(link.widget)]);
+      problems.push(['error', `${ruleLabel(link)}: ${link.target} has no option "${link.option}"`, () => selectOwner(link)]);
     }
   }
   for (const mapping of state.layout.mappings || []) {
-    if (!outputs.has(mapping.output)) problems.push(['error', `${mapping.widget}: sends to a missing output "${mapping.output}"`, () => selectWidgetNamed(mapping.widget)]);
+    if (isControlRule(mapping) && controlProblem(mapping, 'message')) continue;
+    if (!outputs.has(mapping.output)) problems.push(['error', `${ruleLabel(mapping)}: sends to a missing output "${mapping.output}"`, () => selectOwner(mapping)]);
   }
   outputsOf().forEach((output, index) => {
     const info = outputInfo(output);

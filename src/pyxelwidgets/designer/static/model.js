@@ -69,13 +69,92 @@ function controlKind(binding) {
   return device ? deviceControls(device).find((control) => control.name === binding.control)?.kind : undefined;
 }
 
-// A select of every device control; calls choose(deviceIndex, control) or choose(null)
-function controlSelect(id, binding, choose) {
+// ---- what messages and links start from: a widget ({widget}) or a device's control ({device, control})
+
+export function isControlRule(object) {
+  return object.widget === undefined && object.control !== undefined;
+}
+
+// A device's control as a rule owner, like a widget: {name, label, type: 'control', device, control, kind, events}
+export function controlOwner(device, control) {
+  const entry = state.layout.devices[device];
+  const kind = entry ? deviceControls(entry).find((candidate) => candidate.name === control)?.kind : undefined;
+  const all = [...new Set(Object.values(state.catalog.controls).flat())];
+  return {
+    name: control, label: `${control} · ${device + 1}. ${entry ? deviceInfo(entry)?.model || entry.type : 'missing device'}`,
+    type: 'control', device, control, kind, events: state.catalog.controls[kind] || all,
+  };
+}
+
+// The widget or control a message or link starts from (undefined: not in the layout)
+export function ruleOwner(object) {
+  if (isControlRule(object)) return state.layout.devices[object.device] ? controlOwner(object.device, object.control) : undefined;
+  return allWidgets().find(({ widget }) => widget.name === object.widget)?.widget;
+}
+
+export function ownerEvents(owner) {
+  return owner?.events || state.catalog.widgets[owner?.type]?.events || [];
+}
+
+// The same for a rule and for its owner
+export function ownerKey(object) {
+  return object.control !== undefined && object.widget === undefined ? `control:${object.device}:${object.control}` : `widget:${object.widget ?? object.name}`;
+}
+
+// What a rule of `owner` says it starts from
+export function ownerRef(owner) {
+  return owner.type === 'control' ? { device: owner.device, control: owner.control } : { widget: owner.name };
+}
+
+export function ruleLabel(object) {
+  return isControlRule(object) ? controlOwner(object.device, object.control).label : object.widget;
+}
+
+// The owners of the layout's control rules, of one device or all, in device and first-use order
+export function controlOwners(device = null) {
+  const seen = new Map();
+  for (const object of [...(state.layout.mappings || []), ...(state.layout.links || [])]) {
+    if (!isControlRule(object) || (device !== null && object.device !== device)) continue;
+    const key = ownerKey(object);
+    if (!seen.has(key)) seen.set(key, controlOwner(object.device, object.control));
+  }
+  return [...seen.values()].sort((a, b) => a.device - b.device);
+}
+
+// Show where a rule starts: select its widget, or its control's device
+export function selectOwner(object) {
+  if (isControlRule(object)) {
+    state.selection = { kind: 'device', index: object.device };
+    state.deviceControls[object.device] = object.control;
+  } else {
+    const found = allWidgets().find(({ widget }) => widget.name === object.widget);
+    if (found) state.selection = widgetSelection([found.path]);
+  }
+  render();
+}
+
+// The device and control of a rule from a control, picked or learned; `moved(object)` fixes what
+// the new control can't send (its event)
+export function controlField(id, object, moved) {
+  const set = (device, control) => change(() => {
+    if (device === null) return;
+    Object.assign(object, { device, control });
+    if (!ownerEvents(controlOwner(device, control)).includes(object.on)) moved(object);
+  });
+  return [
+    el('label', { for: id, title: 'The knob, fader, encoder or button of a device it starts from' }, 'control'),
+    el('div', { class: 'control learnable' }, controlSelect(id, object, set, false),
+      learnButton(id, 'control', (event) => set(event._device, event.control))),
+  ];
+}
+
+// A select of every device control (or of device `only`'s); calls choose(deviceIndex, control) or choose(null)
+export function controlSelect(id, binding, choose, empty = true, only = null) {
   const current = binding ? `${binding.device}:${binding.control}` : '';
   let found = !binding;
   const groups = state.layout.devices.map((device, index) => {
     const controls = deviceControls(device);
-    if (!controls.length) return null;
+    if (!controls.length || (only !== null && index !== only)) return null;
     return el('optgroup', { label: `${index + 1}. ${deviceInfo(device)?.model || device.type}` }, controls.map((control) => {
       const value = `${index}:${control.name}`;
       if (value === current) found = true;
@@ -91,7 +170,7 @@ function controlSelect(id, binding, choose) {
       else choose(null);
     },
   },
-  el('option', { value: '' }, '—'),
+  empty ? el('option', { value: '' }, '—') : null,
   groups,
   // Bound to a control the device doesn't list any more (e.g. side buttons turned back on)
   found ? null : el('option', { value: current, selected: true }, `${binding.control} (not available)`));

@@ -20,6 +20,8 @@ export const state = {
   layout: null,
   file: null,
   saved: '',
+  // The control new messages and links of each device start from, by device index (its panel's picker)
+  deviceControls: {},
   // null (surface) | {kind: 'widget', path: [i, j, ...], paths: [path, ...]} | {kind: 'device', index} | {kind: 'output', index}
   // `paths` are all selected widgets, `path` the last one picked (the one panels edit)
   selection: null,

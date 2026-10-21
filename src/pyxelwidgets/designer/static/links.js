@@ -1,7 +1,7 @@
 // Links (layout.links): widgets changing widgets, and their editors
 
 import { state, $, el } from './core.js';
-import { allWidgets } from './model.js';
+import { allWidgets, ownerEvents, controlField, controlOwner } from './model.js';
 import { INTEGER_SOURCES, sourceNames } from './mappings.js';
 import { change } from './history.js';
 import { optionControl, isFormula, formulaSeed, formulaControl } from './properties.js';
@@ -51,6 +51,11 @@ export function defaultLinkValue(link) {
   if (!option) return;
   const sources = sourceNames(link.on);
   const level = ['value', 'state', 'velocity', 'pressure', 'active'].find((name) => sources.includes(name));
+  if (!level && sources.includes('delta') && ['int', 'float', 'enum'].includes(option.kind)) {
+    // An encoder's steps move it: one a step, or 1/64 of 0.0-1.0
+    Object.assign(link, { change: 'Add', value: option.kind === 'float' ? '{delta / 64}' : { source: 'delta' } });
+    return;
+  }
   switch (option.kind) {
     case 'bool': {
       // Follows a switch or a cell; presses toggle it
@@ -291,7 +296,8 @@ function defaultActionValue(link) {
     return;
   }
   if (link.action === 'transport.tempo_add') {
-    link.value = 1;
+    // An encoder's steps, else one bpm
+    link.value = sources.includes('delta') && !sources.includes('value') ? { source: 'delta' } : 1;
     return;
   }
   // A value (0-1) for actions taking one, e.g. a fader setting a step's velocity
@@ -303,6 +309,17 @@ function defaultActionValue(link) {
   link.value = source ? { source } : 0;
 }
 
+// The control a link from a device's control starts from: a new one's events reset the event and value
+function linkControlField(widget, link, index) {
+  if (widget.type !== 'control') return null;
+  return controlField(`link-${index}-control`, link, (moved) => {
+    moved.on = ownerEvents(controlOwner(moved.device, moved.control))[0];
+    if (moved.action === 'debug') return;
+    if (moved.action !== undefined) defaultActionValue(moved);
+    else defaultLinkValue(moved);
+  });
+}
+
 // A link writing to the debug log (the event log in the designer, printed when running)
 function debugCard(widget, link, index, events) {
   const id = (name) => `link-${index}-${name}`;
@@ -311,7 +328,7 @@ function debugCard(widget, link, index, events) {
   return el('div', { class: 'mapping link' },
     el('div', { class: 'mapping-head' },
       el('select', {
-        id: id('on'), title: 'The event of this widget that writes',
+        id: id('on'), title: 'The event that writes',
         onchange: (e) => edit(() => { link.on = e.target.value; }),
       }, events.map((name) => el('option', { value: name, selected: name === link.on }, name))),
       el('span', { class: 'arrow' }, '→'),
@@ -337,6 +354,7 @@ function debugCard(widget, link, index, events) {
         onclick: () => change((layout) => setLinks(layout, layout.links.filter((_, i) => i !== index))),
       }, '×')),
     el('div', { class: 'fields' },
+      linkControlField(widget, link, index),
       el('label', { for: id('value') }, 'text'),
       el('div', { class: 'control' }, el('input', {
         type: 'text', id: id('value'), value: link.value ?? '', placeholder: `${link.on} {all}`,
@@ -348,7 +366,7 @@ function debugCard(widget, link, index, events) {
 }
 
 export function linkCard(widget, link, index) {
-  const events = state.catalog.widgets[widget.type]?.events || [];
+  const events = ownerEvents(widget);
   if (link.action === 'debug') return debugCard(widget, link, index, events);
   const transport = !link.target;
   const target = transport ? null : widgetNamed(link.target);
@@ -406,7 +424,7 @@ export function linkCard(widget, link, index) {
   return el('div', { class: 'mapping link' },
     el('div', { class: 'mapping-head' },
       el('select', {
-        id: id('on'), title: 'The event of this widget that changes the option',
+        id: id('on'), title: 'The event that changes the option',
         onchange: (e) => edit(() => {
           link.on = e.target.value;
           const source = link.value?.source;
@@ -445,6 +463,7 @@ export function linkCard(widget, link, index) {
         onclick: () => change((layout) => setLinks(layout, layout.links.filter((_, i) => i !== index))),
       }, '×')),
     el('div', { class: 'fields' },
+      linkControlField(widget, link, index),
       el('label', { for: id('option') }, isAction ? 'action' : 'option'),
       el('div', { class: 'control' }, el('select', {
         id: id('option'), title: 'An option to change, or an action to call',

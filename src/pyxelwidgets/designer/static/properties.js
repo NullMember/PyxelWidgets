@@ -4,10 +4,11 @@ import { state, $, fill, el, api, appWindow } from './core.js';
 import { renderPlayHere } from './screen.js';
 import { prefs, savePrefs } from './prefs.js';
 import { widgetAt, containerSize, allWidgets, deviceInfo, bindingFields, transportControls, deviceSize,
-  isGroup, currentPage, addPage, widgetSelection } from './model.js';
+  isGroup, currentPage, addPage, widgetSelection, deviceControls, controlSelect, controlOwners, ruleLabel, selectOwner } from './model.js';
 import { outputsOf, outputInfo, renderOutputs, outputProperties } from './mappings.js';
 import { describeValue, linkOptions } from './links.js';
-import { ruleSummary } from './rules.js';
+import { ruleSummary, pickedControl } from './rules.js';
+import { learnButton } from './learn.js';
 import { drawerPrefs } from './drawer.js';
 import { change, flushSync, setStatus } from './history.js';
 import { openCheck } from './check.js';
@@ -327,7 +328,7 @@ function controlledBy(widget) {
     if (link.target !== widget.name || link.widget === widget.name) continue;
     const what = link.action ? `${link.on} → ${link.action}` : `${link.on} → ${(link.change || 'set').toLowerCase()} ${link.option}`;
     const value = describeValue(link);
-    items.push({ from: link.widget, what: value ? `${what} = ${value}` : what, go: () => selectWidgetNamed(link.widget) });
+    items.push({ from: ruleLabel(link), what: value ? `${what} = ${value}` : what, go: () => selectOwner(link) });
   }
   for (const binding of state.layout.bindings || []) {
     if (binding.widget !== widget.name) continue;
@@ -437,7 +438,7 @@ export function renderProperties() {
         info?.ports?.length ? [port('input', 'input port'), port('output', 'output port')] : null,
         optionFields(device, (info?.options || []).filter((option) => !ADVANCED.has(option.name)))),
       optionFields(device, (info?.options || []).filter((option) => ADVANCED.has(option.name))),
-      info?.controls?.length ? el('p', { class: 'hint' }, `Controls: ${info.controls.map((c) => c.name).join(', ')}`) : null,
+      deviceRules(selection.index),
       el('div', { class: 'actions' },
         device.type.startsWith('virtual.') || device.type.startsWith('web.') ? null : el('button', {
           id: 'device-check', disabled: !state.hardware.devices[selection.index]?.connected,
@@ -472,6 +473,34 @@ export function renderProperties() {
     el('h4', {}, 'Transport and surface controls'),
     transportControls(),
   );
+}
+
+// Messages and links starting from the device's controls: the control new ones start from, and every one there is
+function deviceRules(index) {
+  const device = state.layout.devices[index];
+  const controls = deviceControls(device);
+  if (!controls.length) return null;
+  const owners = controlOwners(index);
+  const picked = pickedControl();
+  const pick = (control) => {
+    state.deviceControls[index] = control;
+    render();
+  };
+  const count = [...(state.layout.mappings || []), ...(state.layout.links || [])].filter((object) => object.widget === undefined && object.device === index).length;
+  return group('controls', 'Messages and links', [
+    el('p', { class: 'hint' }, `Controls: ${controls.map((c) => c.name).join(', ')}`),
+    el('div', { class: 'fields' },
+      el('label', { for: 'device-control', title: 'The control new messages and links start from' }, 'control'),
+      el('div', { class: 'control learnable' },
+        controlSelect('device-control', picked ? { device: index, control: picked.control } : null, (_, control) => pick(control), false, index),
+        learnButton('device-control', 'control', (event) => {
+          // Another device's control: show that one
+          if (event._device !== index) state.selection = { kind: 'device', index: event._device };
+          state.deviceControls[event._device] = event.control;
+          render();
+        }))),
+    ruleSummary(owners, picked ? [picked] : []).slice(1),
+  ], { count: count || null });
 }
 
 // What a Presets group stored (kept in the layout while its save option is on), and a way to forget it

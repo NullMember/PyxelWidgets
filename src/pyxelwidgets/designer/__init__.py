@@ -171,7 +171,7 @@ def catalog() -> dict:
         schema['widgets'][name]['preview'] = _preview(cls, name)
     return {'widgets': schema['widgets'], 'animations': schema['animations'], 'binding': schema['binding'],
             'devices': devices, 'outputs': outputs, 'events': schema['events'], 'messages': schema['messages'],
-            'link': schema['link'], 'expression': schema['expression'], 'colors': colors}
+            'controls': schema['controls'], 'link': schema['link'], 'expression': schema['expression'], 'colors': colors}
 
 class PreviewDevice(pyxelwidgets.devices.Device):
     """Covers the whole surface so clicks in the browser reach widgets like real pad presses."""
@@ -554,6 +554,8 @@ class Preview:
             self.hardware.append({'key': _device_key(spec), 'device': device, 'error': error})
         # Removing devices from the old surface removed their bindings
         self.ui.bind([entry['device'] for entry in self.hardware], _PreviewActions(self))
+        # Messages and links from device controls follow the connected devices
+        self.ui.place_controls([entry['device'] for entry in self.hardware])
         outputs = {}
         for entry in self.outputs:
             if entry['device'] is not None:

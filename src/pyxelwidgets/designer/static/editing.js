@@ -127,12 +127,18 @@ export function removeSelection() {
       }
       const names = new Set(allWidgets().map(({ widget }) => widget.name));
       bindings = bindings.filter((binding) => binding.widget === undefined || names.has(binding.widget));
-      setMappings(layout, (layout.mappings || []).filter((mapping) => names.has(mapping.widget)));
-      setLinks(layout, (layout.links || []).filter((link) => names.has(link.widget) && (link.target === undefined || names.has(link.target))));
+      // Rules from device controls stay, unless they change a deleted widget
+      const kept = (object) => object.widget === undefined || names.has(object.widget);
+      setMappings(layout, (layout.mappings || []).filter(kept));
+      setLinks(layout, (layout.links || []).filter((link) => kept(link) && (link.target === undefined || names.has(link.target))));
     } else {
+      // The device's bindings and the rules from its controls go; later devices move up
+      const moved = (list) => list.filter((entry) => entry.device !== selection.index || entry.control === undefined)
+        .map((entry) => (entry.device > selection.index ? { ...entry, device: entry.device - 1 } : entry));
       layout.devices.splice(selection.index, 1);
-      bindings = bindings.filter((binding) => binding.device !== selection.index)
-        .map((binding) => (binding.device > selection.index ? { ...binding, device: binding.device - 1 } : binding));
+      bindings = moved(bindings);
+      setMappings(layout, moved(layout.mappings || []));
+      setLinks(layout, moved(layout.links || []));
     }
     if (bindings.length) layout.bindings = bindings;
     else delete layout.bindings;

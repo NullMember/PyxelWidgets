@@ -2,7 +2,8 @@
 
 import { state, $, fill, el } from './core.js';
 import { prefs, savePrefs } from './prefs.js';
-import { widgetAt, allWidgets, widgetSelection, selectedPaths } from './model.js';
+import { widgetAt, allWidgets, widgetSelection, selectedPaths, ruleOwner, ownerEvents, ownerKey, ownerRef, controlOwner,
+  controlOwners, isControlRule, deviceControls } from './model.js';
 import { outputsOf, outputInfo, setMappings, defaultEvent, defaultMessage, messageSources, sourceNames,
   mappingCard } from './mappings.js';
 import { setLinks, widgetNamed, defaultLinkValue, describeValue, linkCard } from './links.js';
@@ -10,9 +11,11 @@ import { change, setStatus } from './history.js';
 import { render, clamp } from './board.js';
 import { duplicate } from './editing.js';
 
-// A floating window listing the messages (layout.mappings) and links of the selected widgets, or
-// of every widget. Rules are picked as {kind: 'mapping' | 'link', index}; several picked ones of
-// one kind are edited together: a change to the first is made to the others (`spreadChange`).
+// A floating window listing the messages (layout.mappings) and links of the selected widgets (or
+// the selected device's controls), or of every widget and control. Rules are picked as
+// {kind: 'mapping' | 'link', index}; several picked ones of one kind are edited together: a
+// change to the first is made to the others (`spreadChange`). What a rule starts from is its owner:
+// a widget, or a device's control (`controlOwner`).
 
 const RULES_CLIPBOARD = 'pyxelwidgets.rules';
 
@@ -30,9 +33,32 @@ function selectedWidgets() {
   return allWidgets().map((item) => item.widget).filter((widget) => picked.has(widget));
 }
 
-// Widgets whose rules show: the selected ones, or all of them
+// The control of the selected device that new rules start from (its panel's picker), or null
+export function pickedControl() {
+  if (state.selection?.kind !== 'device') return null;
+  const index = state.selection.index;
+  const device = state.layout.devices[index];
+  const controls = device ? deviceControls(device) : [];
+  const name = state.deviceControls[index];
+  const control = controls.find((candidate) => candidate.name === name) || controls[0];
+  return control ? controlOwner(index, control.name) : null;
+}
+
+// What new and pasted rules go to: the selected widgets, or the selected device's picked control
+function selectedOwners() {
+  if (state.selection?.kind === 'device') return [pickedControl()].filter(Boolean);
+  return selectedWidgets();
+}
+
+// Owners whose rules show: the selected widgets (or the selected device's controls), or all of them
 function ruleWidgets() {
-  return state.rules.all ? allWidgets().map((item) => item.widget) : selectedWidgets();
+  if (state.rules.all) return [...allWidgets().map((item) => item.widget), ...controlOwners()];
+  if (state.selection?.kind === 'device') {
+    const owners = controlOwners(state.selection.index);
+    const picked = pickedControl();
+    return picked && !owners.some((owner) => ownerKey(owner) === ownerKey(picked)) ? [...owners, picked] : owners;
+  }
+  return selectedWidgets();
 }
 
 function fieldText(value) {
@@ -72,11 +98,12 @@ function ruleRows() {
   const query = state.rules.query.trim().toLowerCase();
   const rows = [];
   for (const widget of ruleWidgets()) {
+    const key = ownerKey(widget);
     const add = (kind, list) => list.forEach((object, index) => {
-      if (object.widget !== widget.name) return;
+      if (ownerKey(object) !== key) return;
       const rule = { kind, index };
       const text = ruleText(rule, object);
-      if (query && ![widget.name, ...text].some((part) => String(part).toLowerCase().includes(query))) return;
+      if (query && ![widget.label || widget.name, ...text].some((part) => String(part).toLowerCase().includes(query))) return;
       rows.push({ rule, widget, text });
     });
     add('mapping', state.layout.mappings || []);
@@ -120,11 +147,17 @@ export function openRules(picked = null) {
   if (picked) {
     state.rules.picked = picked;
     state.rules.anchor = picked[picked.length - 1] || null;
-    // Shown even when the widget isn't selected
-    const widgets = new Set(picked.map((rule) => ruleObject(rule)?.widget));
-    if (!state.rules.all && !ruleWidgets().some((widget) => widgets.has(widget.name))) {
-      const paths = allWidgets().filter(({ widget }) => widgets.has(widget.name)).map(({ path }) => path);
+    // Shown even when the widget (or the control's device) isn't selected
+    const objects = picked.map(ruleObject).filter(Boolean);
+    const owners = new Set(objects.map(ownerKey));
+    if (!state.rules.all && !ruleWidgets().some((widget) => owners.has(ownerKey(widget)))) {
+      const control = objects.find(isControlRule);
+      const paths = allWidgets().filter(({ widget }) => owners.has(ownerKey(widget))).map(({ path }) => path);
       if (paths.length) state.selection = widgetSelection(paths);
+      else if (control) {
+        state.selection = { kind: 'device', index: control.device };
+        state.deviceControls[control.device] = control.control;
+      }
     }
   }
   state.rules.focused = true;
@@ -171,10 +204,12 @@ function setPath(object, path, value) {
 // event their widget has, a field their message type has, a value for the same option
 export function spreadChange(kind, before, rep, others) {
   const order = (path) => (path[1] === 'type' ? 0 : ['target', 'option', 'action', 'output'].includes(path[0]) ? 1 : 2);
-  const paths = leafPaths(before, rep).filter((path) => path[0] !== 'widget').sort((a, b) => order(a) - order(b));
+  // Each keeps what it starts from
+  const own = ['widget', 'device', 'control'];
+  const paths = leafPaths(before, rep).filter((path) => !own.includes(path[0])).sort((a, b) => order(a) - order(b));
   if (!paths.length) return;
   for (const other of others) {
-    const events = state.catalog.widgets[widgetNamed(other.widget)?.type]?.events || [];
+    const events = ownerEvents(ruleOwner(other));
     for (const path of paths) {
       const value = getPath(rep, path);
       if (path[0] === 'on' && value !== undefined && !events.includes(value)) continue;
@@ -190,7 +225,7 @@ export function spreadChange(kind, before, rep, others) {
       // Fields another message type had
       const fields = state.catalog.messages[other.message?.type]?.fields;
       if (fields) for (const key of Object.keys(other.message)) if (key !== 'type' && !fields.some((field) => field.name === key)) delete other.message[key];
-      if (!other.on) other.feedback = true;
+      if (!other.on && !isControlRule(other)) other.feedback = true;
     }
   }
 }
@@ -201,7 +236,7 @@ function markMixed(card, kind, index, rep, others) {
   const ids = new Set();
   for (const other of others) {
     for (const path of leafPaths(rep, other)) {
-      if (path[0] === 'widget') continue;
+      if (['widget', 'device', 'control'].includes(path[0])) continue;
       if (kind === 'mapping') ids.add(path[0] === 'message' ? (path[1] === 'type' ? 'type' : path[1] === 'args' ? 'arg0' : path[1]) : path[0]);
       else ids.add(path[0] === 'action' ? 'option' : path[0]);
     }
@@ -217,19 +252,19 @@ function markMixed(card, kind, index, rep, others) {
 
 // ---- adding, copying, pasting
 
-// New messages for a widget (notes come with their note-offs)
+// New messages for a widget or control (notes come with their note-offs)
 function newMappings(widget) {
   const output = outputsOf()[0];
   const info = outputInfo(output);
   // Macro buttons: a momentary button fires a shortcut on presses (it changes on releases too)
   const momentary = widget.type === 'Button' && (widget.options?.mode || 'Button') !== 'Switch';
   const on = momentary && info?.messages.includes('Hotkey') ? 'Pressed' : defaultEvent(widget);
-  const rules = [{ widget: widget.name, on, output: output.name, message: defaultMessage(widget, on, info) }];
-  // A Sequencer's notes end with their gates, other widgets' with their NoteOff
-  const ends = { StepPlayed: 'StepEnded', NoteOn: 'NoteOff' }[on];
-  const events = state.catalog.widgets[widget.type]?.events || [];
+  const rules = [{ ...ownerRef(widget), on, output: output.name, message: defaultMessage(widget, on, info) }];
+  // A Sequencer's notes end with their gates, other widgets' with their NoteOff (a button's with its release)
+  const ends = { StepPlayed: 'StepEnded', NoteOn: 'NoteOff', ControlPressed: 'ControlReleased' }[on];
+  const events = ownerEvents(widget);
   if (ends && events.includes(ends) && rules[0].message.type === 'NoteOn' && info?.messages.includes('NoteOff')) {
-    rules.push({ widget: widget.name, on: ends, output: output.name, message: defaultMessage(widget, ends, info) });
+    rules.push({ ...ownerRef(widget), on: ends, output: output.name, message: defaultMessage(widget, ends, info) });
   }
   return rules;
 }
@@ -239,8 +274,9 @@ function newLink(widget) {
   const momentary = widget.type === 'Button' && (widget.options?.mode || 'Button') !== 'Switch';
   const on = momentary ? 'Pressed' : defaultEvent(widget);
   // Another widget if there is one
-  const target = allWidgets().map((item) => item.widget).find((candidate) => candidate !== widget) || widget;
-  const link = { widget: widget.name, on, target: target.name, option: 'visible' };
+  const target = allWidgets().map((item) => item.widget).find((candidate) => candidate !== widget) || (widget.type === 'control' ? null : widget);
+  if (!target) return { ...ownerRef(widget), on, action: 'transport.toggle' };
+  const link = { ...ownerRef(widget), on, target: target.name, option: 'visible' };
   defaultLinkValue(link);
   return link;
 }
@@ -293,16 +329,23 @@ function readRuleClipboard() {
   return state.ruleClipboard;
 }
 
-// A copied rule for `widget`: null when it can't be (no such output or target, no event it needs)
+// A copied rule for `widget` (or a control): null when it can't be (no such output or target, no event it needs)
 function adaptRule(kind, rule, widget) {
-  const copy = { ...JSON.parse(JSON.stringify(rule)), widget: widget.name };
-  const events = state.catalog.widgets[widget.type]?.events || [];
+  const copy = JSON.parse(JSON.stringify(rule));
+  for (const key of ['widget', 'device', 'control']) delete copy[key];
+  Object.assign(copy, ownerRef(widget));
+  // Controls only send
+  if (kind === 'mapping' && widget.type === 'control') {
+    delete copy.feedback;
+    if (!copy.on) return null;
+  }
+  const events = ownerEvents(widget);
   const needs = kind === 'mapping' ? messageSources(copy.message)
     : [copy.value?.source, copy.value?.if?.source, copy.value?.by?.source ?? copy.value?.by].filter(Boolean);
   if (kind === 'mapping' && !outputsOf().some((output) => output.name === copy.output)) return null;
   if (kind === 'link' && copy.target !== undefined) {
     // A link changing its own widget changes the new one
-    if (copy.target === rule.widget) copy.target = widget.name;
+    if (rule.widget !== undefined && copy.target === rule.widget && widget.type !== 'control') copy.target = widget.name;
     else if (!widgetNamed(copy.target)) return null;
   }
   if (copy.on && !events.includes(copy.on)) {
@@ -313,15 +356,15 @@ function adaptRule(kind, rule, widget) {
   return copy;
 }
 
-// Paste onto every selected widget (or, with none selected, the widgets they came from)
-function pasteRules(clip = readRuleClipboard(), widgets = selectedWidgets()) {
+// Paste onto every selected widget or the selected device's control (or, with none selected, where they came from)
+function pasteRules(clip = readRuleClipboard(), widgets = selectedOwners()) {
   const rules = [...(clip?.mappings || []).map((rule) => ['mapping', rule]), ...(clip?.links || []).map((rule) => ['link', rule])];
   if (!rules.length) return setStatus('Nothing to paste: copy messages or links first (Ctrl+C in this window)', 'error');
   let pasted = 0, dropped = 0;
   const added = [];
   change((layout) => {
     for (const [kind, rule] of rules) {
-      const targets = widgets.length ? widgets : [widgetNamed(rule.widget)].filter(Boolean);
+      const targets = widgets.length ? widgets : [ruleOwner(rule)].filter(Boolean);
       if (!targets.length) dropped++;
       for (const widget of targets) {
         const copy = adaptRule(kind, rule, widget);
@@ -421,8 +464,8 @@ export function buildRules() {
   $('rules-selected').onclick = () => { state.rules.all = false; renderRules(); };
   $('rules-all').onclick = () => { state.rules.all = true; renderRules(); };
   $('rules-search').addEventListener('input', (e) => { state.rules.query = e.target.value; renderRules(); });
-  $('rules-add-message').onclick = () => addRules('mapping', selectedWidgets(), newMappings);
-  $('rules-add-link').onclick = () => addRules('link', selectedWidgets(), newLink);
+  $('rules-add-message').onclick = () => addRules('mapping', selectedOwners(), newMappings);
+  $('rules-add-link').onclick = () => addRules('link', selectedOwners(), newLink);
   $('rules-copy').onclick = () => copyRules();
   $('rules-cut').onclick = () => copyRules(true);
   $('rules-paste').onclick = () => pasteRules();
@@ -469,15 +512,17 @@ export function renderRules() {
   if (!open) return;
   const rules = state.rules;
   const widgets = ruleWidgets();
-  const selected = selectedWidgets();
+  const selected = selectedOwners();
   const rows = ruleRows();
   rules.picked = pickedRules();
   const picked = rules.picked;
-  $('rules-title').textContent = rules.all ? 'All widgets'
-    : widgets.length === 1 ? widgets[0].name : widgets.length ? `${widgets.length} widgets` : 'No widget selected';
+  const device = state.selection?.kind === 'device';
+  $('rules-title').textContent = rules.all ? 'All widgets and controls'
+    : widgets.length === 1 ? widgets[0].label || widgets[0].name
+      : widgets.length ? `${widgets.length} ${device ? 'controls' : 'widgets'}` : device ? 'This device has no controls' : 'No widget selected';
   $('rules-selected').classList.toggle('active', !rules.all);
   $('rules-all').classList.toggle('active', rules.all);
-  const each = selected.length > 1 ? ' to each selected widget' : '';
+  const each = selected.length > 1 ? ' to each selected widget' : device && selected.length ? ` to ${selected[0].label}` : '';
   $('rules-add-message').disabled = !selected.length || !outputsOf().length;
   $('rules-add-message').title = !outputsOf().length ? 'Add an output first (Outputs, on the left)' : selected.length ? `Send an event${each} to an output` : 'Select a widget first';
   $('rules-add-link').disabled = !selected.length;
@@ -486,7 +531,7 @@ export function renderRules() {
   const clip = readRuleClipboard();
   const clipped = (clip?.mappings?.length || 0) + (clip?.links?.length || 0);
   $('rules-paste').disabled = !clipped;
-  $('rules-paste').title = clipped ? `Paste ${clipped}${selected.length ? (selected.length > 1 ? ` onto each of the ${selected.length} selected widgets` : ` onto ${selected[0].name}`) : ' onto the widgets they came from'} (Ctrl/Cmd+V)` : 'Copy messages or links first (Ctrl/Cmd+C)';
+  $('rules-paste').title = clipped ? `Paste ${clipped}${selected.length ? (selected.length > 1 ? ` onto each of the ${selected.length} selected widgets` : ` onto ${selected[0].label || selected[0].name}`) : ' onto the widgets and controls they came from'} (Ctrl/Cmd+V)` : 'Copy messages or links first (Ctrl/Cmd+C)';
   $('rules-all-rows').disabled = !rows.length;
   // The list, by widget
   const list = $('rules-list');
@@ -498,7 +543,7 @@ export function renderRules() {
       items.push(el('li', {
         class: 'rule-widget', title: 'Pick all of its messages and links',
         onclick: () => { rules.picked = own; rules.anchor = own[own.length - 1]; renderRules(); },
-      }, row.widget.name, el('span', { class: 'type' }, row.widget.type)));
+      }, row.widget.label || row.widget.name, el('span', { class: 'type' }, row.widget.type)));
     }
     last = row.widget;
     const [when, to, what] = row.text;
@@ -518,7 +563,7 @@ export function renderRules() {
   }
   if (!rows.length) {
     items.push(el('li', { class: 'hint' }, rules.query ? `Nothing matches "${rules.query}".`
-      : !widgets.length ? 'Select widgets on the grid or in Layers, or show All widgets.'
+      : !widgets.length ? 'Select widgets on the grid or in Layers (or a device, for its controls), or show All.'
         : 'No messages or links yet: add one above.'));
   }
   list.replaceChildren(...items);
@@ -536,15 +581,15 @@ function ruleEditor(picked) {
   }
   const [first] = picked;
   const rep = ruleObject(first);
-  const widget = widgetNamed(rep.widget);
-  if (!widget) return el('p', { class: 'hint' }, `${rep.widget} isn't in the layout.`);
+  const widget = ruleOwner(rep);
+  if (!widget) return el('p', { class: 'hint' }, isControlRule(rep) ? `Device ${rep.device + 1} isn't in the layout.` : `${rep.widget} isn't in the layout.`);
   const card = first.kind === 'mapping' ? mappingCard(widget, rep, first.index) : linkCard(widget, rep, first.index);
   if (picked.length === 1) {
-    return el('div', { class: 'rule-editor' }, el('p', { class: 'rule-for' }, widget.name, el('span', { class: 'type' }, widget.type)), card);
+    return el('div', { class: 'rule-editor' }, el('p', { class: 'rule-for' }, widget.label || widget.name, el('span', { class: 'type' }, widget.type)), card);
   }
   const others = picked.slice(1).map(ruleObject);
   markMixed(card, first.kind, first.index, rep, others);
-  const names = [...new Set([rep, ...others].map((object) => object.widget))];
+  const names = [...new Set([rep, ...others].map((object) => ruleOwner(object)?.name ?? object.widget))];
   const editor = el('div', { class: 'rule-editor multi' },
     el('p', { class: 'rule-for' }, `${picked.length} ${first.kind === 'mapping' ? 'messages' : 'links'} of ${names.length > 3 ? `${names.length} widgets` : names.join(', ')}`),
     el('p', { class: 'hint note' }, 'A change here is made to all of them. Dashed fields differ: each keeps its own value until you change it.'),
@@ -558,13 +603,15 @@ function ruleEditor(picked) {
   return editor;
 }
 
-// The Behaviour group's list: a line per message and link, opening the window
-export function ruleSummary(widgets) {
-  const names = new Set(widgets.map((widget) => widget.name));
+// The Behaviour group's list: a line per message and link of `widgets` (or controls), opening the window;
+// new ones go to `adding` (a device's picked control)
+export function ruleSummary(widgets, adding = widgets) {
+  const names = new Set(widgets.map(ownerKey));
   const rows = [];
-  (state.layout.mappings || []).forEach((object, index) => { if (names.has(object.widget)) rows.push({ kind: 'mapping', index }); });
-  (state.layout.links || []).forEach((object, index) => { if (names.has(object.widget)) rows.push({ kind: 'link', index }); });
-  const single = widgets.length === 1;
+  (state.layout.mappings || []).forEach((object, index) => { if (names.has(ownerKey(object))) rows.push({ kind: 'mapping', index }); });
+  (state.layout.links || []).forEach((object, index) => { if (names.has(ownerKey(object))) rows.push({ kind: 'link', index }); });
+  const control = adding[0]?.type === 'control';
+  const single = widgets.length === 1 && !control;
   return [
     el('h4', {}, 'Messages and links'),
     outputsOf().length ? null : el('p', { class: 'hint' }, 'Add an output (a MIDI port, OSC, Mackie Control or HUI) to send events to other software.'),
@@ -573,13 +620,15 @@ export function ruleSummary(widgets) {
       return el('li', { onclick: () => openRules([rule]), title: 'Edit it' },
         el('span', { class: `rule-kind ${rule.kind}` }, rule.kind === 'mapping' ? 'msg' : 'link'),
         el('span', { class: 'rule-text' },
-          el('span', { class: 'rule-line' }, single ? null : `${ruleObject(rule).widget}: `, el('b', {}, when), ' → ', to),
+          el('span', { class: 'rule-line' }, single ? null : `${ruleOwner(ruleObject(rule))?.name ?? ruleObject(rule).widget}: `, el('b', {}, when), ' → ', to),
           el('span', { class: 'rule-what' }, what)));
     }), rows.length > 10 ? el('li', { class: 'more', onclick: () => openRules(rows), title: 'Edit them' }, `and ${rows.length - 10} more…`) : null)
-      : el('p', { class: 'hint' }, 'Send events to outputs (messages), or change other widgets\' options when this one is used (links): show a group, switch a page, move a keyboard\'s octave, dim a color…'),
+      : el('p', { class: 'hint' }, control
+        ? 'Send the moves of a knob, fader, encoder or button to outputs (messages), or change widgets\' options with it (links), without a widget in between.'
+        : 'Send events to outputs (messages), or change other widgets\' options when this one is used (links): show a group, switch a page, move a keyboard\'s octave, dim a color…'),
     el('div', { class: 'actions' },
-      outputsOf().length ? el('button', { onclick: () => addRules('mapping', widgets, newMappings), title: single ? 'Send an event of this widget to an output' : 'Add one to each' }, single ? 'Add message' : 'Add message to each') : null,
-      el('button', { onclick: () => addRules('link', widgets, newLink), title: single ? 'Change an option of a widget on an event of this one' : 'Add one to each' }, single ? 'Add link' : 'Add link to each'),
+      outputsOf().length && adding.length ? el('button', { onclick: () => addRules('mapping', adding, newMappings), title: control ? `Send ${adding[0].name}'s moves to an output` : single ? 'Send an event of this widget to an output' : 'Add one to each' }, single || control ? 'Add message' : 'Add message to each') : null,
+      adding.length ? el('button', { onclick: () => addRules('link', adding, newLink), title: control ? `Change a widget's option (or the transport) with ${adding[0].name}` : single ? 'Change an option of a widget on an event of this one' : 'Add one to each' }, single || control ? 'Add link' : 'Add link to each') : null,
       el('button', { onclick: () => openRules(rows), title: 'Edit, copy and paste them in a window (M)' }, rows.length ? 'Edit…' : 'Open editor')),
   ];
 }
