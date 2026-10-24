@@ -3,7 +3,7 @@ Layout files: a JSON description of a Surface, the devices it is shown on and
 its widgets, as written by the designer (``python -m pyxelwidgets.designer``).
 
     {
-      "format": "pyxelwidgets.layout", "version": 4,
+      "format": "pyxelwidgets.layout", "version": 5,
       "surface": {"width": 9, "height": 9},
       "transport": {"bpm": 120, "signature": [4, 4]},
       "devices": [{"type": "novation.LaunchpadMiniMK3", "x": 0, "y": 0, "options": {}}],
@@ -49,6 +49,13 @@ position (song position) then come from there. ``transport.clock`` sends the
 transport's MIDI clock, start/stop and position out through some of the
 layout's outputs, so a DAW or drum machine follows: ``["midi"]``.
 
+``key`` is the musical key widgets share, ``{"root": "D", "scale": "Dorian"}``
+(``widgets.Key``; C major by default): widget options follow it with formulas
+(``"scale": "{key.scale}"``, ``"root": "{key.root}"``) and links change it
+with the target ``"key"`` and the option ``root`` or ``scale`` (``Add`` moves
+the root by semitones, ``Toggle`` picks the next scale). Widgets can't be
+named ``key`` or ``transport`` (``RESERVED_NAMES``).
+
 Bindings connect a device's named controls (by the device's index in
 ``devices``) to a widget, with Binding options (``takeover``, ``glide_time``,
 ``step``, ``axis``), or to an action (see ``ACTIONS``; ``surface.reveal``
@@ -68,9 +75,12 @@ Links change a ``target`` widget's ``option`` (one of its options, or ``x``,
 ``Set`` (default), ``Add`` or ``Toggle``; ``value`` is a constant encoded like
 the option, or ``{"source": "value", "offset": 0}``; optional ``min``/``max``
 are the range a 0.0-1.0 source covers and clamp numbers (see
-``pyxelwidgets.link``). A value can be a condition choosing between two:
+``pyxelwidgets.link``); ``"emit": true`` on a link setting a widget's ``value``
+makes it emit ``Changed`` (its own links and mappings follow). A value can be a condition choosing between two:
 ``{"if": {"source": "cell"}, "op": "==", "to": 3, "then": true, "else": false}``
-(``then``/``else`` encoded like the option; true/false by default for on/off options). Instead of an option a link can call an ``action``:
+(``then``/``else`` encoded like the option; true/false by default for on/off options;
+``{"skip": true}``, also in a ``choose`` list, does nothing for that event, like
+``skip`` in a formula: ``"{note if pages.page == 3 else skip}"``). Instead of an option a link can call an ``action``:
 one of the target widget's ``actions`` (``advance``, ``play`` with a step
 ``value``, ``next``...) or, without a target, a transport action
 (``ACTIONS``: ``transport.play``..., or ``VALUE_ACTIONS`` taking a
@@ -138,7 +148,7 @@ import pyxelwidgets.transport
 import pyxelwidgets.widgets
 
 FORMAT = 'pyxelwidgets.layout'
-VERSION = 4
+VERSION = 5
 
 # Actions a binding can trigger, on the transport given to Parser.bind
 ACTIONS = {
@@ -435,6 +445,8 @@ def schema() -> dict:
             'animations': {name: {'doc': _doc(cls), 'options': option_schema(cls)} for name, cls in ANIMATIONS.items()},
             'binding': {'options': option_schema(pyxelwidgets.binding.Binding), 'actions': [*ACTIONS, *SURFACE_ACTIONS]},
             'events': events, 'messages': message_schema(),
+            # The key widgets share: its options (root and scale with their choices)
+            'key': option_schema(pyxelwidgets.widgets.Key),
             'link': {'changes': {name: sorted(kinds) if kinds else None for name, kinds in LINK_CHANGES.items()},
                      'sources': sorted(LINK_SOURCES),
                      'actions': {**{name: None for name in ACTIONS}, **{name: 'float' for name in VALUE_ACTIONS}, 'debug': 'text'},
@@ -459,6 +471,9 @@ def message_schema() -> dict:
                 choices = getattr(cls, 'choices', {}).get(field.name)
                 if field.name in cls.ranges:
                     entry['range'] = list(cls.ranges[field.name])
+                    if field.name == 'channel' and issubclass(cls, pyxelwidgets.message.MidiMessage):
+                        # Also a list: sent on each
+                        entry['many'] = True
                 elif choices:
                     entry.update(kind = 'choice', choices = list(choices))
                 elif isinstance(field.default, bool):
@@ -484,6 +499,9 @@ def _encode_field(value):
             if getattr(value, key) != default:
                 encoded[key] = getattr(value, key)
         return encoded
+    if isinstance(value, tuple):
+        # A MIDI message's channels
+        return list(value)
     return value
 
 def message_to_json(message: pyxelwidgets.message.Message) -> dict:
@@ -520,6 +538,13 @@ def _decode_field(value, where: str, field_range = None, names = None):
         raise LayoutError(f'{where}: must be a whole number from {field_range[0]} to {field_range[1]}, got {value!r}')
     return value
 
+def _channels(value: list, where: str) -> tuple:
+    """A MIDI message's list of channels (sent on each) as a tuple, each once."""
+    low, high = pyxelwidgets.message.MidiMessage.channel_range
+    if not value or any(isinstance(channel, bool) or not isinstance(channel, int) or not low <= channel <= high for channel in value):
+        raise LayoutError(f'{where}: a list of channels must hold whole numbers from {low} to {high}, got {value!r}')
+    return tuple(dict.fromkeys(value))
+
 def message_from_json(data, where: str = 'message', expressions: dict | None = None) -> pyxelwidgets.message.Message:
     """
     A mapping message from layout JSON; raises LayoutError naming the field.
@@ -549,6 +574,9 @@ def message_from_json(data, where: str = 'message', expressions: dict | None = N
             if not isinstance(value, bool):
                 raise LayoutError(f'{where}.{key}: must be true or false, got {value!r}')
             fields[key] = value
+            continue
+        if key == 'channel' and issubclass(cls, pyxelwidgets.message.MidiMessage) and isinstance(value, list):
+            fields[key] = _channels(value, f'{where}.{key}')
             continue
         # Text fields (names, addresses, keys) keep their {x+1} placeholders
         fields[key] = _decode_field(value, f'{where}.{key}', cls.ranges.get(key), None if isinstance(default, str) else expressions)
@@ -670,6 +698,24 @@ class _Transport:
             raise AttributeError(name)
         return getattr(transport, name)
 
+#: Names widgets can't have: formulas and links use them
+RESERVED_NAMES = ('key', 'transport')
+#: What a link to the key (target ``"key"``) changes and formulas read (``{key.scale}``)
+KEY_OPTIONS = ('root', 'scale')
+
+#: How a layout writes a link value doing nothing for that event (``link.SKIP``)
+SKIP_JSON = {'skip': True}
+
+def _skippable(decode):
+    """``decode`` for a condition's or choice's values, also taking ``{"skip": true}``."""
+    def decoded(given, where):
+        if isinstance(given, dict) and 'skip' in given:
+            if given != SKIP_JSON:
+                raise LayoutError(f'{where}: skipping is {{"skip": true}}, got {given!r}')
+            return pyxelwidgets.link.SKIP
+        return decode(given, where)
+    return decoded
+
 class Parser():
     """
     Builds a Surface from a layout (a path, JSON text or a dict). ``surface``,
@@ -696,6 +742,8 @@ class Parser():
         self.json = upgrade(self.json)
         self.transport_settings()
         self.sync_settings()
+        #: The key widgets share (``key`` in formulas, link target ``"key"``)
+        self.key = pyxelwidgets.widgets.Key(**self.key_settings())
         #: The MidiClockInput or ClockFollower following the DAW (``app()`` with ``transport.sync``)
         self.clock_input = None
         # Clocks of widgets with their own (start_clocks)
@@ -758,6 +806,8 @@ class Parser():
             name = item.get('name')
             if not name or name in self.widgets:
                 raise LayoutError(f'{path}.name: widget names must be given and unique, got {name!r}')
+            if name in RESERVED_NAMES:
+                raise LayoutError(f'{path}.name: {name!r} is taken by the layout\'s {name} (formulas and links use it): pick another name')
             try:
                 geometry = [int(item.get(key, default)) for key, default in (('x', 0), ('y', 0), ('width', 1), ('height', 1))]
             except (TypeError, ValueError):
@@ -782,8 +832,8 @@ class Parser():
                 self._add_widgets(widget, item['widgets'], f'{path}.widgets')
 
     def names(self) -> dict:
-        """What names in expressions stand for: widgets by name, and ``transport`` (the surface's, once it has one)."""
-        return {**self.widgets, 'transport': _Transport(self.surface)}
+        """What names in expressions stand for: widgets by name, ``transport`` (the surface's, once it has one) and ``key``."""
+        return {**self.widgets, 'transport': _Transport(self.surface), 'key': self.key}
 
     def _expression(self, text, where: str, *, kind: str = 'float', event: type | None = None, names: dict | None = None):
         """
@@ -817,6 +867,8 @@ class Parser():
                 found = getattr(widget, option, None) if not option.startswith('_') else None
                 if not hasattr(widget, option) or (callable(found) and not isinstance(found, enum.Enum)):
                     raise LayoutError(f'{where}: {computed}: {name} ({type(widget).__name__}) has no option {option!r}')
+            elif isinstance(widget, pyxelwidgets.widgets.Key) and option not in KEY_OPTIONS:
+                raise LayoutError(f'{where}: {computed}: the key has {" and ".join(KEY_OPTIONS)}, not {option!r}')
 
     def formulate(self) -> list:
         """Create the Formulas of widget options written as formulas (``self`` is the widget)."""
@@ -955,6 +1007,19 @@ class Parser():
         if unknown:
             raise LayoutError(f'transport: unknown keys {", ".join(sorted(unknown))}')
         return {'bpm': bpm, 'signature': signature}
+
+    def key_settings(self) -> dict:
+        """Keyword arguments for the layout's Key, from ``key`` (``root`` and ``scale``, by name)."""
+        settings = self.json.get('key') or {}
+        if not isinstance(settings, dict):
+            raise LayoutError(f'key: must be {{"root": "C", "scale": "Major"}}, got {settings!r}')
+        unknown = set(settings) - {'root', 'scale'}
+        if unknown:
+            raise LayoutError(f'key: unknown keys {", ".join(sorted(unknown))} (a key has root and scale)')
+        try:
+            return _options(pyxelwidgets.widgets.Key, settings, 'key')
+        except LayoutError as error:
+            raise LayoutError(str(error).replace('key.options.', 'key.')) from None
 
     def timed(self, clock: pyxelwidgets.widgets.Clock) -> list:
         """The widgets (Sequencers, Trackers...) played by ``clock``."""
@@ -1149,7 +1214,7 @@ class Parser():
         The layout's links, checked, as dicts: ``widget`` and ``target`` names
         (target None for transport actions; ``widget`` and ``target`` are (device
         index, control name) for a device's control), ``on`` (event class), ``option`` or
-        ``action``, ``value``, ``change`` (Link.Change), ``minimum``, ``maximum``.
+        ``action``, ``value``, ``change`` (Link.Change), ``minimum``, ``maximum``, ``emit``.
         """
         links = self.json.get('links') or []
         if not isinstance(links, list):
@@ -1159,7 +1224,7 @@ class Parser():
             where = f'links[{index}]'
             if not isinstance(entry, dict):
                 raise LayoutError(f'{where}: must be an object')
-            unknown = set(entry) - {'widget', 'device', 'control', 'on', 'target', 'option', 'action', 'change', 'value', 'min', 'max'}
+            unknown = set(entry) - {'widget', 'device', 'control', 'on', 'target', 'option', 'action', 'change', 'value', 'min', 'max', 'emit'}
             if unknown:
                 raise LayoutError(f'{where}: unknown keys {", ".join(sorted(unknown))}')
             on, target = entry.get('on'), entry.get('target')
@@ -1173,11 +1238,18 @@ class Parser():
                 if 'action' in entry:
                     raise LayoutError(f'{where}.action: a device control has no actions, only the options {", ".join(DEVICE_TARGETS)}')
             setting = {'widget': widget, 'on': events[on], 'target': target, 'option': entry.get('option'), 'action': entry.get('action'),
-                       'value': None, 'change': pyxelwidgets.link.Link.Change.Set, 'minimum': None, 'maximum': None}
+                       'value': None, 'change': pyxelwidgets.link.Link.Change.Set, 'minimum': None, 'maximum': None, 'emit': False}
             if 'action' in entry:
                 self._link_action(entry, setting, events[on], where)
             else:
                 self._link_option(entry, setting, events[on], where)
+            emit = entry.get('emit', False)
+            if not isinstance(emit, bool):
+                raise LayoutError(f'{where}.emit: must be true or false, got {emit!r}')
+            if emit and (setting['option'] != 'value' or not isinstance(target, str)
+                         or not callable(getattr(self.widgets.get(target), 'set_value', None))):
+                raise LayoutError(f'{where}.emit: only a link setting a widget\'s value can emit Changed')
+            setting['emit'] = emit
             settings.append(setting)
         return settings
 
@@ -1277,6 +1349,11 @@ class Parser():
                 raise LayoutError(f'{where}.option: a device control has the options {", ".join(DEVICE_TARGETS)}, got {option!r}')
             # Decoded without a class (_link_constant)
             cls, kind = None, DEVICE_TARGETS[option]
+        elif target == 'key':
+            cls = pyxelwidgets.widgets.Key
+            if option not in KEY_OPTIONS:
+                raise LayoutError(f'{where}.option: the key has the options {", ".join(KEY_OPTIONS)}, got {option!r}')
+            kind = 'enum'
         elif target not in self.widgets:
             raise LayoutError(f'{where}.target: no widget named {target!r}')
         else:
@@ -1355,6 +1432,7 @@ class Parser():
         to = value.get('to', 0)
         if isinstance(to, bool) or not isinstance(to, (int, float, str)):
             raise LayoutError(f'{where}.to: must be a number or text, got {to!r}')
+        decode = _skippable(decode)
         chosen = []
         for key, default in (('then', True), ('else', False)):
             if key in value:
@@ -1377,6 +1455,7 @@ class Parser():
         if by is None:
             raise LayoutError(f'{where}.by: needed (the event value picking one, e.g. "x")')
         source = self._link_source(by if isinstance(by, dict) else {'source': by}, event, f'{where}.by')
+        decode = _skippable(decode)
         return pyxelwidgets.link.Choice(source, tuple(decode(given, f'{where}.choose[{index}]') for index, given in enumerate(values)))
 
     @staticmethod
@@ -1443,9 +1522,10 @@ class Parser():
             elif isinstance(target, tuple):
                 target, option = self.target(target, setting['option']), setting['option']
             else:
-                target, option = self.widgets[target], setting['option']
+                target, option = self.key if target == 'key' else self.widgets[target], setting['option']
             created.append(self.surface.link(self.sender(setting['widget']), target, option, setting['value'], on = setting['on'],
-                                             change = setting['change'], minimum = setting['minimum'], maximum = setting['maximum']))
+                                             change = setting['change'], minimum = setting['minimum'], maximum = setting['maximum'],
+                                             emit = setting['emit']))
         return created
 
     def binding_settings(self) -> list:
@@ -1501,6 +1581,10 @@ UPGRADES = {
     2: lambda layout: None,
     # 4 added transport.clock and keyboard events (KeyPressed/KeyReleased) of device controls: the same
     3: lambda layout: None,
+    # 5 added the shared key ("key", target "key", {key.root}), skip ({"skip": true}, skip in formulas), links that
+    # emit Changed ("emit"), channel lists in MIDI messages and Meter decay; "key" and "transport" stopped being
+    # widget names. Nothing older changes
+    4: lambda layout: None,
 }
 
 def upgrade(layout: dict) -> dict:
