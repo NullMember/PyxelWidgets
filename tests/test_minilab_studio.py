@@ -1,5 +1,6 @@
 """examples/MiniLabStudio works as described: a MiniLab 3 (a stand-in) on its own playing six synth channels."""
 
+import json
 import pathlib
 
 import pytest
@@ -36,7 +37,7 @@ def studio(tmp_path):
     layout = tmp_path / 'layout.json'
     layout.write_text(LAYOUT.read_text())
     ui = parser.load(layout, devices = False)
-    lab = MiniLab3()
+    lab = MiniLab3(**json.loads(LAYOUT.read_text())['devices'][0]['options'])
     lab._midi_output = Port()
     lab._midi_output_name = MiniLab3.ports[0]
     lab.connected = True
@@ -63,6 +64,18 @@ def turn(lab, steps, shift = False):
     """The display encoder: one message per detent."""
     for _ in range(abs(steps)):
         lab.decode([0xB0, 29 if shift else 28, 65 if steps > 0 else 62])
+
+
+KNOBS = [86, 87, 89, 90, 110, 111, 116, 117]
+
+
+def knob(lab, number, steps):
+    """Knob ``number`` (1-8) turned ``steps``: relative knobs, sent a few at a time like the device."""
+    name = f'Knob_{number - 1}'
+    while steps:
+        chunk = max(-10, min(10, steps))
+        lab.decode([0xB0, KNOBS[number - 1], lab._knob_values.get(name, 64) + chunk])
+        steps -= chunk
 
 
 def page(lab, name):
@@ -130,9 +143,10 @@ def test_snare_steps_follow_swing_and_mutes(studio):
     ui, lab, transport, synths = studio
     page(lab, 'Snare')
     press(lab, 4, 0)
-    lab.decode([0xB0, 86, 127])         # knob 1: swing
+    knob(lab, 1, 96)                    # knob 1 on this page: the snare's swing
     ui.surface.update()
-    assert ui['snare'].swing == 75.0 and lab._texts['Screen'] == ('Swing', '75%')
+    assert ui['snare'].swing == 75.0 and lab._texts['Screen'] == ('Swing', 'snare 75%')
+    assert ui['bass'].swing == 50.0
     transport.play()
     bars(transport)
     assert notes(synths) == [(10, 38)]
@@ -176,18 +190,59 @@ def test_keys_play_the_lead_set_the_bass_and_feed_the_arp(studio):
 
 def test_the_key_knobs_reach_every_melodic_widget(studio):
     ui, lab, transport, synths = studio
-    lab.decode([0xB0, 90, round(7 / 11 * 127)])        # knob 4: root G
-    lab.decode([0xB0, 110, 127])                       # knob 5: blues
+    knob(lab, 5, 7 * 8)                                # knob 5 (any page): root G
+    knob(lab, 6, 7 * 8)                                # knob 6: blues
     ui.surface.update()
     # The layout's key, which every melodic widget follows
     assert (ui.key.root.name, ui.key.scale.name) == ('G', 'MinorBlues')
     for name in ('chords', 'arp', 'lead', 'gen'):
         assert (ui[name].root.name, ui[name].scale.name) == ('G', 'MinorBlues'), name
     assert lab._texts['Screen'] == ('Scale', 'Blues')
-    lab.decode([0xB0, 116, 127])                       # knob 7: arp range
-    lab.decode([0xB0, 111, 127])                       # knob 6: arp mode
+    page(lab, 'Arp')
+    knob(lab, 2, 96)                                   # knob 2 here: arp range
+    knob(lab, 1, 96)                                   # knob 1: arp mode
     ui.surface.update()
     assert (ui['arp'].octaves, ui['arp'].mode.name) == (4, 'Played')
+
+
+def test_knobs_1_to_4_follow_the_page(studio):
+    ui, lab, transport, synths = studio
+    knob(lab, 1, 30)                    # Drums: the kit
+    ui.surface.update()
+    assert ui['drums'].bank == 1 and lab._texts['Screen'] == ('Kit 2', 'notes 52-67')
+    knob(lab, 2, 96)                    # the feel
+    assert ui['drums'].velocity_curve.name == 'Fixed'
+    page(lab, 'Beat')
+    knob(lab, 1, 96)                    # the kick's rate
+    knob(lab, 3, 48)                    # the hats' sound
+    assert (ui['kick'].rate, ui['hats'].note, ui['drums'].bank) == ('1/16', 44, 1)
+    page(lab, 'Bass')
+    knob(lab, 3, -48)                   # the bass line's length
+    knob(lab, 4, 32)                    # and direction
+    ui.surface.update()                 # formulas follow each frame
+    assert (ui['bass'].length, ui['bass'].direction.name, ui['snare'].length) == (8, 'Backward', 16)
+    page(lab, 'Lead')
+    knob(lab, 1, -96)                   # the pads' octave
+    knob(lab, 2, 48)                    # attack, also on the FX page's knob 1
+    ui.surface.update()
+    assert ui['lead'].octave == 2 and ccs(synths, 1)[-1][0] == 73
+    page(lab, 'FX')
+    knob(lab, 1, 48)
+    assert ui['attack'].value == pytest.approx(1.0)
+    page(lab, 'Gen')
+    knob(lab, 3, 96)
+    knob(lab, 4, -96)
+    ui.surface.update()
+    assert (ui['gen'].max_notes, ui['gen'].octave) == (6, 3)
+    page(lab, 'Mutes')
+    dials = lambda: {widget.name: widget.value for widget in ui['controls'].children}
+    before = dials()
+    for number in range(1, 5):          # nothing here
+        knob(lab, number, 20)
+    assert dials() == before
+    page(lab, 'Tempo')
+    knob(lab, 1, -10)                   # a bpm a step
+    assert transport.bpm == pytest.approx(110)
 
 
 def test_chords_lead_pads_and_generative(studio):
@@ -214,7 +269,7 @@ def test_faders_strips_and_fx_send_controllers(studio):
     assert ccs(synths, 10)[-1] == (7, 100) and ccs(synths, 1)[-1] == (1, 64)
     ui.surface.update()
     assert lab._texts['Screen'] == ('Drums', 'volume 79%')
-    lab.decode([0xB0, 117, 127])        # knob 8: space on every channel
+    knob(lab, 8, 96)                    # knob 8: space on every channel
     assert {channel for channel in (1, 2, 3, 4, 5, 10) if (91, 127) in ccs(synths, channel)} == {1, 2, 3, 4, 5, 10}
     page(lab, 'FX')
     synths.sent.clear()
