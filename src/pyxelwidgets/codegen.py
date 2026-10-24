@@ -10,6 +10,7 @@ designer.
 import dataclasses
 import enum
 import importlib
+import json
 import keyword
 import re
 import sys
@@ -115,7 +116,7 @@ class _Writer:
         self.imports = {}
         # Modules whose classes are written through the module (message.NoteOn)
         self.qualified = set()
-        self.reserved = {'surface', 'app', 'picture', 'message', 'events', 'print', 'max', 'setattr', 'float'}
+        self.reserved = {'surface', 'app', 'key', 'picture', 'message', 'events', 'print', 'max', 'setattr', 'float'}
         self.names = set(self.reserved)
         self.variables = {}
 
@@ -157,6 +158,9 @@ class _Writer:
     # Values
 
     def value(self, value) -> str:
+        if value is pyxelwidgets.expression.SKIP:
+            self.imports['SKIP'] = 'pyxelwidgets'
+            return 'SKIP'
         if isinstance(value, (pyxelwidgets.expression.Expression, pyxelwidgets.expression.Template)):
             if isinstance(value, pyxelwidgets.expression.Template) and not value.bound:
                 # Filled in from the event alone: the text does
@@ -193,7 +197,9 @@ class _Writer:
         return repr(value)
 
     def bound(self, thing) -> str:
-        """The code for what an expression's name stands for: a widget's variable, or the transport."""
+        """The code for what an expression's name stands for: a widget's variable, the key or the transport."""
+        if thing is self.ui.key:
+            return 'key'
         for name, widget in self.ui.widgets.items():
             if widget is thing:
                 return self.variables[('widget', name)]
@@ -240,9 +246,17 @@ class _Writer:
             if self.qualified == qualified:
                 return code
 
+    def key(self) -> list:
+        """The layout's key, when it has one or something uses it."""
+        uses = 'key' in self.layout or re.search(r'\bkey\.(root|scale)\b|"target": "key"', json.dumps(self.layout))
+        if not uses:
+            return []
+        key = self.ui.key
+        return [f'key = {self.call(self.name(type(key)), [], [("root", self.value(key.root)), ("scale", self.value(key.scale))])}']
+
     def _write(self, *, handlers: bool, run: bool) -> str:
         self.picture = False
-        sections = [self.surface(), self.devices(), self.widgets(), self.outputs(), self.app(), self.controls(), self.mappings(), self.bindings(),
+        sections = [self.surface(), self.key(), self.devices(), self.widgets(), self.outputs(), self.app(), self.controls(), self.mappings(), self.bindings(),
                     self.links(), self.formulas(), self.clocks(), self.handlers() if handlers else []]
         body = []
         for section in sections:
@@ -418,7 +432,7 @@ class _Writer:
             else:
                 target = setting['target']
                 key = ('target', target, setting['option']) if isinstance(target, tuple) else ('widget', target)
-                args = [self.variables[key], repr(setting['option'])] + ([] if value is None else [self.value(value)])
+                args = ['key' if target == 'key' else self.variables[key], repr(setting['option'])] + ([] if value is None else [self.value(value)])
                 keywords = []
             keywords.append(('on', self.name(setting['on'])))
             if setting['change'] != pyxelwidgets.link.Link.Change.Set:
@@ -426,6 +440,8 @@ class _Writer:
             for key in ('minimum', 'maximum'):
                 if setting[key] is not None:
                     keywords.append((key, self.value(setting[key])))
+            if setting['emit']:
+                keywords.append(('emit', 'True'))
             lines.append(self.call('surface.link', [widget, *args], keywords))
         return lines
 
