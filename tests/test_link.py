@@ -223,3 +223,47 @@ def test_switch_turns_off_before_on():
     tabs.on(Toggled, events.append)
     tabs.tap(1, 0)                  # (1, 0) comes before (3, 0) on the grid, but turns on
     assert [(e.x, e.state) for e in events] == [(3, False), (1, True)]
+
+
+def test_emitting_links_let_the_target_s_links_follow():
+    from pyxelwidgets import Stepper
+    shortcut, selector, pages = Button(0, 0, 1, 1), Stepper(0, 1, 4, 1, maximum = 3, interactive = False), Pages(0, 2, 4, 1)
+    for _ in range(4):
+        pages.add(Group(0, 0, 4, 1))
+    Link(selector, pages, 'page', Source('value'), on = Changed, minimum = 0, maximum = 3)
+    quiet = Link(shortcut, selector, 'value', 1.0, on = Pressed)
+    shortcut.tap(0, 0)
+    assert selector.number == 3 and pages.page == 0          # configure alone: nothing follows
+    quiet.close()
+    Link(shortcut, selector, 'value', 2 / 3, on = Pressed, emit = True)
+    changed = []
+    selector.on(Changed, changed.append)
+    shortcut.tap(0, 0)
+    # Set although it isn't interactive, then Changed with the value it took
+    assert selector.number == 2 and pages.page == 2 and [e.value for e in changed] == [pytest.approx(2 / 3, abs = 1e-6)]
+    shortcut.tap(0, 0)
+    assert len(changed) == 1                                  # unchanged: nothing sent
+    with pytest.raises(ValueError, match = "only a link setting a widget's value can emit"):
+        Link(shortcut, selector, 'maximum', 4, on = Pressed, emit = True)
+    with pytest.raises(ValueError, match = "only a link setting a widget's value can emit"):
+        Link(shortcut, pages, 'page', 1, on = Pressed, emit = True)
+
+
+def test_emitting_links_in_layouts_and_code():
+    from pyxelwidgets import codegen, parser
+    layout = {'format': 'pyxelwidgets.layout', 'version': parser.VERSION, 'surface': {'width': 4, 'height': 3},
+              'widgets': [{'type': 'Button', 'name': 'shortcut', 'x': 0, 'y': 0, 'width': 1, 'height': 1},
+                          {'type': 'Stepper', 'name': 'selector', 'x': 0, 'y': 1, 'width': 4, 'height': 1, 'options': {'maximum': 3}},
+                          {'type': 'Fader', 'name': 'shown', 'x': 0, 'y': 2, 'width': 4, 'height': 1, 'options': {'direction': 'Horizontal'}}],
+              'links': [{'widget': 'shortcut', 'on': 'Pressed', 'target': 'selector', 'option': 'value', 'value': 1.0, 'emit': True},
+                        {'widget': 'selector', 'on': 'Changed', 'target': 'shown', 'option': 'value', 'value': {'source': 'value'}}]}
+    ui = parser.Parser(layout, devices = False)
+    ui['shortcut'].tap(0, 0)
+    assert ui['shown'].value == 1.0
+    code = codegen.standalone(layout, run = False)
+    assert "surface.link(shortcut, selector, 'value', 1.0, on = Pressed, emit = True)" in code
+    layout['links'].append({'widget': 'shortcut', 'on': 'Pressed', 'target': 'shown', 'option': 'visible', 'value': False})
+    for bad, message in ((1, 'must be true or false'), (True, "only a link setting a widget's value")):
+        layout['links'][2]['emit'] = bad
+        with pytest.raises(parser.LayoutError, match = rf'links\[2\]\.emit: {message}'):
+            parser.Parser(layout, devices = False)

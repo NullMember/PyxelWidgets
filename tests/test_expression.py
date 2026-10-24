@@ -176,3 +176,75 @@ def test_code_computes_like_the_layout(monkeypatch):
     namespace['position'].set_number(3)
     namespace['surface'].update()
     assert namespace['roll'].column == 3 and namespace['label'].text == '4/8' and namespace['position'].maximum == 24
+
+
+# skip: doing nothing for an event
+
+def test_skip_is_a_result_and_skips_whole_templates():
+    from pyxelwidgets.expression import SKIP
+    assert Expression('note if x > 2 else skip').evaluate({'note': 60, 'x': 1}) is SKIP
+    assert Expression('note if x > 2 else skip').free == ['note', 'x']
+    assert Template('Pad {x if x else skip}').evaluate({'x': 0}) is SKIP
+    assert Template('Pad {x if x else skip}').evaluate({'x': 3}) == 'Pad 3'
+
+def test_skipping_links_change_nothing_and_call_nothing():
+    from pyxelwidgets import ButtonGroup, Choice, Condition, Keyboard, Link, Pressed, Source
+    from pyxelwidgets.link import SKIP
+    pads, keys, called = ButtonGroup(0, 0, 4, 1, mode = ButtonGroup.Mode.Button), Keyboard(0, 1, 8, 2), []
+    Link(pads, keys, 'octave', Expression('x if x > 1 else skip'), on = Pressed)
+    Link(pads, keys, 'transpose', Condition(Source('x'), '==', 3, 5, SKIP), on = Pressed)
+    Link(pads, keys, 'fold', Choice(Source('x'), (SKIP, 3, SKIP, 5)), on = Pressed)
+    Link(pads, called.append, value = Expression('x if x != 2 else skip'), on = Pressed)
+    Link(pads, called.append, value = Template('pad {x if x else skip}'), on = Pressed)
+    pads.tap(0, 0)
+    assert (keys.octave, keys.transpose, keys.fold, called) == (0, 0, 4, [0])
+    pads.tap(1, 0)
+    assert (keys.octave, keys.transpose, keys.fold, called[1:]) == (0, 0, 3, [1, 'pad 1'])
+    pads.tap(3, 0)
+    assert (keys.octave, keys.transpose, keys.fold) == (3, 5, 5)
+    pads.tap(2, 0)
+    assert (keys.octave, keys.fold, called[-1]) == (2, 5, 'pad 2')
+
+def test_skipping_formulas_keep_the_option():
+    stepper, label = Stepper(0, 0, 8, 1, maximum = 7), Text(0, 1, 8, 1, text = 'start')
+    formula = Formula(label, 'text', Template('step {stepper.number if stepper.number else skip}', {'stepper': stepper}))
+    assert not formula.refresh() and label.text == 'start' and formula.error is None
+    stepper.set_number(3)
+    assert formula.refresh() and label.text == 'step 3'
+    stepper.set_number(0)
+    assert not formula.refresh() and label.text == 'step 3'
+
+def test_skipping_messages_send_nothing():
+    from pyxelwidgets import Button, Mapping, Pressed
+    from pyxelwidgets.events import Emitter
+    class Output(Emitter):
+        def __init__(self):
+            self.sent = []
+        def send(self, message):
+            self.sent.append(message)
+    button, out = Button(0, 0, 1, 1), Output()
+    Mapping(button, out, NoteOn(36, Expression('velocity * 127 if velocity > 0.5 else skip')), on = Pressed)
+    button.press(0, 0, 0.25)
+    button.release(0, 0)
+    button.press(0, 0, 1.0)
+    assert out.sent == [NoteOn(36, 127)]
+
+def test_layout_skips():
+    layout = {'format': 'pyxelwidgets.layout', 'version': parser.VERSION, 'surface': {'width': 8, 'height': 3},
+              'widgets': [{'type': 'ButtonGroup', 'name': 'pads', 'x': 0, 'y': 0, 'width': 4, 'height': 1, 'options': {'mode': 'Button'}},
+                          {'type': 'Keyboard', 'name': 'keys', 'x': 0, 'y': 1, 'width': 8, 'height': 2}],
+              'links': [{'widget': 'pads', 'on': 'Pressed', 'target': 'keys', 'option': 'octave', 'value': '{x if x > 1 else skip}'},
+                        {'widget': 'pads', 'on': 'Pressed', 'target': 'keys', 'option': 'transpose',
+                         'value': {'if': 'x', 'op': '==', 'to': 3, 'then': 5, 'else': {'skip': True}}},
+                        {'widget': 'pads', 'on': 'Pressed', 'target': 'keys', 'option': 'fold', 'value': {'choose': [{'skip': True}, 3], 'by': 'x'}}]}
+    ui = parser.Parser(layout, devices = False)
+    ui['pads'].tap(0, 0)
+    assert (ui['keys'].octave, ui['keys'].transpose, ui['keys'].fold) == (0, 0, 4)
+    ui['pads'].tap(3, 0)
+    assert (ui['keys'].octave, ui['keys'].transpose, ui['keys'].fold) == (3, 5, 3)
+    code = codegen.standalone(layout, run = False)
+    assert "otherwise = SKIP" in code and 'SKIP' in code.split('\n\n')[0]
+    exec(compile(code, 'standalone.py', 'exec'), {})
+    layout['links'][1]['value']['else'] = {'skip': 'yes'}
+    with pytest.raises(parser.LayoutError, match = r'links\[1\]\.value\.else: skipping is'):
+        parser.Parser(layout, devices = False)

@@ -112,3 +112,32 @@ def test_surface_map_holds_the_lock():
     surface.unmap(mapping)
     out.receive(ControlChange(7, 0, 1))
     assert fader.value == pytest.approx(64 / 127, abs = 1e-6)
+
+
+def test_one_message_on_several_channels():
+    out, fader = Output(), Fader(0, 0, 1, 8)
+    Mapping(fader, out, ControlChange(91, channel = (1, 2, 10)), on = Changed, feedback = True)
+    fader.set_value(1.0)
+    assert out.sent == [ControlChange(91, 127, 1), ControlChange(91, 127, 2), ControlChange(91, 127, 10)]
+    # Feedback from any of them
+    out.receive(ControlChange(91, 0, 10))
+    assert fader.value == 0.0
+    out.receive(ControlChange(91, 127, 3))
+    assert fader.value == 0.0
+
+
+def test_channel_lists_in_layouts_and_code():
+    from pyxelwidgets import codegen, parser
+    layout = {'format': 'pyxelwidgets.layout', 'version': parser.VERSION, 'surface': {'width': 1, 'height': 8},
+              'outputs': [{'name': 'synth', 'type': 'midi_port.MidiPort', 'virtual': 'Synth'}],
+              'widgets': [{'type': 'Fader', 'name': 'space', 'x': 0, 'y': 0, 'width': 1, 'height': 8}],
+              'mappings': [{'widget': 'space', 'on': 'Changed', 'output': 'synth',
+                            'message': {'type': 'ControlChange', 'control': 91, 'channel': [1, 2, 2, 10]}}]}
+    message = parser.Parser(layout, devices = False).mapping_settings()[0][3]
+    assert message.channel == (1, 2, 10) and parser.message_to_json(message)['channel'] == [1, 2, 10]
+    assert 'channel = (1, 2, 10)' in codegen.standalone(layout, run = False)
+    assert next(field for field in parser.message_schema()['NoteOn']['fields'] if field['name'] == 'channel')['many']
+    for bad in ([], [0, 1], [1, 'two']):
+        layout['mappings'][0]['message']['channel'] = bad
+        with pytest.raises(parser.LayoutError, match = r'mappings\[0\]\.message\.channel: a list of channels'):
+            parser.Parser(layout, devices = False)

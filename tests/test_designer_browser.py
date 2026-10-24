@@ -1722,3 +1722,91 @@ def test_link_to_device_lights_and_screens(page):
     page.click('#devices li:has-text("MiniLab 3") .label')
     page.click('#properties button.danger:has-text("Remove device")')
     assert 'links' not in saved_layout(page)
+
+
+def put_layout(page, layout):
+    page.evaluate("async (layout) => { await fetch('/api/layout', {method: 'PUT', body: JSON.stringify(layout)}); }", layout)
+    page.reload()
+
+
+def test_links_that_skip_and_send_changed(page):
+    put_layout(page, {'format': 'pyxelwidgets.layout', 'version': parser.VERSION, 'surface': {'width': 8, 'height': 3},
+                      'widgets': [{'type': 'ButtonGroup', 'name': 'pads', 'x': 0, 'y': 0, 'width': 4, 'height': 1, 'options': {'mode': 'Button'}},
+                                  {'type': 'Stepper', 'name': 'mode', 'x': 0, 'y': 1, 'width': 8, 'height': 1},
+                                  {'type': 'Fader', 'name': 'level', 'x': 0, 'y': 2, 'width': 8, 'height': 1, 'options': {'direction': 'Horizontal'}}]})
+    node(page, 'pads').click()
+    page.click('text=Add link')
+    page.select_option('#link-0-target', 'mode')
+    page.select_option('#link-0-option', 'option:value')
+    # Setting a value: the widget can send Changed, so its own links follow
+    page.check('#link-0-emit')
+    assert saved_layout(page)['links'][0]['emit'] is True
+    page.select_option('#link-0-value', label = 'condition…')
+    page.select_option('#link-0-if', 'x')
+    page.check('#link-0-else-skip')
+    link = saved_layout(page)['links'][0]
+    assert link['value']['else'] == {'skip': True} and page.is_hidden('#link-0-else')
+    parser.load(saved_layout(page), devices = False)
+    page.click('.tabs button[data-tab="connections"]')
+    assert ': skip' in page.inner_text('#connections')
+    page.uncheck('#link-0-else-skip')
+    assert saved_layout(page)['links'][0]['value']['else'] == 0.0
+    # Another option: emit goes
+    page.select_option('#link-0-option', 'option:visible')
+    assert 'emit' not in saved_layout(page)['links'][0] and page.locator('#link-0-emit').count() == 0
+
+
+def test_channel_lists_and_screen_texts_too_long(page):
+    put_layout(page, {'format': 'pyxelwidgets.layout', 'version': parser.VERSION, 'surface': {'width': 8, 'height': 2},
+                      'devices': [{'type': 'arturia.MiniLab3', 'x': 0, 'y': 0}],
+                      'outputs': [{'name': 'synths', 'type': 'midi_port.MidiPort', 'virtual': 'Synths'}],
+                      'widgets': [{'type': 'Fader', 'name': 'space', 'x': 0, 'y': 0, 'width': 1, 'height': 2}],
+                      'mappings': [{'widget': 'space', 'on': 'Changed', 'output': 'synths', 'message': {'type': 'ControlChange', 'control': 91}}],
+                      'links': [{'widget': 'space', 'on': 'Changed', 'target': {'device': 0, 'control': 'Screen'}, 'option': 'text',
+                                 'value': 'Space reverb\n{round(value * 100)}%'}]})
+    page.click('.tabs button[data-tab="problems"]')
+    assert '"Space reverb" is longer than line 1 of Screen · 1. MiniLab 3 (10 characters)' in page.inner_text('#problem-list')
+    node(page, 'space').click()
+    page.click('#properties .rule-summary li:has-text("synths")')
+    page.fill('#mapping-0-channel-list', '1, 3-4, 10')
+    page.press('#mapping-0-channel-list', 'Enter')
+    assert saved_layout(page)['mappings'][0]['message']['channel'] == [1, 3, 4, 10]
+    # Something that isn't channels is taken back
+    page.fill('#mapping-0-channel-list', '0, 17')
+    page.press('#mapping-0-channel-list', 'Enter')
+    assert page.input_value('#mapping-0-channel-list') == '1, 3, 4, 10'
+    page.fill('#mapping-0-channel-list', '2')
+    page.press('#mapping-0-channel-list', 'Enter')
+    assert saved_layout(page)['mappings'][0]['message']['channel'] == 2
+
+
+def test_the_shared_key(page):
+    put_layout(page, {'format': 'pyxelwidgets.layout', 'version': parser.VERSION, 'surface': {'width': 8, 'height': 5},
+                      'widgets': [{'type': 'ButtonGroup', 'name': 'pads', 'x': 0, 'y': 0, 'width': 4, 'height': 1, 'options': {'mode': 'Button'}},
+                                  {'type': 'ChordPads', 'name': 'chords', 'x': 0, 'y': 1, 'width': 8, 'height': 2},
+                                  {'type': 'Keyboard', 'name': 'keys', 'x': 0, 'y': 3, 'width': 8, 'height': 2}]})
+    page.click('#stage', position = {'x': 5, 'y': 5})
+    page.select_option('#key-root', 'D')
+    page.select_option('#key-scale', 'Dorian')
+    assert page.inner_text('#key-follow') == 'Make 2 widgets follow it'
+    page.click('#key-follow')
+    layout = saved_layout(page)
+    assert layout['key'] == {'root': 'D', 'scale': 'Dorian'}
+    assert all(widget['options'].get('root') == '{key.root}' and widget['options'].get('scale') == '{key.scale}' for widget in layout['widgets'][1:])
+    assert page.locator('#key-follow').count() == 0
+    page.wait_for_function("() => true")
+    assert page.designer.preview.ui['keys'].scale.name == 'Dorian'
+    # A link changes it like an option
+    node(page, 'pads').click()
+    page.click('text=Add link')
+    page.select_option('#link-0-target', 'key')
+    assert page.input_value('#link-0-option') == 'option:scale'
+    link = saved_layout(page)['links'][0]
+    assert (link['target'], link['option'], link['change']) == ('key', 'scale', 'Toggle')
+    close_rules(page)
+    page.click('#mode-try')
+    pad(page, 0, 0).click()
+    page.wait_for_function("() => true")
+    import time
+    time.sleep(0.3)
+    assert page.designer.preview.ui['chords'].scale.name != 'Dorian'

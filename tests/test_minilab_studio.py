@@ -99,9 +99,15 @@ def test_the_encoder_picks_the_page_and_names_it(studio):
 def test_shift_loop_and_rec_jump_to_mutes_and_patterns(studio):
     ui, lab, transport, synths = studio
     lab.decode([0xB0, 108, 127])        # Shift + Rec
+    lab.decode([0xB0, 108, 0])
     assert ui['pages'].page == 2 and ui['mode'].number == 10
+    ui.surface.update()
+    assert tuple(lab._lit['Record'])[:3] == (255, 0, 0) and lab._texts['Screen'] == ('Patterns', 'store / recall')
     lab.decode([0xB0, 105, 127])        # Shift + Loop
+    lab.decode([0xB0, 105, 0])
     assert (ui['pages'].page, ui['music'].page, ui['mode'].number) == (0, 8, 8)
+    ui.surface.update()
+    assert tuple(lab._lit['Loop'])[:3] == (255, 255, 255) and tuple(lab._lit['Record'])[:3] == (0, 0, 0)
     turn(lab, -1)                       # the encoder goes on from there
     assert ui['music'].page == 7
 
@@ -173,6 +179,8 @@ def test_the_key_knobs_reach_every_melodic_widget(studio):
     lab.decode([0xB0, 90, round(7 / 11 * 127)])        # knob 4: root G
     lab.decode([0xB0, 110, 127])                       # knob 5: blues
     ui.surface.update()
+    # The layout's key, which every melodic widget follows
+    assert (ui.key.root.name, ui.key.scale.name) == ('G', 'MinorBlues')
     for name in ('chords', 'arp', 'lead', 'gen'):
         assert (ui[name].root.name, ui[name].scale.name) == ('G', 'MinorBlues'), name
     assert lab._texts['Screen'] == ('Scale', 'Blues')
@@ -252,3 +260,5 @@ def test_pattern_1_is_a_starter_groove(studio):
     bars(transport)
     played = notes(synths)
     assert (played.count((10, 36)), played.count((10, 42)), played.count((10, 38)), played.count((2, 36))) == (4, 10, 3, 7)
+    # Steps that don't play send nothing (no velocity 0 note-ons)
+    assert not [m for m in synths.sent if type(m).__name__ == 'NoteOn' and not m.velocity]

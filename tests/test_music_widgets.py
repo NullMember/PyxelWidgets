@@ -606,6 +606,32 @@ def test_meter_bank_levels_from_feedback():
     assert len(bank.levels) == 6
 
 
+def test_meters_with_decay_fade_hits_away():
+    from pyxelwidgets import Meter
+    now = [0.0]
+    meter = Meter(0, 0, 1, 4, decay = 0.5, hold = 0.0, clock = lambda: now[0])
+    meter.configure(value = 0.8)
+    meter.render()
+    assert meter.level == 0.8
+    now[0] = 0.2
+    meter.render()
+    assert meter.value == pytest.approx(0.4) and meter.level == pytest.approx(0.4)
+    now[0] = 1.0
+    meter.render()
+    assert meter.value == 0.0 and not meter.buffer[:, :, :3].any()
+    bank = MeterBank(0, 0, 2, 4, decay = 1.0, clock = lambda: now[0])
+    bank.set_level(1, 1.0)
+    now[0] = 1.25
+    bank.render()
+    assert bank.levels == [0.0, 0.75]
+    # Without decay a value stays
+    still = Meter(0, 0, 1, 4, clock = lambda: now[0])
+    still.configure(value = 0.5)
+    now[0] = 9.0
+    still.render()
+    assert still.value == 0.5
+
+
 # Presets
 
 def test_presets_store_and_recall_with_pads():
@@ -733,3 +759,76 @@ def test_tracker_plays_notes():
     tracker.play(1)
     assert rows == [(0, (0, 2), (40, 60)), (1, (), ())]
     assert played == [('on', 40, 0.5), ('on', 60, 1.0), ('off', 40), ('off', 60)]
+
+
+# The shared key
+
+KEY_LAYOUT = {
+    'format': 'pyxelwidgets.layout', 'version': 5, 'surface': {'width': 8, 'height': 5},
+    'key': {'root': 'D', 'scale': 'Dorian'},
+    'widgets': [
+        {'type': 'ButtonGroup', 'name': 'pads', 'x': 0, 'y': 0, 'width': 4, 'height': 1, 'options': {'mode': 'Button'}},
+        {'type': 'ChordPads', 'name': 'chords', 'x': 0, 'y': 1, 'width': 8, 'height': 2, 'options': {'root': '{key.root}', 'scale': '{key.scale}'}},
+        {'type': 'Keyboard', 'name': 'keys', 'x': 0, 'y': 3, 'width': 8, 'height': 2, 'options': {'root': '{key.root}', 'scale': '{key.scale}'}},
+    ],
+    'links': [
+        {'widget': 'pads', 'on': 'Pressed', 'target': 'key', 'option': 'root', 'change': 'Add', 'value': 2},
+        {'widget': 'pads', 'on': 'Pressed', 'target': 'key', 'option': 'scale', 'value': {'choose': ['Major', 'Minor', 'Dorian', 'MinorBlues'], 'by': 'x'}},
+    ],
+}
+
+def test_key_options():
+    from pyxelwidgets import Key
+    key = Key(root = Root.E, scale = Scale.Minor)
+    key.configure(root = Root.F)
+    assert (key.root, key.scale, key.configured) == (Root.F, Scale.Minor, {'root': Root.F})
+    with pytest.raises(TypeError):
+        key.configure(root = 'F')
+    with pytest.raises(TypeError):
+        key.configure(octave = 3)
+
+def test_widgets_follow_the_layout_s_key():
+    from pyxelwidgets import codegen, parser
+    ui = parser.Parser(KEY_LAYOUT, devices = False)
+    assert all((ui[name].root, ui[name].scale) == (Root.D, Scale.Dorian) for name in ('chords', 'keys'))
+    ui['pads'].tap(3, 0)                # two semitones up, blues
+    ui.surface.update()
+    assert all((ui[name].root, ui[name].scale) == (Root.E, Scale.MinorBlues) for name in ('chords', 'keys'))
+    code = codegen.standalone(KEY_LAYOUT, run = False)
+    assert 'key = Key(root = Root.D, scale = Scale.Dorian)' in code and "surface.link(pads, key, 'root', 2" in code
+    namespace = {}
+    exec(compile(code, 'standalone.py', 'exec'), namespace)
+    namespace['pads'].tap(1, 0)
+    namespace['surface'].update()
+    assert (namespace['keys'].root, namespace['keys'].scale) == (Root.E, Scale.Minor)
+    assert [option['name'] for option in parser.schema()['key']] == ['root', 'scale']
+
+@pytest.mark.parametrize('change, message', [
+    (lambda layout: layout.update(key = {'root': 'H'}), "key.root: .*'H'"),
+    (lambda layout: layout.update(key = {'mode': 'Minor'}), 'key: unknown keys mode'),
+    (lambda layout: layout['widgets'][1].update(name = 'key'), r"widgets\[1\]\.name: 'key' is taken"),
+    (lambda layout: layout['widgets'][2]['options'].update(octave = '{key.octave}'), "the key has root and scale, not 'octave'"),
+    (lambda layout: layout['links'][0].update(option = 'octave'), r'links\[0\]\.option: the key has the options root, scale'),
+])
+def test_key_errors_name_the_spot(change, message):
+    import copy
+    from pyxelwidgets import parser
+    layout = copy.deepcopy(KEY_LAYOUT)
+    change(layout)
+    with pytest.raises(parser.LayoutError, match = message):
+        parser.Parser(layout, devices = False)
+
+def test_the_designer_keeps_the_key_links_changed():
+    import copy
+    from pyxelwidgets.designer import Preview
+    preview = Preview(copy.deepcopy(KEY_LAYOUT))
+    preview.ui['pads'].tap(1, 0)
+    edited = copy.deepcopy(KEY_LAYOUT)
+    edited['widgets'][0]['options']['mode'] = 'Switch'
+    preview.load(edited)
+    assert (preview.ui.key.root, preview.ui.key.scale) == (Root.E, Scale.Minor)
+    # A key changed in the layout wins
+    edited = copy.deepcopy(edited)
+    edited['key'] = {'root': 'A', 'scale': 'Major'}
+    preview.load(edited)
+    assert (preview.ui.key.root, preview.ui.key.scale) == (Root.A, Scale.Major)
