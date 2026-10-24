@@ -58,11 +58,27 @@ The screen names each page. Bank A (the Pad button) is the bottom row, bank B th
 
 ## The rest of the MiniLab
 
-- **Knobs:** swing, gate, humanize (random velocity), key, scale (minor,
-  major, dorian, phrygian, mixolydian, minor pentatonic, harmonic minor,
-  blues), arp mode, arp range, space (reverb send, every channel). The
-  screen shows each value. Key and scale set the layout's key (C minor to
-  start, on the designer's Surface panel), which chords, arp, lead and gen follow.
+- **Knobs 1-4** change with the page (endless, so nothing jumps when you
+  switch pages; the screen shows each value):
+
+  | Page | Knob 1 | Knob 2 | Knob 3 | Knob 4 |
+  |------|--------|--------|--------|--------|
+  | Drums | kit (36-51, 52-67, ...) | feel (linear, soft, hard, fixed) | fixed velocity | |
+  | Beat | kick rate | hats rate | hats sound (closed, pedal, open) | kick note (35/36) |
+  | Snare, Bass | swing | gate | length (1-16 steps) | direction |
+  | Chords | octave | feel | | |
+  | Arp | mode | range (1-4 octaves) | gate | rate |
+  | Lead | pads' octave | attack | release | |
+  | Gen | rate | density (new cells) | notes a step | octave |
+  | FX | attack | release | | |
+  | Tempo | bpm | | | |
+
+  Mutes and Patterns leave them alone.
+- **Knobs 5-8,** on every page: key, scale (minor, major, dorian, phrygian,
+  mixolydian, minor pentatonic, harmonic minor, blues), humanize (random
+  velocity), space (reverb send, every channel). Key and scale set the
+  layout's key (C minor to start, on the designer's Surface panel), which
+  chords, arp, lead and gen follow.
 - **Faders:** drums, bass, chords and arp volume.
 - **Keys** play the lead with the pitch and mod strips and the sustain pedal
   (the bass on the Bass page, the arpeggiator on the Arp page).

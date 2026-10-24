@@ -24,7 +24,9 @@
       "type": "arturia.MiniLab3",
       "x": 0,
       "y": 0,
-      "options": {}
+      "options": {
+        "relative_knobs": true
+      }
     }
   ],
   "outputs": [
@@ -36,70 +38,6 @@
     }
   ],
   "bindings": [
-    {
-      "device": 0,
-      "control": "Knob_0",
-      "widget": "swing",
-      "options": {
-        "takeover": "Jump"
-      }
-    },
-    {
-      "device": 0,
-      "control": "Knob_1",
-      "widget": "gate",
-      "options": {
-        "takeover": "Jump"
-      }
-    },
-    {
-      "device": 0,
-      "control": "Knob_2",
-      "widget": "humanize",
-      "options": {
-        "takeover": "Jump"
-      }
-    },
-    {
-      "device": 0,
-      "control": "Knob_3",
-      "widget": "root",
-      "options": {
-        "takeover": "Jump"
-      }
-    },
-    {
-      "device": 0,
-      "control": "Knob_4",
-      "widget": "scale",
-      "options": {
-        "takeover": "Jump"
-      }
-    },
-    {
-      "device": 0,
-      "control": "Knob_5",
-      "widget": "arp_mode",
-      "options": {
-        "takeover": "Jump"
-      }
-    },
-    {
-      "device": 0,
-      "control": "Knob_6",
-      "widget": "arp_octaves",
-      "options": {
-        "takeover": "Jump"
-      }
-    },
-    {
-      "device": 0,
-      "control": "Knob_7",
-      "widget": "space",
-      "options": {
-        "takeover": "Jump"
-      }
-    },
     {
       "device": 0,
       "control": "Display",
@@ -144,7 +82,21 @@
       "target": "key",
       "option": "root",
       "value": {
-        "source": "value"
+        "choose": [
+          "C",
+          "CS",
+          "D",
+          "DS",
+          "E",
+          "F",
+          "FS",
+          "G",
+          "GS",
+          "A",
+          "AS",
+          "B"
+        ],
+        "by": "value"
       }
     },
     {
@@ -305,26 +257,6 @@
       "value": "Stopped\nback to bar 1"
     },
     {
-      "widget": "swing",
-      "on": "Changed",
-      "target": {
-        "device": 0,
-        "control": "Screen"
-      },
-      "option": "text",
-      "value": "Swing\n{round(50 + value * 25)}%"
-    },
-    {
-      "widget": "gate",
-      "on": "Changed",
-      "target": {
-        "device": 0,
-        "control": "Screen"
-      },
-      "option": "text",
-      "value": "Gate\n{round(max(5, value * 100))}% of a step"
-    },
-    {
       "widget": "humanize",
       "on": "Changed",
       "target": {
@@ -381,35 +313,6 @@
         ],
         "by": "value"
       }
-    },
-    {
-      "widget": "arp_mode",
-      "on": "Changed",
-      "target": {
-        "device": 0,
-        "control": "Screen"
-      },
-      "option": "text",
-      "value": {
-        "choose": [
-          "Arp mode\nUp",
-          "Arp mode\nDown",
-          "Arp mode\nUpDown",
-          "Arp mode\nRandom",
-          "Arp mode\nPlayed"
-        ],
-        "by": "value"
-      }
-    },
-    {
-      "widget": "arp_octaves",
-      "on": "Changed",
-      "target": {
-        "device": 0,
-        "control": "Screen"
-      },
-      "option": "text",
-      "value": "Arp range\n{arp_octaves.number} octave(s)"
     },
     {
       "widget": "space",
@@ -785,6 +688,890 @@
       "on": "ControlPressed",
       "target": "tap",
       "action": "tap"
+    },
+    {
+      "device": 0,
+      "control": "Knob_0",
+      "on": "ControlTurned",
+      "target": "drum_kit",
+      "option": "value",
+      "change": "Add",
+      "value": "{delta / 96 if mode.number == 0 else skip}",
+      "emit": true
+    },
+    {
+      "widget": "drum_kit",
+      "on": "Changed",
+      "target": "drums",
+      "option": "bank",
+      "value": {
+        "choose": [
+          0,
+          1,
+          2,
+          3,
+          4
+        ],
+        "by": "value"
+      }
+    },
+    {
+      "widget": "drum_kit",
+      "on": "Changed",
+      "target": {
+        "device": 0,
+        "control": "Screen"
+      },
+      "option": "text",
+      "value": {
+        "choose": [
+          "Kit 1\nnotes 36-51",
+          "Kit 2\nnotes 52-67",
+          "Kit 3\nnotes 68-83",
+          "Kit 4\nnotes 84-99",
+          "Kit 5\nnotes 100-115"
+        ],
+        "by": "value"
+      }
+    },
+    {
+      "widget": "drum_feel",
+      "on": "Changed",
+      "target": "drums",
+      "option": "velocity_curve",
+      "value": {
+        "choose": [
+          "Linear",
+          "Soft",
+          "Hard",
+          "Fixed"
+        ],
+        "by": "value"
+      }
+    },
+    {
+      "widget": "drum_feel",
+      "on": "Changed",
+      "target": {
+        "device": 0,
+        "control": "Screen"
+      },
+      "option": "text",
+      "value": {
+        "choose": [
+          "Drum feel\nLinear",
+          "Drum feel\nSoft",
+          "Drum feel\nHard",
+          "Drum feel\nFixed"
+        ],
+        "by": "value"
+      }
+    },
+    {
+      "device": 0,
+      "control": "Knob_1",
+      "on": "ControlTurned",
+      "target": "drum_feel",
+      "option": "value",
+      "change": "Add",
+      "value": "{delta / 96 if mode.number == 0 else skip}",
+      "emit": true
+    },
+    {
+      "device": 0,
+      "control": "Knob_2",
+      "on": "ControlTurned",
+      "target": "drum_fixed",
+      "option": "value",
+      "change": "Add",
+      "value": "{delta / 96 if mode.number == 0 else skip}",
+      "emit": true
+    },
+    {
+      "widget": "drum_fixed",
+      "on": "Changed",
+      "target": {
+        "device": 0,
+        "control": "Screen"
+      },
+      "option": "text",
+      "value": "Fixed vel\n{max(1, round(value * 127))} (feel Fixed)"
+    },
+    {
+      "widget": "kick_rate",
+      "on": "Changed",
+      "target": "kick",
+      "option": "rate",
+      "value": {
+        "choose": [
+          "1/4",
+          "1/8",
+          "1/8T",
+          "1/16"
+        ],
+        "by": "value"
+      }
+    },
+    {
+      "widget": "kick_rate",
+      "on": "Changed",
+      "target": {
+        "device": 0,
+        "control": "Screen"
+      },
+      "option": "text",
+      "value": {
+        "choose": [
+          "Kick rate\n1/4",
+          "Kick rate\n1/8",
+          "Kick rate\n1/8T",
+          "Kick rate\n1/16"
+        ],
+        "by": "value"
+      }
+    },
+    {
+      "device": 0,
+      "control": "Knob_0",
+      "on": "ControlTurned",
+      "target": "kick_rate",
+      "option": "value",
+      "change": "Add",
+      "value": "{delta / 96 if mode.number == 1 else skip}",
+      "emit": true
+    },
+    {
+      "widget": "hats_rate",
+      "on": "Changed",
+      "target": "hats",
+      "option": "rate",
+      "value": {
+        "choose": [
+          "1/8",
+          "1/16",
+          "1/16T",
+          "1/32"
+        ],
+        "by": "value"
+      }
+    },
+    {
+      "widget": "hats_rate",
+      "on": "Changed",
+      "target": {
+        "device": 0,
+        "control": "Screen"
+      },
+      "option": "text",
+      "value": {
+        "choose": [
+          "Hats rate\n1/8",
+          "Hats rate\n1/16",
+          "Hats rate\n1/16T",
+          "Hats rate\n1/32"
+        ],
+        "by": "value"
+      }
+    },
+    {
+      "device": 0,
+      "control": "Knob_1",
+      "on": "ControlTurned",
+      "target": "hats_rate",
+      "option": "value",
+      "change": "Add",
+      "value": "{delta / 96 if mode.number == 1 else skip}",
+      "emit": true
+    },
+    {
+      "device": 0,
+      "control": "Knob_2",
+      "on": "ControlTurned",
+      "target": "hats_sound",
+      "option": "value",
+      "change": "Add",
+      "value": "{delta / 96 if mode.number == 1 else skip}",
+      "emit": true
+    },
+    {
+      "widget": "hats_sound",
+      "on": "Changed",
+      "target": "hats",
+      "option": "note",
+      "value": {
+        "choose": [
+          42,
+          44,
+          46
+        ],
+        "by": "value"
+      }
+    },
+    {
+      "widget": "hats_sound",
+      "on": "Changed",
+      "target": {
+        "device": 0,
+        "control": "Screen"
+      },
+      "option": "text",
+      "value": {
+        "choose": [
+          "Hats\nclosed (42)",
+          "Hats\npedal (44)",
+          "Hats\nopen (46)"
+        ],
+        "by": "value"
+      }
+    },
+    {
+      "widget": "kick_note",
+      "on": "Changed",
+      "target": "kick",
+      "option": "note",
+      "value": {
+        "choose": [
+          35,
+          36
+        ],
+        "by": "value"
+      }
+    },
+    {
+      "widget": "kick_note",
+      "on": "Changed",
+      "target": {
+        "device": 0,
+        "control": "Screen"
+      },
+      "option": "text",
+      "value": {
+        "choose": [
+          "Kick note\n35",
+          "Kick note\n36"
+        ],
+        "by": "value"
+      }
+    },
+    {
+      "device": 0,
+      "control": "Knob_3",
+      "on": "ControlTurned",
+      "target": "kick_note",
+      "option": "value",
+      "change": "Add",
+      "value": "{delta / 96 if mode.number == 1 else skip}",
+      "emit": true
+    },
+    {
+      "device": 0,
+      "control": "Knob_0",
+      "on": "ControlTurned",
+      "target": "snare_swing",
+      "option": "value",
+      "change": "Add",
+      "value": "{delta / 96 if mode.number == 2 else skip}",
+      "emit": true
+    },
+    {
+      "widget": "snare_swing",
+      "on": "Changed",
+      "target": {
+        "device": 0,
+        "control": "Screen"
+      },
+      "option": "text",
+      "value": "Swing\nsnare {round(50 + value * 25)}%"
+    },
+    {
+      "device": 0,
+      "control": "Knob_1",
+      "on": "ControlTurned",
+      "target": "snare_gate",
+      "option": "value",
+      "change": "Add",
+      "value": "{delta / 96 if mode.number == 2 else skip}",
+      "emit": true
+    },
+    {
+      "widget": "snare_gate",
+      "on": "Changed",
+      "target": {
+        "device": 0,
+        "control": "Screen"
+      },
+      "option": "text",
+      "value": "Snare gate\n{round(max(5, value * 100))}% of a step"
+    },
+    {
+      "device": 0,
+      "control": "Knob_2",
+      "on": "ControlTurned",
+      "target": "snare_length",
+      "option": "value",
+      "change": "Add",
+      "value": "{delta / 96 if mode.number == 2 else skip}",
+      "emit": true
+    },
+    {
+      "widget": "snare_length",
+      "on": "Changed",
+      "target": {
+        "device": 0,
+        "control": "Screen"
+      },
+      "option": "text",
+      "value": "Length\nsnare {round(1 + value * 15)} steps"
+    },
+    {
+      "widget": "snare_direction",
+      "on": "Changed",
+      "target": "snare",
+      "option": "direction",
+      "value": {
+        "choose": [
+          "Forward",
+          "Backward",
+          "PingPong",
+          "Random"
+        ],
+        "by": "value"
+      }
+    },
+    {
+      "widget": "snare_direction",
+      "on": "Changed",
+      "target": {
+        "device": 0,
+        "control": "Screen"
+      },
+      "option": "text",
+      "value": {
+        "choose": [
+          "Direction\nForward",
+          "Direction\nBackward",
+          "Direction\nPing-pong",
+          "Direction\nRandom"
+        ],
+        "by": "value"
+      }
+    },
+    {
+      "device": 0,
+      "control": "Knob_3",
+      "on": "ControlTurned",
+      "target": "snare_direction",
+      "option": "value",
+      "change": "Add",
+      "value": "{delta / 96 if mode.number == 2 else skip}",
+      "emit": true
+    },
+    {
+      "device": 0,
+      "control": "Knob_0",
+      "on": "ControlTurned",
+      "target": "bass_swing",
+      "option": "value",
+      "change": "Add",
+      "value": "{delta / 96 if mode.number == 3 else skip}",
+      "emit": true
+    },
+    {
+      "widget": "bass_swing",
+      "on": "Changed",
+      "target": {
+        "device": 0,
+        "control": "Screen"
+      },
+      "option": "text",
+      "value": "Swing\nbass {round(50 + value * 25)}%"
+    },
+    {
+      "device": 0,
+      "control": "Knob_1",
+      "on": "ControlTurned",
+      "target": "bass_gate",
+      "option": "value",
+      "change": "Add",
+      "value": "{delta / 96 if mode.number == 3 else skip}",
+      "emit": true
+    },
+    {
+      "widget": "bass_gate",
+      "on": "Changed",
+      "target": {
+        "device": 0,
+        "control": "Screen"
+      },
+      "option": "text",
+      "value": "Bass gate\n{round(max(5, value * 100))}% of a step"
+    },
+    {
+      "device": 0,
+      "control": "Knob_2",
+      "on": "ControlTurned",
+      "target": "bass_length",
+      "option": "value",
+      "change": "Add",
+      "value": "{delta / 96 if mode.number == 3 else skip}",
+      "emit": true
+    },
+    {
+      "widget": "bass_length",
+      "on": "Changed",
+      "target": {
+        "device": 0,
+        "control": "Screen"
+      },
+      "option": "text",
+      "value": "Length\nbass {round(1 + value * 15)} steps"
+    },
+    {
+      "widget": "bass_direction",
+      "on": "Changed",
+      "target": "bass",
+      "option": "direction",
+      "value": {
+        "choose": [
+          "Forward",
+          "Backward",
+          "PingPong",
+          "Random"
+        ],
+        "by": "value"
+      }
+    },
+    {
+      "widget": "bass_direction",
+      "on": "Changed",
+      "target": {
+        "device": 0,
+        "control": "Screen"
+      },
+      "option": "text",
+      "value": {
+        "choose": [
+          "Direction\nForward",
+          "Direction\nBackward",
+          "Direction\nPing-pong",
+          "Direction\nRandom"
+        ],
+        "by": "value"
+      }
+    },
+    {
+      "device": 0,
+      "control": "Knob_3",
+      "on": "ControlTurned",
+      "target": "bass_direction",
+      "option": "value",
+      "change": "Add",
+      "value": "{delta / 96 if mode.number == 3 else skip}",
+      "emit": true
+    },
+    {
+      "device": 0,
+      "control": "Knob_0",
+      "on": "ControlTurned",
+      "target": "chords_octave",
+      "option": "value",
+      "change": "Add",
+      "value": "{delta / 96 if mode.number == 4 else skip}",
+      "emit": true
+    },
+    {
+      "widget": "chords_octave",
+      "on": "Changed",
+      "target": {
+        "device": 0,
+        "control": "Screen"
+      },
+      "option": "text",
+      "value": "Octave\nchords {round(2 + value * 4)}"
+    },
+    {
+      "widget": "chords_feel",
+      "on": "Changed",
+      "target": "chords",
+      "option": "velocity_curve",
+      "value": {
+        "choose": [
+          "Linear",
+          "Soft",
+          "Hard",
+          "Fixed"
+        ],
+        "by": "value"
+      }
+    },
+    {
+      "widget": "chords_feel",
+      "on": "Changed",
+      "target": {
+        "device": 0,
+        "control": "Screen"
+      },
+      "option": "text",
+      "value": {
+        "choose": [
+          "Chord feel\nLinear",
+          "Chord feel\nSoft",
+          "Chord feel\nHard",
+          "Chord feel\nFixed"
+        ],
+        "by": "value"
+      }
+    },
+    {
+      "device": 0,
+      "control": "Knob_1",
+      "on": "ControlTurned",
+      "target": "chords_feel",
+      "option": "value",
+      "change": "Add",
+      "value": "{delta / 96 if mode.number == 4 else skip}",
+      "emit": true
+    },
+    {
+      "widget": "arp_mode",
+      "on": "Changed",
+      "target": "arp",
+      "option": "mode",
+      "value": {
+        "choose": [
+          "Up",
+          "Down",
+          "UpDown",
+          "Random",
+          "Played"
+        ],
+        "by": "value"
+      }
+    },
+    {
+      "widget": "arp_mode",
+      "on": "Changed",
+      "target": {
+        "device": 0,
+        "control": "Screen"
+      },
+      "option": "text",
+      "value": {
+        "choose": [
+          "Arp mode\nUp",
+          "Arp mode\nDown",
+          "Arp mode\nUpDown",
+          "Arp mode\nRandom",
+          "Arp mode\nPlayed"
+        ],
+        "by": "value"
+      }
+    },
+    {
+      "device": 0,
+      "control": "Knob_0",
+      "on": "ControlTurned",
+      "target": "arp_mode",
+      "option": "value",
+      "change": "Add",
+      "value": "{delta / 96 if mode.number == 5 else skip}",
+      "emit": true
+    },
+    {
+      "device": 0,
+      "control": "Knob_1",
+      "on": "ControlTurned",
+      "target": "arp_octaves",
+      "option": "value",
+      "change": "Add",
+      "value": "{delta / 96 if mode.number == 5 else skip}",
+      "emit": true
+    },
+    {
+      "widget": "arp_octaves",
+      "on": "Changed",
+      "target": {
+        "device": 0,
+        "control": "Screen"
+      },
+      "option": "text",
+      "value": "Arp range\n{round(1 + value * 3)} octave(s)"
+    },
+    {
+      "device": 0,
+      "control": "Knob_2",
+      "on": "ControlTurned",
+      "target": "arp_gate",
+      "option": "value",
+      "change": "Add",
+      "value": "{delta / 96 if mode.number == 5 else skip}",
+      "emit": true
+    },
+    {
+      "widget": "arp_gate",
+      "on": "Changed",
+      "target": {
+        "device": 0,
+        "control": "Screen"
+      },
+      "option": "text",
+      "value": "Arp gate\n{round(max(5, value * 100))}% of a step"
+    },
+    {
+      "widget": "arp_rate",
+      "on": "Changed",
+      "target": "arp",
+      "option": "rate",
+      "value": {
+        "choose": [
+          "1/8",
+          "1/8T",
+          "1/16",
+          "1/16T",
+          "1/32"
+        ],
+        "by": "value"
+      }
+    },
+    {
+      "widget": "arp_rate",
+      "on": "Changed",
+      "target": {
+        "device": 0,
+        "control": "Screen"
+      },
+      "option": "text",
+      "value": {
+        "choose": [
+          "Arp rate\n1/8",
+          "Arp rate\n1/8T",
+          "Arp rate\n1/16",
+          "Arp rate\n1/16T",
+          "Arp rate\n1/32"
+        ],
+        "by": "value"
+      }
+    },
+    {
+      "device": 0,
+      "control": "Knob_3",
+      "on": "ControlTurned",
+      "target": "arp_rate",
+      "option": "value",
+      "change": "Add",
+      "value": "{delta / 96 if mode.number == 5 else skip}",
+      "emit": true
+    },
+    {
+      "device": 0,
+      "control": "Knob_0",
+      "on": "ControlTurned",
+      "target": "lead_octave",
+      "option": "value",
+      "change": "Add",
+      "value": "{delta / 96 if mode.number == 6 else skip}",
+      "emit": true
+    },
+    {
+      "widget": "lead_octave",
+      "on": "Changed",
+      "target": {
+        "device": 0,
+        "control": "Screen"
+      },
+      "option": "text",
+      "value": "Octave\nlead pads {round(2 + value * 5)}"
+    },
+    {
+      "device": 0,
+      "control": "Knob_1",
+      "on": "ControlTurned",
+      "target": "attack",
+      "option": "value",
+      "change": "Add",
+      "value": "{delta / 96 if mode.number == 6 else skip}",
+      "emit": true
+    },
+    {
+      "device": 0,
+      "control": "Knob_2",
+      "on": "ControlTurned",
+      "target": "release",
+      "option": "value",
+      "change": "Add",
+      "value": "{delta / 96 if mode.number == 6 else skip}",
+      "emit": true
+    },
+    {
+      "device": 0,
+      "control": "Knob_0",
+      "on": "ControlTurned",
+      "target": "attack",
+      "option": "value",
+      "change": "Add",
+      "value": "{delta / 96 if mode.number == 9 else skip}",
+      "emit": true
+    },
+    {
+      "device": 0,
+      "control": "Knob_1",
+      "on": "ControlTurned",
+      "target": "release",
+      "option": "value",
+      "change": "Add",
+      "value": "{delta / 96 if mode.number == 9 else skip}",
+      "emit": true
+    },
+    {
+      "widget": "gen_rate",
+      "on": "Changed",
+      "target": "gen",
+      "option": "rate",
+      "value": {
+        "choose": [
+          "1/4",
+          "1/8",
+          "1/16"
+        ],
+        "by": "value"
+      }
+    },
+    {
+      "widget": "gen_rate",
+      "on": "Changed",
+      "target": {
+        "device": 0,
+        "control": "Screen"
+      },
+      "option": "text",
+      "value": {
+        "choose": [
+          "Gen rate\n1/4",
+          "Gen rate\n1/8",
+          "Gen rate\n1/16"
+        ],
+        "by": "value"
+      }
+    },
+    {
+      "device": 0,
+      "control": "Knob_0",
+      "on": "ControlTurned",
+      "target": "gen_rate",
+      "option": "value",
+      "change": "Add",
+      "value": "{delta / 96 if mode.number == 7 else skip}",
+      "emit": true
+    },
+    {
+      "device": 0,
+      "control": "Knob_1",
+      "on": "ControlTurned",
+      "target": "gen_density",
+      "option": "value",
+      "change": "Add",
+      "value": "{delta / 96 if mode.number == 7 else skip}",
+      "emit": true
+    },
+    {
+      "widget": "gen_density",
+      "on": "Changed",
+      "target": {
+        "device": 0,
+        "control": "Screen"
+      },
+      "option": "text",
+      "value": "Density\nnew cells {round(max(5, value * 100))}%"
+    },
+    {
+      "device": 0,
+      "control": "Knob_2",
+      "on": "ControlTurned",
+      "target": "gen_notes",
+      "option": "value",
+      "change": "Add",
+      "value": "{delta / 96 if mode.number == 7 else skip}",
+      "emit": true
+    },
+    {
+      "widget": "gen_notes",
+      "on": "Changed",
+      "target": {
+        "device": 0,
+        "control": "Screen"
+      },
+      "option": "text",
+      "value": "Gen notes\nat most {round(1 + value * 5)} a step"
+    },
+    {
+      "device": 0,
+      "control": "Knob_3",
+      "on": "ControlTurned",
+      "target": "gen_octave",
+      "option": "value",
+      "change": "Add",
+      "value": "{delta / 96 if mode.number == 7 else skip}",
+      "emit": true
+    },
+    {
+      "widget": "gen_octave",
+      "on": "Changed",
+      "target": {
+        "device": 0,
+        "control": "Screen"
+      },
+      "option": "text",
+      "value": "Octave\ngen {round(3 + value * 3)}"
+    },
+    {
+      "device": 0,
+      "control": "Knob_0",
+      "on": "ControlTurned",
+      "target": "tempo",
+      "option": "value",
+      "change": "Add",
+      "value": "{delta / 120 if mode.number == 11 else skip}",
+      "emit": true
+    },
+    {
+      "device": 0,
+      "control": "Knob_4",
+      "on": "ControlTurned",
+      "target": "root",
+      "option": "value",
+      "change": "Add",
+      "value": "{delta / 88}",
+      "emit": true
+    },
+    {
+      "device": 0,
+      "control": "Knob_5",
+      "on": "ControlTurned",
+      "target": "scale",
+      "option": "value",
+      "change": "Add",
+      "value": "{delta / 56}",
+      "emit": true
+    },
+    {
+      "device": 0,
+      "control": "Knob_6",
+      "on": "ControlTurned",
+      "target": "humanize",
+      "option": "value",
+      "change": "Add",
+      "value": "{delta / 96}",
+      "emit": true
+    },
+    {
+      "device": 0,
+      "control": "Knob_7",
+      "on": "ControlTurned",
+      "target": "space",
+      "option": "value",
+      "change": "Add",
+      "value": "{delta / 96}",
+      "emit": true
     }
   ],
   "mappings": [
@@ -1289,7 +2076,7 @@
         },
         {
           "type": "Fader",
-          "name": "swing",
+          "name": "humanize",
           "x": 1,
           "y": 0,
           "width": 1,
@@ -1298,8 +2085,149 @@
         },
         {
           "type": "Fader",
-          "name": "gate",
+          "name": "root",
           "x": 2,
+          "y": 0,
+          "width": 1,
+          "height": 1
+        },
+        {
+          "type": "Fader",
+          "name": "scale",
+          "x": 3,
+          "y": 0,
+          "width": 1,
+          "height": 1
+        },
+        {
+          "type": "Fader",
+          "name": "space",
+          "x": 4,
+          "y": 0,
+          "width": 1,
+          "height": 1,
+          "options": {
+            "value": 0.2
+          }
+        },
+        {
+          "type": "Fader",
+          "name": "drum_kit",
+          "x": 5,
+          "y": 0,
+          "width": 1,
+          "height": 1
+        },
+        {
+          "type": "Fader",
+          "name": "drum_feel",
+          "x": 6,
+          "y": 0,
+          "width": 1,
+          "height": 1
+        },
+        {
+          "type": "Fader",
+          "name": "drum_fixed",
+          "x": 7,
+          "y": 0,
+          "width": 1,
+          "height": 1,
+          "options": {
+            "value": 1.0
+          }
+        },
+        {
+          "type": "Fader",
+          "name": "kick_rate",
+          "x": 0,
+          "y": 1,
+          "width": 1,
+          "height": 1,
+          "options": {
+            "value": 0.333333
+          }
+        },
+        {
+          "type": "Fader",
+          "name": "hats_rate",
+          "x": 1,
+          "y": 1,
+          "width": 1,
+          "height": 1,
+          "options": {
+            "value": 0.333333
+          }
+        },
+        {
+          "type": "Fader",
+          "name": "hats_sound",
+          "x": 2,
+          "y": 1,
+          "width": 1,
+          "height": 1
+        },
+        {
+          "type": "Fader",
+          "name": "kick_note",
+          "x": 3,
+          "y": 1,
+          "width": 1,
+          "height": 1,
+          "options": {
+            "value": 1.0
+          }
+        },
+        {
+          "type": "Fader",
+          "name": "snare_swing",
+          "x": 4,
+          "y": 1,
+          "width": 1,
+          "height": 1
+        },
+        {
+          "type": "Fader",
+          "name": "snare_gate",
+          "x": 5,
+          "y": 1,
+          "width": 1,
+          "height": 1,
+          "options": {
+            "value": 0.5
+          }
+        },
+        {
+          "type": "Fader",
+          "name": "snare_length",
+          "x": 6,
+          "y": 1,
+          "width": 1,
+          "height": 1,
+          "options": {
+            "value": 1.0
+          }
+        },
+        {
+          "type": "Fader",
+          "name": "snare_direction",
+          "x": 7,
+          "y": 1,
+          "width": 1,
+          "height": 1
+        },
+        {
+          "type": "Fader",
+          "name": "bass_swing",
+          "x": 0,
+          "y": 0,
+          "width": 1,
+          "height": 1
+        },
+        {
+          "type": "Fader",
+          "name": "bass_gate",
+          "x": 1,
           "y": 0,
           "width": 1,
           "height": 1,
@@ -1309,70 +2237,133 @@
         },
         {
           "type": "Fader",
-          "name": "humanize",
-          "x": 3,
+          "name": "bass_length",
+          "x": 2,
           "y": 0,
           "width": 1,
           "height": 1,
-          "options": {}
+          "options": {
+            "value": 1.0
+          }
         },
         {
-          "type": "Stepper",
-          "name": "root",
+          "type": "Fader",
+          "name": "bass_direction",
+          "x": 3,
+          "y": 0,
+          "width": 1,
+          "height": 1
+        },
+        {
+          "type": "Fader",
+          "name": "chords_octave",
           "x": 4,
           "y": 0,
           "width": 1,
           "height": 1,
           "options": {
-            "minimum": 0,
-            "maximum": 11
-          }
-        },
-        {
-          "type": "Stepper",
-          "name": "scale",
-          "x": 5,
-          "y": 0,
-          "width": 1,
-          "height": 1,
-          "options": {
-            "minimum": 0,
-            "maximum": 7
-          }
-        },
-        {
-          "type": "Stepper",
-          "name": "arp_mode",
-          "x": 6,
-          "y": 0,
-          "width": 1,
-          "height": 1,
-          "options": {
-            "minimum": 0,
-            "maximum": 4
-          }
-        },
-        {
-          "type": "Stepper",
-          "name": "arp_octaves",
-          "x": 7,
-          "y": 0,
-          "width": 1,
-          "height": 1,
-          "options": {
-            "minimum": 1,
-            "maximum": 4
+            "value": 0.5
           }
         },
         {
           "type": "Fader",
-          "name": "space",
+          "name": "chords_feel",
+          "x": 5,
+          "y": 0,
+          "width": 1,
+          "height": 1
+        },
+        {
+          "type": "Fader",
+          "name": "arp_mode",
+          "x": 6,
+          "y": 0,
+          "width": 1,
+          "height": 1
+        },
+        {
+          "type": "Fader",
+          "name": "arp_octaves",
+          "x": 7,
+          "y": 0,
+          "width": 1,
+          "height": 1
+        },
+        {
+          "type": "Fader",
+          "name": "arp_gate",
           "x": 0,
           "y": 1,
           "width": 1,
           "height": 1,
           "options": {
-            "value": 0.2
+            "value": 0.5
+          }
+        },
+        {
+          "type": "Fader",
+          "name": "arp_rate",
+          "x": 1,
+          "y": 1,
+          "width": 1,
+          "height": 1,
+          "options": {
+            "value": 0.5
+          }
+        },
+        {
+          "type": "Fader",
+          "name": "lead_octave",
+          "x": 2,
+          "y": 1,
+          "width": 1,
+          "height": 1,
+          "options": {
+            "value": 0.6
+          }
+        },
+        {
+          "type": "Fader",
+          "name": "gen_rate",
+          "x": 3,
+          "y": 1,
+          "width": 1,
+          "height": 1,
+          "options": {
+            "value": 0.5
+          }
+        },
+        {
+          "type": "Fader",
+          "name": "gen_density",
+          "x": 4,
+          "y": 1,
+          "width": 1,
+          "height": 1,
+          "options": {
+            "value": 0.3
+          }
+        },
+        {
+          "type": "Fader",
+          "name": "gen_notes",
+          "x": 5,
+          "y": 1,
+          "width": 1,
+          "height": 1,
+          "options": {
+            "value": 0.4
+          }
+        },
+        {
+          "type": "Fader",
+          "name": "gen_octave",
+          "x": 6,
+          "y": 1,
+          "width": 1,
+          "height": 1,
+          "options": {
+            "value": 0.666667
           }
         }
       ]
@@ -1939,7 +2930,8 @@
                     "note": 36,
                     "active_color": "#ffffff",
                     "inactive_color": "#1f0c00",
-                    "velocity_random": "{humanize.value * 0.5}"
+                    "velocity_random": "{humanize.value * 0.5}",
+                    "fixed_velocity": "{max(0.05, drum_fixed.value)}"
                   }
                 },
                 {
@@ -1998,10 +2990,11 @@
                     "inactive_color": "#1f1000",
                     "current_color": "#303030",
                     "current_active_color": "#ffffff",
-                    "swing": "{50 + swing.value * 25}",
-                    "gate": "{max(0.05, gate.value)}",
+                    "swing": "{50 + snare_swing.value * 25}",
+                    "gate": "{max(0.05, snare_gate.value)}",
                     "velocity_random": "{humanize.value * 0.5}",
-                    "running": "{snare_on.value > 0.5}"
+                    "running": "{snare_on.value > 0.5}",
+                    "length": "{round(1 + snare_length.value * 15)}"
                   }
                 },
                 {
@@ -2018,10 +3011,11 @@
                     "inactive_color": "#000c1f",
                     "current_color": "#303030",
                     "current_active_color": "#ffffff",
-                    "swing": "{50 + swing.value * 25}",
-                    "gate": "{max(0.05, gate.value)}",
+                    "swing": "{50 + bass_swing.value * 25}",
+                    "gate": "{max(0.05, bass_gate.value)}",
                     "velocity_random": "{humanize.value * 0.5}",
-                    "running": "{bass_on.value > 0.5}"
+                    "running": "{bass_on.value > 0.5}",
+                    "length": "{round(1 + bass_length.value * 15)}"
                   }
                 },
                 {
@@ -2032,7 +3026,7 @@
                   "width": 8,
                   "height": 2,
                   "options": {
-                    "octave": 4,
+                    "octave": "{round(2 + chords_octave.value * 4)}",
                     "active_color": "#ffffff",
                     "inactive_color": "#001f08",
                     "root_color": "#00ff40",
@@ -2053,9 +3047,8 @@
                     "active_color": "#00e0ff",
                     "inactive_color": "#001c1f",
                     "root_color": "#004060",
-                    "mode": "{arp_mode.number}",
-                    "octaves": "{arp_octaves.number}",
-                    "gate": "{max(0.05, gate.value)}",
+                    "octaves": "{round(1 + arp_octaves.value * 3)}",
+                    "gate": "{max(0.05, arp_gate.value)}",
                     "velocity_random": "{humanize.value * 0.5}",
                     "running": "{arp_on.value > 0.5}",
                     "root": "{key.root}",
@@ -2070,7 +3063,7 @@
                   "width": 8,
                   "height": 2,
                   "options": {
-                    "octave": 5,
+                    "octave": "{round(2 + lead_octave.value * 5)}",
                     "type": "Diatonic",
                     "root_color": "#ff00c0",
                     "keyboard_color": "#1f0018",
@@ -2098,14 +3091,15 @@
                       "height": 2,
                       "options": {
                         "rate": "1/8",
-                        "octave": 5,
-                        "max_notes": 3,
+                        "octave": "{round(3 + gen_octave.value * 3)}",
+                        "max_notes": "{round(1 + gen_notes.value * 5)}",
                         "active_color": "#8000ff",
                         "inactive_color": "#080010",
                         "running": "{gen_on.value > 0.5}",
                         "velocity_random": "{humanize.value * 0.5}",
                         "root": "{key.root}",
-                        "scale": "{key.scale}"
+                        "scale": "{key.scale}",
+                        "density": "{max(0.05, gen_density.value)}"
                       }
                     },
                     {
