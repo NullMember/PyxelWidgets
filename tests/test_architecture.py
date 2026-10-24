@@ -28,7 +28,7 @@ ALLOWED = {
     'binding': {'events'},
     'message': set(),
     'expression': set(),
-    'mapping': {'events'},
+    'mapping': {'events', 'message'},
     'link': {'events', 'color', 'expression', 'mapping', 'message'},
     'buffer': {'color'},
     'font': set(),

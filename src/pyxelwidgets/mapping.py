@@ -12,6 +12,8 @@ sends back on the widget::
     Mapping(clock, mackie, Command('Timecode', Source('text')), feedback = True)
     Mapping(surface.control(launchpad, 'Knob1'), synth, ControlChange(74), on = ControlChanged)
 
+A computed field that is ``skip`` sends nothing for that event.
+
 The message's Sources come from the event (see ``sources``): its fields
 (``velocity``, ``value``, ``x``, ``state``, ``note``...) plus ``cell`` (the
 pad's number in the widget, left to right from the bottom row), ``delta`` (a
@@ -30,6 +32,7 @@ import dataclasses
 import functools
 
 import pyxelwidgets.events
+import pyxelwidgets.message
 
 __all__ = ['Mapping', 'sources', 'available']
 
@@ -110,12 +113,16 @@ class Mapping:
         if isinstance(values.get('value'), float):
             self._last_value = values['value']
         try:
-            message = self.message.resolve(values)
+            messages = self.message.each(values)
+        except pyxelwidgets.message.Skipped:
+            # A computed field said not this time
+            return
         except ValueError as error:
             # A computed field that can't be (ExpressionError is one)
             print(f'Mapping from {getattr(self.widget, "name", self.widget)}: {error}', flush = True)
             return
-        self.output.send(message)
+        for message in messages:
+            self.output.send(message)
 
     def _receive(self, event) -> None:
         values = self.message.match(event.message)
