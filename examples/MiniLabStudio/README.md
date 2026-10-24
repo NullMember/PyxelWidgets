@@ -61,7 +61,8 @@ The screen names each page. Bank A (the Pad button) is the bottom row, bank B th
 - **Knobs:** swing, gate, humanize (random velocity), key, scale (minor,
   major, dorian, phrygian, mixolydian, minor pentatonic, harmonic minor,
   blues), arp mode, arp range, space (reverb send, every channel). The
-  screen shows each value; key and scale reach chords, arp, lead and gen.
+  screen shows each value. Key and scale set the layout's key (C minor to
+  start, on the designer's Surface panel), which chords, arp, lead and gen follow.
 - **Faders:** drums, bass, chords and arp volume.
 - **Keys** play the lead with the pitch and mod strips and the sustain pedal
   (the bass on the Bass page, the arpeggiator on the Arp page).

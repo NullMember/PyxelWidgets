@@ -1,9 +1,13 @@
 {
   "format": "pyxelwidgets.layout",
-  "version": 4,
+  "version": 5,
   "surface": {
     "width": 8,
     "height": 2
+  },
+  "key": {
+    "root": "C",
+    "scale": "Minor"
   },
   "transport": {
     "bpm": 120,
@@ -135,6 +139,34 @@
   ],
   "links": [
     {
+      "widget": "root",
+      "on": "Changed",
+      "target": "key",
+      "option": "root",
+      "value": {
+        "source": "value"
+      }
+    },
+    {
+      "widget": "scale",
+      "on": "Changed",
+      "target": "key",
+      "option": "scale",
+      "value": {
+        "choose": [
+          "Minor",
+          "Major",
+          "Dorian",
+          "Phrygian",
+          "Mixolydian",
+          "MinorPentatonic",
+          "MinorHarmonic",
+          "MinorBlues"
+        ],
+        "by": "value"
+      }
+    },
+    {
       "widget": "mode",
       "on": "Changed",
       "target": "pages",
@@ -232,7 +264,8 @@
       "on": "ControlPressed",
       "target": "mode",
       "option": "value",
-      "value": 0.7272727272727273
+      "value": 0.7272727272727273,
+      "emit": true
     },
     {
       "device": 0,
@@ -240,97 +273,8 @@
       "on": "ControlPressed",
       "target": "mode",
       "option": "value",
-      "value": 0.9090909090909091
-    },
-    {
-      "device": 0,
-      "control": "Loop",
-      "on": "ControlPressed",
-      "target": "pages",
-      "option": "page",
-      "value": 0
-    },
-    {
-      "device": 0,
-      "control": "Loop",
-      "on": "ControlPressed",
-      "target": "music",
-      "option": "page",
-      "value": 8
-    },
-    {
-      "device": 0,
-      "control": "Record",
-      "on": "ControlPressed",
-      "target": "pages",
-      "option": "page",
-      "value": 2
-    },
-    {
-      "device": 0,
-      "control": "Loop",
-      "on": "ControlPressed",
-      "target": {
-        "device": 0,
-        "control": "Screen"
-      },
-      "option": "text",
-      "value": "Mutes\nvoices on/off"
-    },
-    {
-      "device": 0,
-      "control": "Record",
-      "on": "ControlPressed",
-      "target": {
-        "device": 0,
-        "control": "Screen"
-      },
-      "option": "text",
-      "value": "Patterns\nstore / recall"
-    },
-    {
-      "device": 0,
-      "control": "Loop",
-      "on": "ControlPressed",
-      "target": {
-        "device": 0,
-        "control": "Loop"
-      },
-      "option": "light",
-      "value": "#ffffff"
-    },
-    {
-      "device": 0,
-      "control": "Loop",
-      "on": "ControlPressed",
-      "target": {
-        "device": 0,
-        "control": "Record"
-      },
-      "option": "light",
-      "value": "#00000000"
-    },
-    {
-      "device": 0,
-      "control": "Record",
-      "on": "ControlPressed",
-      "target": {
-        "device": 0,
-        "control": "Record"
-      },
-      "option": "light",
-      "value": "#ff0000"
-    },
-    {
-      "device": 0,
-      "control": "Record",
-      "on": "ControlPressed",
-      "target": {
-        "device": 0,
-        "control": "Loop"
-      },
-      "option": "light",
-      "value": "#00000000"
+      "value": 0.9090909090909091,
+      "emit": true
     },
     {
       "device": 0,
@@ -527,7 +471,7 @@
       "on": "KeyPressed",
       "target": "bass",
       "option": "note",
-      "value": "{note if mode.number == 3 else bass.note}"
+      "value": "{note if mode.number == 3 else skip}"
     },
     {
       "device": 0,
@@ -535,7 +479,7 @@
       "on": "KeyPressed",
       "target": "arp",
       "action": "add",
-      "value": "{note if mode.number == 5 else -1}"
+      "value": "{note if mode.number == 5 else skip}"
     },
     {
       "device": 0,
@@ -553,15 +497,7 @@
       "on": "KeyPressed",
       "target": "lead_meter",
       "option": "value",
-      "value": "{velocity if mode.number != 3 and mode.number != 5 and lead_on.value > 0.5 else 0}"
-    },
-    {
-      "device": 0,
-      "control": "Keys",
-      "on": "KeyReleased",
-      "target": "lead_meter",
-      "option": "value",
-      "value": 0.0
+      "value": "{velocity if mode.number != 3 and mode.number != 5 and lead_on.value > 0.5 else skip}"
     },
     {
       "device": 0,
@@ -587,13 +523,6 @@
       "value": "{velocity}"
     },
     {
-      "widget": "kick",
-      "on": "NoteOff",
-      "target": "kick_meter",
-      "option": "value",
-      "value": 0.0
-    },
-    {
       "widget": "hats",
       "on": "NoteOn",
       "target": "hats_meter",
@@ -601,53 +530,25 @@
       "value": "{velocity}"
     },
     {
-      "widget": "hats",
-      "on": "NoteOff",
-      "target": "hats_meter",
-      "option": "value",
-      "value": 0.0
-    },
-    {
       "widget": "snare",
       "on": "StepPlayed",
       "target": "snare_meter",
       "option": "value",
-      "value": "{velocity}"
-    },
-    {
-      "widget": "snare",
-      "on": "StepEnded",
-      "target": "snare_meter",
-      "option": "value",
-      "value": 0.0
+      "value": "{velocity if velocity else skip}"
     },
     {
       "widget": "bass",
       "on": "StepPlayed",
       "target": "bass_meter",
       "option": "value",
-      "value": "{velocity}"
-    },
-    {
-      "widget": "bass",
-      "on": "StepEnded",
-      "target": "bass_meter",
-      "option": "value",
-      "value": 0.0
+      "value": "{velocity if velocity else skip}"
     },
     {
       "widget": "chords",
       "on": "NoteOn",
       "target": "chords_meter",
       "option": "value",
-      "value": "{velocity if chords_on.value > 0.5 else 0}"
-    },
-    {
-      "widget": "chords",
-      "on": "NoteOff",
-      "target": "chords_meter",
-      "option": "value",
-      "value": 0.0
+      "value": "{velocity if chords_on.value > 0.5 else skip}"
     },
     {
       "widget": "arp",
@@ -657,25 +558,11 @@
       "value": "{velocity}"
     },
     {
-      "widget": "arp",
-      "on": "NoteOff",
-      "target": "arp_meter",
-      "option": "value",
-      "value": 0.0
-    },
-    {
       "widget": "lead",
       "on": "NoteOn",
       "target": "lead_meter",
       "option": "value",
-      "value": "{velocity if lead_on.value > 0.5 else 0}"
-    },
-    {
-      "widget": "lead",
-      "on": "NoteOff",
-      "target": "lead_meter",
-      "option": "value",
-      "value": 0.0
+      "value": "{velocity if lead_on.value > 0.5 else skip}"
     },
     {
       "widget": "gen",
@@ -683,13 +570,6 @@
       "target": "gen_meter",
       "option": "value",
       "value": "{velocity}"
-    },
-    {
-      "widget": "gen",
-      "on": "NoteOff",
-      "target": "gen_meter",
-      "option": "value",
-      "value": 0.0
     },
     {
       "widget": "gen_random",
@@ -894,27 +774,10 @@
     {
       "widget": "tap",
       "on": "TempoTapped",
-      "action": "transport.tempo",
-      "value": {
-        "source": "bpm"
-      }
-    },
-    {
-      "widget": "tap",
-      "on": "TempoTapped",
       "target": "tempo",
       "option": "value",
-      "value": "{(min(180, max(60, bpm)) - 60) / 120}"
-    },
-    {
-      "widget": "tap",
-      "on": "TempoTapped",
-      "target": {
-        "device": 0,
-        "control": "Screen"
-      },
-      "option": "text",
-      "value": "Tapped\n{round(bpm)} bpm"
+      "value": "{(min(180, max(60, bpm)) - 60) / 120}",
+      "emit": true
     },
     {
       "device": 0,
@@ -932,72 +795,14 @@
       "message": {
         "type": "ControlChange",
         "control": 91,
-        "channel": 1,
-        "value": {
-          "source": "value"
-        }
-      }
-    },
-    {
-      "widget": "space",
-      "on": "Changed",
-      "output": "synths",
-      "message": {
-        "type": "ControlChange",
-        "control": 91,
-        "channel": 2,
-        "value": {
-          "source": "value"
-        }
-      }
-    },
-    {
-      "widget": "space",
-      "on": "Changed",
-      "output": "synths",
-      "message": {
-        "type": "ControlChange",
-        "control": 91,
-        "channel": 3,
-        "value": {
-          "source": "value"
-        }
-      }
-    },
-    {
-      "widget": "space",
-      "on": "Changed",
-      "output": "synths",
-      "message": {
-        "type": "ControlChange",
-        "control": 91,
-        "channel": 4,
-        "value": {
-          "source": "value"
-        }
-      }
-    },
-    {
-      "widget": "space",
-      "on": "Changed",
-      "output": "synths",
-      "message": {
-        "type": "ControlChange",
-        "control": 91,
-        "channel": 5,
-        "value": {
-          "source": "value"
-        }
-      }
-    },
-    {
-      "widget": "space",
-      "on": "Changed",
-      "output": "synths",
-      "message": {
-        "type": "ControlChange",
-        "control": 91,
-        "channel": 10,
+        "channel": [
+          1,
+          2,
+          3,
+          4,
+          5,
+          10
+        ],
         "value": {
           "source": "value"
         }
@@ -1070,7 +875,7 @@
         "note": {
           "source": "note"
         },
-        "velocity": "{velocity * 127 if mode.number != 3 and mode.number != 5 and lead_on.value > 0.5 else 0}"
+        "velocity": "{velocity * 127 if mode.number != 3 and mode.number != 5 and lead_on.value > 0.5 else skip}"
       }
     },
     {
@@ -1097,7 +902,7 @@
         "note": {
           "source": "note"
         },
-        "velocity": "{velocity * 127 if mode.number == 3 else 0}"
+        "velocity": "{velocity * 127 if mode.number == 3 else skip}"
       }
     },
     {
@@ -1255,9 +1060,7 @@
         "note": {
           "source": "note"
         },
-        "velocity": {
-          "source": "velocity"
-        }
+        "velocity": "{velocity * 127 if velocity else skip}"
       }
     },
     {
@@ -1282,9 +1085,7 @@
         "note": {
           "source": "note"
         },
-        "velocity": {
-          "source": "velocity"
-        }
+        "velocity": "{velocity * 127 if velocity else skip}"
       }
     },
     {
@@ -1309,7 +1110,7 @@
         "note": {
           "source": "note"
         },
-        "velocity": "{velocity * 127 if chords_on.value > 0.5 else 0}"
+        "velocity": "{velocity * 127 if chords_on.value > 0.5 else skip}"
       }
     },
     {
@@ -1361,7 +1162,7 @@
         "note": {
           "source": "note"
         },
-        "velocity": "{velocity * 127 if lead_on.value > 0.5 else 0}"
+        "velocity": "{velocity * 127 if lead_on.value > 0.5 else skip}"
       }
     },
     {
@@ -1410,7 +1211,10 @@
       "message": {
         "type": "ControlChange",
         "control": 74,
-        "channel": 1,
+        "channel": [
+          1,
+          4
+        ],
         "value": {
           "source": "value_x"
         }
@@ -1423,33 +1227,10 @@
       "message": {
         "type": "ControlChange",
         "control": 71,
-        "channel": 1,
-        "value": {
-          "source": "value_y"
-        }
-      }
-    },
-    {
-      "widget": "filter",
-      "on": "Changed",
-      "output": "synths",
-      "message": {
-        "type": "ControlChange",
-        "control": 74,
-        "channel": 4,
-        "value": {
-          "source": "value_x"
-        }
-      }
-    },
-    {
-      "widget": "filter",
-      "on": "Changed",
-      "output": "synths",
-      "message": {
-        "type": "ControlChange",
-        "control": 71,
-        "channel": 4,
+        "channel": [
+          1,
+          4
+        ],
         "value": {
           "source": "value_y"
         }
@@ -2256,8 +2037,8 @@
                     "inactive_color": "#001f08",
                     "root_color": "#00ff40",
                     "velocity_random": "{humanize.value * 0.5}",
-                    "root": "{root.number}",
-                    "scale": "{'Minor' if scale.number == 0 else 'Major' if scale.number == 1 else 'Dorian' if scale.number == 2 else 'Phrygian' if scale.number == 3 else 'Mixolydian' if scale.number == 4 else 'MinorPentatonic' if scale.number == 5 else 'MinorHarmonic' if scale.number == 6 else 'MinorBlues'}"
+                    "root": "{key.root}",
+                    "scale": "{key.scale}"
                   }
                 },
                 {
@@ -2277,8 +2058,8 @@
                     "gate": "{max(0.05, gate.value)}",
                     "velocity_random": "{humanize.value * 0.5}",
                     "running": "{arp_on.value > 0.5}",
-                    "root": "{root.number}",
-                    "scale": "{'Minor' if scale.number == 0 else 'Major' if scale.number == 1 else 'Dorian' if scale.number == 2 else 'Phrygian' if scale.number == 3 else 'Mixolydian' if scale.number == 4 else 'MinorPentatonic' if scale.number == 5 else 'MinorHarmonic' if scale.number == 6 else 'MinorBlues'}"
+                    "root": "{key.root}",
+                    "scale": "{key.scale}"
                   }
                 },
                 {
@@ -2295,8 +2076,8 @@
                     "keyboard_color": "#1f0018",
                     "active_color": "#ffffff",
                     "velocity_random": "{humanize.value * 0.5}",
-                    "root": "{root.number}",
-                    "scale": "{'Minor' if scale.number == 0 else 'Major' if scale.number == 1 else 'Dorian' if scale.number == 2 else 'Phrygian' if scale.number == 3 else 'Mixolydian' if scale.number == 4 else 'MinorPentatonic' if scale.number == 5 else 'MinorHarmonic' if scale.number == 6 else 'MinorBlues'}"
+                    "root": "{key.root}",
+                    "scale": "{key.scale}"
                   }
                 },
                 {
@@ -2323,8 +2104,8 @@
                         "inactive_color": "#080010",
                         "running": "{gen_on.value > 0.5}",
                         "velocity_random": "{humanize.value * 0.5}",
-                        "root": "{root.number}",
-                        "scale": "{'Minor' if scale.number == 0 else 'Major' if scale.number == 1 else 'Dorian' if scale.number == 2 else 'Phrygian' if scale.number == 3 else 'Mixolydian' if scale.number == 4 else 'MinorPentatonic' if scale.number == 5 else 'MinorHarmonic' if scale.number == 6 else 'MinorBlues'}"
+                        "root": "{key.root}",
+                        "scale": "{key.scale}"
                       }
                     },
                     {
@@ -2483,7 +2264,7 @@
                       "height": 1,
                       "options": {
                         "hold": 0.0,
-                        "falloff": 4.0,
+                        "decay": 0.4,
                         "warning": 1.0,
                         "danger": 1.0,
                         "active_color": "#ff2000",
@@ -2499,7 +2280,7 @@
                       "height": 1,
                       "options": {
                         "hold": 0.0,
-                        "falloff": 4.0,
+                        "decay": 0.4,
                         "warning": 1.0,
                         "danger": 1.0,
                         "active_color": "#ffd000",
@@ -2515,7 +2296,7 @@
                       "height": 1,
                       "options": {
                         "hold": 0.0,
-                        "falloff": 4.0,
+                        "decay": 0.4,
                         "warning": 1.0,
                         "danger": 1.0,
                         "active_color": "#ff8000",
@@ -2531,7 +2312,7 @@
                       "height": 1,
                       "options": {
                         "hold": 0.0,
-                        "falloff": 4.0,
+                        "decay": 0.4,
                         "warning": 1.0,
                         "danger": 1.0,
                         "active_color": "#0060ff",
@@ -2547,7 +2328,7 @@
                       "height": 1,
                       "options": {
                         "hold": 0.0,
-                        "falloff": 4.0,
+                        "decay": 0.4,
                         "warning": 1.0,
                         "danger": 1.0,
                         "active_color": "#00ff40",
@@ -2563,7 +2344,7 @@
                       "height": 1,
                       "options": {
                         "hold": 0.0,
-                        "falloff": 4.0,
+                        "decay": 0.4,
                         "warning": 1.0,
                         "danger": 1.0,
                         "active_color": "#00e0ff",
@@ -2579,7 +2360,7 @@
                       "height": 1,
                       "options": {
                         "hold": 0.0,
-                        "falloff": 4.0,
+                        "decay": 0.4,
                         "warning": 1.0,
                         "danger": 1.0,
                         "active_color": "#ff00c0",
@@ -2595,7 +2376,7 @@
                       "height": 1,
                       "options": {
                         "hold": 0.0,
-                        "falloff": 4.0,
+                        "decay": 0.4,
                         "warning": 1.0,
                         "danger": 1.0,
                         "active_color": "#8000ff",
