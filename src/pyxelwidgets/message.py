@@ -9,8 +9,11 @@ template: each field is a constant or a ``Source`` taken from a widget event::
     OscMessage('/track/{x+1}/mute', Source('state'))             # one track per column
     Command('Play')                                              # Mackie/HUI
 
+A MIDI message's ``channel`` can be a tuple, sending it on each of them
+(``ControlChange(91, channel = (1, 2, 10))``); it receives from any of them.
+
 ``resolve(sources)`` fills the fields from an event's values (see
-``pyxelwidgets.mapping``); ``match(message)`` does the reverse for a message
+``pyxelwidgets.mapping``), ``each(sources)`` gives every message to send; ``match(message)`` does the reverse for a message
 received from the other software, returning the values it carries (e.g.
 ``{'value': 0.5}``) or None when it is a different message.
 
@@ -22,7 +25,9 @@ A field can also be computed: anything with ``evaluate(sources)`` and
 ``free`` (the event values it needs), e.g. a ``pyxelwidgets.expression.Expression``
 such as ``{note + 12}`` or ``{velocity * 100}`` (event values as the event
 has them; the result is rounded and clamped to the field's range). Computed
-fields take whatever is received (they carry nothing back).
+fields take whatever is received (they carry nothing back). A field computing
+``skip`` (``{velocity * 127 if velocity else skip}``) raises ``Skipped``:
+that event sends nothing.
 """
 
 import dataclasses
@@ -30,7 +35,7 @@ import functools
 import re
 import typing
 
-__all__ = ['Source', 'Message', 'MidiMessage', 'NoteOn', 'NoteOff', 'ControlChange', 'ProgramChange',
+__all__ = ['Source', 'Message', 'Skipped', 'MidiMessage', 'NoteOn', 'NoteOff', 'ControlChange', 'ProgramChange',
            'PitchBend', 'PolyPressure', 'ChannelPressure', 'OscMessage', 'Command', 'PluginParameter', 'TrackParameter',
            'TRACK_PARAMETERS', 'INTEGER_SOURCES',
            'Hotkey', 'Key', 'TypeText', 'MouseMove', 'MouseButton', 'MouseClick', 'Scroll', 'KEY_NAMES', 'parse_keys']
@@ -79,6 +84,9 @@ class Source:
             return float(value)
         return min(1.0, max(0.0, (value - low) / (high - low)))
 
+class Skipped(Exception):
+    """A computed field was ``skip``: the event sends no message."""
+
 @functools.lru_cache(maxsize = None)
 def _field_names(cls) -> tuple:
     return tuple(field.name for field in dataclasses.fields(cls))
@@ -89,6 +97,9 @@ def _computed(value) -> bool:
 def _resolve(value, sources: dict, field_range):
     if _computed(value):
         result = value.evaluate(sources)
+        if getattr(type(result), 'skips', False):
+            # expression.SKIP, without importing it
+            raise Skipped(str(value))
         if field_range is not None:
             if isinstance(result, str):
                 raise ValueError(f'{value}: a number is needed, got {result!r}')
@@ -114,6 +125,9 @@ def _recover(template, value, found: dict, field_range) -> bool:
         else:
             found[template.name] = template.recover(value, low, high)
         return True
+    if isinstance(template, tuple):
+        # Any of them (a MIDI message's channels)
+        return value in template
     if isinstance(template, float) or isinstance(value, float):
         return isinstance(value, (int, float)) and not isinstance(value, bool) and abs(template - value) < 1e-6
     return template == value
@@ -137,6 +151,10 @@ class Message:
             values[name] = value
         # Messages are immutable: one without sources is its own concrete message
         return self if constant else type(self)(**values)
+
+    def each(self, sources: dict) -> list:
+        """The concrete messages to send for an event's ``sources``: one, or one per channel of a MIDI message."""
+        return [self.resolve(sources)]
 
     def match(self, message: 'Message') -> dict | None:
         """The values ``message`` carries if it is this message (constants equal), else None."""
@@ -165,9 +183,17 @@ _BYTE = (0, 127)
 _CHANNEL = (1, 16)
 
 class MidiMessage(Message):
-    """A MIDI channel message; ``channel`` is 1-16."""
+    """A MIDI channel message; ``channel`` is 1-16, or a tuple of them (sent on each)."""
 
     status: typing.ClassVar[int] = 0
+    #: What a channel can be
+    channel_range: typing.ClassVar[tuple] = _CHANNEL
+
+    def each(self, sources: dict) -> list:
+        if not isinstance(self.channel, tuple):
+            return [self.resolve(sources)]
+        resolved = dataclasses.replace(self, channel = self.channel[0]).resolve(sources)
+        return [dataclasses.replace(resolved, channel = channel) for channel in self.channel]
 
     def to_midi(self) -> list:
         raise NotImplementedError
