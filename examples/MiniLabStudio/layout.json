@@ -1,0 +1,2817 @@
+{
+  "format": "pyxelwidgets.layout",
+  "version": 4,
+  "surface": {
+    "width": 8,
+    "height": 2
+  },
+  "transport": {
+    "bpm": 120,
+    "signature": [
+      4,
+      4
+    ],
+    "clock": [
+      "synths"
+    ]
+  },
+  "devices": [
+    {
+      "type": "arturia.MiniLab3",
+      "x": 0,
+      "y": 0,
+      "options": {}
+    }
+  ],
+  "outputs": [
+    {
+      "name": "synths",
+      "type": "midi_port.MidiPort",
+      "virtual": "PyxelWidgets Studio",
+      "options": {}
+    }
+  ],
+  "bindings": [
+    {
+      "device": 0,
+      "control": "Knob_0",
+      "widget": "swing",
+      "options": {
+        "takeover": "Jump"
+      }
+    },
+    {
+      "device": 0,
+      "control": "Knob_1",
+      "widget": "gate",
+      "options": {
+        "takeover": "Jump"
+      }
+    },
+    {
+      "device": 0,
+      "control": "Knob_2",
+      "widget": "humanize",
+      "options": {
+        "takeover": "Jump"
+      }
+    },
+    {
+      "device": 0,
+      "control": "Knob_3",
+      "widget": "root",
+      "options": {
+        "takeover": "Jump"
+      }
+    },
+    {
+      "device": 0,
+      "control": "Knob_4",
+      "widget": "scale",
+      "options": {
+        "takeover": "Jump"
+      }
+    },
+    {
+      "device": 0,
+      "control": "Knob_5",
+      "widget": "arp_mode",
+      "options": {
+        "takeover": "Jump"
+      }
+    },
+    {
+      "device": 0,
+      "control": "Knob_6",
+      "widget": "arp_octaves",
+      "options": {
+        "takeover": "Jump"
+      }
+    },
+    {
+      "device": 0,
+      "control": "Knob_7",
+      "widget": "space",
+      "options": {
+        "takeover": "Jump"
+      }
+    },
+    {
+      "device": 0,
+      "control": "Display",
+      "widget": "mode",
+      "options": {
+        "step": 0.09090909090909091
+      }
+    },
+    {
+      "device": 0,
+      "control": "Shift_Display",
+      "widget": "tempo",
+      "options": {
+        "step": 0.008333333333333333
+      }
+    },
+    {
+      "device": 0,
+      "control": "Display_Press",
+      "action": "surface.reveal"
+    },
+    {
+      "device": 0,
+      "control": "Shift_Display_Press",
+      "action": "transport.rewind"
+    },
+    {
+      "device": 0,
+      "control": "Play",
+      "action": "transport.toggle"
+    },
+    {
+      "device": 0,
+      "control": "Stop",
+      "action": "transport.stop"
+    }
+  ],
+  "links": [
+    {
+      "widget": "mode",
+      "on": "Changed",
+      "target": "pages",
+      "option": "page",
+      "value": {
+        "choose": [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          1,
+          2,
+          3
+        ],
+        "by": "value"
+      }
+    },
+    {
+      "widget": "mode",
+      "on": "Changed",
+      "target": "music",
+      "option": "page",
+      "value": {
+        "choose": [
+          0,
+          1,
+          2,
+          3,
+          4,
+          5,
+          6,
+          7,
+          8,
+          8,
+          8,
+          8
+        ],
+        "by": "value"
+      }
+    },
+    {
+      "widget": "mode",
+      "on": "Changed",
+      "target": {
+        "device": 0,
+        "control": "Screen"
+      },
+      "option": "text",
+      "value": {
+        "choose": [
+          "Drums\n16 finger drums",
+          "Beat\neuclid kick + hats",
+          "Snare\n16 steps",
+          "Bass\nkeys set the note",
+          "Chords\ndegree x chord",
+          "Arp\npads or keys",
+          "Lead\npads in key",
+          "Gen\ngame of life",
+          "Mutes\nvoices on/off",
+          "FX\nfilter, envelope",
+          "Patterns\nstore / recall",
+          "Tempo\ntap, nudge"
+        ],
+        "by": "value"
+      }
+    },
+    {
+      "widget": "mode",
+      "on": "Changed",
+      "target": {
+        "device": 0,
+        "control": "Loop"
+      },
+      "option": "light",
+      "value": "{'#ffffff' if mode.number == 8 else '#00000000'}"
+    },
+    {
+      "widget": "mode",
+      "on": "Changed",
+      "target": {
+        "device": 0,
+        "control": "Record"
+      },
+      "option": "light",
+      "value": "{'#ff0000' if mode.number == 10 else '#00000000'}"
+    },
+    {
+      "device": 0,
+      "control": "Loop",
+      "on": "ControlPressed",
+      "target": "mode",
+      "option": "value",
+      "value": 0.7272727272727273
+    },
+    {
+      "device": 0,
+      "control": "Record",
+      "on": "ControlPressed",
+      "target": "mode",
+      "option": "value",
+      "value": 0.9090909090909091
+    },
+    {
+      "device": 0,
+      "control": "Loop",
+      "on": "ControlPressed",
+      "target": "pages",
+      "option": "page",
+      "value": 0
+    },
+    {
+      "device": 0,
+      "control": "Loop",
+      "on": "ControlPressed",
+      "target": "music",
+      "option": "page",
+      "value": 8
+    },
+    {
+      "device": 0,
+      "control": "Record",
+      "on": "ControlPressed",
+      "target": "pages",
+      "option": "page",
+      "value": 2
+    },
+    {
+      "device": 0,
+      "control": "Loop",
+      "on": "ControlPressed",
+      "target": {
+        "device": 0,
+        "control": "Screen"
+      },
+      "option": "text",
+      "value": "Mutes\nvoices on/off"
+    },
+    {
+      "device": 0,
+      "control": "Record",
+      "on": "ControlPressed",
+      "target": {
+        "device": 0,
+        "control": "Screen"
+      },
+      "option": "text",
+      "value": "Patterns\nstore / recall"
+    },
+    {
+      "device": 0,
+      "control": "Loop",
+      "on": "ControlPressed",
+      "target": {
+        "device": 0,
+        "control": "Loop"
+      },
+      "option": "light",
+      "value": "#ffffff"
+    },
+    {
+      "device": 0,
+      "control": "Loop",
+      "on": "ControlPressed",
+      "target": {
+        "device": 0,
+        "control": "Record"
+      },
+      "option": "light",
+      "value": "#00000000"
+    },
+    {
+      "device": 0,
+      "control": "Record",
+      "on": "ControlPressed",
+      "target": {
+        "device": 0,
+        "control": "Record"
+      },
+      "option": "light",
+      "value": "#ff0000"
+    },
+    {
+      "device": 0,
+      "control": "Record",
+      "on": "ControlPressed",
+      "target": {
+        "device": 0,
+        "control": "Loop"
+      },
+      "option": "light",
+      "value": "#00000000"
+    },
+    {
+      "device": 0,
+      "control": "Stop",
+      "on": "ControlPressed",
+      "action": "transport.rewind"
+    },
+    {
+      "device": 0,
+      "control": "Play",
+      "on": "ControlPressed",
+      "target": {
+        "device": 0,
+        "control": "Screen"
+      },
+      "option": "text",
+      "value": "Play/stop\n{round(60 + tempo.value * 120)} bpm"
+    },
+    {
+      "device": 0,
+      "control": "Stop",
+      "on": "ControlPressed",
+      "target": {
+        "device": 0,
+        "control": "Screen"
+      },
+      "option": "text",
+      "value": "Stopped\nback to bar 1"
+    },
+    {
+      "widget": "swing",
+      "on": "Changed",
+      "target": {
+        "device": 0,
+        "control": "Screen"
+      },
+      "option": "text",
+      "value": "Swing\n{round(50 + value * 25)}%"
+    },
+    {
+      "widget": "gate",
+      "on": "Changed",
+      "target": {
+        "device": 0,
+        "control": "Screen"
+      },
+      "option": "text",
+      "value": "Gate\n{round(max(5, value * 100))}% of a step"
+    },
+    {
+      "widget": "humanize",
+      "on": "Changed",
+      "target": {
+        "device": 0,
+        "control": "Screen"
+      },
+      "option": "text",
+      "value": "Humanize\n{round(value * 50)}% velocity"
+    },
+    {
+      "widget": "root",
+      "on": "Changed",
+      "target": {
+        "device": 0,
+        "control": "Screen"
+      },
+      "option": "text",
+      "value": {
+        "choose": [
+          "Key\nC",
+          "Key\nC#",
+          "Key\nD",
+          "Key\nD#",
+          "Key\nE",
+          "Key\nF",
+          "Key\nF#",
+          "Key\nG",
+          "Key\nG#",
+          "Key\nA",
+          "Key\nA#",
+          "Key\nB"
+        ],
+        "by": "value"
+      }
+    },
+    {
+      "widget": "scale",
+      "on": "Changed",
+      "target": {
+        "device": 0,
+        "control": "Screen"
+      },
+      "option": "text",
+      "value": {
+        "choose": [
+          "Scale\nMinor",
+          "Scale\nMajor",
+          "Scale\nDorian",
+          "Scale\nPhrygian",
+          "Scale\nMixolydian",
+          "Scale\nMinor penta",
+          "Scale\nHarmonic min",
+          "Scale\nBlues"
+        ],
+        "by": "value"
+      }
+    },
+    {
+      "widget": "arp_mode",
+      "on": "Changed",
+      "target": {
+        "device": 0,
+        "control": "Screen"
+      },
+      "option": "text",
+      "value": {
+        "choose": [
+          "Arp mode\nUp",
+          "Arp mode\nDown",
+          "Arp mode\nUpDown",
+          "Arp mode\nRandom",
+          "Arp mode\nPlayed"
+        ],
+        "by": "value"
+      }
+    },
+    {
+      "widget": "arp_octaves",
+      "on": "Changed",
+      "target": {
+        "device": 0,
+        "control": "Screen"
+      },
+      "option": "text",
+      "value": "Arp range\n{arp_octaves.number} octave(s)"
+    },
+    {
+      "widget": "space",
+      "on": "Changed",
+      "target": {
+        "device": 0,
+        "control": "Screen"
+      },
+      "option": "text",
+      "value": "Space\nreverb {round(value * 100)}%"
+    },
+    {
+      "device": 0,
+      "control": "Fader_0",
+      "on": "ControlChanged",
+      "target": {
+        "device": 0,
+        "control": "Screen"
+      },
+      "option": "text",
+      "value": "Drums\nvolume {round(value * 100)}%"
+    },
+    {
+      "device": 0,
+      "control": "Fader_1",
+      "on": "ControlChanged",
+      "target": {
+        "device": 0,
+        "control": "Screen"
+      },
+      "option": "text",
+      "value": "Bass\nvolume {round(value * 100)}%"
+    },
+    {
+      "device": 0,
+      "control": "Fader_2",
+      "on": "ControlChanged",
+      "target": {
+        "device": 0,
+        "control": "Screen"
+      },
+      "option": "text",
+      "value": "Chords\nvolume {round(value * 100)}%"
+    },
+    {
+      "device": 0,
+      "control": "Fader_3",
+      "on": "ControlChanged",
+      "target": {
+        "device": 0,
+        "control": "Screen"
+      },
+      "option": "text",
+      "value": "Arp\nvolume {round(value * 100)}%"
+    },
+    {
+      "device": 0,
+      "control": "Keys",
+      "on": "KeyPressed",
+      "target": "bass",
+      "option": "note",
+      "value": "{note if mode.number == 3 else bass.note}"
+    },
+    {
+      "device": 0,
+      "control": "Keys",
+      "on": "KeyPressed",
+      "target": "arp",
+      "action": "add",
+      "value": "{note if mode.number == 5 else -1}"
+    },
+    {
+      "device": 0,
+      "control": "Keys",
+      "on": "KeyReleased",
+      "target": "arp",
+      "action": "remove",
+      "value": {
+        "source": "note"
+      }
+    },
+    {
+      "device": 0,
+      "control": "Keys",
+      "on": "KeyPressed",
+      "target": "lead_meter",
+      "option": "value",
+      "value": "{velocity if mode.number != 3 and mode.number != 5 and lead_on.value > 0.5 else 0}"
+    },
+    {
+      "device": 0,
+      "control": "Keys",
+      "on": "KeyReleased",
+      "target": "lead_meter",
+      "option": "value",
+      "value": 0.0
+    },
+    {
+      "device": 0,
+      "control": "Sustain",
+      "on": "ControlPressed",
+      "target": "arp",
+      "option": "latch",
+      "value": true
+    },
+    {
+      "device": 0,
+      "control": "Sustain",
+      "on": "ControlReleased",
+      "target": "arp",
+      "option": "latch",
+      "value": false
+    },
+    {
+      "widget": "kick",
+      "on": "NoteOn",
+      "target": "kick_meter",
+      "option": "value",
+      "value": "{velocity}"
+    },
+    {
+      "widget": "kick",
+      "on": "NoteOff",
+      "target": "kick_meter",
+      "option": "value",
+      "value": 0.0
+    },
+    {
+      "widget": "hats",
+      "on": "NoteOn",
+      "target": "hats_meter",
+      "option": "value",
+      "value": "{velocity}"
+    },
+    {
+      "widget": "hats",
+      "on": "NoteOff",
+      "target": "hats_meter",
+      "option": "value",
+      "value": 0.0
+    },
+    {
+      "widget": "snare",
+      "on": "StepPlayed",
+      "target": "snare_meter",
+      "option": "value",
+      "value": "{velocity}"
+    },
+    {
+      "widget": "snare",
+      "on": "StepEnded",
+      "target": "snare_meter",
+      "option": "value",
+      "value": 0.0
+    },
+    {
+      "widget": "bass",
+      "on": "StepPlayed",
+      "target": "bass_meter",
+      "option": "value",
+      "value": "{velocity}"
+    },
+    {
+      "widget": "bass",
+      "on": "StepEnded",
+      "target": "bass_meter",
+      "option": "value",
+      "value": 0.0
+    },
+    {
+      "widget": "chords",
+      "on": "NoteOn",
+      "target": "chords_meter",
+      "option": "value",
+      "value": "{velocity if chords_on.value > 0.5 else 0}"
+    },
+    {
+      "widget": "chords",
+      "on": "NoteOff",
+      "target": "chords_meter",
+      "option": "value",
+      "value": 0.0
+    },
+    {
+      "widget": "arp",
+      "on": "NoteOn",
+      "target": "arp_meter",
+      "option": "value",
+      "value": "{velocity}"
+    },
+    {
+      "widget": "arp",
+      "on": "NoteOff",
+      "target": "arp_meter",
+      "option": "value",
+      "value": 0.0
+    },
+    {
+      "widget": "lead",
+      "on": "NoteOn",
+      "target": "lead_meter",
+      "option": "value",
+      "value": "{velocity if lead_on.value > 0.5 else 0}"
+    },
+    {
+      "widget": "lead",
+      "on": "NoteOff",
+      "target": "lead_meter",
+      "option": "value",
+      "value": 0.0
+    },
+    {
+      "widget": "gen",
+      "on": "NoteOn",
+      "target": "gen_meter",
+      "option": "value",
+      "value": "{velocity}"
+    },
+    {
+      "widget": "gen",
+      "on": "NoteOff",
+      "target": "gen_meter",
+      "option": "value",
+      "value": 0.0
+    },
+    {
+      "widget": "gen_random",
+      "on": "Pressed",
+      "target": "gen",
+      "action": "randomize"
+    },
+    {
+      "widget": "gen_clear",
+      "on": "Pressed",
+      "target": "gen",
+      "action": "clear"
+    },
+    {
+      "widget": "gen_random",
+      "on": "Pressed",
+      "target": {
+        "device": 0,
+        "control": "Screen"
+      },
+      "option": "text",
+      "value": "Generative\nnew cells"
+    },
+    {
+      "widget": "gen_clear",
+      "on": "Pressed",
+      "target": {
+        "device": 0,
+        "control": "Screen"
+      },
+      "option": "text",
+      "value": "Generative\ncleared"
+    },
+    {
+      "widget": "kick_on",
+      "on": "Changed",
+      "target": {
+        "device": 0,
+        "control": "Screen"
+      },
+      "option": "text",
+      "value": "Kick\n{\"on\" if value > 0.5 else \"muted\"}"
+    },
+    {
+      "widget": "hats_on",
+      "on": "Changed",
+      "target": {
+        "device": 0,
+        "control": "Screen"
+      },
+      "option": "text",
+      "value": "Hats\n{\"on\" if value > 0.5 else \"muted\"}"
+    },
+    {
+      "widget": "snare_on",
+      "on": "Changed",
+      "target": {
+        "device": 0,
+        "control": "Screen"
+      },
+      "option": "text",
+      "value": "Snare\n{\"on\" if value > 0.5 else \"muted\"}"
+    },
+    {
+      "widget": "bass_on",
+      "on": "Changed",
+      "target": {
+        "device": 0,
+        "control": "Screen"
+      },
+      "option": "text",
+      "value": "Bass\n{\"on\" if value > 0.5 else \"muted\"}"
+    },
+    {
+      "widget": "chords_on",
+      "on": "Changed",
+      "target": {
+        "device": 0,
+        "control": "Screen"
+      },
+      "option": "text",
+      "value": "Chords\n{\"on\" if value > 0.5 else \"muted\"}"
+    },
+    {
+      "widget": "arp_on",
+      "on": "Changed",
+      "target": {
+        "device": 0,
+        "control": "Screen"
+      },
+      "option": "text",
+      "value": "Arp\n{\"on\" if value > 0.5 else \"muted\"}"
+    },
+    {
+      "widget": "lead_on",
+      "on": "Changed",
+      "target": {
+        "device": 0,
+        "control": "Screen"
+      },
+      "option": "text",
+      "value": "Lead\n{\"on\" if value > 0.5 else \"muted\"}"
+    },
+    {
+      "widget": "gen_on",
+      "on": "Changed",
+      "target": {
+        "device": 0,
+        "control": "Screen"
+      },
+      "option": "text",
+      "value": "Gen\n{\"on\" if value > 0.5 else \"muted\"}"
+    },
+    {
+      "widget": "filter",
+      "on": "Changed",
+      "target": {
+        "device": 0,
+        "control": "Screen"
+      },
+      "option": "text",
+      "value": "Filter\n{round(value_x * 100)}% reso {round(value_y * 100)}%"
+    },
+    {
+      "widget": "attack",
+      "on": "Changed",
+      "target": {
+        "device": 0,
+        "control": "Screen"
+      },
+      "option": "text",
+      "value": "Attack\nlead {round(value * 100)}%"
+    },
+    {
+      "widget": "release",
+      "on": "Changed",
+      "target": {
+        "device": 0,
+        "control": "Screen"
+      },
+      "option": "text",
+      "value": "Release\nlead {round(value * 100)}%"
+    },
+    {
+      "widget": "store",
+      "on": "Pressed",
+      "target": "patterns",
+      "action": "store",
+      "value": {
+        "source": "cell"
+      }
+    },
+    {
+      "widget": "recall",
+      "on": "Pressed",
+      "target": "patterns",
+      "action": "recall",
+      "value": {
+        "source": "cell"
+      }
+    },
+    {
+      "widget": "store",
+      "on": "Pressed",
+      "target": {
+        "device": 0,
+        "control": "Screen"
+      },
+      "option": "text",
+      "value": "Pattern {cell + 1}\nstored"
+    },
+    {
+      "widget": "recall",
+      "on": "Pressed",
+      "target": {
+        "device": 0,
+        "control": "Screen"
+      },
+      "option": "text",
+      "value": "Pattern {cell + 1}\nrecalled"
+    },
+    {
+      "widget": "tempo",
+      "on": "Changed",
+      "action": "transport.tempo",
+      "value": {
+        "source": "value"
+      },
+      "min": 60,
+      "max": 180
+    },
+    {
+      "widget": "tempo",
+      "on": "Changed",
+      "target": {
+        "device": 0,
+        "control": "Screen"
+      },
+      "option": "text",
+      "value": "Tempo\n{round(60 + value * 120)} bpm"
+    },
+    {
+      "widget": "tap",
+      "on": "TempoTapped",
+      "action": "transport.tempo",
+      "value": {
+        "source": "bpm"
+      }
+    },
+    {
+      "widget": "tap",
+      "on": "TempoTapped",
+      "target": "tempo",
+      "option": "value",
+      "value": "{(min(180, max(60, bpm)) - 60) / 120}"
+    },
+    {
+      "widget": "tap",
+      "on": "TempoTapped",
+      "target": {
+        "device": 0,
+        "control": "Screen"
+      },
+      "option": "text",
+      "value": "Tapped\n{round(bpm)} bpm"
+    },
+    {
+      "device": 0,
+      "control": "Tap",
+      "on": "ControlPressed",
+      "target": "tap",
+      "action": "tap"
+    }
+  ],
+  "mappings": [
+    {
+      "widget": "space",
+      "on": "Changed",
+      "output": "synths",
+      "message": {
+        "type": "ControlChange",
+        "control": 91,
+        "channel": 1,
+        "value": {
+          "source": "value"
+        }
+      }
+    },
+    {
+      "widget": "space",
+      "on": "Changed",
+      "output": "synths",
+      "message": {
+        "type": "ControlChange",
+        "control": 91,
+        "channel": 2,
+        "value": {
+          "source": "value"
+        }
+      }
+    },
+    {
+      "widget": "space",
+      "on": "Changed",
+      "output": "synths",
+      "message": {
+        "type": "ControlChange",
+        "control": 91,
+        "channel": 3,
+        "value": {
+          "source": "value"
+        }
+      }
+    },
+    {
+      "widget": "space",
+      "on": "Changed",
+      "output": "synths",
+      "message": {
+        "type": "ControlChange",
+        "control": 91,
+        "channel": 4,
+        "value": {
+          "source": "value"
+        }
+      }
+    },
+    {
+      "widget": "space",
+      "on": "Changed",
+      "output": "synths",
+      "message": {
+        "type": "ControlChange",
+        "control": 91,
+        "channel": 5,
+        "value": {
+          "source": "value"
+        }
+      }
+    },
+    {
+      "widget": "space",
+      "on": "Changed",
+      "output": "synths",
+      "message": {
+        "type": "ControlChange",
+        "control": 91,
+        "channel": 10,
+        "value": {
+          "source": "value"
+        }
+      }
+    },
+    {
+      "device": 0,
+      "control": "Fader_0",
+      "on": "ControlChanged",
+      "output": "synths",
+      "message": {
+        "type": "ControlChange",
+        "control": 7,
+        "channel": 10,
+        "value": {
+          "source": "value"
+        }
+      }
+    },
+    {
+      "device": 0,
+      "control": "Fader_1",
+      "on": "ControlChanged",
+      "output": "synths",
+      "message": {
+        "type": "ControlChange",
+        "control": 7,
+        "channel": 2,
+        "value": {
+          "source": "value"
+        }
+      }
+    },
+    {
+      "device": 0,
+      "control": "Fader_2",
+      "on": "ControlChanged",
+      "output": "synths",
+      "message": {
+        "type": "ControlChange",
+        "control": 7,
+        "channel": 3,
+        "value": {
+          "source": "value"
+        }
+      }
+    },
+    {
+      "device": 0,
+      "control": "Fader_3",
+      "on": "ControlChanged",
+      "output": "synths",
+      "message": {
+        "type": "ControlChange",
+        "control": 7,
+        "channel": 4,
+        "value": {
+          "source": "value"
+        }
+      }
+    },
+    {
+      "device": 0,
+      "control": "Keys",
+      "on": "KeyPressed",
+      "output": "synths",
+      "message": {
+        "type": "NoteOn",
+        "channel": 1,
+        "note": {
+          "source": "note"
+        },
+        "velocity": "{velocity * 127 if mode.number != 3 and mode.number != 5 and lead_on.value > 0.5 else 0}"
+      }
+    },
+    {
+      "device": 0,
+      "control": "Keys",
+      "on": "KeyReleased",
+      "output": "synths",
+      "message": {
+        "type": "NoteOff",
+        "channel": 1,
+        "note": {
+          "source": "note"
+        }
+      }
+    },
+    {
+      "device": 0,
+      "control": "Keys",
+      "on": "KeyPressed",
+      "output": "synths",
+      "message": {
+        "type": "NoteOn",
+        "channel": 2,
+        "note": {
+          "source": "note"
+        },
+        "velocity": "{velocity * 127 if mode.number == 3 else 0}"
+      }
+    },
+    {
+      "device": 0,
+      "control": "Keys",
+      "on": "KeyReleased",
+      "output": "synths",
+      "message": {
+        "type": "NoteOff",
+        "channel": 2,
+        "note": {
+          "source": "note"
+        }
+      }
+    },
+    {
+      "device": 0,
+      "control": "Pitch",
+      "on": "ControlChanged",
+      "output": "synths",
+      "message": {
+        "type": "PitchBend",
+        "channel": 1,
+        "value": {
+          "source": "value"
+        }
+      }
+    },
+    {
+      "device": 0,
+      "control": "Mod",
+      "on": "ControlChanged",
+      "output": "synths",
+      "message": {
+        "type": "ControlChange",
+        "control": 1,
+        "channel": 1,
+        "value": {
+          "source": "value"
+        }
+      }
+    },
+    {
+      "device": 0,
+      "control": "Sustain",
+      "on": "ControlPressed",
+      "output": "synths",
+      "message": {
+        "type": "ControlChange",
+        "control": 64,
+        "channel": 1,
+        "value": 127
+      }
+    },
+    {
+      "device": 0,
+      "control": "Sustain",
+      "on": "ControlReleased",
+      "output": "synths",
+      "message": {
+        "type": "ControlChange",
+        "control": 64,
+        "channel": 1,
+        "value": 0
+      }
+    },
+    {
+      "widget": "drums",
+      "on": "NoteOn",
+      "output": "synths",
+      "message": {
+        "type": "NoteOn",
+        "channel": 10,
+        "note": {
+          "source": "note"
+        },
+        "velocity": {
+          "source": "velocity"
+        }
+      }
+    },
+    {
+      "widget": "drums",
+      "on": "NoteOff",
+      "output": "synths",
+      "message": {
+        "type": "NoteOff",
+        "channel": 10,
+        "note": {
+          "source": "note"
+        }
+      }
+    },
+    {
+      "widget": "kick",
+      "on": "NoteOn",
+      "output": "synths",
+      "message": {
+        "type": "NoteOn",
+        "channel": 10,
+        "note": {
+          "source": "note"
+        },
+        "velocity": {
+          "source": "velocity"
+        }
+      }
+    },
+    {
+      "widget": "kick",
+      "on": "NoteOff",
+      "output": "synths",
+      "message": {
+        "type": "NoteOff",
+        "channel": 10,
+        "note": {
+          "source": "note"
+        }
+      }
+    },
+    {
+      "widget": "hats",
+      "on": "NoteOn",
+      "output": "synths",
+      "message": {
+        "type": "NoteOn",
+        "channel": 10,
+        "note": {
+          "source": "note"
+        },
+        "velocity": {
+          "source": "velocity"
+        }
+      }
+    },
+    {
+      "widget": "hats",
+      "on": "NoteOff",
+      "output": "synths",
+      "message": {
+        "type": "NoteOff",
+        "channel": 10,
+        "note": {
+          "source": "note"
+        }
+      }
+    },
+    {
+      "widget": "snare",
+      "on": "StepPlayed",
+      "output": "synths",
+      "message": {
+        "type": "NoteOn",
+        "channel": 10,
+        "note": {
+          "source": "note"
+        },
+        "velocity": {
+          "source": "velocity"
+        }
+      }
+    },
+    {
+      "widget": "snare",
+      "on": "StepEnded",
+      "output": "synths",
+      "message": {
+        "type": "NoteOff",
+        "channel": 10,
+        "note": {
+          "source": "note"
+        }
+      }
+    },
+    {
+      "widget": "bass",
+      "on": "StepPlayed",
+      "output": "synths",
+      "message": {
+        "type": "NoteOn",
+        "channel": 2,
+        "note": {
+          "source": "note"
+        },
+        "velocity": {
+          "source": "velocity"
+        }
+      }
+    },
+    {
+      "widget": "bass",
+      "on": "StepEnded",
+      "output": "synths",
+      "message": {
+        "type": "NoteOff",
+        "channel": 2,
+        "note": {
+          "source": "note"
+        }
+      }
+    },
+    {
+      "widget": "chords",
+      "on": "NoteOn",
+      "output": "synths",
+      "message": {
+        "type": "NoteOn",
+        "channel": 3,
+        "note": {
+          "source": "note"
+        },
+        "velocity": "{velocity * 127 if chords_on.value > 0.5 else 0}"
+      }
+    },
+    {
+      "widget": "chords",
+      "on": "NoteOff",
+      "output": "synths",
+      "message": {
+        "type": "NoteOff",
+        "channel": 3,
+        "note": {
+          "source": "note"
+        }
+      }
+    },
+    {
+      "widget": "arp",
+      "on": "NoteOn",
+      "output": "synths",
+      "message": {
+        "type": "NoteOn",
+        "channel": 4,
+        "note": {
+          "source": "note"
+        },
+        "velocity": {
+          "source": "velocity"
+        }
+      }
+    },
+    {
+      "widget": "arp",
+      "on": "NoteOff",
+      "output": "synths",
+      "message": {
+        "type": "NoteOff",
+        "channel": 4,
+        "note": {
+          "source": "note"
+        }
+      }
+    },
+    {
+      "widget": "lead",
+      "on": "NoteOn",
+      "output": "synths",
+      "message": {
+        "type": "NoteOn",
+        "channel": 1,
+        "note": {
+          "source": "note"
+        },
+        "velocity": "{velocity * 127 if lead_on.value > 0.5 else 0}"
+      }
+    },
+    {
+      "widget": "lead",
+      "on": "NoteOff",
+      "output": "synths",
+      "message": {
+        "type": "NoteOff",
+        "channel": 1,
+        "note": {
+          "source": "note"
+        }
+      }
+    },
+    {
+      "widget": "gen",
+      "on": "NoteOn",
+      "output": "synths",
+      "message": {
+        "type": "NoteOn",
+        "channel": 5,
+        "note": {
+          "source": "note"
+        },
+        "velocity": {
+          "source": "velocity"
+        }
+      }
+    },
+    {
+      "widget": "gen",
+      "on": "NoteOff",
+      "output": "synths",
+      "message": {
+        "type": "NoteOff",
+        "channel": 5,
+        "note": {
+          "source": "note"
+        }
+      }
+    },
+    {
+      "widget": "filter",
+      "on": "Changed",
+      "output": "synths",
+      "message": {
+        "type": "ControlChange",
+        "control": 74,
+        "channel": 1,
+        "value": {
+          "source": "value_x"
+        }
+      }
+    },
+    {
+      "widget": "filter",
+      "on": "Changed",
+      "output": "synths",
+      "message": {
+        "type": "ControlChange",
+        "control": 71,
+        "channel": 1,
+        "value": {
+          "source": "value_y"
+        }
+      }
+    },
+    {
+      "widget": "filter",
+      "on": "Changed",
+      "output": "synths",
+      "message": {
+        "type": "ControlChange",
+        "control": 74,
+        "channel": 4,
+        "value": {
+          "source": "value_x"
+        }
+      }
+    },
+    {
+      "widget": "filter",
+      "on": "Changed",
+      "output": "synths",
+      "message": {
+        "type": "ControlChange",
+        "control": 71,
+        "channel": 4,
+        "value": {
+          "source": "value_y"
+        }
+      }
+    },
+    {
+      "widget": "attack",
+      "on": "Changed",
+      "output": "synths",
+      "message": {
+        "type": "ControlChange",
+        "control": 73,
+        "channel": 1,
+        "value": {
+          "source": "value"
+        }
+      }
+    },
+    {
+      "widget": "release",
+      "on": "Changed",
+      "output": "synths",
+      "message": {
+        "type": "ControlChange",
+        "control": 72,
+        "channel": 1,
+        "value": {
+          "source": "value"
+        }
+      }
+    }
+  ],
+  "widgets": [
+    {
+      "type": "Group",
+      "name": "controls",
+      "x": 0,
+      "y": 0,
+      "width": 8,
+      "height": 2,
+      "options": {
+        "visible": false
+      },
+      "widgets": [
+        {
+          "type": "Stepper",
+          "name": "mode",
+          "x": 0,
+          "y": 0,
+          "width": 1,
+          "height": 1,
+          "options": {
+            "minimum": 0,
+            "maximum": 11
+          }
+        },
+        {
+          "type": "Fader",
+          "name": "swing",
+          "x": 1,
+          "y": 0,
+          "width": 1,
+          "height": 1,
+          "options": {}
+        },
+        {
+          "type": "Fader",
+          "name": "gate",
+          "x": 2,
+          "y": 0,
+          "width": 1,
+          "height": 1,
+          "options": {
+            "value": 0.5
+          }
+        },
+        {
+          "type": "Fader",
+          "name": "humanize",
+          "x": 3,
+          "y": 0,
+          "width": 1,
+          "height": 1,
+          "options": {}
+        },
+        {
+          "type": "Stepper",
+          "name": "root",
+          "x": 4,
+          "y": 0,
+          "width": 1,
+          "height": 1,
+          "options": {
+            "minimum": 0,
+            "maximum": 11
+          }
+        },
+        {
+          "type": "Stepper",
+          "name": "scale",
+          "x": 5,
+          "y": 0,
+          "width": 1,
+          "height": 1,
+          "options": {
+            "minimum": 0,
+            "maximum": 7
+          }
+        },
+        {
+          "type": "Stepper",
+          "name": "arp_mode",
+          "x": 6,
+          "y": 0,
+          "width": 1,
+          "height": 1,
+          "options": {
+            "minimum": 0,
+            "maximum": 4
+          }
+        },
+        {
+          "type": "Stepper",
+          "name": "arp_octaves",
+          "x": 7,
+          "y": 0,
+          "width": 1,
+          "height": 1,
+          "options": {
+            "minimum": 1,
+            "maximum": 4
+          }
+        },
+        {
+          "type": "Fader",
+          "name": "space",
+          "x": 0,
+          "y": 1,
+          "width": 1,
+          "height": 1,
+          "options": {
+            "value": 0.2
+          }
+        }
+      ]
+    },
+    {
+      "type": "Pages",
+      "name": "pages",
+      "x": 0,
+      "y": 0,
+      "width": 8,
+      "height": 2,
+      "options": {
+        "selector": "Off"
+      },
+      "widgets": [
+        {
+          "type": "Presets",
+          "name": "patterns",
+          "x": 0,
+          "y": 0,
+          "width": 8,
+          "height": 2,
+          "options": {
+            "selector": "Off",
+            "presets": {
+              "0": {
+                "music": {
+                  "page": 3
+                },
+                "music/beat/kick": {
+                  "pulses": [
+                    4
+                  ],
+                  "rotations": [
+                    0
+                  ],
+                  "lengths": [
+                    null
+                  ]
+                },
+                "music/beat/hats": {
+                  "pulses": [
+                    5
+                  ],
+                  "rotations": [
+                    0
+                  ],
+                  "lengths": [
+                    null
+                  ]
+                },
+                "music/snare": {
+                  "cells": {
+                    "$array": [
+                      [
+                        false,
+                        false
+                      ],
+                      [
+                        false,
+                        false
+                      ],
+                      [
+                        false,
+                        false
+                      ],
+                      [
+                        false,
+                        false
+                      ],
+                      [
+                        true,
+                        true
+                      ],
+                      [
+                        false,
+                        false
+                      ],
+                      [
+                        false,
+                        false
+                      ],
+                      [
+                        false,
+                        true
+                      ]
+                    ],
+                    "dtype": "bool"
+                  },
+                  "velocities": {
+                    "$array": [
+                      [
+                        1.0,
+                        1.0
+                      ],
+                      [
+                        1.0,
+                        1.0
+                      ],
+                      [
+                        1.0,
+                        1.0
+                      ],
+                      [
+                        1.0,
+                        1.0
+                      ],
+                      [
+                        1.0,
+                        1.0
+                      ],
+                      [
+                        1.0,
+                        1.0
+                      ],
+                      [
+                        1.0,
+                        1.0
+                      ],
+                      [
+                        1.0,
+                        0.4
+                      ]
+                    ],
+                    "dtype": "float64"
+                  },
+                  "probabilities": {
+                    "$array": [
+                      [
+                        1.0,
+                        1.0
+                      ],
+                      [
+                        1.0,
+                        1.0
+                      ],
+                      [
+                        1.0,
+                        1.0
+                      ],
+                      [
+                        1.0,
+                        1.0
+                      ],
+                      [
+                        1.0,
+                        1.0
+                      ],
+                      [
+                        1.0,
+                        1.0
+                      ],
+                      [
+                        1.0,
+                        1.0
+                      ],
+                      [
+                        1.0,
+                        1.0
+                      ]
+                    ],
+                    "dtype": "float64"
+                  },
+                  "ratchets": {
+                    "$array": [
+                      [
+                        1,
+                        1
+                      ],
+                      [
+                        1,
+                        1
+                      ],
+                      [
+                        1,
+                        1
+                      ],
+                      [
+                        1,
+                        1
+                      ],
+                      [
+                        1,
+                        1
+                      ],
+                      [
+                        1,
+                        1
+                      ],
+                      [
+                        1,
+                        1
+                      ],
+                      [
+                        1,
+                        1
+                      ]
+                    ],
+                    "dtype": "int8"
+                  },
+                  "notes": {
+                    "$array": [
+                      [
+                        -1,
+                        -1
+                      ],
+                      [
+                        -1,
+                        -1
+                      ],
+                      [
+                        -1,
+                        -1
+                      ],
+                      [
+                        -1,
+                        -1
+                      ],
+                      [
+                        -1,
+                        -1
+                      ],
+                      [
+                        -1,
+                        -1
+                      ],
+                      [
+                        -1,
+                        -1
+                      ],
+                      [
+                        -1,
+                        -1
+                      ]
+                    ],
+                    "dtype": "int16"
+                  },
+                  "step": 0,
+                  "page": 0,
+                  "row": 0
+                },
+                "music/bass": {
+                  "cells": {
+                    "$array": [
+                      [
+                        true,
+                        true
+                      ],
+                      [
+                        false,
+                        false
+                      ],
+                      [
+                        false,
+                        true
+                      ],
+                      [
+                        true,
+                        true
+                      ],
+                      [
+                        false,
+                        false
+                      ],
+                      [
+                        false,
+                        false
+                      ],
+                      [
+                        true,
+                        true
+                      ],
+                      [
+                        false,
+                        false
+                      ]
+                    ],
+                    "dtype": "bool"
+                  },
+                  "velocities": {
+                    "$array": [
+                      [
+                        0.9,
+                        0.9
+                      ],
+                      [
+                        1.0,
+                        1.0
+                      ],
+                      [
+                        1.0,
+                        0.6
+                      ],
+                      [
+                        0.6,
+                        0.6
+                      ],
+                      [
+                        1.0,
+                        1.0
+                      ],
+                      [
+                        1.0,
+                        1.0
+                      ],
+                      [
+                        0.6,
+                        0.6
+                      ],
+                      [
+                        1.0,
+                        1.0
+                      ]
+                    ],
+                    "dtype": "float64"
+                  },
+                  "probabilities": {
+                    "$array": [
+                      [
+                        1.0,
+                        1.0
+                      ],
+                      [
+                        1.0,
+                        1.0
+                      ],
+                      [
+                        1.0,
+                        1.0
+                      ],
+                      [
+                        1.0,
+                        1.0
+                      ],
+                      [
+                        1.0,
+                        1.0
+                      ],
+                      [
+                        1.0,
+                        1.0
+                      ],
+                      [
+                        1.0,
+                        1.0
+                      ],
+                      [
+                        1.0,
+                        1.0
+                      ]
+                    ],
+                    "dtype": "float64"
+                  },
+                  "ratchets": {
+                    "$array": [
+                      [
+                        1,
+                        1
+                      ],
+                      [
+                        1,
+                        1
+                      ],
+                      [
+                        1,
+                        1
+                      ],
+                      [
+                        1,
+                        1
+                      ],
+                      [
+                        1,
+                        1
+                      ],
+                      [
+                        1,
+                        1
+                      ],
+                      [
+                        1,
+                        1
+                      ],
+                      [
+                        1,
+                        1
+                      ]
+                    ],
+                    "dtype": "int8"
+                  },
+                  "notes": {
+                    "$array": [
+                      [
+                        -1,
+                        -1
+                      ],
+                      [
+                        -1,
+                        -1
+                      ],
+                      [
+                        -1,
+                        -1
+                      ],
+                      [
+                        -1,
+                        -1
+                      ],
+                      [
+                        -1,
+                        -1
+                      ],
+                      [
+                        -1,
+                        -1
+                      ],
+                      [
+                        -1,
+                        -1
+                      ],
+                      [
+                        -1,
+                        -1
+                      ]
+                    ],
+                    "dtype": "int16"
+                  },
+                  "step": 0,
+                  "page": 0,
+                  "row": 0
+                },
+                "music/generative/gen": {
+                  "cells": {
+                    "$array": [
+                      [
+                        false,
+                        false
+                      ],
+                      [
+                        false,
+                        false
+                      ],
+                      [
+                        false,
+                        false
+                      ],
+                      [
+                        false,
+                        false
+                      ],
+                      [
+                        false,
+                        false
+                      ],
+                      [
+                        false,
+                        false
+                      ],
+                      [
+                        false,
+                        false
+                      ]
+                    ],
+                    "dtype": "bool"
+                  }
+                },
+                "music/generative/gen_random": {
+                  "value": 0.0,
+                  "switch": false,
+                  "hold": false
+                },
+                "music/generative/gen_clear": {
+                  "value": 0.0,
+                  "switch": false,
+                  "hold": false
+                },
+                "music/mutes/kick_on": {
+                  "value": 1.0,
+                  "switch": true,
+                  "hold": false
+                },
+                "music/mutes/hats_on": {
+                  "value": 1.0,
+                  "switch": true,
+                  "hold": false
+                },
+                "music/mutes/snare_on": {
+                  "value": 1.0,
+                  "switch": true,
+                  "hold": false
+                },
+                "music/mutes/bass_on": {
+                  "value": 1.0,
+                  "switch": true,
+                  "hold": false
+                },
+                "music/mutes/chords_on": {
+                  "value": 1.0,
+                  "switch": true,
+                  "hold": false
+                },
+                "music/mutes/arp_on": {
+                  "value": 1.0,
+                  "switch": true,
+                  "hold": false
+                },
+                "music/mutes/lead_on": {
+                  "value": 1.0,
+                  "switch": true,
+                  "hold": false
+                },
+                "music/mutes/gen_on": {
+                  "value": 0.0,
+                  "switch": false,
+                  "hold": false
+                },
+                "music/mutes/kick_meter": {
+                  "value": 0.0
+                },
+                "music/mutes/hats_meter": {
+                  "value": 0.0
+                },
+                "music/mutes/snare_meter": {
+                  "value": 0.0
+                },
+                "music/mutes/bass_meter": {
+                  "value": 0.0
+                },
+                "music/mutes/chords_meter": {
+                  "value": 0.0
+                },
+                "music/mutes/arp_meter": {
+                  "value": 0.0
+                },
+                "music/mutes/lead_meter": {
+                  "value": 0.0
+                },
+                "music/mutes/gen_meter": {
+                  "value": 0.0
+                }
+              }
+            }
+          },
+          "widgets": [
+            {
+              "type": "Pages",
+              "name": "music",
+              "x": 0,
+              "y": 0,
+              "width": 8,
+              "height": 2,
+              "options": {
+                "selector": "Off"
+              },
+              "widgets": [
+                {
+                  "type": "DrumPads",
+                  "name": "drums",
+                  "x": 0,
+                  "y": 0,
+                  "width": 8,
+                  "height": 2,
+                  "options": {
+                    "note": 36,
+                    "active_color": "#ffffff",
+                    "inactive_color": "#1f0c00",
+                    "velocity_random": "{humanize.value * 0.5}"
+                  }
+                },
+                {
+                  "type": "Group",
+                  "name": "beat",
+                  "x": 0,
+                  "y": 0,
+                  "width": 8,
+                  "height": 2,
+                  "options": {},
+                  "widgets": [
+                    {
+                      "type": "Euclidean",
+                      "name": "kick",
+                      "x": 0,
+                      "y": 0,
+                      "width": 8,
+                      "height": 1,
+                      "options": {
+                        "rate": "1/8",
+                        "note": 36,
+                        "active_color": "#ff2000",
+                        "inactive_color": "#1f0400",
+                        "running": "{kick_on.value > 0.5}",
+                        "velocity_random": "{humanize.value * 0.5}"
+                      }
+                    },
+                    {
+                      "type": "Euclidean",
+                      "name": "hats",
+                      "x": 0,
+                      "y": 1,
+                      "width": 8,
+                      "height": 1,
+                      "options": {
+                        "note": 42,
+                        "active_color": "#ffd000",
+                        "inactive_color": "#1f1a00",
+                        "running": "{hats_on.value > 0.5}",
+                        "velocity_random": "{humanize.value * 0.5}"
+                      }
+                    }
+                  ]
+                },
+                {
+                  "type": "Sequencer",
+                  "name": "snare",
+                  "x": 0,
+                  "y": 0,
+                  "width": 8,
+                  "height": 2,
+                  "options": {
+                    "steps": 16,
+                    "note": 38,
+                    "active_color": "#ff8000",
+                    "inactive_color": "#1f1000",
+                    "current_color": "#303030",
+                    "current_active_color": "#ffffff",
+                    "swing": "{50 + swing.value * 25}",
+                    "gate": "{max(0.05, gate.value)}",
+                    "velocity_random": "{humanize.value * 0.5}",
+                    "running": "{snare_on.value > 0.5}"
+                  }
+                },
+                {
+                  "type": "Sequencer",
+                  "name": "bass",
+                  "x": 0,
+                  "y": 0,
+                  "width": 8,
+                  "height": 2,
+                  "options": {
+                    "steps": 16,
+                    "note": 36,
+                    "active_color": "#0060ff",
+                    "inactive_color": "#000c1f",
+                    "current_color": "#303030",
+                    "current_active_color": "#ffffff",
+                    "swing": "{50 + swing.value * 25}",
+                    "gate": "{max(0.05, gate.value)}",
+                    "velocity_random": "{humanize.value * 0.5}",
+                    "running": "{bass_on.value > 0.5}"
+                  }
+                },
+                {
+                  "type": "ChordPads",
+                  "name": "chords",
+                  "x": 0,
+                  "y": 0,
+                  "width": 8,
+                  "height": 2,
+                  "options": {
+                    "octave": 4,
+                    "active_color": "#ffffff",
+                    "inactive_color": "#001f08",
+                    "root_color": "#00ff40",
+                    "velocity_random": "{humanize.value * 0.5}",
+                    "root": "{root.number}",
+                    "scale": "{'Minor' if scale.number == 0 else 'Major' if scale.number == 1 else 'Dorian' if scale.number == 2 else 'Phrygian' if scale.number == 3 else 'Mixolydian' if scale.number == 4 else 'MinorPentatonic' if scale.number == 5 else 'MinorHarmonic' if scale.number == 6 else 'MinorBlues'}"
+                  }
+                },
+                {
+                  "type": "Arpeggiator",
+                  "name": "arp",
+                  "x": 0,
+                  "y": 0,
+                  "width": 8,
+                  "height": 2,
+                  "options": {
+                    "octave": 4,
+                    "active_color": "#00e0ff",
+                    "inactive_color": "#001c1f",
+                    "root_color": "#004060",
+                    "mode": "{arp_mode.number}",
+                    "octaves": "{arp_octaves.number}",
+                    "gate": "{max(0.05, gate.value)}",
+                    "velocity_random": "{humanize.value * 0.5}",
+                    "running": "{arp_on.value > 0.5}",
+                    "root": "{root.number}",
+                    "scale": "{'Minor' if scale.number == 0 else 'Major' if scale.number == 1 else 'Dorian' if scale.number == 2 else 'Phrygian' if scale.number == 3 else 'Mixolydian' if scale.number == 4 else 'MinorPentatonic' if scale.number == 5 else 'MinorHarmonic' if scale.number == 6 else 'MinorBlues'}"
+                  }
+                },
+                {
+                  "type": "Keyboard",
+                  "name": "lead",
+                  "x": 0,
+                  "y": 0,
+                  "width": 8,
+                  "height": 2,
+                  "options": {
+                    "octave": 5,
+                    "type": "Diatonic",
+                    "root_color": "#ff00c0",
+                    "keyboard_color": "#1f0018",
+                    "active_color": "#ffffff",
+                    "velocity_random": "{humanize.value * 0.5}",
+                    "root": "{root.number}",
+                    "scale": "{'Minor' if scale.number == 0 else 'Major' if scale.number == 1 else 'Dorian' if scale.number == 2 else 'Phrygian' if scale.number == 3 else 'Mixolydian' if scale.number == 4 else 'MinorPentatonic' if scale.number == 5 else 'MinorHarmonic' if scale.number == 6 else 'MinorBlues'}"
+                  }
+                },
+                {
+                  "type": "Group",
+                  "name": "generative",
+                  "x": 0,
+                  "y": 0,
+                  "width": 8,
+                  "height": 2,
+                  "options": {},
+                  "widgets": [
+                    {
+                      "type": "Automaton",
+                      "name": "gen",
+                      "x": 0,
+                      "y": 0,
+                      "width": 7,
+                      "height": 2,
+                      "options": {
+                        "rate": "1/8",
+                        "octave": 5,
+                        "max_notes": 3,
+                        "active_color": "#8000ff",
+                        "inactive_color": "#080010",
+                        "running": "{gen_on.value > 0.5}",
+                        "velocity_random": "{humanize.value * 0.5}",
+                        "root": "{root.number}",
+                        "scale": "{'Minor' if scale.number == 0 else 'Major' if scale.number == 1 else 'Dorian' if scale.number == 2 else 'Phrygian' if scale.number == 3 else 'Mixolydian' if scale.number == 4 else 'MinorPentatonic' if scale.number == 5 else 'MinorHarmonic' if scale.number == 6 else 'MinorBlues'}"
+                      }
+                    },
+                    {
+                      "type": "Button",
+                      "name": "gen_random",
+                      "x": 7,
+                      "y": 1,
+                      "width": 1,
+                      "height": 1,
+                      "options": {
+                        "active_color": "#ffffff",
+                        "inactive_color": "#300060"
+                      }
+                    },
+                    {
+                      "type": "Button",
+                      "name": "gen_clear",
+                      "x": 7,
+                      "y": 0,
+                      "width": 1,
+                      "height": 1,
+                      "options": {
+                        "active_color": "#ffffff",
+                        "inactive_color": "#200000"
+                      }
+                    }
+                  ]
+                },
+                {
+                  "type": "Group",
+                  "name": "mutes",
+                  "x": 0,
+                  "y": 0,
+                  "width": 8,
+                  "height": 2,
+                  "options": {},
+                  "widgets": [
+                    {
+                      "type": "Button",
+                      "name": "kick_on",
+                      "x": 0,
+                      "y": 1,
+                      "width": 1,
+                      "height": 1,
+                      "options": {
+                        "mode": "Switch",
+                        "value": 1.0,
+                        "active_color": "#ff2000",
+                        "inactive_color": "#000000"
+                      }
+                    },
+                    {
+                      "type": "Button",
+                      "name": "hats_on",
+                      "x": 1,
+                      "y": 1,
+                      "width": 1,
+                      "height": 1,
+                      "options": {
+                        "mode": "Switch",
+                        "value": 1.0,
+                        "active_color": "#ffd000",
+                        "inactive_color": "#000000"
+                      }
+                    },
+                    {
+                      "type": "Button",
+                      "name": "snare_on",
+                      "x": 2,
+                      "y": 1,
+                      "width": 1,
+                      "height": 1,
+                      "options": {
+                        "mode": "Switch",
+                        "value": 1.0,
+                        "active_color": "#ff8000",
+                        "inactive_color": "#000000"
+                      }
+                    },
+                    {
+                      "type": "Button",
+                      "name": "bass_on",
+                      "x": 3,
+                      "y": 1,
+                      "width": 1,
+                      "height": 1,
+                      "options": {
+                        "mode": "Switch",
+                        "value": 1.0,
+                        "active_color": "#0060ff",
+                        "inactive_color": "#000000"
+                      }
+                    },
+                    {
+                      "type": "Button",
+                      "name": "chords_on",
+                      "x": 4,
+                      "y": 1,
+                      "width": 1,
+                      "height": 1,
+                      "options": {
+                        "mode": "Switch",
+                        "value": 1.0,
+                        "active_color": "#00ff40",
+                        "inactive_color": "#000000"
+                      }
+                    },
+                    {
+                      "type": "Button",
+                      "name": "arp_on",
+                      "x": 5,
+                      "y": 1,
+                      "width": 1,
+                      "height": 1,
+                      "options": {
+                        "mode": "Switch",
+                        "value": 1.0,
+                        "active_color": "#00e0ff",
+                        "inactive_color": "#000000"
+                      }
+                    },
+                    {
+                      "type": "Button",
+                      "name": "lead_on",
+                      "x": 6,
+                      "y": 1,
+                      "width": 1,
+                      "height": 1,
+                      "options": {
+                        "mode": "Switch",
+                        "value": 1.0,
+                        "active_color": "#ff00c0",
+                        "inactive_color": "#000000"
+                      }
+                    },
+                    {
+                      "type": "Button",
+                      "name": "gen_on",
+                      "x": 7,
+                      "y": 1,
+                      "width": 1,
+                      "height": 1,
+                      "options": {
+                        "mode": "Switch",
+                        "value": 0.0,
+                        "active_color": "#8000ff",
+                        "inactive_color": "#000000"
+                      }
+                    },
+                    {
+                      "type": "Meter",
+                      "name": "kick_meter",
+                      "x": 0,
+                      "y": 0,
+                      "width": 1,
+                      "height": 1,
+                      "options": {
+                        "hold": 0.0,
+                        "falloff": 4.0,
+                        "warning": 1.0,
+                        "danger": 1.0,
+                        "active_color": "#ff2000",
+                        "inactive_color": "#1f0400"
+                      }
+                    },
+                    {
+                      "type": "Meter",
+                      "name": "hats_meter",
+                      "x": 1,
+                      "y": 0,
+                      "width": 1,
+                      "height": 1,
+                      "options": {
+                        "hold": 0.0,
+                        "falloff": 4.0,
+                        "warning": 1.0,
+                        "danger": 1.0,
+                        "active_color": "#ffd000",
+                        "inactive_color": "#1f1a00"
+                      }
+                    },
+                    {
+                      "type": "Meter",
+                      "name": "snare_meter",
+                      "x": 2,
+                      "y": 0,
+                      "width": 1,
+                      "height": 1,
+                      "options": {
+                        "hold": 0.0,
+                        "falloff": 4.0,
+                        "warning": 1.0,
+                        "danger": 1.0,
+                        "active_color": "#ff8000",
+                        "inactive_color": "#1f1000"
+                      }
+                    },
+                    {
+                      "type": "Meter",
+                      "name": "bass_meter",
+                      "x": 3,
+                      "y": 0,
+                      "width": 1,
+                      "height": 1,
+                      "options": {
+                        "hold": 0.0,
+                        "falloff": 4.0,
+                        "warning": 1.0,
+                        "danger": 1.0,
+                        "active_color": "#0060ff",
+                        "inactive_color": "#000c1f"
+                      }
+                    },
+                    {
+                      "type": "Meter",
+                      "name": "chords_meter",
+                      "x": 4,
+                      "y": 0,
+                      "width": 1,
+                      "height": 1,
+                      "options": {
+                        "hold": 0.0,
+                        "falloff": 4.0,
+                        "warning": 1.0,
+                        "danger": 1.0,
+                        "active_color": "#00ff40",
+                        "inactive_color": "#001f08"
+                      }
+                    },
+                    {
+                      "type": "Meter",
+                      "name": "arp_meter",
+                      "x": 5,
+                      "y": 0,
+                      "width": 1,
+                      "height": 1,
+                      "options": {
+                        "hold": 0.0,
+                        "falloff": 4.0,
+                        "warning": 1.0,
+                        "danger": 1.0,
+                        "active_color": "#00e0ff",
+                        "inactive_color": "#001c1f"
+                      }
+                    },
+                    {
+                      "type": "Meter",
+                      "name": "lead_meter",
+                      "x": 6,
+                      "y": 0,
+                      "width": 1,
+                      "height": 1,
+                      "options": {
+                        "hold": 0.0,
+                        "falloff": 4.0,
+                        "warning": 1.0,
+                        "danger": 1.0,
+                        "active_color": "#ff00c0",
+                        "inactive_color": "#1f0018"
+                      }
+                    },
+                    {
+                      "type": "Meter",
+                      "name": "gen_meter",
+                      "x": 7,
+                      "y": 0,
+                      "width": 1,
+                      "height": 1,
+                      "options": {
+                        "hold": 0.0,
+                        "falloff": 4.0,
+                        "warning": 1.0,
+                        "danger": 1.0,
+                        "active_color": "#8000ff",
+                        "inactive_color": "#10001f"
+                      }
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "type": "Group",
+          "name": "fx",
+          "x": 0,
+          "y": 0,
+          "width": 8,
+          "height": 2,
+          "options": {},
+          "widgets": [
+            {
+              "type": "XY",
+              "name": "filter",
+              "x": 0,
+              "y": 0,
+              "width": 4,
+              "height": 2,
+              "options": {
+                "spring": true,
+                "rest": [
+                  1.0,
+                  0.0
+                ],
+                "value": [
+                  1.0,
+                  0.0
+                ],
+                "x_color": "#ff00c0",
+                "y_color": "#00e0ff"
+              }
+            },
+            {
+              "type": "Knob",
+              "name": "attack",
+              "x": 4,
+              "y": 0,
+              "width": 2,
+              "height": 2,
+              "options": {
+                "type": "Single",
+                "value": 0.0,
+                "active_color": "#ffa000",
+                "inactive_color": "#140c00"
+              }
+            },
+            {
+              "type": "Knob",
+              "name": "release",
+              "x": 6,
+              "y": 0,
+              "width": 2,
+              "height": 2,
+              "options": {
+                "type": "Single",
+                "value": 0.3,
+                "active_color": "#00a0ff",
+                "inactive_color": "#000c14"
+              }
+            }
+          ]
+        },
+        {
+          "type": "Group",
+          "name": "slots",
+          "x": 0,
+          "y": 0,
+          "width": 8,
+          "height": 2,
+          "options": {},
+          "widgets": [
+            {
+              "type": "ButtonGroup",
+              "name": "store",
+              "x": 0,
+              "y": 1,
+              "width": 8,
+              "height": 1,
+              "options": {
+                "mode": "Button",
+                "active_color": "#ffffff",
+                "inactive_color": "#300000"
+              }
+            },
+            {
+              "type": "ButtonGroup",
+              "name": "recall",
+              "x": 0,
+              "y": 0,
+              "width": 8,
+              "height": 1,
+              "options": {
+                "mode": "Switch",
+                "active_color": "#00ff60",
+                "inactive_color": "#003018"
+              }
+            }
+          ]
+        },
+        {
+          "type": "Group",
+          "name": "timing",
+          "x": 0,
+          "y": 0,
+          "width": 8,
+          "height": 2,
+          "options": {},
+          "widgets": [
+            {
+              "type": "TapTempo",
+              "name": "tap",
+              "x": 0,
+              "y": 0,
+              "width": 2,
+              "height": 2,
+              "options": {
+                "active_color": "#ff4000",
+                "inactive_color": "#200800"
+              }
+            },
+            {
+              "type": "Stepper",
+              "name": "tempo",
+              "x": 2,
+              "y": 0,
+              "width": 2,
+              "height": 2,
+              "options": {
+                "minimum": 60,
+                "maximum": 180,
+                "value": 0.5,
+                "active_color": "#ffa000"
+              }
+            },
+            {
+              "type": "Sprite",
+              "name": "beats",
+              "x": 4,
+              "y": 0,
+              "width": 4,
+              "height": 2,
+              "options": {
+                "frames": [
+                  [
+                    [
+                      "#ff0000",
+                      "#101010",
+                      "#101010",
+                      "#101010"
+                    ],
+                    [
+                      "#ff0000",
+                      "#101010",
+                      "#101010",
+                      "#101010"
+                    ]
+                  ],
+                  [
+                    [
+                      "#101010",
+                      "#ffffff",
+                      "#101010",
+                      "#101010"
+                    ],
+                    [
+                      "#101010",
+                      "#ffffff",
+                      "#101010",
+                      "#101010"
+                    ]
+                  ],
+                  [
+                    [
+                      "#101010",
+                      "#101010",
+                      "#ffffff",
+                      "#101010"
+                    ],
+                    [
+                      "#101010",
+                      "#101010",
+                      "#ffffff",
+                      "#101010"
+                    ]
+                  ],
+                  [
+                    [
+                      "#101010",
+                      "#101010",
+                      "#101010",
+                      "#ffffff"
+                    ],
+                    [
+                      "#101010",
+                      "#101010",
+                      "#101010",
+                      "#ffffff"
+                    ]
+                  ]
+                ],
+                "rate": "1/4"
+              }
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}
