@@ -20,6 +20,15 @@ option or property, never a method or a name starting with ``_``; choices
 read as their name, ``roll.follow == 'Page'``), ``+ - * / // % **``,
 comparisons, ``and``/``or``/``not``, ``a if test else b`` and the
 ``FUNCTIONS``. Python's ``eval`` is not used: nothing else runs.
+
+``skip`` is a result meaning "do nothing this time": a link with it changes
+nothing (an action isn't called), a message with it isn't sent and an
+option's formula leaves the option as it is::
+
+    {note if pages.page == 3 else skip}       # only on page 4
+    {velocity * 127 if velocity > 0 else skip}
+
+A template with a part that is ``skip`` is ``skip`` as a whole.
 """
 
 import ast
@@ -28,7 +37,7 @@ import math
 import operator
 import re
 
-__all__ = ['Expression', 'Template', 'ExpressionError', 'FUNCTIONS', 'parse', 'is_expression']
+__all__ = ['Expression', 'Template', 'ExpressionError', 'FUNCTIONS', 'SKIP', 'parse', 'is_expression']
 
 class ExpressionError(ValueError):
     """An expression that doesn't parse, or can't be computed (an unknown name, a division by zero...)."""
@@ -40,7 +49,22 @@ def _clamp(value, low, high):
 FUNCTIONS = {'min': min, 'max': max, 'abs': abs, 'round': round, 'int': int, 'float': float, 'str': str, 'bool': bool,
              'floor': math.floor, 'ceil': math.ceil, 'clamp': _clamp}
 
-_CONSTANTS = {'true': True, 'false': False, 'True': True, 'False': False, 'none': None, 'None': None, 'pi': math.pi}
+class _Skip:
+    """The ``skip`` result (``SKIP``): whatever computed it does nothing this time."""
+
+    #: What message.py looks for (it imports nothing)
+    skips = True
+
+    def __repr__(self) -> str:
+        return 'SKIP'
+
+    def __reduce__(self):
+        return 'SKIP'
+
+#: The result meaning "do nothing this time" (``skip`` in expressions)
+SKIP = _Skip()
+
+_CONSTANTS = {'skip': SKIP, 'true': True, 'false': False, 'True': True, 'False': False, 'none': None, 'None': None, 'pi': math.pi}
 
 _BINARY = {ast.Add: operator.add, ast.Sub: operator.sub, ast.Mult: operator.mul, ast.Div: operator.truediv,
            ast.FloorDiv: operator.floordiv, ast.Mod: operator.mod, ast.Pow: operator.pow}
@@ -245,14 +269,17 @@ class Template:
         return [reference for part in self.expressions for reference in part.references()]
 
     def evaluate(self, values: dict | None = None, *, keep_unknown: bool = False, show = _text) -> str:
-        """The text filled in; with ``keep_unknown`` a part that can't be computed stays as written."""
+        """The text filled in (SKIP if a part is); with ``keep_unknown`` a part that can't be computed stays as written."""
         text = []
         for part in self.parts:
             if not isinstance(part, Expression):
                 text.append(part)
                 continue
             try:
-                text.append(show(part.evaluate(values)))
+                result = part.evaluate(values)
+                if result is SKIP:
+                    return SKIP
+                text.append(show(result))
             except ExpressionError:
                 if not keep_unknown:
                     raise
