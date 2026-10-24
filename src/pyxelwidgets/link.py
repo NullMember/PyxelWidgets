@@ -69,6 +69,12 @@ choices by name or index, colors from "#rrggbb"); minimum and maximum clamp
 numbers. An expression that can't be computed for an event is printed and
 changes nothing.
 
+``SKIP`` (``skip`` in an expression, also a Condition's or Choice's value)
+does nothing for that event: the option stays, the action isn't called::
+
+    Link(keys, bass, 'note', Expression('note if pages.page == 3 else skip', {'pages': pages}), on = KeyPressed)
+    Link(tabs, panel, 'visible', Condition(Source('cell'), '<', 4, True, SKIP), on = Toggled)
+
 A ``Formula`` keeps an option at what an expression computes, whenever it
 changes (``surface.formula`` creates one updated every frame)::
 
@@ -76,7 +82,12 @@ changes (``surface.formula`` creates one updated every frame)::
 
 Options change through ``target.configure``, which doesn't emit events, so
 links don't trigger each other in loops (Pages emits PageChanged for a new
-page; a link doesn't run again while it is running).
+page; a link doesn't run again while it is running). With ``emit`` a link
+setting a widget's ``value`` makes it emit ``Changed`` as if it had been
+played, so its own links and mappings follow (a button jumping to a page
+where the page selector's links do the rest)::
+
+    Link(shortcut, selector, 'value', 0.5, on = Pressed, emit = True)
 """
 
 import dataclasses
@@ -85,11 +96,15 @@ import operator
 import typing
 
 import pyxelwidgets.color
+import pyxelwidgets.events
 import pyxelwidgets.expression
 import pyxelwidgets.mapping
 import pyxelwidgets.message
 
-__all__ = ['Link', 'Condition', 'Choice', 'Formula']
+__all__ = ['Link', 'Condition', 'Choice', 'Formula', 'SKIP']
+
+#: A link value doing nothing for that event
+SKIP = pyxelwidgets.expression.SKIP
 
 #: Computed link values: evaluated with the event's values
 COMPUTED = (pyxelwidgets.expression.Expression, pyxelwidgets.expression.Template)
@@ -208,7 +223,8 @@ class Link:
     On each ``on`` event of ``widget``, changes ``option`` of ``target`` to
     ``value`` (``Change.Set``), by ``value`` (``Change.Add``) or to the next
     state (``Change.Toggle``, which takes no value). Without ``option``,
-    ``target`` is called (with ``value`` if given). See the module docs.
+    ``target`` is called (with ``value`` if given). With ``emit`` (only for
+    a widget's ``value``) the target emits Changed. See the module docs.
     """
 
     class Change(enum.Enum):
@@ -217,7 +233,7 @@ class Link:
         Toggle  = enum.auto()
 
     def __init__(self, widget, target, option: str | None = None, value = None, *, on: type,
-                 change: Change = Change.Set, minimum = None, maximum = None) -> None:
+                 change: Change = Change.Set, minimum = None, maximum = None, emit: bool = False) -> None:
         if option is None:
             if not callable(target):
                 raise ValueError('without an option the target must be an action (a callable)')
@@ -233,6 +249,8 @@ class Link:
             raise ValueError(f'only on/off and choice options toggle, not {option!r}')
         if change == Link.Change.Add and kind not in ('int', 'float', 'enum'):
             raise ValueError(f'only numbers and choices can be added to, not {option!r}')
+        if emit and (option != 'value' or not callable(getattr(target, 'set_value', None))):
+            raise ValueError('only a link setting a widget\'s value can emit Changed')
         if change != Link.Change.Toggle and value is None and kind != 'action':
             raise ValueError('a value is needed to set or add')
         if isinstance(value, COMPUTED):
@@ -260,6 +278,7 @@ class Link:
         self.change = change
         self.minimum = minimum
         self.maximum = maximum
+        self.emit = emit
         self._kind = kind
         # What a color covers up to by default
         self._color = current if kind == 'color' else None
@@ -277,21 +296,28 @@ class Link:
             if self._kind == 'action':
                 if self.value is None:
                     self.target()
-                else:
-                    self.target(self.argument(pyxelwidgets.mapping.sources(event, self.widget)))
+                    return
+                argument = self.argument(pyxelwidgets.mapping.sources(event, self.widget))
+                if argument is not SKIP:
+                    self.target(argument)
                 return
             current = getattr(self.target, self.option)
             new = self.apply(current, pyxelwidgets.mapping.sources(event, self.widget))
-            if new != current:
+            if new is not SKIP and new != current:
                 self.target.configure(**{self.option: new})
+                # What it took (a Stepper snaps): only a real change is sent
+                if self.emit and self.target.value != current:
+                    self.target.emit(pyxelwidgets.events.Changed(self.target, self.target.value))
         except pyxelwidgets.expression.ExpressionError as error:
             print(f'Link from {getattr(self.widget, "name", self.widget)}: {error}', flush = True)
         finally:
             self._running = False
 
     def argument(self, sources: dict):
-        """An action's argument from the event's ``sources``."""
+        """An action's argument from the event's ``sources`` (SKIP: not called)."""
         value = self.value.choose(sources) if isinstance(self.value, CHOOSERS) else self.value
+        if value is SKIP:
+            return SKIP
         if isinstance(value, (str, pyxelwidgets.expression.Template)):
             return fill_text(value, sources)
         if isinstance(value, pyxelwidgets.expression.Expression):
@@ -314,7 +340,7 @@ class Link:
         return int(round(number)) if isinstance(low, int) and isinstance(high, int) and (low, high) != (0, 1) else number
 
     def apply(self, current, sources: dict):
-        """The option's new value, from ``current`` and the event's ``sources``."""
+        """The option's new value, from ``current`` and the event's ``sources`` (SKIP: unchanged)."""
         kind = self._kind
         if self.change == Link.Change.Toggle:
             if kind == 'bool':
@@ -326,13 +352,15 @@ class Link:
             given = given.evaluate(sources)
         elif isinstance(given, pyxelwidgets.expression.Expression):
             given = given.evaluate(sources)
-            if self.change != Link.Change.Add:
+            if given is not SKIP and self.change != Link.Change.Add:
                 given = convert(kind, given, current)
         if self.change == Link.Change.Add:
             if isinstance(given, pyxelwidgets.message.Source):
                 # As the event has it: whole number steps (delta...) or 0.0-1.0
                 source = sources[given.name]
                 value = int(source) + given.offset if given.integer else float(source)
+            elif given is SKIP:
+                return SKIP
             else:
                 value = given
             if kind == 'enum':
@@ -342,6 +370,8 @@ class Link:
             value = int(round(value)) if kind == 'int' else float(value)
         elif isinstance(given, pyxelwidgets.message.Source):
             value = self._source(sources, current)
+        elif given is SKIP:
+            return SKIP
         else:
             value = given
         if kind in ('int', 'float') and not isinstance(value, bool):
@@ -432,7 +462,7 @@ class Formula:
     """
     Keeps ``option`` of ``target`` at what ``expression`` (an Expression, or
     a Template for text) computes: ``refresh()`` changes it (through
-    ``configure``) when the result differs. ``error`` says why the last
+    ``configure``) when the result differs (SKIP keeps it). ``error`` says why the last
     refresh couldn't (and the option stays as it was), else None.
     """
 
@@ -451,7 +481,11 @@ class Formula:
         """Compute the option again; True if it changed."""
         current = getattr(self.target, self.option)
         try:
-            value = convert(self._kind, self.expression.evaluate(), current)
+            value = self.expression.evaluate()
+            if value is SKIP:
+                self.error = None
+                return False
+            value = convert(self._kind, value, current)
             if value != current:
                 self.target.configure(**{self.option: value})
         except (ValueError, TypeError) as error:
