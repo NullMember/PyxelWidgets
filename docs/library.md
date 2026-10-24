@@ -82,7 +82,8 @@ For playing live:
   `launch_scene`, `stop_track` and `stop_all` are actions links can call.
 - **`Meter`:** a level meter with green, yellow and red zones, peak hold and
   an optional falloff. It shows values from links, mappings (a DAW's meters)
-  or code. `MeterBank` is a row of them, one per column, picked by a
+  or code. With `decay` (seconds) each value is a hit that fades away: link a
+  voice's NoteOn velocity to it and it flashes with each note. `MeterBank` is a row of them, one per column, picked by a
   received `x` (`Command('Meter {x+1}')` from Mackie Control).
 - **`TapTempo`:** tap it in time; it emits `TempoTapped` with the tempo (link
   it to the transport's tempo) and blinks on the beat.
@@ -350,6 +351,54 @@ surface.link(tabs, pad, 'active_color', Condition(Source('x'), '<', 4, Colors.Re
 In the designer, pick *condition…* as the value. When a Switch ButtonGroup
 changes its cell, the cell turned off is reported first, so the new choice
 always comes last.
+
+`SKIP` (in a condition or a list, or `skip` in a formula) does nothing for
+that event: the option stays as it is and an action isn't called. Keys that
+set a bass line's note only while its page shows:
+
+```python
+from pyxelwidgets import Expression, KeyPressed, SKIP
+
+surface.link(keys, bass, 'note', Expression('note if pages.page == 3 else skip', {'pages': pages}), on = KeyPressed)
+surface.link(tabs, panel, 'visible', Condition(Source('cell'), '<', 4, True, SKIP), on = Toggled)
+```
+
+A message with a field that computes `skip` isn't sent
+(`NoteOn(36, Expression('velocity * 127 if velocity > 0 else skip'))`), and an
+option's formula giving `skip` leaves the option as it is.
+
+Options changed by links emit nothing, so links don't set each other off.
+When they should, `emit = True` on a link setting a widget's `value` makes
+that widget emit `Changed` as if it had been played: a shortcut button
+setting a page selector lets the selector's own links switch the page, name
+it on a screen and light its buttons:
+
+```python
+surface.link(shortcut, selector, 'value', 1.0, on = Pressed, emit = True)
+```
+
+In the designer it's the *send Changed* box of a link setting `value`.
+
+### A key for every widget
+
+A layout's `key` (`{"root": "D", "scale": "Dorian"}`, the Surface panel's
+*Key*) is shared by widgets whose `root` and `scale` are the formulas
+`{key.root}` and `{key.scale}` (*Make widgets follow it* sets them on every
+widget having both). Links change it with the target *Key*: set the scale
+from a knob or a list, add semitones to the root, toggle to the next scale.
+In code it's a `Key`:
+
+```python
+from pyxelwidgets import Key, Root, Scale
+
+key = Key(root = Root.D, scale = Scale.Dorian)
+for widget in (chords, arp, lead):
+    surface.formula(widget, 'root', Expression('key.root', {'key': key}))
+    surface.formula(widget, 'scale', Expression('key.scale', {'key': key}))
+surface.link(up, key, 'root', 1, on = Pressed, change = Link.Change.Add)     # a semitone up
+```
+
+Widgets can't be named `key` or `transport`: formulas and links use the names.
 
 A link to the debug log writes a text filled in from the event (`'pad {x}
 at {velocity}'`, `{all}` for every value, the default): in the designer it

@@ -2,6 +2,25 @@
 
 ## Unreleased
 
+- **Skip:** a link or message can do nothing for an event: `skip` in a
+  formula (`{note if pages.page == 3 else skip}`), `{"skip": true}` in a
+  condition or list. A message with a skipped field isn't sent, so a mapping
+  can send only when something holds; a formula giving `skip` keeps the option.
+- **Links that send Changed:** `"emit": true` on a link setting a widget's
+  value makes the widget emit Changed, so its own links and messages follow
+  (shortcuts to a page selector).
+- **A key for every widget:** the layout's `key` (root and scale, the Surface
+  panel's *Key*), followed by widgets with `{key.root}`/`{key.scale}` and
+  changed by links (target *Key*). `key` and `transport` can't be widget names.
+- **Channel lists:** a MIDI message's channel can be a list, `[1, 2, 10]`
+  ("1, 3-5" in the designer): sent on each, received from any.
+- **Meter decay:** `decay` seconds for a value to fade away, so a meter
+  flashes with each hit (`Meter`, `MeterBank`).
+- **Screen texts too long** for a device's screen are a problem in the designer.
+- **Layout format version 5:** the above.
+- **Example MiniLab Studio:** a MiniLab 3 on its own, with every widget that
+  fits on 16 pads.
+
 - **Clock out:** the transport's MIDI clock, start/stop and position go out
   through outputs (`transport.clock`, *Send MIDI clock*), so a DAW follows the
   controllers.

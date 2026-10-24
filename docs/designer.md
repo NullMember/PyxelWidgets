@@ -84,7 +84,13 @@ A widget's *Behaviour* section lists what it does and what changes it:
 - **Links** change other widgets when this one does: a button shows a page, a
   fader sets the tempo, a ButtonGroup cell picks a sequencer. A link's value
   can be a constant, a value from the event, a condition ("1 when cell is 3,
-  else 0"), a pick from a list, or a formula. A link to the *Debug log* writes
+  else 0"), a pick from a list, or a formula; *skip* (a box next to a
+  condition's or list's values, or `skip` in a formula) does nothing for that
+  event. A link setting a widget's value can *send Changed*, so that widget's
+  own links and messages follow. The target *Key* changes the layout's key
+  (Surface panel), which widgets follow with `{key.root}` and `{key.scale}`.
+  A MIDI message's channel can be a list ("1, 3-5"): it's sent on each.
+  Problems warns about screen texts too long for the screen. A link to the *Debug log* writes
   text to the event log. A link can also set a device's control light (a
   color; transparent gives it back to what the control shows) or the text on
   its screen (MiniLab 3, Launchkey MK3): they're listed under the device in

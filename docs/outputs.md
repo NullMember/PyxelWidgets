@@ -60,6 +60,7 @@ synth = MidiPort()
 synth.connect_virtual('PyxelWidgets')                  # a port the DAW can pick
 surface.map(kick, synth, NoteOn(36, Source('velocity'), channel = 10), on = Pressed)
 surface.map(kick, synth, NoteOff(36, channel = 10), on = Released)
+surface.map(space, synth, ControlChange(91, channel = (1, 2, 10)), on = Changed)   # the same on three channels
 surface.map(pads, synth, NoteOn(Source('cell', offset = 36)), on = Pressed)   # a note per pad
 surface.map(volume, synth, ControlChange(7), on = Changed, feedback = True)
 

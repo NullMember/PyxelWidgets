@@ -691,8 +691,11 @@ template: each field is a constant or a `Source` taken from a widget event:
     OscMessage('/track/{x+1}/mute', Source('state'))             # one track per column
     Command('Play')                                              # Mackie/HUI
 
+A MIDI message's `channel` can be a tuple, sending it on each of them
+(`ControlChange(91, channel = (1, 2, 10))`); it receives from any of them.
+
 `resolve(sources)` fills the fields from an event's values (see
-`pyxelwidgets.mapping`); `match(message)` does the reverse for a message
+`pyxelwidgets.mapping`), `each(sources)` gives every message to send; `match(message)` does the reverse for a message
 received from the other software, returning the values it carries (e.g.
 `{'value': 0.5}`) or None when it is a different message.
 
@@ -704,7 +707,9 @@ A field can also be computed: anything with `evaluate(sources)` and
 `free` (the event values it needs), e.g. a `pyxelwidgets.expression.Expression`
 such as `{note + 12}` or `{velocity * 100}` (event values as the event
 has them; the result is rounded and clamped to the field's range). Computed
-fields take whatever is received (they carry nothing back).
+fields take whatever is received (they carry nothing back). A field computing
+`skip` (`{velocity * 127 if velocity else skip}`) raises `Skipped`:
+that event sends nothing.
 
 ### `Source`
 
@@ -725,14 +730,20 @@ number has `offset` added.
 Base of message templates; a template with constants only is a concrete message.
 
 - **`resolve(sources: dict)`**: The concrete message for an event's `sources`.
+- **`each(sources: dict)`**: The concrete messages to send for an event's `sources`: one, or one per channel of a MIDI message.
 - **`match(message: Message)`**: The values `message` carries if it is this message (constants equal), else None.
 - **`sources`**
 - **`needs`**: Names of the event values it takes: its sources' and its computed fields'.
 
+### `Skipped` (Exception)
+
+A computed field was `skip`: the event sends no message.
+
 ### `MidiMessage` (Message)
 
-A MIDI channel message; `channel` is 1-16.
+A MIDI channel message; `channel` is 1-16, or a tuple of them (sent on each).
 
+- **`each(sources: dict)`**
 - **`to_midi()`**
 - **`from_midi(midi: list)`**: The message for raw MIDI bytes (channel messages only), or None.
 
@@ -957,6 +968,15 @@ read as their name, `roll.follow == 'Page'`), `+ - * / // % **`,
 comparisons, `and`/`or`/`not`, `a if test else b` and the
 `FUNCTIONS`. Python's `eval` is not used: nothing else runs.
 
+`skip` is a result meaning "do nothing this time": a link with it changes
+nothing (an action isn't called), a message with it isn't sent and an
+option's formula leaves the option as it is:
+
+    {note if pages.page == 3 else skip}       # only on page 4
+    {velocity * 127 if velocity > 0 else skip}
+
+A template with a part that is `skip` is `skip` as a whole.
+
 ### `Expression`
 
 ```python
@@ -984,7 +1004,7 @@ A text with `{formula}` parts, e.g. `Template('Step {roll.column + 1}', {'roll':
 - **`free`**
 - **`bound`**
 - **`references()`**
-- **`evaluate(values: dict | None = None, *, keep_unknown: bool = False, show = pyxelwidgets.expression._text)`**: The text filled in; with `keep_unknown` a part that can't be computed stays as written.
+- **`evaluate(values: dict | None = None, *, keep_unknown: bool = False, show = pyxelwidgets.expression._text)`**: The text filled in (SKIP if a part is); with `keep_unknown` a part that can't be computed stays as written.
 
 ### `ExpressionError` (ValueError)
 
@@ -1104,6 +1124,22 @@ Members: `C`, `CS`, `D`, `DS`, `E`, `F`, `FS`, `G`, `GS`, `A`, `AS`, `B`.
 ### `scale_notes(scale: Scale, root: Root)`
 
 Every MIDI note (0-127) in `scale` from `root`, lowest first.
+
+### `Key`
+
+```python
+Key(*, root: Root = Root.C, scale: Scale = Scale.Major)
+```
+
+A musical key several widgets share: `root` and `scale`. Widgets
+follow it through formulas (`Expression('key.scale', {'key': key})`, in
+layouts `"scale": "{key.scale}"`) and links change it like a widget's
+options: set, add semitones to the root, toggle to the next scale.
+
+- `root: Root = Root.C, optional`: The key's root note.
+- `scale: Scale = Scale.Major, optional`: The key's scale.
+
+- **`configure(**options)`**: Change `root` and/or `scale` (links do; kept in `configured`).
 
 ### `VelocityCurve` (Enum)
 
@@ -1595,17 +1631,19 @@ harder hits) and for notes received, e.g. a DAW playing the pattern back.
 ### `Meter` (ValueWidget)
 
 ```python
-Meter(x: int, y: int, width: int, height: int, *, direction: Meter.Direction = Meter.Direction.Vertical, warning: float = 0.6, danger: float = 0.85, hold: float = 1.0, falloff: float = 0.0, active_color: Color = Colors.Lime, warning_color: Color = Colors.Yellow, danger_color: Color = Colors.Red, interactive: bool = False, propagation: Propagation = Propagation.Pass, clock: Callable[[], float] = time.monotonic, **kwargs)
+Meter(x: int, y: int, width: int, height: int, *, direction: Meter.Direction = Meter.Direction.Vertical, warning: float = 0.6, danger: float = 0.85, hold: float = 1.0, falloff: float = 0.0, decay: float = 0.0, active_color: Color = Colors.Lime, warning_color: Color = Colors.Yellow, danger_color: Color = Colors.Red, interactive: bool = False, propagation: Propagation = Propagation.Pass, clock: Callable[[], float] = time.monotonic, **kwargs)
 ```
 
 A level meter: the value lights a bar from the bottom (or the left), in
 `active_color` up to `warning`, `warning_color` up to `danger` and
 `danger_color` above. The highest level stays lit for `hold` seconds.
 Display only: values come from links, mappings (a DAW's meters) or code.
+With `decay` each value is a hit that fades away (a voice's notes).
 
 - `warning, danger: float, optional`: Levels (0.0-1.0) where the bar turns `warning_color` and `danger_color`.
 - `hold: float = 1.0, optional`: Seconds the peak stays lit; 0 doesn't show it.
 - `falloff: float = 0.0, optional`: How fast the bar falls, in full heights per second; 0 falls at once (e.g. meters a DAW already smooths).
+- `decay: float = 0.0, optional`: Seconds a value takes to fade from full to nothing, for hits (notes, drums); 0 keeps it until the next.
 - `direction: Direction = Direction.Vertical, optional`: The bar grows from the bottom (Vertical) or from the left (Horizontal).
 - `warning_color, danger_color: Color, optional`: The bar above `warning` and above `danger`.
 
@@ -1898,7 +1936,7 @@ Members: `Horizontal`, `Vertical`.
 ### `MeterBank` (Widget)
 
 ```python
-MeterBank(x: int = 0, y: int = 0, width: int = 1, height: int = 1, *, direction: Meter.Direction = Meter.Direction.Vertical, warning: float = 0.6, danger: float = 0.85, hold: float = 1.0, falloff: float = 0.0, active_color: Color = Colors.Lime, warning_color: Color = Colors.Yellow, danger_color: Color = Colors.Red, propagation: Propagation = Propagation.Pass, clock: Callable[[], float] = time.monotonic, **kwargs)
+MeterBank(x: int = 0, y: int = 0, width: int = 1, height: int = 1, *, direction: Meter.Direction = Meter.Direction.Vertical, warning: float = 0.6, danger: float = 0.85, hold: float = 1.0, falloff: float = 0.0, decay: float = 0.0, active_color: Color = Colors.Lime, warning_color: Color = Colors.Yellow, danger_color: Color = Colors.Red, propagation: Propagation = Propagation.Pass, clock: Callable[[], float] = time.monotonic, **kwargs)
 ```
 
 A row of level meters, one per column (or per row, Horizontal), e.g. a
@@ -1911,6 +1949,7 @@ mixer's tracks: each works like a Meter (`warning`, `danger`, peak
 - `warning, danger: float, optional`: Levels (0.0-1.0) where bars turn `warning_color` and `danger_color`.
 - `hold: float = 1.0, optional`: Seconds peaks stay lit; 0 doesn't show them.
 - `falloff: float = 0.0, optional`: How fast bars fall, in full heights per second; 0 falls at once.
+- `decay: float = 0.0, optional`: Seconds a level takes to fade from full to nothing, for hits; 0 keeps it until the next.
 - `warning_color, danger_color: Color, optional`: The bars above `warning` and above `danger`.
 
 - **`channels`**
@@ -2159,6 +2198,8 @@ sends back on the widget:
     Mapping(clock, mackie, Command('Timecode', Source('text')), feedback = True)
     Mapping(surface.control(launchpad, 'Knob1'), synth, ControlChange(74), on = ControlChanged)
 
+A computed field that is `skip` sends nothing for that event.
+
 The message's Sources come from the event (see `sources`): its fields
 (`velocity`, `value`, `x`, `state`, `note`...) plus `cell` (the
 pad's number in the widget, left to right from the bottom row), `delta` (a
@@ -2264,6 +2305,12 @@ choices by name or index, colors from "#rrggbb"); minimum and maximum clamp
 numbers. An expression that can't be computed for an event is printed and
 changes nothing.
 
+`SKIP` (`skip` in an expression, also a Condition's or Choice's value)
+does nothing for that event: the option stays, the action isn't called:
+
+    Link(keys, bass, 'note', Expression('note if pages.page == 3 else skip', {'pages': pages}), on = KeyPressed)
+    Link(tabs, panel, 'visible', Condition(Source('cell'), '<', 4, True, SKIP), on = Toggled)
+
 A `Formula` keeps an option at what an expression computes, whenever it
 changes (`surface.formula` creates one updated every frame):
 
@@ -2271,22 +2318,28 @@ changes (`surface.formula` creates one updated every frame):
 
 Options change through `target.configure`, which doesn't emit events, so
 links don't trigger each other in loops (Pages emits PageChanged for a new
-page; a link doesn't run again while it is running).
+page; a link doesn't run again while it is running). With `emit` a link
+setting a widget's `value` makes it emit `Changed` as if it had been
+played, so its own links and mappings follow (a button jumping to a page
+where the page selector's links do the rest):
+
+    Link(shortcut, selector, 'value', 0.5, on = Pressed, emit = True)
 
 ### `Link`
 
 ```python
-Link(widget, target, option: str | None = None, value = None, *, on: type, change: Link.Change = Link.Change.Set, minimum = None, maximum = None)
+Link(widget, target, option: str | None = None, value = None, *, on: type, change: Link.Change = Link.Change.Set, minimum = None, maximum = None, emit: bool = False)
 ```
 
 On each `on` event of `widget`, changes `option` of `target` to
 `value` (`Change.Set`), by `value` (`Change.Add`) or to the next
 state (`Change.Toggle`, which takes no value). Without `option`,
-`target` is called (with `value` if given). See the module docs.
+`target` is called (with `value` if given). With `emit` (only for
+a widget's `value`) the target emits Changed. See the module docs.
 
 - **`close()`**
-- **`argument(sources: dict)`**: An action's argument from the event's `sources`.
-- **`apply(current, sources: dict)`**: The option's new value, from `current` and the event's `sources`.
+- **`argument(sources: dict)`**: An action's argument from the event's `sources` (SKIP: not called).
+- **`apply(current, sources: dict)`**: The option's new value, from `current` and the event's `sources` (SKIP: unchanged).
 
 #### `Change` (Enum)
 
@@ -2328,7 +2381,7 @@ Formula(target, option: str, expression)
 
 Keeps `option` of `target` at what `expression` (an Expression, or
 a Template for text) computes: `refresh()` changes it (through
-`configure`) when the result differs. `error` says why the last
+`configure`) when the result differs (SKIP keeps it). `error` says why the last
 refresh couldn't (and the option stays as it was), else None.
 
 - **`refresh()`**: Compute the option again; True if it changed.
@@ -2452,7 +2505,7 @@ Layout files: a JSON description of a Surface, the devices it is shown on and
 its widgets, as written by the designer (`python -m pyxelwidgets.designer`).
 
     {
-      "format": "pyxelwidgets.layout", "version": 4,
+      "format": "pyxelwidgets.layout", "version": 5,
       "surface": {"width": 9, "height": 9},
       "transport": {"bpm": 120, "signature": [4, 4]},
       "devices": [{"type": "novation.LaunchpadMiniMK3", "x": 0, "y": 0, "options": {}}],
@@ -2498,6 +2551,13 @@ position (song position) then come from there. `transport.clock` sends the
 transport's MIDI clock, start/stop and position out through some of the
 layout's outputs, so a DAW or drum machine follows: `["midi"]`.
 
+`key` is the musical key widgets share, `{"root": "D", "scale": "Dorian"}`
+(`widgets.Key`; C major by default): widget options follow it with formulas
+(`"scale": "{key.scale}"`, `"root": "{key.root}"`) and links change it
+with the target `"key"` and the option `root` or `scale` (`Add` moves
+the root by semitones, `Toggle` picks the next scale). Widgets can't be
+named `key` or `transport` (`RESERVED_NAMES`).
+
 Bindings connect a device's named controls (by the device's index in
 `devices`) to a widget, with Binding options (`takeover`, `glide_time`,
 `step`, `axis`), or to an action (see `ACTIONS`; `surface.reveal`
@@ -2517,9 +2577,12 @@ Links change a `target` widget's `option` (one of its options, or `x`,
 `Set` (default), `Add` or `Toggle`; `value` is a constant encoded like
 the option, or `{"source": "value", "offset": 0}`; optional `min`/`max`
 are the range a 0.0-1.0 source covers and clamp numbers (see
-`pyxelwidgets.link`). A value can be a condition choosing between two:
+`pyxelwidgets.link`); `"emit": true` on a link setting a widget's `value`
+makes it emit `Changed` (its own links and mappings follow). A value can be a condition choosing between two:
 `{"if": {"source": "cell"}, "op": "==", "to": 3, "then": true, "else": false}`
-(`then`/`else` encoded like the option; true/false by default for on/off options). Instead of an option a link can call an `action`:
+(`then`/`else` encoded like the option; true/false by default for on/off options;
+`{"skip": true}`, also in a `choose` list, does nothing for that event, like
+`skip` in a formula: `"{note if pages.page == 3 else skip}"`). Instead of an option a link can call an `action`:
 one of the target widget's `actions` (`advance`, `play` with a step
 `value`, `next`...) or, without a target, a transport action
 (`ACTIONS`: `transport.play`..., or `VALUE_ACTIONS` taking a
@@ -2663,7 +2726,7 @@ in that file, unless their `save` option is off.
 - **`get_surface()`**
 - **`get_devices()`**
 - **`get_widgets()`**
-- **`names()`**: What names in expressions stand for: widgets by name, and `transport` (the surface's, once it has one).
+- **`names()`**: What names in expressions stand for: widgets by name, `transport` (the surface's, once it has one) and `key`.
 - **`formulate()`**: Create the Formulas of widget options written as formulas (`self` is the widget).
 - **`formula_settings()`**: The widget options written as formulas: (widget name, option, Expression or Template).
 - **`keep_presets()`**: Write what Presets groups store (with `save` on) into `path`, the layout file.
@@ -2673,6 +2736,7 @@ in that file, unless their `save` option is off.
 - **`clock_senders(transport, outputs: dict | None = None)`**: A ClockSender for each `transport.clock` output (from `outputs` by name, default the layout's; missing ones are skipped).
 - **`sync_input(transport, outputs: dict | None = None)`**: Whatever drives `transport` (created with `sync = True`) from the `sync` setting: a connected MidiClockInput for a port, a ClockFollower on the output (from `outputs` by name, default the layout's; it waits while that output is missing); None without sync.
 - **`transport_settings()`**: Keyword arguments for a Transport (or App) from the layout's `transport` (bpm and signature).
+- **`key_settings()`**: Keyword arguments for the layout's Key, from `key` (`root` and `scale`, by name).
 - **`timed(clock: Clock)`**: The widgets (Sequencers, Trackers...) played by `clock`.
 - **`attach(transport)`**: Subscribe the widgets the transport plays (`clock = Clock.Transport`) to `transport` at their `rate`; a Sequencer's sounding step ends when it stops. Returns the Subscriptions.
 - **`start_clocks(*, lock = None)`**: Start a clock (a Transport, holding `lock`) for each widget with a clock of its own (`clock = Clock.Own`), following its `bpm`; returns them, to `close()` when done (`close_clocks`).
@@ -2683,7 +2747,7 @@ in that file, unless their `save` option is off.
 - **`map(outputs: dict)`**: Create the layout's mappings on the surface for `outputs` (by name; missing ones are skipped).
 - **`sender(sender)`**: The widget, or the device control (an `events.ControlInput`), a `sender` from the settings names.
 - **`place_controls(devices: list)`**: Point links and mappings from device controls at `devices` (in layout order; None or missing: nothing comes from that one), e.g. after connecting devices to a layout loaded with `devices = False`.
-- **`link_settings()`**: The layout's links, checked, as dicts: `widget` and `target` names (target None for transport actions; `widget` and `target` are (device index, control name) for a device's control), `on` (event class), `option` or `action`, `value`, `change` (Link.Change), `minimum`, `maximum`.
+- **`link_settings()`**: The layout's links, checked, as dicts: `widget` and `target` names (target None for transport actions; `widget` and `target` are (device index, control name) for a device's control), `on` (event class), `option` or `action`, `value`, `change` (Link.Change), `minimum`, `maximum`, `emit`.
 - **`target(target: tuple, option: str)`**: The light or screen (`Surface.light`/`screen`) a link's (device index, control) `target` sets `option` of.
 - **`link(transport = None, *, widgets: bool = True)`**: Create the layout's links on the surface: links to widgets (with `widgets`) and, given a `transport`, transport actions. Returns the Links.
 - **`binding_settings()`**: The layout's bindings as (device index, control, widget or None, action or None, Binding options).
