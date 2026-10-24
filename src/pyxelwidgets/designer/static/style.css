@@ -444,6 +444,7 @@ body.dragging #start { display: none; }
 .cond-row select { flex: 1; min-width: 0; }
 .cond-row select.op { flex: none; width: 56px; }
 .cond-row .color { flex: 1; }
+.cond-row label.skip { flex: none; display: inline-flex; gap: 3px; align-items: center; color: var(--muted); font-size: 12px; }
 .control.value.condition > select { flex: none; }
 
 /* PluginParameter names picked from a scan of the DAW */

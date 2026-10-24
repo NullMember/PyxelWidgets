@@ -18,11 +18,17 @@ export function widgetNamed(name) {
 // What a link changes: a widget, a stand-in for a device's light or screen with its one option, or undefined (the transport)
 export function linkTarget(link) {
   const target = link.target;
+  if (target === 'key') return keyTarget();
   if (!isDeviceTarget(target)) return widgetNamed(target);
   const entry = state.layout.devices[target.device];
   const screen = !!entry && deviceScreens(entry).includes(target.control);
   const option = screen ? { name: 'text', kind: 'str', default: '', lines: true } : { name: 'light', kind: 'color', default: '#ff0000' };
   return { name: targetLabel(target), device: true, options: {}, linkable: [option] };
+}
+
+// The layout's key as a link target: its root and scale (layout.key holds them)
+export function keyTarget() {
+  return { name: 'key', key: true, options: state.layout.key || {}, linkable: state.catalog.key };
 }
 
 // The options of a widget a link can change: position, size and its options (a device light or screen: its one)
@@ -104,6 +110,23 @@ export function defaultLinkValue(link) {
 }
 
 // The value a link sets or adds: a constant, or an event value with its range (or offset)
+// {"skip": true}: a condition's or list's value doing nothing for that event
+export const isSkip = (value) => !!value && typeof value === 'object' && value.skip === true;
+const shown = (value) => (isSkip(value) ? 'skip' : value);
+
+// A value's editor with a "skip" box after it; ticked, the editor goes (the value is {"skip": true})
+function skippable(value, editor, commit, fallback, id) {
+  const box = el('label', { class: 'skip', title: 'Do nothing for this event: the option stays as it is, an action isn\'t called' },
+    el('input', { type: 'checkbox', id, checked: isSkip(value), onchange: (e) => commit(e.target.checked ? { skip: true } : fallback) }), 'skip');
+  return isSkip(value) ? [box] : [editor(), box];
+}
+
+// What a skipped value becomes when "skip" is unticked
+function unskipped(option, change) {
+  if (change === 'Add' || option.action) return 0;
+  return option.default ?? (option.kind === 'bool' ? false : option.kind === 'str' ? '' : 0);
+}
+
 // "if <event value> <op> <constant> then <value> else <value>"
 function conditionEditor(link, option, id, edit, change) {
   const condition = link.value;
@@ -111,13 +134,16 @@ function conditionEditor(link, option, id, edit, change) {
   const source = condition.if?.source;
   const choose = (key) => {
     const commit = (value) => edit(() => { link.value[key] = value; });
-    if (change === 'Add' || option.action) {
-      return el('input', {
-        type: 'number', class: 'small', id: id(key), value: condition[key] ?? 0, step: option.kind === 'float' || option.action ? 'any' : 1,
-        onchange: (e) => commit(Number(e.target.value)),
-      });
-    }
-    return optionControl(option, condition[key], (value) => { if (value !== undefined) commit(value); }, id(key))[0];
+    const editor = () => {
+      if (change === 'Add' || option.action) {
+        return el('input', {
+          type: 'number', class: 'small', id: id(key), value: condition[key] ?? 0, step: option.kind === 'float' || option.action ? 'any' : 1,
+          onchange: (e) => commit(Number(e.target.value)),
+        });
+      }
+      return optionControl(option, condition[key], (value) => { if (value !== undefined) commit(value); }, id(key))[0];
+    };
+    return skippable(condition[key], editor, commit, unskipped(option, change), id(`${key}-skip`));
   };
   return [
     el('div', { class: 'cond-row' },
@@ -139,8 +165,8 @@ function conditionEditor(link, option, id, edit, change) {
           link.value.to = /^-?\d*\.?\d+$/.test(text) ? Number(text) : text;
         }),
       })),
-    el('div', { class: 'cond-row' }, el('span', { class: 'word' }, 'then'), choose('then')),
-    el('div', { class: 'cond-row' }, el('span', { class: 'word' }, 'else'), choose('else')),
+    el('div', { class: 'cond-row' }, el('span', { class: 'word' }, 'then'), ...choose('then')),
+    el('div', { class: 'cond-row' }, el('span', { class: 'word' }, 'else'), ...choose('else')),
   ];
 }
 
@@ -151,13 +177,16 @@ function choiceEditor(link, option, id, edit, change) {
   const by = choice.by?.source ?? choice.by;
   const entry = (index) => {
     const commit = (value) => edit(() => { link.value.choose[index] = value; });
-    if (change === 'Add' || option.action) {
-      return el('input', {
-        type: 'number', class: 'small', id: id(`choose-${index}`), value: choice.choose[index] ?? 0, step: option.kind === 'float' || option.action ? 'any' : 1,
-        onchange: (e) => commit(Number(e.target.value)),
-      });
-    }
-    return optionControl(option, choice.choose[index], (value) => { if (value !== undefined) commit(value); }, id(`choose-${index}`))[0];
+    const editor = () => {
+      if (change === 'Add' || option.action) {
+        return el('input', {
+          type: 'number', class: 'small', id: id(`choose-${index}`), value: choice.choose[index] ?? 0, step: option.kind === 'float' || option.action ? 'any' : 1,
+          onchange: (e) => commit(Number(e.target.value)),
+        });
+      }
+      return optionControl(option, choice.choose[index], (value) => { if (value !== undefined) commit(value); }, id(`choose-${index}`))[0];
+    };
+    return skippable(choice.choose[index], editor, commit, unskipped(option, change), id(`choose-${index}-skip`));
   };
   return [
     el('div', { class: 'cond-row' },
@@ -168,7 +197,7 @@ function choiceEditor(link, option, id, edit, change) {
       }, sources.map((name) => el('option', { value: name, selected: name === by }, name)),
       by && !sources.includes(by) ? el('option', { value: by, selected: true }, `${by} (not available)`) : null)),
     ...choice.choose.map((_, index) => el('div', { class: 'cond-row' },
-      el('span', { class: 'word' }, String(index)), entry(index),
+      el('span', { class: 'word' }, String(index)), ...entry(index),
       choice.choose.length > 1 ? el('button', {
         class: 'small', title: 'Remove this one', onclick: () => edit(() => { link.value.choose.splice(index, 1); }),
       }, '−') : null)),
@@ -182,8 +211,8 @@ function choiceEditor(link, option, id, edit, change) {
 // A link's value in words: "cell == 3 ? true : false", "{value}", "1"
 export function describeValue(link) {
   const value = link.value;
-  if (value && typeof value === 'object' && 'if' in value) return `${value.if.source} ${value.op || '=='} ${value.to} ? ${value.then} : ${value.else}`;
-  if (value && typeof value === 'object' && 'choose' in value) return `[${value.choose.join(', ')}] by ${value.by?.source ?? value.by}`;
+  if (value && typeof value === 'object' && 'if' in value) return `${value.if.source} ${value.op || '=='} ${value.to} ? ${shown(value.then)} : ${shown(value.else)}`;
+  if (value && typeof value === 'object' && 'choose' in value) return `[${value.choose.map(shown).join(', ')}] by ${value.by?.source ?? value.by}`;
   if (value && typeof value === 'object') return `{${value.source}}`;
   return value === undefined ? '' : String(value);
 }
@@ -399,6 +428,11 @@ function deviceTargets(current) {
   });
 }
 
+// Whether a link sets a widget's value, which can then emit Changed ("emit": true)
+export function canEmit(link, target) {
+  return link.option === 'value' && !!target && !target.device && !!state.catalog.widgets[target.type]?.events?.includes('Changed');
+}
+
 export function linkCard(widget, link, index) {
   const events = ownerEvents(widget);
   if (link.action === 'debug') return debugCard(widget, link, index, events);
@@ -453,6 +487,13 @@ export function linkCard(widget, link, index) {
           }),
         })]))),
       ] : null,
+      canEmit(link, target) ? [
+        el('label', { for: id('emit'), title: 'The widget sends Changed, as if it had been played: its own links and messages follow' }, 'send Changed'),
+        el('div', { class: 'control' }, el('input', {
+          type: 'checkbox', id: id('emit'), checked: !!link.emit,
+          onchange: (e) => edit(() => { if (e.target.checked) link.emit = true; else delete link.emit; }),
+        })),
+      ] : null,
     ];
   };
   return el('div', { class: 'mapping link' },
@@ -472,7 +513,7 @@ export function linkCard(widget, link, index) {
       el('select', {
         id: id('target'), title: "The widget whose option changes, a device's light or screen, or the transport",
         onchange: (e) => edit(() => {
-          for (const key of ['value', 'min', 'max', 'change']) delete link[key];
+          for (const key of ['value', 'min', 'max', 'change', 'emit']) delete link[key];
           if (!e.target.value || e.target.value === '\u0000debug') {
             // Transport actions and the debug log have no target
             delete link.target;
@@ -490,15 +531,16 @@ export function linkCard(widget, link, index) {
             return;
           }
           link.target = e.target.value;
-          const next = widgetNamed(link.target);
+          const next = linkTarget(link);
           if (isAction && link.action in linkActions(next)) return defaultActionValue(link);
           delete link.action;
-          if (!linkOptions(next).some((candidate) => candidate.name === link.option)) link.option = 'visible';
+          if (!linkOptions(next).some((candidate) => candidate.name === link.option)) link.option = next?.key ? 'scale' : 'visible';
           defaultLinkValue(link);
         }),
       },
       el('option', { value: '', selected: transport }, 'Transport'),
       el('option', { value: '\u0000debug' }, 'Debug log'),
+      el('option', { value: 'key', selected: link.target === 'key', title: 'The key widgets follow with {key.root} and {key.scale}' }, 'Key'),
       allWidgets().map(({ widget: candidate }) => el('option', { value: candidate.name, selected: candidate.name === link.target },
         candidate === widget ? `${candidate.name} (itself)` : candidate.name)),
       deviceTargets(link.target)),
@@ -513,6 +555,7 @@ export function linkCard(widget, link, index) {
         id: id('option'), title: 'An option to change, or an action to call',
         onchange: (e) => edit(() => {
           const [kind, name] = e.target.value.split(':');
+          if (name !== 'value') delete link.emit;
           if (kind === 'action') {
             delete link.option;
             link.action = name;

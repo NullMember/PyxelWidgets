@@ -206,9 +206,23 @@ export function sourceNames(on) {
   return [...new Set([...Object.values(state.catalog.events).flatMap((event) => event.sources), 'state', 'text'])];
 }
 
+// "1, 3-5" as [1, 3, 4, 5], each once and within ``range``; [] when anything doesn't read
+export function numberList(text, [low, high]) {
+  const found = [];
+  for (const part of text.split(',').map((item) => item.trim()).filter(Boolean)) {
+    const match = part.match(/^(\d+)(?:\s*-\s*(\d+))?$/);
+    if (!match) return [];
+    const [first, last] = [Number(match[1]), Number(match[2] ?? match[1])];
+    if (first < low || last > high || first > last) return [];
+    for (let number = first; number <= last; number++) if (!found.includes(number)) found.push(number);
+  }
+  return found;
+}
+
 // A field's editor: a constant, one of the event's values (with its range or offset) or (with ``formulas``) a formula
 function valueEditor(id, value, field, sources, commit, formulas = false) {
-  const isSource = value && typeof value === 'object';
+  // A list is a constant (a MIDI message's channels)
+  const isSource = !!value && typeof value === 'object' && !Array.isArray(value);
   const textual = field.kind === 'text' || field.kind === 'arg';
   formulas = formulas && field.kind !== 'text';
   const isExpression = formulas && isFormula(value);
@@ -241,7 +255,17 @@ function valueEditor(id, value, field, sources, commit, formulas = false) {
     const [input, names] = formulaControl(value, (text) => commit(text ?? (field.range ? field.range[0] : 0)), `${id}-formula`, sources);
     return el('div', { class: 'control value' }, mode, input, names);
   }
-  if (!isSource) {
+  if (!isSource && field.many) {
+    detail = el('input', {
+      type: 'text', class: 'small', id: `${id}-list`, value: [value ?? field.range[0]].flat().join(', '),
+      title: `One or more, sent on each: "1", "1, 2, 10" or "1-4" (${field.range[0]}-${field.range[1]})`,
+      onchange: (e) => {
+        const list = numberList(e.target.value, field.range);
+        if (list.length) commit(list.length === 1 ? list[0] : list);
+        else e.target.value = [value ?? field.range[0]].flat().join(', ');
+      },
+    });
+  } else if (!isSource) {
     detail = el('input', {
       type: textual ? 'text' : 'number', class: textual ? '' : 'small', value: value ?? '',
       ...(field.range ? { min: field.range[0], max: field.range[1], step: 1 } : { step: 'any' }),

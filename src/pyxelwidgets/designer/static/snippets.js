@@ -123,7 +123,7 @@ function selectionSnippet(title, doc, category) {
     widgets: widgets.map((widget, i) => ({ ...copy(widget), x: places[i][0] - x0, y: places[i][1] - y0 })),
   };
   // Links between the widgets, and to the transport
-  const links = (state.layout.links || []).filter((link) => names.has(link.widget) && (link.target === undefined || names.has(link.target)));
+  const links = (state.layout.links || []).filter((link) => names.has(link.widget) && (link.target === undefined || link.target === 'key' || names.has(link.target)));
   if (links.length) snippet.links = copy(links);
   if (mappings.length) {
     snippet.mappings = copy(mappings);

@@ -122,6 +122,26 @@ export function trackValueSource(parameter, info, sources) {
   return wanted.find((name) => sources.includes(name)) || null;
 }
 
+// The texts a link's value can write: itself, a list's or a condition's values (skips left out)
+function texts(value) {
+  if (typeof value === 'string') return [value];
+  if (value && typeof value === 'object' && 'choose' in value) return value.choose.flatMap(texts);
+  if (value && typeof value === 'object' && 'if' in value) return [...texts(value.then), ...texts(value.else)];
+  return [];
+}
+
+// The first line of a screen link's texts certainly too long for the screen (``widths``: characters per line), or null.
+// A {formula} counts as one character, so only text that can't fit is found
+function longLine(value, widths) {
+  for (const text of texts(value)) {
+    const lines = text.replace(/\{\{|\}\}/g, '_').replace(/\{[^{}]*\}/g, '_').split('\n');
+    const index = lines.findIndex((line, i) => i < widths.length && line.length > widths[i]);
+    if (index >= 0) return { line: text.split('\n')[index], index, width: widths[index] };
+    if (widths.length && lines.length > widths.length) return { line: text.split('\n')[widths.length], index: widths.length, width: 0 };
+  }
+  return null;
+}
+
 function findProblems() {
   const problems = [];
   if (state.error) problems.push(['error', state.error, null]);
@@ -158,7 +178,17 @@ function findProblems() {
       if (!device) problems.push(['error', `${ruleLabel(link)}: links to a light or screen of a missing device ${link.target.device + 1}`, () => selectOwner(link)]);
       else if (![...deviceLights(device), ...deviceScreens(device)].includes(link.target.control)) {
         problems.push(['warning', `${ruleLabel(link)}: ${targetLabel(link.target)} has no light or screen (on a Launchpad, side buttons light with side buttons off)`, () => selectOwner(link)]);
+      } else if (link.option === 'text') {
+        const long = longLine(link.value, deviceInfo(device)?.screens?.[link.target.control] || []);
+        if (long) {
+          const screen = targetLabel(link.target);
+          problems.push(['warning', long.width
+            ? `${ruleLabel(link)}: "${long.line}" is longer than line ${long.index + 1} of ${screen} (${long.width} characters): the end is cut off`
+            : `${ruleLabel(link)}: "${long.line}" is past the ${long.index} lines of ${screen}: it isn't shown`, () => selectOwner(link)]);
+        }
       }
+    } else if (link.target === 'key') {
+      if (!state.catalog.key.some((option) => option.name === link.option)) problems.push(['error', `${ruleLabel(link)}: the key has no option "${link.option}"`, () => selectOwner(link)]);
     } else if (link.target && !names.has(link.target)) problems.push(['error', `${ruleLabel(link)}: links to a missing widget "${link.target}"`, () => selectOwner(link)]);
     else if (link.option && !linkOptions(names.get(link.target).widget).some((option) => option.name === link.option)) {
       problems.push(['error', `${ruleLabel(link)}: ${link.target} has no option "${link.option}"`, () => selectOwner(link)]);

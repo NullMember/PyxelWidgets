@@ -130,7 +130,7 @@ export function removeSelection() {
       // Rules from device controls stay, unless they change a deleted widget
       const kept = (object) => object.widget === undefined || names.has(object.widget);
       setMappings(layout, (layout.mappings || []).filter(kept));
-      setLinks(layout, (layout.links || []).filter((link) => kept(link) && (link.target === undefined || isDeviceTarget(link.target) || names.has(link.target))));
+      setLinks(layout, (layout.links || []).filter((link) => kept(link) && (link.target === undefined || link.target === 'key' || isDeviceTarget(link.target) || names.has(link.target))));
     } else {
       // The device's bindings and the rules from its controls go; later devices move up
       const moved = (list) => list.filter((entry) => entry.device !== selection.index || entry.control === undefined)
@@ -195,7 +195,7 @@ function copyBehaviour(layout, renames, links = layout.links || [], mappings = l
   for (const link of links) {
     if (!renames.has(link.widget)) continue;
     const copy = { ...link, widget: renames.get(link.widget) };
-    if (link.target !== undefined && !isDeviceTarget(link.target)) {
+    if (link.target !== undefined && link.target !== 'key' && !isDeviceTarget(link.target)) {
       if (renames.has(link.target)) copy.target = renames.get(link.target);
       else if (!names.has(link.target)) {
         dropped++;

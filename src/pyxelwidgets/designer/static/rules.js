@@ -347,7 +347,7 @@ function adaptRule(kind, rule, widget) {
   if (kind === 'link' && isDeviceTarget(copy.target)) {
     // A device's light or screen: while that device is there
     if (!state.layout.devices[copy.target.device]) return null;
-  } else if (kind === 'link' && copy.target !== undefined) {
+  } else if (kind === 'link' && copy.target !== undefined && copy.target !== 'key') {
     // A link changing its own widget changes the new one
     if (rule.widget !== undefined && copy.target === rule.widget && widget.type !== 'control') copy.target = widget.name;
     else if (!widgetNamed(copy.target)) return null;

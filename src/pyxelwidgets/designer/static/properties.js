@@ -126,7 +126,8 @@ export function formulaSeed(kind, value) {
 }
 
 export const FORMULA_HELP = 'A formula in braces: other widgets\' options (roll.steps - roll.width), self (this widget), '
-  + 'transport (bpm, playing, bar…), numbers, + - * / // %, comparisons, and/or/not, a if test else b, and min, max, round, clamp…';
+  + 'transport (bpm, playing, bar…), numbers, + - * / // %, comparisons, and/or/not, a if test else b, and min, max, round, clamp…; '
+  + 'skip does nothing this time (note if pages.page == 3 else skip)';
 
 // A text input for a {formula}, suggesting names it can use: event values (``sources``), widgets' options, the transport
 export function formulaControl(value, commit, id, sources = []) {
@@ -140,7 +141,7 @@ export function formulaControl(value, commit, id, sources = []) {
   return [input, el('datalist', { id: `${id}-names` }, formulaNames(sources).map((name) => el('option', { value: `{${name}}` })))];
 }
 
-const FORMULA_WORDS = new Set(['and', 'or', 'not', 'if', 'else', 'true', 'false', 'True', 'False', 'none', 'None', 'pi', 'self', 'transport']);
+const FORMULA_WORDS = new Set(['and', 'or', 'not', 'if', 'else', 'true', 'false', 'True', 'False', 'none', 'None', 'pi', 'skip', 'self', 'transport', 'key']);
 
 // The event values a formula uses: names that aren't widgets (before a dot), functions or words
 export function formulaSources(text) {
@@ -164,6 +165,7 @@ function formulaNames(sources) {
     for (const property of info?.properties || []) names.push(`${widget.name}.${property}`);
   }
   for (const name of state.catalog.expression?.transport || []) names.push(`transport.${name}`);
+  for (const option of state.catalog.key || []) names.push(`key.${option.name}`);
   return names;
 }
 
@@ -486,9 +488,36 @@ export function renderProperties() {
     el('p', { class: 'hint' }, 'Select a widget to edit it; Shift+click or drag on empty pads to select several. Drag a device by its name. In Try mode, click pads to press them; hold for a Held event.'),
     syncFields(),
     clockFields(),
+    ...keyFields(),
     el('h4', {}, 'Transport and surface controls'),
     transportControls(),
   );
+}
+
+// The key widgets share: their root and scale options as {key.root} and {key.scale} follow it, links (target Key) change it
+function keyFields() {
+  const key = state.layout.key || {};
+  const picker = (option) => el('label', {}, option.name, el('select', {
+    id: `key-${option.name}`, title: `The key's ${option.name}`,
+    onchange: (e) => change((l) => { l.key = { ...(l.key || {}), [option.name]: e.target.value }; }),
+  }, option.choices.map((choice) => el('option', { value: choice, selected: choice === (key[option.name] ?? option.default) }, choice))));
+  // Widgets with a root and a scale (Keyboard, ChordPads, Arpeggiator...) not following it yet
+  const followers = allWidgets().filter(({ widget }) => {
+    const names = (state.catalog.widgets[widget.type]?.options || []).map((option) => option.name);
+    return names.includes('root') && names.includes('scale')
+      && (widget.options?.root !== '{key.root}' || widget.options?.scale !== '{key.scale}');
+  });
+  return [
+    el('h4', {}, 'Key'),
+    el('div', { class: 'quad' }, ...state.catalog.key.map(picker)),
+    el('p', { class: 'hint' }, 'Widgets whose root and scale are {key.root} and {key.scale} follow it; links change it (target Key).'),
+    followers.length ? el('button', {
+      id: 'key-follow', title: followers.map(({ widget }) => widget.name).join(', '),
+      onclick: () => change(() => {
+        for (const { widget } of followers) widget.options = { ...(widget.options || {}), root: '{key.root}', scale: '{key.scale}' };
+      }),
+    }, `Make ${followers.length} widget${followers.length === 1 ? '' : 's'} follow it`) : null,
+  ];
 }
 
 // Messages and links starting from the device's controls: the control new ones start from, and every one there is

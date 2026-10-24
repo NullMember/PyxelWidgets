@@ -171,7 +171,8 @@ def catalog() -> dict:
         schema['widgets'][name]['preview'] = _preview(cls, name)
     return {'widgets': schema['widgets'], 'animations': schema['animations'], 'binding': schema['binding'],
             'devices': devices, 'outputs': outputs, 'events': schema['events'], 'messages': schema['messages'],
-            'controls': schema['controls'], 'link': schema['link'], 'expression': schema['expression'], 'colors': colors}
+            'controls': schema['controls'], 'link': schema['link'], 'expression': schema['expression'], 'key': schema['key'],
+            'colors': colors}
 
 class PreviewDevice(pyxelwidgets.devices.Device):
     """Covers the whole surface so clicks in the browser reach widgets like real pad presses."""
@@ -300,6 +301,9 @@ def _carry_state(old_ui, old_layout: dict, ui, layout: dict) -> None:
                    if (name, key) in linked and _layout_value(before.get(name), key) == _layout_value(after.get(name), key)}
         if changed:
             widget.configure(**changed)
+    # The key as links left it, unless the layout's key changed (formulas follow on the next update)
+    if old_ui.key.configured and (old_layout.get('key') or {}) == (layout.get('key') or {}):
+        ui.key.configure(root = old_ui.key.root, scale = old_ui.key.scale)
 
 class Preview:
     """
