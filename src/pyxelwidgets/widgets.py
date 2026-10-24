@@ -559,6 +559,44 @@ def scale_notes(scale: Scale, root: Root) -> list:
     """Every MIDI note (0-127) in ``scale`` from ``root``, lowest first."""
     return list(_scale_notes(scale, root))
 
+class Key:
+    """
+    A musical key several widgets share: ``root`` and ``scale``. Widgets
+    follow it through formulas (``Expression('key.scale', {'key': key})``, in
+    layouts ``"scale": "{key.scale}"``) and links change it like a widget's
+    options: set, add semitones to the root, toggle to the next scale.
+    """
+
+    def __init__(self, *, root: Root = Root.C, scale: Scale = Scale.Major):
+        """
+        root: Root = Root.C, optional
+            The key's root note.
+        scale: Scale = Scale.Major, optional
+            The key's scale.
+        """
+        self.configured = {}
+        self.root = root
+        self.scale = scale
+
+    def __setattr__(self, name: str, value) -> None:
+        if name == 'root' and not isinstance(value, Root):
+            raise TypeError(f'root must be a Root, got {value!r}')
+        if name == 'scale' and not isinstance(value, Scale):
+            raise TypeError(f'scale must be a Scale, got {value!r}')
+        super().__setattr__(name, value)
+
+    def configure(self, **options) -> None:
+        """Change ``root`` and/or ``scale`` (links do; kept in ``configured``)."""
+        unknown = set(options) - {'root', 'scale'}
+        if unknown:
+            raise TypeError(f'a Key has root and scale, not {", ".join(sorted(unknown))}')
+        for name, value in options.items():
+            setattr(self, name, value)
+            self.configured[name] = value
+
+    def __repr__(self) -> str:
+        return f'Key(root = Root.{self.root.name}, scale = Scale.{self.scale.name})'
+
 @functools.lru_cache(maxsize = 64)
 def _scale_notes(scale: Scale, root: Root) -> tuple:
     steps, root = set(SCALES[scale.name]), root.value
@@ -3026,6 +3064,12 @@ class DrumPads(Velocity, Widget):
         self.levels = numpy.zeros((width, height))
         return True
 
+def _decayed(level: float, decay: float, elapsed: float) -> float:
+    """A hit's ``level`` after fading ``elapsed`` seconds, ``decay`` seconds from full to nothing (0: it stays)."""
+    if decay <= 0 or level <= 0:
+        return level
+    return max(0.0, round(level - elapsed / decay, 6))
+
 def _meter_fall(meter, value: float, shown: float, peak: float, peak_time: float, now: float, elapsed: float) -> tuple:
     """A meter's (shown level, peak, peak time) after ``elapsed`` seconds showing ``value`` (Meter, MeterBank)."""
     if meter.falloff > 0 and value < shown:
@@ -3061,6 +3105,7 @@ class Meter(ValueWidget):
     ``active_color`` up to ``warning``, ``warning_color`` up to ``danger`` and
     ``danger_color`` above. The highest level stays lit for ``hold`` seconds.
     Display only: values come from links, mappings (a DAW's meters) or code.
+    With ``decay`` each value is a hit that fades away (a voice's notes).
     """
 
     class Direction(enum.Enum):
@@ -3073,6 +3118,7 @@ class Meter(ValueWidget):
                  danger: float = 0.85,
                  hold: float = 1.0,
                  falloff: float = 0.0,
+                 decay: float = 0.0,
                  active_color: pyxelwidgets.color.Color = pyxelwidgets.color.Colors.Lime,
                  warning_color: pyxelwidgets.color.Color = pyxelwidgets.color.Colors.Yellow,
                  danger_color: pyxelwidgets.color.Color = pyxelwidgets.color.Colors.Red,
@@ -3087,6 +3133,8 @@ class Meter(ValueWidget):
             Seconds the peak stays lit; 0 doesn't show it.
         falloff: float = 0.0, optional
             How fast the bar falls, in full heights per second; 0 falls at once (e.g. meters a DAW already smooths).
+        decay: float = 0.0, optional
+            Seconds a value takes to fade from full to nothing, for hits (notes, drums); 0 keeps it until the next.
         direction: Direction = Direction.Vertical, optional
             The bar grows from the bottom (Vertical) or from the left (Horizontal).
         warning_color, danger_color: Color, optional
@@ -3097,6 +3145,7 @@ class Meter(ValueWidget):
         self.danger = danger
         self.hold = hold
         self.falloff = falloff
+        self.decay = decay
         self.warning_color = warning_color
         self.danger_color = danger_color
         self.clock = clock
@@ -3120,6 +3169,7 @@ class Meter(ValueWidget):
     def render(self, time = None) -> bool:
         now = self.clock()
         elapsed, self._last = now - self._last, now
+        self._value = _decayed(self._value, self.decay, elapsed)
         shown, peak, self._peak_time = _meter_fall(self, self._value, self._shown, self._peak, self._peak_time, now, elapsed)
         if (shown, peak) != (self._shown, self._peak):
             self._shown, self._peak = shown, peak
@@ -4423,6 +4473,7 @@ class MeterBank(Widget):
                  danger: float = 0.85,
                  hold: float = 1.0,
                  falloff: float = 0.0,
+                 decay: float = 0.0,
                  active_color: pyxelwidgets.color.Color = pyxelwidgets.color.Colors.Lime,
                  warning_color: pyxelwidgets.color.Color = pyxelwidgets.color.Colors.Yellow,
                  danger_color: pyxelwidgets.color.Color = pyxelwidgets.color.Colors.Red,
@@ -4438,6 +4489,8 @@ class MeterBank(Widget):
             Seconds peaks stay lit; 0 doesn't show them.
         falloff: float = 0.0, optional
             How fast bars fall, in full heights per second; 0 falls at once.
+        decay: float = 0.0, optional
+            Seconds a level takes to fade from full to nothing, for hits; 0 keeps it until the next.
         warning_color, danger_color: Color, optional
             The bars above ``warning`` and above ``danger``.
         """
@@ -4446,6 +4499,7 @@ class MeterBank(Widget):
         self.danger = danger
         self.hold = hold
         self.falloff = falloff
+        self.decay = decay
         self.warning_color = warning_color
         self.danger_color = danger_color
         self.clock = clock
@@ -4495,6 +4549,7 @@ class MeterBank(Widget):
         now = self.clock()
         elapsed, self._last = now - self._last, now
         for channel, level in enumerate(self.levels):
+            level = self.levels[channel] = _decayed(level, self.decay, elapsed)
             shown, peak, self._peak_times[channel] = _meter_fall(self, level, self._shown[channel], self._peaks[channel],
                                                                  self._peak_times[channel], now, elapsed)
             if (shown, peak) != (self._shown[channel], self._peaks[channel]):
