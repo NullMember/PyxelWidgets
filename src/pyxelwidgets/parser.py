@@ -3,7 +3,7 @@ Layout files: a JSON description of a Surface, the devices it is shown on and
 its widgets, as written by the designer (``python -m pyxelwidgets.designer``).
 
     {
-      "format": "pyxelwidgets.layout", "version": 5,
+      "format": "pyxelwidgets.layout", "version": 6,
       "surface": {"width": 9, "height": 9},
       "transport": {"bpm": 120, "signature": [4, 4]},
       "devices": [{"type": "novation.LaunchpadMiniMK3", "x": 0, "y": 0, "options": {}}],
@@ -148,7 +148,7 @@ import pyxelwidgets.transport
 import pyxelwidgets.widgets
 
 FORMAT = 'pyxelwidgets.layout'
-VERSION = 5
+VERSION = 6
 
 # Actions a binding can trigger, on the transport given to Parser.bind
 ACTIONS = {
@@ -314,6 +314,8 @@ def _kind(parameter) -> tuple:
         return 'rate', False
     if annotation is pyxelwidgets.widgets.Frames:
         return 'frames', None
+    if annotation is pyxelwidgets.events.ControlNames:
+        return 'controls', None
     if isinstance(annotation, type) and issubclass(annotation, enum.Enum):
         return 'enum', annotation
     if isinstance(default, enum.Enum):
@@ -374,7 +376,7 @@ def _encode(value, kind):
         return color_to_text(value)
     if kind == 'enum':
         return value.name
-    if kind == 'point':
+    if kind in ('point', 'controls'):
         return list(value)
     if kind == 'frames':
         return frames_to_json(value)
@@ -396,6 +398,8 @@ def option_schema(cls) -> list:
             option['default'] = None if parameter.default is None else _encode(parameter.default, kind)
         if kind == 'enum':
             option['choices'] = [member.name for member in extra]
+        elif kind == 'controls':
+            option['choices'] = list(getattr(cls, 'option_kinds', {}).get(parameter.name, {}))
         elif kind == 'rate':
             option['choices'] = RATES
             if extra:
@@ -625,6 +629,10 @@ def _options(cls, options: dict, where: str, formulas: dict | None = None) -> di
                 value = tuple(value)
             elif kind == 'frames':
                 value = json_to_frames(value)
+            elif kind == 'controls':
+                if not (isinstance(value, (bool, list)) or value is None) or isinstance(value, list) and not all(isinstance(name, str) for name in value):
+                    raise ValueError(f'expected a list of control names or true for all, got {value!r}')
+                value = cls.control_names(key, value)
             elif kind == 'rate':
                 if extra and isinstance(value, (int, float)) and not isinstance(value, bool):
                     if not value > 0:
@@ -1585,6 +1593,8 @@ UPGRADES = {
     # emit Changed ("emit"), channel lists in MIDI messages and Meter decay; "key" and "transport" stopped being
     # widget names. Nothing older changes
     4: lambda layout: None,
+    # 6 lets device options name some controls (a MiniLab 3's relative_knobs: a list, true still means all): the same
+    5: lambda layout: None,
 }
 
 def upgrade(layout: dict) -> dict:
