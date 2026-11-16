@@ -210,6 +210,18 @@ export function optionControl(option, value, commit, id) {
       control = el('div', { class: 'control' }, axis(0), axis(1));
       break;
     }
+    case 'controls': {
+      // Some of the device's controls, one checkbox each (true in a layout = all of them)
+      const named = value === true ? option.choices : value || [];
+      const pick = (name, on) => {
+        const picked = option.choices.filter((choice) => (choice === name ? on : named.includes(choice)));
+        commit(picked.length ? picked : undefined);
+      };
+      control = el('div', { class: 'names' }, option.choices.map((name, i) => el('label', { title: name },
+        el('input', { type: 'checkbox', id: `${id}-${i}`, checked: named.includes(name), onchange: (e) => pick(name, e.target.checked) }),
+        name.replace(/_/g, ' '))));
+      break;
+    }
     case 'rate': {
       // Any note value is accepted; the list only suggests common ones. Some also take seconds.
       const parse = (text) => (option.seconds && /^\d*\.?\d+$/.test(text) ? Number(text) : text || undefined);

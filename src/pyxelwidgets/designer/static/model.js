@@ -61,10 +61,11 @@ export function deviceControls(device) {
   if (info?.side_buttons && device.options?.side_buttons === false) {
     controls.push(...info.side_buttons.map((button) => ({ name: button.name, kind: 'button' })));
   }
-  // Options turning controls into another kind (a MiniLab 3's knobs into encoders)
+  // Options turning controls into another kind (a MiniLab 3's knobs into encoders): on/off, or naming them
   for (const [option, kinds] of Object.entries(info?.option_kinds || {})) {
-    if (device.options?.[option] !== true) continue;
-    controls.forEach((control, i) => { if (control.name in kinds) controls[i] = { ...control, kind: kinds[control.name] }; });
+    const value = device.options?.[option];
+    const named = (name) => value === true || (Array.isArray(value) && value.includes(name));
+    controls.forEach((control, i) => { if (control.name in kinds && named(control.name)) controls[i] = { ...control, kind: kinds[control.name] }; });
   }
   return controls;
 }

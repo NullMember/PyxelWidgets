@@ -3,7 +3,7 @@
 import { state, $, fill, el } from './core.js';
 import { prefs, savePrefs } from './prefs.js';
 import { widgetAt, allWidgets, widgetSelection, selectedPaths, ruleOwner, ownerEvents, ownerKey, ownerRef, controlOwner,
-  controlOwners, isControlRule, deviceControls, deviceInfo, isSelected, controlSelect, isDeviceTarget, targetLabel } from './model.js';
+  controlOwners, isControlRule, deviceControls, deviceInfo, isSelected, isDeviceTarget, targetLabel } from './model.js';
 import { learnButton } from './learn.js';
 import { outputsOf, outputInfo, setMappings, defaultEvent, defaultMessage, messageSources, sourceNames,
   mappingCard } from './mappings.js';
@@ -578,7 +578,7 @@ export function renderRules() {
 }
 
 // The window's first column: every widget and device, picking whose messages and links show
-// (the selection, as on the grid: Shift or Ctrl/Cmd+click adds widgets); a picked device lists its controls
+// (the selection, as on the grid: Shift or Ctrl/Cmd+click adds widgets); a picked device lists all its controls
 function renderOwners() {
   const counts = new Map();
   for (const object of [...(state.layout.mappings || []), ...(state.layout.links || [])]) {
@@ -614,25 +614,29 @@ function renderOwners() {
       onclick: () => show({ kind: 'device', index }),
     }, el('span', { class: 'name' }, `${index + 1}. ${deviceInfo(device)?.model || device.type}`), count(total)));
     if (!picked || !deviceControls(device).length) return;
-    // Its controls with messages or links, and the one new ones start from
+    // Every control (and any rule's control the device no longer has); the picked one is where new rules start
     const current = pickedControl();
     const choose = (control) => {
       state.deviceControls[index] = control;
       render();
     };
-    for (const owner of controlOwners(index)) {
+    const names = new Set(deviceControls(device).map((control) => control.name));
+    const owners = [...deviceControls(device).map((control) => controlOwner(index, control.name)),
+      ...controlOwners(index).filter((owner) => !names.has(owner.control))];
+    items.push(el('li', { class: 'owner-learn' }, learnButton('rules-control', 'control', (event) => {
+      state.selection = { kind: 'device', index: event._device };
+      state.deviceControls[event._device] = event.control;
+      render();
+    })));
+    for (const owner of owners) {
+      const number = counts.get(ownerKey(owner));
       items.push(el('li', {
-        class: `owner control${current && ownerKey(owner) === ownerKey(current) ? ' picked' : ''}`, dataset: { owner: ownerKey(owner) },
-        style: 'padding-left: 18px', title: 'New messages and links start from this control', onclick: () => choose(owner.control),
-      }, el('span', { class: 'name' }, owner.control), el('span', { class: 'type' }, owner.kind || ''), count(counts.get(ownerKey(owner)))));
+        class: `owner control${number ? ' used' : ''}${current && ownerKey(owner) === ownerKey(current) ? ' picked' : ''}`,
+        dataset: { owner: ownerKey(owner) }, style: 'padding-left: 18px',
+        title: names.has(owner.control) ? 'New messages and links start from this control' : `${device.type} has no ${owner.control}`,
+        onclick: () => choose(owner.control),
+      }, el('span', { class: 'name' }, owner.control), el('span', { class: 'type' }, owner.kind || 'missing'), count(number)));
     }
-    items.push(el('li', { class: 'owner-picker' }, el('div', { class: 'control learnable' },
-      controlSelect('rules-control', current ? { device: index, control: current.control } : null, (_, control) => choose(control), false, index),
-      learnButton('rules-control', 'control', (event) => {
-        state.selection = { kind: 'device', index: event._device };
-        state.deviceControls[event._device] = event.control;
-        render();
-      }))));
   });
   if (!state.layout.devices.length) items.push(el('li', { class: 'hint' }, 'No devices yet.'));
   const list = $('rules-owners');

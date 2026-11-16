@@ -308,6 +308,8 @@ details.more > .fields { margin-top: 6px; }
 .fields label.documented { cursor: help; text-decoration: underline dotted color-mix(in srgb, var(--muted) 60%, transparent); text-underline-offset: 3px; }
 .fields label.changed::before { content: '●'; color: var(--accent); font-size: 8px; vertical-align: 2px; margin-right: 4px; }
 .fields .control { display: flex; gap: 6px; align-items: center; min-width: 0; }
+.fields .control > .names { flex: 1; display: grid; grid-template-columns: repeat(auto-fill, minmax(64px, 1fr)); gap: 2px 8px; }
+.fields .control > .names label { display: flex; gap: 4px; align-items: center; white-space: nowrap; }
 .fields .control > input[type=text], .fields .control > select { flex: 1; width: 100%; }
 .fields .reset { visibility: hidden; }
 .fields .changed + .control .reset { visibility: visible; }
@@ -473,9 +475,8 @@ body.dragging #start { display: none; }
 .rule-owners .name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .rule-owners .type { color: var(--muted); font-size: 11px; white-space: nowrap; }
 .rule-owners .count { margin-left: auto; color: var(--muted); font-size: 11px; }
-.rule-owners .owner-picker { padding: 4px 6px 6px 18px; }
-.rule-owners .owner-picker .control { flex-wrap: wrap; }
-.rule-owners .owner-picker select { min-width: 0; width: 100%; }
+.rule-owners .owner.control:not(.used):not(.picked) .name { color: var(--muted); }
+.rule-owners .owner-learn { padding: 2px 6px 4px 18px; }
 .rule-owners .hint { padding: 2px 6px; }
 .rule-list { list-style: none; margin: 0; padding: 4px; overflow: auto; border-right: 1px solid var(--line); user-select: none; }
 .rule-pane { overflow: auto; padding: 10px 12px; }
