@@ -277,6 +277,10 @@ class KeyReleased(ControlEvent):
     note: int
     velocity: float
 
+#: A device option naming some of its controls (those in the device's ``option_kinds`` entry):
+#: layouts write a list of names, or true for all of them
+ControlNames = typing.NewType('ControlNames', tuple)
+
 class ControlInput(Emitter):
     """
     One named control of a device as an emitter of its control events, so
