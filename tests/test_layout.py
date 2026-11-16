@@ -299,6 +299,7 @@ class Output(Emitter):
         self.sent.append(message)
 
 
+@pytest.mark.skipif(sys.platform != 'darwin', reason = 'opens a virtual MIDI port: no ALSA sequencer on Linux CI, no teVirtualMIDI on Windows')
 def test_links_and_mappings_from_device_controls(layout_devices):
     from pyxelwidgets import ControlChanged, ControlPressed, ControlTurned
     from pyxelwidgets.message import ControlChange, NoteOn
