@@ -1603,14 +1603,37 @@ def test_rules_window_lists_widgets_and_devices(page, fake_hardware):
     # A device: its controls' rules, and the control new ones start from
     owners.locator('[data-owner="device:0"]').click()
     assert page.locator('#rules-list .rule-row').count() == 1
-    assert owners.locator('[data-owner="control:0:Solo"]').count() == 1
-    page.select_option('#rules-control', '0:Knob_2')
+    # every control is listed, those with rules show their count
+    assert owners.locator('[data-owner="control:0:Solo"]').inner_text() == 'Solo\nbutton\n1'
+    assert owners.locator('.owner.control').count() > 20
+    owners.locator('[data-owner="control:0:Knob_2"]').click()
+    assert 'picked' in owners.locator('[data-owner="control:0:Knob_2"]').get_attribute('class')
     page.click('#rules-add-message')
     page.wait_for_selector('#mapping-0-control')
     assert page.input_value('#mapping-0-control') == '0:Knob_2'
     shot(page, '16-rules-owners')
     page.click('#rules-open')
     assert page.is_hidden('#rules')
+
+
+def test_device_option_naming_controls(page, fake_hardware):
+    layout = {'format': 'pyxelwidgets.layout', 'version': parser.VERSION, 'surface': {'width': 8, 'height': 2},
+              'devices': [{'type': 'arturia.MiniLab3', 'x': 0, 'y': 0, 'options': {'relative_knobs': True}}], 'widgets': []}
+    page.evaluate("layout => fetch('/api/layout', {method: 'PUT', body: JSON.stringify(layout)})", layout)
+    page.reload()
+    page.wait_for_selector('#palette button')
+    page.click('#rules-open')
+    owners = page.locator('#rules-owners')
+    owners.locator('[data-owner="device:0"]').click()
+    # true (older layouts) ticks every knob; unticking one makes the others a list
+    boxes = page.locator('[id^="option-relative_knobs-"]')
+    assert boxes.count() == 8 and all(boxes.nth(i).is_checked() for i in range(8))
+    assert owners.locator('[data-owner="control:0:Knob_0"] .type').inner_text() == 'relative'
+    page.uncheck('#option-relative_knobs-0')
+    assert owners.locator('[data-owner="control:0:Knob_0"] .type').inner_text() == 'absolute'
+    assert owners.locator('[data-owner="control:0:Knob_1"] .type').inner_text() == 'relative'
+    page.click('#rules-open')
+    assert saved_layout(page)['devices'][0]['options']['relative_knobs'] == [f'Knob_{i}' for i in range(1, 8)]
 
 
 def test_pad_info_in_try_mode(page):

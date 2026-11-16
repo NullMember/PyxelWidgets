@@ -274,3 +274,27 @@ def test_minilab3_knobs_as_encoders():
     plain = device(MiniLab3)
     plain.decode([0xB0, 86, 127])
     assert plain.ring_controls and not sent(plain)
+
+
+def test_minilab3_some_knobs_as_encoders():
+    from pyxelwidgets import parser
+    from pyxelwidgets.events import ControlChanged, ControlTurned, Event
+    lab = device(MiniLab3, relative_knobs = ['Knob_7', 'Knob_1'])
+    assert lab.relative_knobs == ('Knob_1', 'Knob_7') and 'Knob_1' not in lab.ring_controls and 'Knob_0' in lab.ring_controls
+    seen = []
+    lab.on(Event, seen.append)
+    lab.decode([0xB0, 86, 127])     # Knob_0: where it is
+    lab.decode([0xB0, 87, 66])      # Knob_1: how far it turned
+    assert [(type(e), e.control) for e in seen] == [(ControlChanged, 'Knob_0'), (ControlTurned, 'Knob_1')]
+    lab.on_connect()
+    assert [m[9] for m in sent(lab) if m[6:8] == [0x21, 0x10]] == [8, 14]     # only those two are centred
+    # Layouts: a list of knobs, true for all (older layouts), and nothing else
+    assert device(MiniLab3, relative_knobs = True).relative_knobs == tuple(MiniLab3.knob_ids)
+    option = next(o for o in parser.option_schema(MiniLab3) if o['name'] == 'relative_knobs')
+    assert option['kind'] == 'controls' and option['default'] == [] and option['choices'] == list(MiniLab3.knob_ids)
+    entry = {'type': 'arturia.MiniLab3', 'x': 0, 'y': 0}
+    assert parser._options(MiniLab3, {'relative_knobs': ['Knob_2']}, 'd') == {'relative_knobs': ('Knob_2',)}
+    assert parser._options(MiniLab3, {'relative_knobs': True}, 'd')['relative_knobs'] == tuple(MiniLab3.knob_ids)
+    for bad, message in ((['Knob_9'], "no 'Knob_9'"), ('Knob_1', 'a list of control names')):
+        with pytest.raises(parser.LayoutError, match = message):
+            parser._options(MiniLab3, {'relative_knobs': bad}, 'devices[0]')
