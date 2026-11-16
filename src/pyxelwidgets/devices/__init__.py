@@ -17,10 +17,11 @@ import numpy
 import pyxelwidgets.buffer
 import pyxelwidgets.events
 import pyxelwidgets.rectangle
+from pyxelwidgets.events import ControlNames
 from pyxelwidgets.devices.colors import Brightness, ColorModel, Levels, Palette, PassThrough, RGB
 from pyxelwidgets.devices.input import PadInput
 
-__all__ = ['Control', 'Device', 'Brightness', 'ColorModel', 'Levels', 'Palette', 'PassThrough', 'RGB']
+__all__ = ['Control', 'ControlNames', 'Device', 'Brightness', 'ColorModel', 'Levels', 'Palette', 'PassThrough', 'RGB']
 
 @dataclasses.dataclass(frozen = True)
 class Control:
@@ -57,8 +58,23 @@ class Device(pyxelwidgets.events.Emitter):
     ring_controls: tuple = ()
     #: Text screens (``set_screen``): name -> the characters each line holds
     screens: dict = {}
-    #: Controls whose kind an on/off option changes: option -> {control: kind while it's on}
+    #: Controls whose kind an option changes: option -> {control: kind while it's on (bool) or named (ControlNames)}
     option_kinds: dict = {}
+
+    @classmethod
+    def control_names(cls, option: str, names) -> tuple:
+        """The controls a ControlNames ``option`` names: True = all of them, False/None = none; raises ValueError for others."""
+        choices = tuple(cls.option_kinds.get(option, {}))
+        if names is True:
+            return choices
+        if not names:
+            return ()
+        if isinstance(names, str):
+            names = (names,)
+        unknown = [name for name in names if name not in choices]
+        if unknown:
+            raise ValueError(f'{option}: {cls.__name__} has no {", ".join(map(repr, unknown))} (controls: {", ".join(choices)})')
+        return tuple(name for name in choices if name in names)
 
     # Per class counters for default names (LaunchpadX_0, Virtual_0, ...)
     _counts = {}
