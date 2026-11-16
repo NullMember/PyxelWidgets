@@ -2505,7 +2505,7 @@ Layout files: a JSON description of a Surface, the devices it is shown on and
 its widgets, as written by the designer (`python -m pyxelwidgets.designer`).
 
     {
-      "format": "pyxelwidgets.layout", "version": 5,
+      "format": "pyxelwidgets.layout", "version": 6,
       "surface": {"width": 9, "height": 9},
       "transport": {"bpm": 120, "signature": [4, 4]},
       "devices": [{"type": "novation.LaunchpadMiniMK3", "x": 0, "y": 0, "options": {}}],
@@ -2817,6 +2817,7 @@ Input: call `set_button(x, y, velocity)` for grid pads (velocity 0 releases)
 and `emit` control events; the base turns pads into PadPressed, PadReleased,
 PadDoublePressed and PadHeld events.
 
+- classmethod **`control_names(option: str, names)`**: The controls a ControlNames `option` names: True = all of them, False/None = none; raises ValueError for others.
 - **`width`**
 - **`height`**
 - classmethod **`describe()`**: The device's layout and capabilities as plain data (e.g. for a design tool).
@@ -3429,7 +3430,7 @@ Members: `Encoder_0`, `Encoder_1`, `Encoder_2`, `Encoder_3`, `Encoder_4`, `Encod
 ### `MiniLab3` (_MiniLab)
 
 ```python
-MiniLab3(*, relative_knobs: bool = False, **kwargs)
+MiniLab3(*, relative_knobs: events.ControlNames = (), **kwargs)
 ```
 
 MiniLab 3 in its DAW program: 16 RGB pads (two banks of 8), 8 knobs, 4
@@ -3441,10 +3442,10 @@ Play, Record and Tap buttons, lit while Shift is held. `Screen` shows two
 lines (`set_screen`, or `show_text`) until the device draws over them
 (e.g. when its own controls move). The knobs are endless: `set_ring`
 sets the value they go on from, so a bound knob turns from its widget's value.
-With `relative_knobs` they're encoders instead: each turn is a
+Knobs named in `relative_knobs` are encoders instead: each turn is a
 ControlTurned by how far it went, with no ends.
 
-- `relative_knobs: bool = False, optional`: The knobs send how far they turned (ControlTurned, like encoders) instead of where they are.
+- `relative_knobs: ControlNames = (), optional`: Knobs (`'Knob_0'`...; True = all) that send how far they turned (ControlTurned, like encoders) instead of where they are.
 
 - **`set_daw_mode(enabled: bool)`**: Tell the DAW program a host is there (or gone); the program itself is picked on the device.
 - **`request_program()`**: Ask which program is on: the answer sets `daw`.

@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- **MiniLab 3 knobs one by one:** `relative_knobs` lists the knobs that are
+  encoders (`true` still makes them all encoders); the designer has a checkbox
+  per knob.
+- **Layout format version 6:** device options can name some of its controls.
 - **Skip:** a link or message can do nothing for an event: `skip` in a
   formula (`{note if pages.page == 3 else skip}`), `{"skip": true}` in a
   condition or list. A message with a skipped field isn't sent, so a mapping
